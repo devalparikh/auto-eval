@@ -1,0 +1,248 @@
+@import "tailwindcss";
+@import "@xyflow/react/dist/style.css";
+
+:root {
+  --bg: #f4f6f8;
+  --surface: #fbfcfd;
+  --surface-raised: #ffffff;
+  --surface-muted: #edf1f4;
+  --text: #16202a;
+  --text-muted: #66727e;
+  --text-faint: #8e99a4;
+  --border: #dbe1e6;
+  --border-strong: #c6ced6;
+  --accent: #3568d4;
+  --accent-strong: #2855b4;
+  --accent-soft: #e7eefc;
+  --success: #267a58;
+  --success-soft: #e4f3ec;
+  --warning: #9a5b19;
+  --warning-soft: #faeddb;
+  --danger: #b43d3d;
+  --danger-soft: #f9e5e5;
+  --sidebar: #17212b;
+  --sidebar-muted: #9eacb8;
+  --radius: 10px;
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #10161c;
+    --surface: #151d24;
+    --surface-raised: #1a232c;
+    --surface-muted: #202b35;
+    --text: #edf1f4;
+    --text-muted: #9aa7b3;
+    --text-faint: #778590;
+    --border: #2b3741;
+    --border-strong: #3a4854;
+    --accent: #81a8ff;
+    --accent-strong: #a8c2ff;
+    --accent-soft: #1c3158;
+    --success: #6cc59b;
+    --success-soft: #173b2e;
+    --warning: #e4a75b;
+    --warning-soft: #49331c;
+    --danger: #f08a8a;
+    --danger-soft: #4c2528;
+    --sidebar: #0b1015;
+    --sidebar-muted: #8b9aa6;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  background: var(--bg);
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-size: 14px;
+  font-feature-settings: "tnum" 1, "cv02" 1, "cv03" 1;
+  text-rendering: optimizeLegibility;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+button,
+a,
+select,
+input,
+textarea {
+  -webkit-tap-highlight-color: transparent;
+}
+
+button:focus-visible,
+a:focus-visible,
+select:focus-visible,
+input:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+::selection {
+  background: var(--accent-soft);
+  color: var(--text);
+}
+
+.mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-variant-numeric: tabular-nums;
+}
+
+.app-button {
+  display: inline-flex;
+  min-height: 36px;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  padding: 0 13px;
+  background: var(--accent);
+  color: #f7f9fc;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    transform 140ms var(--ease-out),
+    background-color 160ms ease,
+    border-color 160ms ease,
+    color 160ms ease;
+}
+
+.app-button:hover {
+  background: var(--accent-strong);
+}
+
+.app-button:active {
+  transform: scale(0.97);
+}
+
+.app-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.48;
+  transform: none;
+}
+
+.app-button.secondary {
+  border-color: var(--border-strong);
+  background: var(--surface-raised);
+  color: var(--text);
+}
+
+.app-button.secondary:hover {
+  border-color: var(--text-faint);
+  background: var(--surface-muted);
+}
+
+.app-button.danger {
+  background: var(--danger);
+}
+
+.field {
+  display: grid;
+  gap: 7px;
+}
+
+.field > label,
+.field-label {
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.app-input,
+.app-select,
+.app-textarea {
+  width: 100%;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  background: var(--surface-raised);
+  color: var(--text);
+  transition:
+    border-color 160ms ease,
+    box-shadow 160ms ease;
+}
+
+.app-input,
+.app-select {
+  min-height: 38px;
+  padding: 0 10px;
+}
+
+.app-textarea {
+  min-height: 110px;
+  resize: vertical;
+  padding: 10px;
+  line-height: 1.5;
+}
+
+.app-input::placeholder,
+.app-textarea::placeholder {
+  color: var(--text-faint);
+}
+
+.app-input:focus,
+.app-select:focus,
+.app-textarea:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 14%, transparent);
+  outline: none;
+}
+
+.data-row {
+  transition: background-color 140ms ease;
+}
+
+.data-row:hover {
+  background: var(--surface-muted);
+}
+
+.skeleton {
+  border-radius: 6px;
+  background: linear-gradient(
+    90deg,
+    var(--surface-muted) 25%,
+    var(--surface-raised) 50%,
+    var(--surface-muted) 75%
+  );
+  background-size: 200% 100%;
+  animation: skeleton 1.4s linear infinite;
+}
+
+@keyframes skeleton {
+  to {
+    background-position-x: -200%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+@media (max-width: 767px) {
+  body {
+    font-size: 13px;
+  }
+}
