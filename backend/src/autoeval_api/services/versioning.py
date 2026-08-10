@@ -6,6 +6,7 @@ from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from autoeval_api.agent_systems.registry import system_spec
 from autoeval_api.models import (
     AgentSystemRecord,
     AgentSystemVersionRecord,
@@ -106,9 +107,21 @@ def create_prompt_version(
     return version
 
 
-def latest_agent_version(session: Session) -> AgentSystemVersionRecord:
+def default_agent_system(session: Session) -> AgentSystemRecord:
+    system = session.query(AgentSystemRecord).filter_by(key="incident-triage").first()
+    system = system or session.query(AgentSystemRecord).order_by(AgentSystemRecord.name).first()
+    if system is None:
+        raise LookupError("No agent system exists")
+    return system
+
+
+def latest_agent_version(
+    session: Session, agent_system_id: str | None = None
+) -> AgentSystemVersionRecord:
+    system_id = agent_system_id or default_agent_system(session).id
     version = (
         session.query(AgentSystemVersionRecord)
+        .filter_by(agent_system_id=system_id)
         .order_by(AgentSystemVersionRecord.version.desc())
         .first()
     )
@@ -117,9 +130,13 @@ def latest_agent_version(session: Session) -> AgentSystemVersionRecord:
     return version
 
 
-def latest_prompt_version(session: Session) -> PromptVersionRecord:
+def latest_prompt_version(session: Session, agent_system_id: str) -> PromptVersionRecord:
     version = (
-        session.query(PromptVersionRecord).order_by(PromptVersionRecord.version.desc()).first()
+        session.query(PromptVersionRecord)
+        .join(PromptRecord, PromptRecord.id == PromptVersionRecord.prompt_id)
+        .filter(PromptRecord.agent_system_id == agent_system_id)
+        .order_by(PromptVersionRecord.version.desc())
+        .first()
     )
     if version is None:
         raise LookupError("No prompt version exists")
@@ -133,12 +150,17 @@ def agent_system_summary(session: Session, system: AgentSystemRecord) -> AgentSy
         .order_by(AgentSystemVersionRecord.version.desc())
         .all()
     )
+    spec = system_spec(system.key)
     return AgentSystemSummary(
         id=system.id,
         key=system.key,
         name=system.name,
         description=system.description,
         versions=[_version_summary(item) for item in versions],
+        default_model_ids=list(spec.default_model_ids),
+        input_template=spec.input_template,
+        dataset_editor=spec.dataset_editor,
+        primary_metric=spec.primary_metric,
     )
 
 
@@ -151,6 +173,7 @@ def prompt_summary(session: Session, prompt: PromptRecord) -> PromptSummary:
     )
     return PromptSummary(
         id=prompt.id,
+        agent_system_id=prompt.agent_system_id,
         key=prompt.key,
         name=prompt.name,
         description=prompt.description,

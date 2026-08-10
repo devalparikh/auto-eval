@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { TraceDetailScreen } from "@/features/traces/trace-detail-screen";
+import { redirect } from "next/navigation";
 
 export const metadata: Metadata = { title: "Trace detail" };
 
@@ -9,5 +9,5 @@ export default async function TraceDetailPage({
   params: Promise<{ traceId: string }>;
 }) {
   const { traceId } = await params;
-  return <TraceDetailScreen traceId={traceId} />;
+  redirect(`/systems/incident-triage/traces/${traceId}`);
 }

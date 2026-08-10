@@ -8,7 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from sqlalchemy.orm import Session
 
-from autoeval_api.agent_systems.incident_triage.seed import ensure_demo_runs, ensure_seed_data
+from autoeval_api.agent_systems.seed import ensure_demo_runs, ensure_seed_data
 from autoeval_api.api.middleware import RequestGuardMiddleware, SecurityHeadersMiddleware
 from autoeval_api.api.routes import catalog, datasets, evaluations, traces, versions
 from autoeval_api.config import Settings, get_settings

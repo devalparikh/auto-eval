@@ -10,6 +10,7 @@ import {
   finalDatasetVersions,
   graphVersions,
   promptVersions,
+  systemByKey,
 } from "@/features/catalog/catalog-options";
 import { ModelPicker } from "@/features/evaluations/model-picker";
 import { RunStatusPanel } from "@/features/evaluations/run-status-panel";
@@ -18,20 +19,24 @@ import { api } from "@/lib/api";
 import { playPreferredUiSound } from "@/lib/sound";
 import { useApiResource } from "@/lib/use-api-resource";
 
-export function EvaluationsScreen() {
+export function EvaluationsScreen({ systemKey }: { systemKey: string }) {
   const catalog = useApiResource(api.catalog, []);
-  const [selectedModels, setSelectedModels] = useState<string[]>([
-    "mock/incident-specialist",
-    "mock/incident-fast",
-  ]);
+  const system = systemByKey(catalog.data, systemKey);
+  const [requestedModels, setSelectedModels] = useState<string[] | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { run, setRun } = useEvalRunPolling();
   const previousRunStatus = useRef<string | null>(null);
-  const datasets = finalDatasetVersions(catalog.data);
+  const datasets = finalDatasetVersions(catalog.data, systemKey);
   const models = availableModels(catalog.data);
-  const graphs = graphVersions(catalog.data);
-  const prompts = promptVersions(catalog.data);
+  const graphs = graphVersions(catalog.data, systemKey);
+  const prompts = promptVersions(catalog.data, systemKey);
+  const selectedModels =
+    requestedModels ??
+    system?.default_model_ids.filter((modelId) =>
+      models.some((model) => model.id === modelId),
+    ) ??
+    [];
 
   useEffect(() => {
     if (
@@ -68,7 +73,7 @@ export function EvaluationsScreen() {
   return (
     <>
       <PageHeader
-        title="Run evaluation"
+        title={`Evaluate ${system?.name ?? "agent system"}`}
         description="Pin every version and compare the same ground truth across models."
       />
       <section className="grid gap-5 p-4 md:p-7 xl:grid-cols-[minmax(0,720px)_minmax(280px,1fr)]">
@@ -101,7 +106,7 @@ export function EvaluationsScreen() {
                   <Select id="eval-graph" name="graphVersion" required>
                     {graphs.map((version) => (
                       <option key={version.id} value={version.id}>
-                        Incident triage v{version.version}
+                        {system?.name} v{version.version}
                       </option>
                     ))}
                   </Select>
@@ -111,7 +116,7 @@ export function EvaluationsScreen() {
                   <Select id="eval-prompt" name="promptVersion" required>
                     {prompts.map((version) => (
                       <option key={version.id} value={version.id}>
-                        Triage prompt v{version.version}
+                        Prompt v{version.version}
                       </option>
                     ))}
                   </Select>
@@ -144,7 +149,7 @@ export function EvaluationsScreen() {
             </form>
           )}
         </div>
-        <RunStatusPanel run={run} />
+        <RunStatusPanel run={run} systemKey={systemKey} />
       </section>
     </>
   );

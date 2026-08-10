@@ -4,14 +4,17 @@ import { GitBranchIcon, TextTIcon } from "@phosphor-icons/react";
 import { useState } from "react";
 import { PageHeader } from "@/components/page-header";
 import { ErrorState, LoadingState } from "@/components/states";
+import { systemByKey } from "@/features/catalog/catalog-options";
 import { VersionEditor } from "@/features/systems/version-editor";
 import { api } from "@/lib/api";
 import { useApiResource } from "@/lib/use-api-resource";
 
-export function SystemsScreen() {
+export function SystemsScreen({ systemKey }: { systemKey: string }) {
   const catalog = useApiResource(api.catalog, []);
-  const system = catalog.data?.agent_systems[0];
-  const prompt = catalog.data?.prompts[0];
+  const system = systemByKey(catalog.data, systemKey);
+  const prompt = catalog.data?.prompts.find(
+    (item) => item.agent_system_id === system?.id,
+  );
   const [requestedGraphVersionId, setGraphVersionId] = useState("");
   const [requestedPromptVersionId, setPromptVersionId] = useState("");
   const graphVersionId = requestedGraphVersionId || system?.versions[0]?.id || "";
@@ -35,7 +38,7 @@ export function SystemsScreen() {
   return (
     <>
       <PageHeader
-        title="Versions"
+        title={`${system?.name ?? "Agent system"} versions`}
         description="Create immutable graph and system prompt revisions."
       />
       {catalog.loading ? <LoadingState rows={8} /> : null}

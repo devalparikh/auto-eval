@@ -1,7 +1,7 @@
 "use client";
 
 import { PlusIcon } from "@phosphor-icons/react";
-import type { FormEvent } from "react";
+import { useState, type FormEvent } from "react";
 import { Modal } from "@/components/modal";
 import { Select } from "@/components/select";
 import { LoadingState } from "@/components/states";
@@ -9,12 +9,12 @@ import {
   availableModels,
   graphVersions,
   promptVersions,
+  systemByKey,
 } from "@/features/catalog/catalog-options";
 import type { Catalog } from "@/lib/types";
 
 export type RunTraceInput = {
-  text: string;
-  service: string;
+  input: Record<string, unknown>;
   modelId: string;
   graphVersionId: string;
   promptVersionId: string;
@@ -23,6 +23,7 @@ export type RunTraceInput = {
 export function RunTraceModal({
   open,
   catalog,
+  systemKey,
   loading,
   submitting,
   error,
@@ -31,22 +32,36 @@ export function RunTraceModal({
 }: {
   open: boolean;
   catalog: Catalog | null;
+  systemKey: string;
   loading: boolean;
   submitting: boolean;
   error: string | null;
   onClose: () => void;
   onSubmit: (payload: RunTraceInput) => Promise<void>;
 }) {
-  const models = availableModels(catalog);
-  const graphs = graphVersions(catalog);
-  const prompts = promptVersions(catalog);
+  const [parseError, setParseError] = useState<string | null>(null);
+  const system = systemByKey(catalog, systemKey);
+  const allModels = availableModels(catalog);
+  const models = [
+    ...allModels.filter((model) => system?.default_model_ids.includes(model.id)),
+    ...allModels.filter((model) => !system?.default_model_ids.includes(model.id)),
+  ];
+  const graphs = graphVersions(catalog, systemKey);
+  const prompts = promptVersions(catalog, systemKey);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
+    setParseError(null);
+    let input: Record<string, unknown>;
+    try {
+      input = JSON.parse(String(form.get("input"))) as Record<string, unknown>;
+    } catch {
+      setParseError("Request input must be a valid JSON object.");
+      return;
+    }
     await onSubmit({
-      text: String(form.get("text")),
-      service: String(form.get("service")),
+      input,
       modelId: String(form.get("model")),
       graphVersionId: String(form.get("graphVersion")),
       promptVersionId: String(form.get("promptVersion")),
@@ -57,7 +72,7 @@ export function RunTraceModal({
     <Modal
       open={open}
       title="Run an agent request"
-      description="The latest graph and prompt versions are selected by default."
+      description={`Run ${system?.name ?? "this system"} with pinned graph and prompt versions.`}
       onClose={onClose}
     >
       {loading ? (
@@ -65,25 +80,17 @@ export function RunTraceModal({
       ) : (
         <form onSubmit={submit} className="grid gap-4 p-5">
           <div className="field">
-            <label htmlFor="trace-text">Incident report</label>
+            <label htmlFor="trace-input">Request input (JSON)</label>
             <textarea
-              id="trace-text"
-              name="text"
-              className="app-textarea"
+              key={system?.id}
+              id="trace-input"
+              name="input"
+              className="app-textarea mono min-h-[240px] text-[10px]"
               required
-              defaultValue="The checkout service is returning 5xx errors for enterprise customers."
+              defaultValue={JSON.stringify(system?.input_template ?? {}, null, 2)}
             />
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
-            <div className="field">
-              <label htmlFor="trace-service">Service</label>
-              <input
-                id="trace-service"
-                name="service"
-                className="app-input"
-                defaultValue="checkout"
-              />
-            </div>
             <div className="field">
               <label htmlFor="trace-model">Model</label>
               <Select id="trace-model" name="model">
@@ -101,7 +108,7 @@ export function RunTraceModal({
               <Select id="trace-graph" name="graphVersion">
                 {graphs.map((version) => (
                   <option key={version.id} value={version.id}>
-                    Incident triage v{version.version}
+                    {system?.name} v{version.version}
                   </option>
                 ))}
               </Select>
@@ -111,14 +118,14 @@ export function RunTraceModal({
               <Select id="trace-prompt" name="promptVersion">
                 {prompts.map((version) => (
                   <option key={version.id} value={version.id}>
-                    Triage prompt v{version.version}
+                    Prompt v{version.version}
                   </option>
                 ))}
               </Select>
             </div>
           </div>
-          {error ? (
-            <p className="text-[12px] text-[var(--danger)]">{error}</p>
+          {error || parseError ? (
+            <p className="text-[12px] text-[var(--danger)]">{error ?? parseError}</p>
           ) : null}
           <div className="flex justify-end gap-2 border-t border-[var(--border)] pt-4">
             <button

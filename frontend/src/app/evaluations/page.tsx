@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
-import { EvaluationsScreen } from "@/features/evaluations/evaluations-screen";
+import { redirect } from "next/navigation";
 
 export const metadata: Metadata = { title: "Run evaluation" };
 
 export default function EvaluationsPage() {
-  return <EvaluationsScreen />;
+  redirect("/systems/incident-triage/evaluations");
 }

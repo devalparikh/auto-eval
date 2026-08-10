@@ -11,9 +11,20 @@ export type AgentSystemSummary = {
   name: string;
   description: string;
   versions: VersionSummary[];
+  default_model_ids: string[];
+  input_template: Record<string, unknown>;
+  dataset_editor: string;
+  primary_metric: string;
 };
 
-export type PromptSummary = AgentSystemSummary;
+export type PromptSummary = {
+  id: string;
+  agent_system_id: string;
+  key: string;
+  name: string;
+  description: string;
+  versions: VersionSummary[];
+};
 
 export type DatasetVersionSummary = {
   id: string;
@@ -26,6 +37,7 @@ export type DatasetVersionSummary = {
 
 export type DatasetSummary = {
   id: string;
+  agent_system_id: string;
   key: string;
   name: string;
   description: string;
@@ -102,8 +114,17 @@ export type TraceSpan = {
 export type Trace = {
   id: string;
   status: string;
+  agent_system_id: string;
+  agent_system_key: string;
+  agent_system_name: string;
   agent_system_version_id: string;
   prompt_version_id: string;
+  origin_type: "runtime" | "evaluation" | "legacy_unknown";
+  evaluation_run_id: string | null;
+  evaluation_dataset_item_id: string | null;
+  dataset_membership_count: number;
+  dataset_count: number;
+  dataset_memberships: DatasetMembership[];
   model_id: string;
   request_input: Record<string, unknown>;
   output: Record<string, unknown> | null;
@@ -116,6 +137,37 @@ export type Trace = {
   completed_at: string | null;
   graph_definition: GraphDefinition | null;
   spans: TraceSpan[];
+};
+
+export type DatasetMembership = {
+  dataset_id: string;
+  dataset_key: string;
+  dataset_name: string;
+  dataset_version_id: string;
+  dataset_version: number;
+  dataset_version_status: "draft" | "final";
+  dataset_item_id: string;
+  created_at: string;
+};
+
+export type DatasetTarget = {
+  dataset_id: string;
+  dataset_key: string;
+  dataset_name: string;
+  dataset_version_id: string;
+  dataset_version: number;
+  eligible: boolean;
+  existing_item_id: string | null;
+  reason: "already_in_version" | "trace_not_complete" | null;
+  warnings: Array<"evaluation_origin" | "same_source_dataset">;
+};
+
+export type TraceDatasetTargets = {
+  trace_id: string;
+  memberships: DatasetMembership[];
+  targets: DatasetTarget[];
+  evaluation_expected: Record<string, unknown> | null;
+  evaluation_actual: Record<string, unknown> | null;
 };
 
 export type DatasetItem = {
@@ -148,6 +200,7 @@ export type EvalMetrics = {
   p50_latency_ms: number;
   p95_latency_ms: number;
   item_count: number;
+  [key: string]: number;
 };
 
 export type EvalModelResult = {

@@ -1,13 +1,16 @@
 from typing import Any
 
 from sqlalchemy import func
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from autoeval_api.models import (
+    AgentSystemVersionRecord,
     DatasetItemRecord,
     DatasetRecord,
     DatasetStatus,
     DatasetVersionRecord,
+    RunStatus,
     TraceRecord,
     utc_now,
 )
@@ -74,36 +77,99 @@ def add_dataset_item(
     version: DatasetVersionRecord,
     input_payload: dict[str, Any],
     expected: dict[str, Any],
-    source_trace_id: str | None = None,
 ) -> DatasetItemRecord:
     require_draft(version)
-    if source_trace_id and session.get(TraceRecord, source_trace_id) is None:
-        raise LookupError("Source trace not found")
     item = DatasetItemRecord(
         dataset_version_id=version.id,
         input=input_payload,
         expected=expected,
-        source_trace_id=source_trace_id,
     )
     session.add(item)
-    session.commit()
+    try:
+        session.commit()
+    except IntegrityError as error:
+        session.rollback()
+        raise ValueError("Dataset version is no longer an editable draft") from error
     session.refresh(item)
     return item
+
+
+def add_trace_to_dataset(
+    session: Session,
+    version: DatasetVersionRecord,
+    trace: TraceRecord,
+    expected: dict[str, Any],
+) -> tuple[DatasetItemRecord, bool]:
+    require_draft(version)
+    if trace.status != RunStatus.COMPLETE:
+        raise ValueError("Only complete traces can be added to a dataset")
+    dataset = session.get(DatasetRecord, version.dataset_id)
+    graph_version = session.get(AgentSystemVersionRecord, trace.agent_system_version_id)
+    if dataset is None or graph_version is None:
+        raise LookupError("Dataset or trace agent system not found")
+    if dataset.agent_system_id != graph_version.agent_system_id:
+        raise ValueError("Trace and dataset belong to different agent systems")
+
+    existing = _trace_item(session, version.id, trace.id)
+    if existing is not None:
+        if existing.expected != expected:
+            raise ValueError(
+                f"Trace is already included with different expected values ({existing.id})"
+            )
+        return existing, False
+
+    item = DatasetItemRecord(
+        dataset_version_id=version.id,
+        input=trace.request_input,
+        expected=expected,
+        source_trace_id=trace.id,
+    )
+    session.add(item)
+    try:
+        session.commit()
+    except IntegrityError:
+        session.rollback()
+        existing = _trace_item(session, version.id, trace.id)
+        if existing is None:
+            raise ValueError("Dataset version is no longer an editable draft") from None
+        if existing.expected != expected:
+            raise ValueError(
+                f"Trace is already included with different expected values ({existing.id})"
+            ) from None
+        return existing, False
+    session.refresh(item)
+    return item, True
+
+
+def _trace_item(session: Session, version_id: str, trace_id: str) -> DatasetItemRecord | None:
+    return (
+        session.query(DatasetItemRecord)
+        .filter_by(dataset_version_id=version_id, source_trace_id=trace_id)
+        .first()
+    )
 
 
 def update_dataset_item(
     session: Session,
     item: DatasetItemRecord,
-    input_payload: dict[str, Any],
+    input_payload: dict[str, Any] | None,
     expected: dict[str, Any],
 ) -> DatasetItemRecord:
     version = get_dataset_version(session, item.dataset_version_id)
     require_draft(version)
-    item.input = input_payload
+    if item.source_trace_id is not None:
+        if input_payload is not None and input_payload != item.input:
+            raise ValueError("Trace-derived inputs are immutable; update expected values only")
+    elif input_payload is not None:
+        item.input = input_payload
     item.expected = expected
     item.updated_at = utc_now()
     session.add(item)
-    session.commit()
+    try:
+        session.commit()
+    except IntegrityError as error:
+        session.rollback()
+        raise ValueError("Dataset version is no longer an editable draft") from error
     session.refresh(item)
     return item
 
@@ -132,6 +198,7 @@ def dataset_summary(session: Session, dataset: DatasetRecord) -> DatasetSummary:
     )
     return DatasetSummary(
         id=dataset.id,
+        agent_system_id=dataset.agent_system_id,
         key=dataset.key,
         name=dataset.name,
         description=dataset.description,

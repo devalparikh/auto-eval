@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
-import { SystemsScreen } from "@/features/systems/systems-screen";
+import { SystemBrowserScreen } from "@/features/systems/system-browser-screen";
 
-export const metadata: Metadata = { title: "Versions" };
+export const metadata: Metadata = { title: "Agent systems" };
 
 export default function SystemsPage() {
-  return <SystemsScreen />;
+  return <SystemBrowserScreen />;
 }

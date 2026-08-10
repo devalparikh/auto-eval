@@ -39,5 +39,16 @@ def default_scoring_registry() -> ScoringRegistry:
         DATASET_KEY,
         IncidentTriageMetricSuite,
     )
+    from autoeval_api.agent_systems.portfolio_analyst.scoring import (
+        DATASET_KEY as PORTFOLIO_DATASET_KEY,
+    )
+    from autoeval_api.agent_systems.portfolio_analyst.scoring import (
+        PortfolioAnalysisMetricSuite,
+    )
 
-    return ScoringRegistry([(DATASET_KEY, IncidentTriageMetricSuite())])
+    return ScoringRegistry(
+        [
+            (DATASET_KEY, IncidentTriageMetricSuite()),
+            (PORTFOLIO_DATASET_KEY, PortfolioAnalysisMetricSuite()),
+        ]
+    )

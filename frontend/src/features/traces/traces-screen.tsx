@@ -7,6 +7,8 @@ import { useState } from "react";
 import { PageHeader } from "@/components/page-header";
 import { EmptyState, ErrorState, LoadingState } from "@/components/states";
 import { StatusBadge } from "@/components/status-badge";
+import { systemByKey } from "@/features/catalog/catalog-options";
+import { systemPath } from "@/features/systems/system-path";
 import {
   RunTraceModal,
   type RunTraceInput,
@@ -22,10 +24,14 @@ import {
 import { playPreferredUiSound } from "@/lib/sound";
 import { useApiResource } from "@/lib/use-api-resource";
 
-export function TracesScreen() {
+export function TracesScreen({ systemKey }: { systemKey: string }) {
   const router = useRouter();
-  const traces = useApiResource(api.traces, []);
   const catalog = useApiResource(api.catalog, []);
+  const system = systemByKey(catalog.data, systemKey);
+  const traces = useApiResource(
+    () => (system?.id ? api.traces(system.id) : Promise.resolve([])),
+    [system?.id],
+  );
   const [modalOpen, setModalOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -35,18 +41,15 @@ export function TracesScreen() {
     setSubmitError(null);
     try {
       const trace = await api.runTrace({
-        input: {
-          text: payload.text,
-          service: payload.service,
-          customer_tier: "standard",
-        },
+        input: payload.input,
         model_id: payload.modelId,
+        agent_system_id: system?.id,
         agent_system_version_id: payload.graphVersionId,
         prompt_version_id: payload.promptVersionId,
       });
       playPreferredUiSound("success");
       setModalOpen(false);
-      router.push(`/traces/${trace.id}`);
+      router.push(systemPath(systemKey, `traces/${trace.id}`));
     } catch (caught) {
       setSubmitError(caught instanceof Error ? caught.message : "Trace failed");
     } finally {
@@ -57,8 +60,8 @@ export function TracesScreen() {
   return (
     <>
       <PageHeader
-        title="Traces"
-        description="Inspect every node, inference, and deterministic step."
+        title={`${system?.name ?? "Agent system"} traces`}
+        description="Inspect runtime and evaluation executions, node by node."
         action={
           <button className="app-button" onClick={() => setModalOpen(true)}>
             <PlayIcon size={15} weight="fill" />
@@ -80,13 +83,13 @@ export function TracesScreen() {
           {!traces.loading && !traces.error && traces.data?.length === 0 ? (
             <EmptyState
               title="No traces yet"
-              message="Run the seeded incident graph to record its node-by-node execution."
+              message="Run this agent system to record its node-by-node execution."
             />
           ) : null}
           {traces.data?.map((trace) => (
             <Link
               key={trace.id}
-              href={`/traces/${trace.id}`}
+              href={systemPath(systemKey, `traces/${trace.id}`)}
               className="data-row grid min-h-[58px] grid-cols-[minmax(0,1fr)_110px_90px_96px_36px] items-center gap-3 border-b border-[var(--border)] px-4 last:border-b-0 max-md:grid-cols-[minmax(0,1fr)_74px_28px]"
             >
               <div className="min-w-0">
@@ -96,13 +99,23 @@ export function TracesScreen() {
                 <p className="mono mt-0.5 text-[10px] text-[var(--text-faint)]">
                   {shortId(trace.id)} · {formatDuration(trace.latency_ms)} ·{" "}
                   {formatCost(trace.cost_usd)}
+                  {trace.dataset_membership_count > 0
+                    ? ` · ${trace.dataset_membership_count} dataset ${trace.dataset_membership_count === 1 ? "version" : "versions"}`
+                    : ""}
                 </p>
               </div>
               <div className="truncate text-[11px] text-[var(--text-muted)] max-md:hidden">
                 {trace.model_id.split("/").slice(-1)[0]}
               </div>
               <div>
-                <StatusBadge status={trace.status} />
+                <div className="flex items-center gap-2">
+                  <StatusBadge status={trace.status} />
+                  {trace.origin_type === "evaluation" ? (
+                    <span className="mono text-[8px] uppercase text-[var(--text-faint)]">
+                      Eval
+                    </span>
+                  ) : null}
+                </div>
               </div>
               <time className="text-[11px] text-[var(--text-muted)] max-md:hidden">
                 {formatDate(trace.started_at)}
@@ -118,6 +131,7 @@ export function TracesScreen() {
       <RunTraceModal
         open={modalOpen}
         catalog={catalog.data}
+        systemKey={systemKey}
         loading={catalog.loading}
         submitting={submitting}
         error={submitError}

@@ -1,10 +1,17 @@
 import { ArrowRightIcon } from "@phosphor-icons/react";
 import Link from "next/link";
 import { StatusBadge } from "@/components/status-badge";
+import { systemPath } from "@/features/systems/system-path";
 import { formatDate, shortId } from "@/lib/format";
 import type { EvalRun } from "@/lib/types";
 
-export function RunStatusPanel({ run }: { run: EvalRun | null }) {
+export function RunStatusPanel({
+  run,
+  systemKey,
+}: {
+  run: EvalRun | null;
+  systemKey: string;
+}) {
   if (!run) {
     return (
       <aside className="rounded-[var(--radius)] border border-dashed border-[var(--border-strong)] p-5">
@@ -31,7 +38,7 @@ export function RunStatusPanel({ run }: { run: EvalRun | null }) {
         />
         {run.error ? <p className="text-[var(--danger)]">{run.error}</p> : null}
         {run.status === "complete" ? (
-          <Link href="/results" className="app-button mt-2">
+          <Link href={systemPath(systemKey, "results")} className="app-button mt-2">
             View results
             <ArrowRightIcon size={14} />
           </Link>

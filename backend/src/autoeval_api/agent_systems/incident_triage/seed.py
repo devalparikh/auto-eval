@@ -82,9 +82,9 @@ def ensure_seed_data(
 ) -> tuple[AgentSystemVersionRecord, PromptVersionRecord, DatasetVersionRecord]:
     agent_system = _get_or_create_agent_system(session)
     graph_version = _latest_graph_version(session, agent_system)
-    prompt = _get_or_create_prompt(session)
+    prompt = _get_or_create_prompt(session, agent_system)
     prompt_version = _latest_prompt_version(session, prompt)
-    dataset = _get_or_create_dataset(session)
+    dataset = _get_or_create_dataset(session, agent_system)
     final_version = _get_or_create_final_dataset(session, dataset)
     _ensure_draft_dataset(session, dataset, final_version)
     return graph_version, prompt_version, final_version
@@ -147,15 +147,19 @@ def _latest_graph_version(session: Session, system: AgentSystemRecord) -> AgentS
     return version or create_agent_version(session, system, INCIDENT_GRAPH)
 
 
-def _get_or_create_prompt(session: Session) -> PromptRecord:
+def _get_or_create_prompt(session: Session, agent_system: AgentSystemRecord) -> PromptRecord:
     record = session.query(PromptRecord).filter_by(key="incident-triage-system").first()
     if record is None:
         record = PromptRecord(
+            agent_system_id=agent_system.id,
             key="incident-triage-system",
             name="Incident triage system prompt",
             description="Shared instructions used by the LLM nodes in the incident graph.",
         )
         session.add(record)
+        session.commit()
+    elif record.agent_system_id != agent_system.id:
+        record.agent_system_id = agent_system.id
         session.commit()
     return record
 
@@ -170,15 +174,19 @@ def _latest_prompt_version(session: Session, prompt: PromptRecord) -> PromptVers
     return version or create_prompt_version(session, prompt, INCIDENT_PROMPT)
 
 
-def _get_or_create_dataset(session: Session) -> DatasetRecord:
+def _get_or_create_dataset(session: Session, agent_system: AgentSystemRecord) -> DatasetRecord:
     record = session.query(DatasetRecord).filter_by(key=DATASET_KEY).first()
     if record is None:
         record = DatasetRecord(
+            agent_system_id=agent_system.id,
             key=DATASET_KEY,
             name="Incident triage ground truth",
             description="Reviewed severity and routing labels for incident reports.",
         )
         session.add(record)
+        session.commit()
+    elif record.agent_system_id != agent_system.id:
+        record.agent_system_id = agent_system.id
         session.commit()
     return record
 
@@ -196,8 +204,7 @@ def _get_or_create_final_dataset(session: Session, dataset: DatasetRecord) -> Da
     version = DatasetVersionRecord(
         dataset_id=dataset.id,
         version=1,
-        status=DatasetStatus.FINAL,
-        finalized_at=utc_now(),
+        status=DatasetStatus.DRAFT,
     )
     session.add(version)
     session.flush()
@@ -205,6 +212,9 @@ def _get_or_create_final_dataset(session: Session, dataset: DatasetRecord) -> Da
         DatasetItemRecord(dataset_version_id=version.id, input=input_payload, expected=expected)
         for input_payload, expected in DATASET_ITEMS
     )
+    session.flush()
+    version.status = DatasetStatus.FINAL
+    version.finalized_at = utc_now()
     session.commit()
     return version
 

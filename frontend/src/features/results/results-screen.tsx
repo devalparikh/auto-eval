@@ -7,6 +7,7 @@ import {
   finalDatasetVersions,
   graphVersions,
   promptVersions,
+  systemByKey,
 } from "@/features/catalog/catalog-options";
 import { CostAccuracyChart } from "@/features/results/cost-accuracy-chart";
 import { buildResultRows } from "@/features/results/result-rows";
@@ -14,12 +15,13 @@ import { ResultsTable } from "@/features/results/results-table";
 import { api } from "@/lib/api";
 import { useApiResource } from "@/lib/use-api-resource";
 
-export function ResultsScreen() {
+export function ResultsScreen({ systemKey }: { systemKey: string }) {
   const catalog = useApiResource(api.catalog, []);
+  const system = systemByKey(catalog.data, systemKey);
   const [requestedDatasetVersionId, setDatasetVersionId] = useState("");
   const [graphVersionId, setGraphVersionId] = useState("");
   const [promptVersionId, setPromptVersionId] = useState("");
-  const datasets = finalDatasetVersions(catalog.data);
+  const datasets = finalDatasetVersions(catalog.data, systemKey);
   const datasetVersionId =
     requestedDatasetVersionId || datasets[0]?.version.id || "";
 
@@ -41,7 +43,7 @@ export function ResultsScreen() {
   return (
     <>
       <PageHeader
-        title="Evaluation results"
+        title={`${system?.name ?? "Agent system"} results`}
         description="Compare quality, cost, and latency on the same finalized ground truth."
       />
       <section className="grid gap-4 p-4 md:p-7">
@@ -64,7 +66,7 @@ export function ResultsScreen() {
               onChange={(event) => setGraphVersionId(event.target.value)}
             >
               <option value="">All versions</option>
-              {graphVersions(catalog.data).map((version) => (
+              {graphVersions(catalog.data, systemKey).map((version) => (
                 <option key={version.id} value={version.id}>
                   Version {version.version}
                 </option>
@@ -77,7 +79,7 @@ export function ResultsScreen() {
               onChange={(event) => setPromptVersionId(event.target.value)}
             >
               <option value="">All versions</option>
-              {promptVersions(catalog.data).map((version) => (
+              {promptVersions(catalog.data, systemKey).map((version) => (
                 <option key={version.id} value={version.id}>
                   Version {version.version}
                 </option>
@@ -88,6 +90,7 @@ export function ResultsScreen() {
         <div className="grid gap-4 2xl:grid-cols-[minmax(0,1.25fr)_minmax(420px,0.75fr)]">
           <ResultsTable
             rows={rows}
+            systemKey={systemKey}
             loading={runs.loading}
             error={runs.error}
             retry={runs.reload}

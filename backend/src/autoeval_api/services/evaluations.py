@@ -2,10 +2,12 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
+from sqlalchemy import update
 from sqlalchemy.orm import Session
 
-from autoeval_api.graph.runner import AgentGraphRunner, RunSelection
+from autoeval_api.graph.runner import AgentGraphRunner, RunSelection, TraceContext
 from autoeval_api.models import (
+    AgentSystemRecord,
     AgentSystemVersionRecord,
     DatasetItemRecord,
     DatasetRecord,
@@ -14,8 +16,10 @@ from autoeval_api.models import (
     EvalItemResultRecord,
     EvalModelResultRecord,
     EvalRunRecord,
+    PromptRecord,
     PromptVersionRecord,
     RunStatus,
+    TraceOrigin,
     TraceRecord,
     utc_now,
 )
@@ -34,6 +38,7 @@ class EvaluationContext:
     graph_version: AgentSystemVersionRecord
     prompt_version: PromptVersionRecord
     metric_suite: MetricSuite
+    agent_system_key: str
 
 
 class EvaluationService:
@@ -57,6 +62,17 @@ class EvaluationService:
     ) -> EvalRunRecord:
         if dataset_version.status != DatasetStatus.FINAL:
             raise ValueError("Only final dataset versions can be evaluated")
+        dataset = session.get(DatasetRecord, dataset_version.dataset_id)
+        prompt = session.get(PromptRecord, prompt_version.prompt_id)
+        if dataset is None or prompt is None:
+            raise ValueError("Evaluation selection is no longer available")
+        selected_systems = {
+            dataset.agent_system_id,
+            graph_version.agent_system_id,
+            prompt.agent_system_id,
+        }
+        if len(selected_systems) != 1:
+            raise ValueError("Dataset, graph, and prompt must belong to the same agent system")
         for model_id in model_ids:
             self.runner.provider_registry.get_for_model(model_id)
         run = EvalRunRecord(
@@ -74,11 +90,17 @@ class EvaluationService:
     async def execute(self, run_id: str) -> None:
         session = self.session_factory()
         try:
+            claimed = session.execute(
+                update(EvalRunRecord)
+                .where(EvalRunRecord.id == run_id, EvalRunRecord.status == RunStatus.QUEUED)
+                .values(status=RunStatus.RUNNING)
+            ).rowcount
+            session.commit()
+            if not claimed:
+                return
             context = self._load_context(session, run_id)
             if context is None:
                 return
-            context.run.status = RunStatus.RUNNING
-            session.commit()
             for model_id in context.run.model_ids:
                 await self._evaluate_model(session, context, model_id)
             context.run.status = RunStatus.COMPLETE
@@ -110,12 +132,16 @@ class EvaluationService:
         )
         if graph_version is None or prompt_version is None or dataset is None:
             raise RuntimeError("Evaluation version selection is no longer available")
+        system = session.get(AgentSystemRecord, graph_version.agent_system_id)
+        if system is None:
+            raise RuntimeError("Evaluation agent system is no longer available")
         return EvaluationContext(
             run=run,
             items=items,
             graph_version=graph_version,
             prompt_version=prompt_version,
             metric_suite=self.scoring_registry.for_dataset(dataset.key),
+            agent_system_key=system.key,
         )
 
     async def _evaluate_model(
@@ -129,12 +155,35 @@ class EvaluationService:
         for item in context.items:
             trace = await self.runner.run(
                 session,
-                RunSelection(context.graph_version, context.prompt_version, model_id),
+                RunSelection(
+                    context.graph_version,
+                    context.prompt_version,
+                    model_id,
+                    context.agent_system_key,
+                ),
                 item.input,
+                TraceContext(
+                    origin_type=TraceOrigin.EVALUATION,
+                    evaluation_run_id=context.run.id,
+                    evaluation_dataset_item_id=item.id,
+                ),
             )
             if trace.status != RunStatus.COMPLETE:
                 raise RuntimeError(trace.error or "Agent run failed")
             completed.append((item, trace))
+            actual = trace.output or {}
+            session.add(
+                EvalItemResultRecord(
+                    eval_run_id=context.run.id,
+                    dataset_item_id=item.id,
+                    model_id=model_id,
+                    trace_id=trace.id,
+                    expected=item.expected,
+                    actual=actual,
+                    scores=context.metric_suite.score_item(item.expected, actual),
+                )
+            )
+            session.commit()
         self._store_model_results(session, context, model_id, completed)
 
     @staticmethod
@@ -166,18 +215,6 @@ class EvaluationService:
             actual_items.append(actual)
             latencies.append(trace.latency_ms)
             costs.append(trace.cost_usd)
-            session.add(
-                EvalItemResultRecord(
-                    eval_run_id=context.run.id,
-                    dataset_item_id=item.id,
-                    model_id=model_id,
-                    trace_id=trace.id,
-                    expected=item.expected,
-                    actual=actual,
-                    scores=context.metric_suite.score_item(item.expected, actual),
-                )
-            )
-
         session.add(
             EvalModelResultRecord(
                 eval_run_id=context.run.id,

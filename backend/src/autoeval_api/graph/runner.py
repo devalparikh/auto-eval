@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 
 from autoeval_api.graph.registry import NodeHandlerRegistry, default_node_handler_registry
 from autoeval_api.graph.topology import sink_node_ids, topological_sequence
+from autoeval_api.graph.trace_policy import project_trace_payload
 from autoeval_api.graph.types import AgentState
 from autoeval_api.inference.base import InferenceRequest, InferenceResponse
 from autoeval_api.inference.registry import InferenceProviderRegistry
@@ -17,6 +18,7 @@ from autoeval_api.models import (
     AgentSystemVersionRecord,
     PromptVersionRecord,
     RunStatus,
+    TraceOrigin,
     TraceRecord,
     TraceSpanRecord,
     utc_now,
@@ -28,6 +30,14 @@ class RunSelection:
     graph_version: AgentSystemVersionRecord
     prompt_version: PromptVersionRecord
     model_id: str
+    agent_system_key: str = "incident-triage"
+
+
+@dataclass(frozen=True)
+class TraceContext:
+    origin_type: str = TraceOrigin.RUNTIME
+    evaluation_run_id: str | None = None
+    evaluation_dataset_item_id: str | None = None
 
 
 class AgentGraphRunner:
@@ -44,15 +54,20 @@ class AgentGraphRunner:
         session: Session,
         selection: RunSelection,
         request_input: dict[str, Any],
+        trace_context: TraceContext | None = None,
     ) -> TraceRecord:
         definition = selection.graph_version.definition
         self.node_registry.validate_definition(definition)
+        context = trace_context or TraceContext()
         trace = TraceRecord(
             status=RunStatus.RUNNING,
             agent_system_version_id=selection.graph_version.id,
             prompt_version_id=selection.prompt_version.id,
+            origin_type=context.origin_type,
+            evaluation_run_id=context.evaluation_run_id,
+            evaluation_dataset_item_id=context.evaluation_dataset_item_id,
             model_id=selection.model_id,
-            request_input=request_input,
+            request_input=project_trace_payload(selection.agent_system_key, request_input),
         )
         session.add(trace)
         session.commit()
@@ -115,7 +130,7 @@ class AgentGraphRunner:
                 sequence=sequence,
                 status=RunStatus.RUNNING,
                 system_prompt=system_prompt,
-                input=snapshot,
+                input=project_trace_payload(selection.agent_system_key, snapshot),
             )
             session.add(span)
             session.commit()
@@ -128,7 +143,7 @@ class AgentGraphRunner:
                 else:
                     inference = await self._run_inference(selection, node, snapshot)
                     output = self.node_registry.llm_output(node["handler"])(snapshot, inference)
-                span.output = output
+                span.output = project_trace_payload(selection.agent_system_key, output)
                 span.status = RunStatus.COMPLETE
                 self._apply_usage(span, inference)
                 return output

@@ -20,14 +20,6 @@ import { THEME_COOKIE_NAME, type ColorTheme } from "@/lib/theme";
 
 const SOUND_PREFERENCE_EVENT = "autoeval:sound-preference";
 
-const navItems = [
-  { href: "/traces", label: "Traces", index: "01" },
-  { href: "/datasets", label: "Datasets", index: "02" },
-  { href: "/evaluations", label: "Evaluate", index: "03" },
-  { href: "/results", label: "Results", index: "04" },
-  { href: "/systems", label: "Versions", index: "05" },
-];
-
 export function AppShell({
   children,
   initialTheme,
@@ -36,6 +28,8 @@ export function AppShell({
   initialTheme: ColorTheme;
 }) {
   const pathname = usePathname();
+  const systemKey = systemKeyFromPath(pathname);
+  const navItems = scopedNavItems(systemKey);
   const [theme, setTheme] = useState(initialTheme);
   const [showInitialEntry, setShowInitialEntry] = useState(true);
   const soundEnabled = useSyncExternalStore(
@@ -96,7 +90,9 @@ export function AppShell({
         <nav aria-label="Primary" className="shell-nav">
           {navItems.map((item) => {
             const active =
-              pathname === item.href || pathname.startsWith(`${item.href}/`);
+              item.exact
+                ? pathname === item.href
+                : pathname === item.href || pathname.startsWith(`${item.href}/`);
             return (
               <Link
                 key={item.href}
@@ -180,4 +176,29 @@ function subscribeToSoundPreference(onChange: () => void) {
     window.removeEventListener("storage", onChange);
     window.removeEventListener(SOUND_PREFERENCE_EVENT, onChange);
   };
+}
+
+function systemKeyFromPath(pathname: string): string | null {
+  const match = pathname.match(/^\/systems\/([^/]+)/);
+  return match ? decodeURIComponent(match[1]) : null;
+}
+
+function scopedNavItems(systemKey: string | null) {
+  const workspace = {
+    href: "/systems",
+    label: "Workspaces",
+    index: "00",
+    exact: true,
+  };
+  if (!systemKey) return [workspace];
+  const root = `/systems/${encodeURIComponent(systemKey)}`;
+  return [
+    workspace,
+    { href: root, label: "Overview", index: "01", exact: true },
+    { href: `${root}/traces`, label: "Traces", index: "02", exact: false },
+    { href: `${root}/datasets`, label: "Datasets", index: "03", exact: false },
+    { href: `${root}/evaluations`, label: "Evaluate", index: "04", exact: false },
+    { href: `${root}/results`, label: "Results", index: "05", exact: false },
+    { href: `${root}/versions`, label: "Versions", index: "06", exact: false },
+  ];
 }

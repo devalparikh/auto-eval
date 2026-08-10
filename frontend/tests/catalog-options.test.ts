@@ -15,12 +15,17 @@ const catalog = {
       key: "system",
       name: "System",
       description: "",
+      default_model_ids: ["ready"],
+      input_template: {},
+      dataset_editor: "json",
+      primary_metric: "accuracy",
       versions: [{ id: "graph-2", version: 2, created_at: "2026-01-01" }],
     },
   ],
   prompts: [
     {
       id: "prompt",
+      agent_system_id: "system",
       key: "prompt",
       name: "Prompt",
       description: "",
@@ -30,6 +35,7 @@ const catalog = {
   datasets: [
     {
       id: "dataset",
+      agent_system_id: "system",
       key: "dataset",
       name: "Incidents",
       description: "",
@@ -67,7 +73,7 @@ describe("catalog option projections", () => {
 
   it("returns only available models and the primary version lists", () => {
     expect(availableModels(catalog).map((model) => model.id)).toEqual(["ready"]);
-    expect(graphVersions(catalog)[0]?.id).toBe("graph-2");
-    expect(promptVersions(catalog)[0]?.id).toBe("prompt-3");
+    expect(graphVersions(catalog, "system")[0]?.id).toBe("graph-2");
+    expect(promptVersions(catalog, "system")[0]?.id).toBe("prompt-3");
   });
 });

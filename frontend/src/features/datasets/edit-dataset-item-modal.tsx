@@ -14,10 +14,12 @@ import type { DatasetItem } from "@/lib/types";
 
 export function EditDatasetItemModal({
   item,
+  systemKey,
   onClose,
   onSaved,
 }: {
   item: DatasetItem | null;
+  systemKey: string;
   onClose: () => void;
   onSaved: () => Promise<void>;
 }) {
@@ -30,11 +32,14 @@ export function EditDatasetItemModal({
     const form = new FormData(event.currentTarget);
     setSaving(true);
     setError(null);
+    let expected: Record<string, unknown>;
     try {
+      expected =
+        systemKey === "incident-triage"
+          ? groundTruthFromForm(form)
+          : (JSON.parse(String(form.get("expectedJson"))) as Record<string, unknown>);
       await api.updateDatasetItem(item.id, {
-        input: item.input,
-        expected: groundTruthFromForm(form),
-        source_trace_id: item.source_trace_id,
+        expected,
       });
       await onSaved();
     } catch (caught) {
@@ -55,10 +60,23 @@ export function EditDatasetItemModal({
         <div className="rounded-[8px] bg-[var(--surface-muted)] p-3 text-[11px] leading-5">
           {item ? textPreview(item.input) : null}
         </div>
-        <GroundTruthFields
-          initial={groundTruthFromRecord(item?.expected)}
-          idPrefix="dataset"
-        />
+        {systemKey === "incident-triage" ? (
+          <GroundTruthFields
+            initial={groundTruthFromRecord(item?.expected)}
+            idPrefix="dataset"
+          />
+        ) : (
+          <div className="field">
+            <label htmlFor="dataset-expected-json">Expected output (JSON)</label>
+            <textarea
+              key={item?.id}
+              id="dataset-expected-json"
+              name="expectedJson"
+              className="app-textarea mono min-h-[180px] text-[10px]"
+              defaultValue={JSON.stringify(item?.expected ?? {}, null, 2)}
+            />
+          </div>
+        )}
         {error ? <p className="text-[12px] text-[var(--danger)]">{error}</p> : null}
         <div className="flex justify-end gap-2 border-t border-[var(--border)] pt-4">
           <button type="button" className="app-button secondary" onClick={onClose}>

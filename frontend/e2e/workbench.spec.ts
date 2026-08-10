@@ -1,7 +1,9 @@
 import { expect, test } from "@playwright/test";
 
+const incidentRoot = "/systems/incident-triage";
+
 test("serves request-scoped CSP nonces", async ({ page }) => {
-  const response = await page.goto("/traces");
+  const response = await page.goto(`${incidentRoot}/traces`);
   const policy = response?.headers()["content-security-policy"] ?? "";
   const nonce = policy.match(/'nonce-([^']+)'/)?.[1];
   expect(nonce).toBeTruthy();
@@ -27,15 +29,16 @@ test("persists an accessible color theme across reloads and routes", async ({
     page.getByRole("button", { name: "Use dark theme" }),
   ).toBeVisible();
 
-  await page.getByRole("link", { name: /Datasets/ }).click();
-  await expect(page.getByRole("heading", { name: "Datasets" })).toBeVisible();
+  await page.goto(incidentRoot);
+  await page.getByRole("link", { name: /Datasets/ }).first().click();
+  await expect(page.getByRole("heading", { name: /datasets/i })).toBeVisible();
   await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
 });
 
 test("uses the shared select treatment and themed JSON disclosures", async ({
   page,
 }) => {
-  await page.goto("/evaluations");
+  await page.goto(`${incidentRoot}/evaluations`);
   await expect(page.locator("select").first()).toBeVisible();
   const selectStyles = await page.locator("select").evaluateAll((selects) =>
     selects.map((select) => {
@@ -54,7 +57,7 @@ test("uses the shared select treatment and themed JSON disclosures", async ({
     ),
   ).toBe(true);
 
-  await page.goto("/systems");
+  await page.goto(`${incidentRoot}/versions`);
   await expect(page.getByText("Structured JSON")).toBeVisible();
   await page.getByRole("button", { name: "Collapse" }).click();
   await expect(page.locator(".json-branch[open]")).toHaveCount(0);
@@ -68,10 +71,10 @@ test("keeps route navigation immediate when reduced motion is requested", async 
   page,
 }) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
-  await page.goto("/traces");
+  await page.goto(`${incidentRoot}/traces`);
   await page.getByRole("link", { name: /Results/ }).click();
   await expect(
-    page.getByRole("heading", { name: "Evaluation results" }),
+    page.getByRole("heading", { name: /results/i }),
   ).toBeVisible();
   await expect(page.locator("#main-content")).toHaveCount(1);
   await expect(page.locator(".route-content")).toHaveCSS("animation-name", "none");
@@ -79,8 +82,8 @@ test("keeps route navigation immediate when reduced motion is requested", async 
 
 test("keeps shell geometry stable across primary navigation", async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 720 });
-  await page.goto("/traces");
-  await expect(page.getByRole("heading", { name: "Traces" })).toBeVisible();
+  await page.goto(`${incidentRoot}/traces`);
+  await expect(page.getByRole("heading", { name: /traces/i })).toBeVisible();
   await page.waitForTimeout(550);
 
   const widths: number[] = [];
@@ -95,11 +98,11 @@ test("keeps shell geometry stable across primary navigation", async ({ page }) =
 
   await recordShellWidth();
   await page.getByRole("link", { name: /Evaluate/ }).click();
-  await expect(page.getByRole("heading", { name: "Run evaluation" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /Evaluate/i })).toBeVisible();
   await recordShellWidth();
   await page.getByRole("link", { name: /Results/ }).click();
   await expect(
-    page.getByRole("heading", { name: "Evaluation results" }),
+    page.getByRole("heading", { name: /results/i }),
   ).toBeVisible();
   await recordShellWidth();
 
@@ -108,7 +111,7 @@ test("keeps shell geometry stable across primary navigation", async ({ page }) =
 });
 
 test("uses stable geometry and layered feedback for row hover", async ({ page }) => {
-  await page.goto("/results");
+  await page.goto(`${incidentRoot}/results`);
   const row = page.locator(".data-row").first();
   await expect(row).toBeVisible();
 
@@ -134,9 +137,9 @@ test("uses stable geometry and layered feedback for row hover", async ({ page })
 });
 
 test("inspect a trace and its graph", async ({ page }) => {
-  await page.goto("/traces");
-  await expect(page.getByRole("heading", { name: "Traces" })).toBeVisible();
-  await page.locator("a[href^='/traces/']").first().click();
+  await page.goto(`${incidentRoot}/traces`);
+  await expect(page.getByRole("heading", { name: /traces/i })).toBeVisible();
+  await page.locator(`a[href^='${incidentRoot}/traces/']`).first().click();
   await expect(page.getByText("Execution graph")).toBeVisible();
   await expect(page.getByTestId("rf__node-normalize_input")).toContainText(
     "Normalize input",
@@ -147,12 +150,15 @@ test("inspect a trace and its graph", async ({ page }) => {
 });
 
 test("run a trace and review it into a draft dataset", async ({ page }) => {
-  await page.goto("/traces");
+  await page.goto(`${incidentRoot}/traces`);
   await page.getByRole("button", { name: "Run trace" }).click();
-  await page
-    .getByLabel("Incident report")
-    .fill("Payment callbacks are delayed for premium customers.");
-  await page.getByLabel("Service").fill("payments");
+  await page.getByLabel("Request input (JSON)").fill(
+    JSON.stringify({
+      text: "Payment callbacks are delayed for premium customers.",
+      service: "payments",
+      customer_tier: "standard",
+    }),
+  );
   await page.getByRole("button", { name: "Run trace" }).last().click();
   await expect(page.getByText("Execution graph")).toBeVisible();
 
@@ -161,14 +167,17 @@ test("run a trace and review it into a draft dataset", async ({ page }) => {
     page.getByRole("heading", { name: "Review dataset example" }),
   ).toBeVisible();
   await page.getByRole("button", { name: "Add example" }).click();
-  await expect(page.getByRole("button", { name: "Added" })).toBeVisible();
+  await expect(page.getByText("Example added. Membership is now persisted on this trace.")).toBeVisible();
+  await page.getByRole("button", { name: "Done" }).click();
+  await page.reload();
+  await expect(page.getByText(/Incident triage ground truth v\d+ · draft/)).toBeVisible();
 });
 
 test("run the seeded evaluation workflow", async ({ page }) => {
   test.setTimeout(45_000);
-  await page.goto("/evaluations");
+  await page.goto(`${incidentRoot}/evaluations`);
   await expect(
-    page.getByRole("heading", { name: "Run evaluation" }),
+    page.getByRole("heading", { name: /Evaluate/i }),
   ).toBeVisible();
   await page.getByRole("button", { name: "Start evaluation" }).click();
   await expect(page.getByText(/^Run [a-f0-9]{8}$/)).toBeVisible();
@@ -180,9 +189,9 @@ test("run the seeded evaluation workflow", async ({ page }) => {
 });
 
 test("results render model metrics and scatter plot", async ({ page }) => {
-  await page.goto("/results");
+  await page.goto(`${incidentRoot}/results`);
   await expect(
-    page.getByRole("heading", { name: "Evaluation results" }),
+    page.getByRole("heading", { name: /results/i }),
   ).toBeVisible();
   await expect(page.getByText("Model comparison")).toBeVisible();
   await expect(

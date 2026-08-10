@@ -53,10 +53,15 @@ class AgentSystemSummary(BaseModel):
     name: str
     description: str
     versions: list[VersionSummary]
+    default_model_ids: list[str] = []
+    input_template: dict[str, Any] = {}
+    dataset_editor: str = "json"
+    primary_metric: str = "accuracy"
 
 
 class PromptSummary(BaseModel):
     id: str
+    agent_system_id: str
     key: str
     name: str
     description: str
@@ -74,6 +79,7 @@ class DatasetVersionSummary(BaseModel):
 
 class DatasetSummary(BaseModel):
     id: str
+    agent_system_id: str
     key: str
     name: str
     description: str
@@ -124,6 +130,7 @@ class PromptVersionDetail(BaseModel):
 class RunTraceRequest(StrictModel):
     input: dict[str, Any]
     model_id: str = "mock/incident-specialist"
+    agent_system_id: str | None = None
     agent_system_version_id: str | None = None
     prompt_version_id: str | None = None
 
@@ -147,11 +154,31 @@ class TraceSpanResponse(BaseModel):
     completed_at: datetime | None
 
 
+class DatasetMembershipResponse(BaseModel):
+    dataset_id: str
+    dataset_key: str
+    dataset_name: str
+    dataset_version_id: str
+    dataset_version: int
+    dataset_version_status: str
+    dataset_item_id: str
+    created_at: datetime
+
+
 class TraceResponse(BaseModel):
     id: str
     status: str
+    agent_system_id: str
+    agent_system_key: str
+    agent_system_name: str
     agent_system_version_id: str
     prompt_version_id: str
+    origin_type: str
+    evaluation_run_id: str | None
+    evaluation_dataset_item_id: str | None
+    dataset_membership_count: int = 0
+    dataset_count: int = 0
+    dataset_memberships: list[DatasetMembershipResponse] = []
     model_id: str
     request_input: dict[str, Any]
     output: dict[str, Any] | None
@@ -173,7 +200,11 @@ class CreateDatasetVersionRequest(StrictModel):
 class DatasetItemInput(StrictModel):
     input: dict[str, Any]
     expected: dict[str, Any]
-    source_trace_id: str | None = None
+
+
+class UpdateDatasetItemRequest(StrictModel):
+    expected: dict[str, Any]
+    input: dict[str, Any] | None = None
 
 
 class DatasetItemResponse(BaseModel):
@@ -192,9 +223,27 @@ class DatasetVersionDetail(DatasetVersionSummary):
 
 
 class AddTraceToDatasetRequest(StrictModel):
-    trace_id: str
-    input: dict[str, Any]
     expected: dict[str, Any]
+
+
+class DatasetTargetResponse(BaseModel):
+    dataset_id: str
+    dataset_key: str
+    dataset_name: str
+    dataset_version_id: str
+    dataset_version: int
+    eligible: bool
+    existing_item_id: str | None = None
+    reason: str | None = None
+    warnings: list[str] = []
+
+
+class TraceDatasetTargetsResponse(BaseModel):
+    trace_id: str
+    memberships: list[DatasetMembershipResponse]
+    targets: list[DatasetTargetResponse]
+    evaluation_expected: dict[str, Any] | None = None
+    evaluation_actual: dict[str, Any] | None = None
 
 
 class CreateEvalRunRequest(StrictModel):

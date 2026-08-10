@@ -6,6 +6,7 @@ import type {
   EvalRun,
   PromptVersionDetail,
   Trace,
+  TraceDatasetTargets,
 } from "@/lib/types";
 
 export const API_URL =
@@ -38,11 +39,17 @@ export async function apiRequest<T>(
 
 export const api = {
   catalog: () => apiRequest<Catalog>("/catalog"),
-  traces: () => apiRequest<Trace[]>("/traces"),
+  traces: (agentSystemId?: string) =>
+    apiRequest<Trace[]>(
+      `/traces${agentSystemId ? `?agent_system_id=${encodeURIComponent(agentSystemId)}` : ""}`,
+    ),
   trace: (traceId: string) => apiRequest<Trace>(`/traces/${traceId}`),
+  traceDatasetTargets: (traceId: string) =>
+    apiRequest<TraceDatasetTargets>(`/traces/${traceId}/dataset-targets`),
   runTrace: (payload: {
     input: Record<string, unknown>;
     model_id: string;
+    agent_system_id?: string;
     agent_system_version_id?: string;
     prompt_version_id?: string;
   }) => apiRequest<Trace>("/traces/run", { method: "POST", body: payload }),
@@ -50,22 +57,20 @@ export const api = {
     apiRequest<DatasetVersionDetail>(`/dataset-versions/${versionId}`),
   addDatasetItemFromTrace: (
     versionId: string,
+    traceId: string,
     payload: {
-      trace_id: string;
-      input: Record<string, unknown>;
       expected: Record<string, unknown>;
     },
   ) =>
-    apiRequest<DatasetItem>(`/dataset-versions/${versionId}/items/from-trace`, {
-      method: "POST",
+    apiRequest<DatasetItem>(`/dataset-versions/${versionId}/trace-items/${traceId}`, {
+      method: "PUT",
       body: payload,
     }),
   updateDatasetItem: (
     itemId: string,
     payload: {
-      input: Record<string, unknown>;
+      input?: Record<string, unknown>;
       expected: Record<string, unknown>;
-      source_trace_id?: string | null;
     },
   ) =>
     apiRequest<DatasetItem>(`/dataset-items/${itemId}`, {

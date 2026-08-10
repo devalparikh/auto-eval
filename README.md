@@ -1,16 +1,20 @@
 # AutoEval
 
-AutoEval is a local-first workbench for building, tracing, versioning, and evaluating LangGraph agent systems. It treats agent graphs, system prompts, datasets, and evaluation runs as separate versioned inputs so every result is reproducible.
+AutoEval is a local-first workspace for building, tracing, versioning, and evaluating multiple LangGraph agent systems. Each system owns its graphs, prompts, traces, datasets, evaluation runs, and results so every run is reproducible and cross-system combinations are rejected.
 
 ## What works
 
 - Immutable LangGraph and prompt versions with content hashes
 - End-to-end traces with per-node inputs, outputs, latency, token usage, and cost
 - Draft datasets that accept reviewed trace examples, then become immutable when finalized
+- Trustworthy trace-to-dataset provenance with idempotent promotion and reverse membership
+- Runtime and evaluation trace origins recorded as separate facts from dataset membership
 - Evaluation runs across multiple models with exact match, accuracy, macro precision, recall, F1, cost, and latency
 - OpenRouter and deterministic mock inference providers behind the same interface
 - Optional, disabled-by-default local CLI provider boundary
-- A seeded incident-triage graph with deterministic and LLM nodes
+- Seeded Incident Triage and Investment Portfolio Analyst systems
+- Deterministic portfolio allocation, concentration, bucket, liquidity, and scenario analysis
+- In-place schema migrations and SQLite foreign-key enforcement
 - FastAPI unit and integration tests plus frontend unit and Playwright test harnesses
 
 ## Local setup
@@ -38,7 +42,7 @@ make verify
 
 `make check` is the practical edit loop: backend lint, format checks, and tests plus frontend lint, type checks, and unit tests. `make verify` adds the production frontend build and Playwright end-to-end suite.
 
-Run `make seed` to ensure the built-in incident-triage example and demo results exist without starting the servers.
+Run `make seed` to ensure both built-in systems and their synthetic demo results exist without starting the servers.
 
 ## Project map
 
@@ -67,7 +71,7 @@ docs/
   external-skill-review.md
 ```
 
-See [the extension guide](docs/extension-guide.md) before adding an agent system, inference provider, node handler, scorer, API domain, or frontend feature.
+See [the architecture](docs/architecture.md), [multi-system and provenance design](docs/multi-system-trace-provenance.md), and [extension guide](docs/extension-guide.md) before adding an agent system, inference provider, node handler, scorer, API domain, or frontend feature.
 
 ## Important boundaries
 
@@ -80,9 +84,9 @@ See [the extension guide](docs/extension-guide.md) before adding an agent system
 ## Current limitations
 
 - AutoEval is a local, single-user MVP with no authentication. Do not expose it to a network or place it behind a public reverse proxy.
-- Omitting graph or prompt version IDs resolves the latest version globally, not the latest version for a selected agent system.
+- The workspace ships two built-in systems; creating or importing arbitrary systems still uses code-level extension seams rather than a generic creation UI.
 - A graph definition's `output_node` is validated, but its handler currently needs to return the top-level `output` key for a focused trace result. Arbitrary output-node keys are not extracted.
-- Full inputs, prompts, intermediate state, outputs, and errors remain in the local trace database. Redaction and retention policies are not implemented.
+- Incident traces retain full local payloads. Portfolio traces apply a code-level projection that removes identity-like fields and raw dollar values, but configurable retention and deletion policies are not implemented.
 - Multimodal inputs must be provider-ready JSON references. Binary upload/storage and image or audio generation outputs are not implemented.
 
 The preserved before-fix reviews are [dependency-security-report.md](docs/dependency-security-report.md) and [code-security-review.md](docs/code-security-review.md). Their file and line evidence reflects the captured pre-refactor layout. The current disposition of the code findings is tracked in [security-remediation-status.md](docs/security-remediation-status.md). Read them before changing exposure, provider access, or dependency versions.

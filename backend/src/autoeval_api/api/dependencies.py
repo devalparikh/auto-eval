@@ -6,9 +6,18 @@ from sqlalchemy.orm import Session
 
 from autoeval_api.graph.runner import AgentGraphRunner
 from autoeval_api.inference.registry import InferenceProviderRegistry
-from autoeval_api.models import AgentSystemVersionRecord, PromptVersionRecord
+from autoeval_api.models import (
+    AgentSystemRecord,
+    AgentSystemVersionRecord,
+    PromptRecord,
+    PromptVersionRecord,
+)
 from autoeval_api.services.evaluations import EvaluationService
-from autoeval_api.services.versioning import latest_agent_version, latest_prompt_version
+from autoeval_api.services.versioning import (
+    default_agent_system,
+    latest_agent_version,
+    latest_prompt_version,
+)
 
 Record = TypeVar("Record")
 
@@ -48,19 +57,66 @@ def get_or_404(session: Session, model: type[Record], record_id: str, label: str
     return record
 
 
-def resolve_graph_version(session: Session, version_id: str | None) -> AgentSystemVersionRecord:
-    if version_id:
-        return get_or_404(session, AgentSystemVersionRecord, version_id, "Agent system version")
+def resolve_agent_system(session: Session, agent_system_id: str | None) -> AgentSystemRecord:
+    if agent_system_id:
+        return get_or_404(session, AgentSystemRecord, agent_system_id, "Agent system")
     try:
-        return latest_agent_version(session)
+        return default_agent_system(session)
     except LookupError as error:
         raise HTTPException(status_code=404, detail=str(error)) from error
 
 
-def resolve_prompt_version(session: Session, version_id: str | None) -> PromptVersionRecord:
+def resolve_graph_version(
+    session: Session,
+    version_id: str | None,
+    agent_system_id: str | None = None,
+) -> AgentSystemVersionRecord:
     if version_id:
-        return get_or_404(session, PromptVersionRecord, version_id, "Prompt version")
+        version = get_or_404(session, AgentSystemVersionRecord, version_id, "Agent system version")
+        if agent_system_id and version.agent_system_id != agent_system_id:
+            raise HTTPException(
+                status_code=400,
+                detail="Agent system version belongs to another agent system",
+            )
+        return version
     try:
-        return latest_prompt_version(session)
+        return latest_agent_version(session, agent_system_id)
     except LookupError as error:
         raise HTTPException(status_code=404, detail=str(error)) from error
+
+
+def resolve_prompt_version(
+    session: Session,
+    version_id: str | None,
+    agent_system_id: str | None = None,
+) -> PromptVersionRecord:
+    system_id = agent_system_id or resolve_agent_system(session, None).id
+    if version_id:
+        version = get_or_404(session, PromptVersionRecord, version_id, "Prompt version")
+        prompt = session.get(PromptRecord, version.prompt_id)
+        if prompt is None or prompt.agent_system_id != system_id:
+            raise HTTPException(
+                status_code=400,
+                detail="Prompt version belongs to another agent system",
+            )
+        return version
+    try:
+        return latest_prompt_version(session, system_id)
+    except LookupError as error:
+        raise HTTPException(status_code=404, detail=str(error)) from error
+
+
+def resolve_run_versions(
+    session: Session,
+    agent_system_id: str | None,
+    graph_version_id: str | None,
+    prompt_version_id: str | None,
+) -> tuple[AgentSystemRecord, AgentSystemVersionRecord, PromptVersionRecord]:
+    if graph_version_id:
+        graph_version = resolve_graph_version(session, graph_version_id, agent_system_id)
+        system = resolve_agent_system(session, graph_version.agent_system_id)
+    else:
+        system = resolve_agent_system(session, agent_system_id)
+        graph_version = resolve_graph_version(session, None, system.id)
+    prompt_version = resolve_prompt_version(session, prompt_version_id, system.id)
+    return system, graph_version, prompt_version

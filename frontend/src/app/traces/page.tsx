@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
-import { TracesScreen } from "@/features/traces/traces-screen";
+import { redirect } from "next/navigation";
 
 export const metadata: Metadata = { title: "Traces" };
 
 export default function TracesPage() {
-  return <TracesScreen />;
+  redirect("/systems/incident-triage/traces");
 }

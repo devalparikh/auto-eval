@@ -45,8 +45,14 @@ class NodeHandlerRegistry:
 
 
 def default_node_handler_registry() -> NodeHandlerRegistry:
-    from autoeval_api.agent_systems.incident_triage.handlers import register_handlers
+    from autoeval_api.agent_systems.incident_triage.handlers import (
+        register_handlers as register_incident_handlers,
+    )
+    from autoeval_api.agent_systems.portfolio_analyst.handlers import (
+        register_handlers as register_portfolio_handlers,
+    )
 
     registry = NodeHandlerRegistry()
-    register_handlers(registry)
+    register_incident_handlers(registry)
+    register_portfolio_handlers(registry)
     return registry

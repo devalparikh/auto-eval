@@ -27,6 +27,18 @@ class MockInferenceProvider:
                 label="Mock incident fast",
                 supports=("text",),
             ),
+            ModelDescriptor(
+                id="mock/portfolio-analyst",
+                provider=self.provider_id,
+                label="Mock portfolio analyst",
+                supports=("text",),
+            ),
+            ModelDescriptor(
+                id="mock/portfolio-fast",
+                provider=self.provider_id,
+                label="Mock portfolio fast",
+                supports=("text",),
+            ),
         ]
 
     async def complete(self, request: InferenceRequest) -> InferenceResponse:
@@ -34,6 +46,10 @@ class MockInferenceProvider:
             output = self._classify(request)
         elif request.task == "draft_response":
             output = self._draft(request)
+        elif request.task == "extract_portfolio_context":
+            output = {"context_patch": request.state.get("normalized", {})}
+        elif request.task == "explain_portfolio":
+            output = self._explain_portfolio(request)
         else:
             output = {"result": "Mock provider completed the requested task."}
 
@@ -99,6 +115,44 @@ class MockInferenceProvider:
                 "route": route,
                 "requires_human": policy.get("requires_human", True),
                 "response": response,
+            }
+        }
+
+    @staticmethod
+    def _explain_portfolio(request: InferenceRequest) -> dict[str, Any]:
+        analysis = request.state.get("analysis", {})
+        if not analysis.get("analysis_ready"):
+            return {
+                "portfolio_explanation": {
+                    "observations": [],
+                    "feedback": analysis.get("next_question"),
+                }
+            }
+        metrics = analysis.get("metrics", {})
+        top_symbol = metrics.get("top_holding_symbol", "the largest holding")
+        top_weight = float(metrics.get("top_holding_weight", 0))
+        observations = [
+            f"{top_symbol} is the largest position at {top_weight:.1%} of the portfolio."
+        ]
+        gaps = [item for item in metrics.get("bucket_gaps", []) if item.get("status") != "within"]
+        if gaps:
+            observations.append(
+                "At least one user-defined portfolio bucket is outside its confirmed range."
+            )
+        scenarios = metrics.get("scenarios", [])
+        if scenarios:
+            worst = min(scenarios, key=lambda item: item.get("estimated_return", 0))
+            observations.append(
+                f"The supplied {worst['name']} scenario estimates a "
+                f"{float(worst['estimated_return']):.1%} portfolio move."
+            )
+        return {
+            "portfolio_explanation": {
+                "observations": observations,
+                "feedback": (
+                    "Review concentration, bucket ranges, and scenario assumptions against "
+                    "the stated goal, horizon, risk tolerance, and liquidity need."
+                ),
             }
         }
 

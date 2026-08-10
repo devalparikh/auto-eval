@@ -5,6 +5,7 @@ import {
   traceIdForResult,
   type ResultRow,
 } from "@/features/results/result-rows";
+import { systemPath } from "@/features/systems/system-path";
 import {
   formatCost,
   formatDate,
@@ -15,11 +16,13 @@ import {
 
 export function ResultsTable({
   rows,
+  systemKey,
   loading,
   error,
   retry,
 }: {
   rows: ResultRow[];
+  systemKey: string;
   loading: boolean;
   error: string | null;
   retry: () => Promise<void>;
@@ -30,7 +33,7 @@ export function ResultsTable({
         <div>
           <h2 className="text-[13px] font-semibold">Model comparison</h2>
           <p className="mt-0.5 text-[10px] text-[var(--text-muted)]">
-            Macro metrics use severity labels.
+            Quality metrics come from this system&apos;s registered scoring suite.
           </p>
         </div>
         <span className="mono text-[10px] text-[var(--text-muted)]">
@@ -80,7 +83,7 @@ export function ResultsTable({
                 <MetricCell value={formatDuration(row.metrics.average_latency_ms)} />
                 {traceId ? (
                   <Link
-                    href={`/traces/${traceId}`}
+                    href={systemPath(systemKey, `traces/${traceId}`)}
                     aria-label={`Open a trace for ${row.model_id}`}
                     className="data-row-affordance grid size-7 place-items-center rounded-[7px] text-[var(--text-muted)] hover:bg-[var(--surface-muted)] hover:text-[var(--text)]"
                   >

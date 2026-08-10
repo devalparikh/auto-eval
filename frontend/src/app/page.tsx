@@ -38,12 +38,12 @@ export default function HomePage() {
             output, then pins the exact versions behind every evaluation.
           </p>
           <div className="landing-actions">
-            <Link href="/traces" className="app-button" data-sound="navigate">
-              Inspect traces
+            <Link href="/systems" className="app-button" data-sound="navigate">
+              Browse systems
               <span aria-hidden="true">→</span>
             </Link>
             <Link
-              href="/evaluations"
+              href="/systems/incident-triage/evaluations"
               className="landing-text-link"
               data-sound="navigate"
             >

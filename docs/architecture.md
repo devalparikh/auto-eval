@@ -4,12 +4,13 @@ AutoEval separates reusable execution infrastructure from each agent system's do
 
 ## Reproducibility contract
 
-Every run resolves four inputs before execution:
+Every run resolves five inputs before execution:
 
-1. agent system version
-2. prompt version
-3. inference model
-4. request or finalized dataset item
+1. owning agent system
+2. agent system version
+3. same-system prompt version
+4. inference model
+5. request or finalized same-system dataset item
 
 The trace stores those resolved IDs. A later version cannot change an existing trace or evaluation result.
 
@@ -39,6 +40,8 @@ flowchart LR
 - `DatasetVersion` is mutable only while its status is `draft`.
 - Finalizing a dataset version is one-way. Further edits require a new draft version.
 - Evaluation runs accept only final dataset versions.
+- Prompts and datasets belong to one agent system; cross-system selections are rejected.
+- Trace execution origin and trace-to-dataset membership are independent provenance facts.
 
 ## Backend ownership
 
@@ -51,11 +54,15 @@ autoeval_api/
     middleware.py           request limits and security headers
     routes/                 one router per API domain
   agent_systems/
-    incident_triage/        built-in example definition and domain logic
+    registry.py             code-level UX and default-model metadata
+    incident_triage/        built-in incident example
+    portfolio_analyst/      synthetic portfolio analyst and deterministic math
+    seed.py                 built-in seed composition
   graph/                    generic topology, node registry, runner
   inference/                provider contract, adapters, registry
   services/                 domain workflows, queries, serialization, scoring
   models.py                 persistence records
+  migrations.py             additive upgrade path for the original SQLite schema
   schemas.py                public request and response contracts
 ```
 
@@ -69,6 +76,8 @@ Routes validate HTTP input and translate domain errors. Services own domain quer
 - `agent_systems/incident_triage/` demonstrates how one system groups its definition, handlers, scoring, and seed data.
 
 There is currently no `DatasetImporter`, `ArtifactStore`, or `EvaluationDispatcher` interface. Dataset edits use the dataset service, payloads are stored as JSON in SQLite, and evaluation background work runs in the FastAPI process. Introduce a real interface only when adding a second implementation.
+
+`AgentSystemSpec` is deliberately code-level. It supplies default models, an input template, editor identity, and the primary metric without trying to turn every agent UX into a database-driven form builder. Unknown registered systems receive generic JSON fallbacks.
 
 ## Frontend ownership
 
@@ -90,7 +99,7 @@ Keep domain behavior in its feature directory. Promote a component to `component
 
 ## Selection and output behavior
 
-- A request or evaluation may omit graph and prompt version IDs. Today that resolves the globally latest graph version and globally latest prompt version; it does not scope the lookup to an agent-system key.
+- A request or evaluation may omit graph and prompt version IDs. Resolution is always scoped to the selected system; omitting the system retains Incident Triage as the compatibility default.
 - `output_node` must name a node in the graph definition. The runner currently expects the completed graph state to contain a top-level `output` key; otherwise the complete state becomes the trace output.
 - All sink nodes connect to LangGraph `END`. `output_node` does not currently choose one sink when a graph branches.
 
@@ -98,12 +107,14 @@ Keep domain behavior in its feature directory. Promote a component to `component
 
 - SQLite and the in-process evaluation task are suitable for local, single-process use only.
 - There is no authentication or authorization. Keep both servers on loopback.
-- Trace retention is intentionally complete: requests, prompts, intermediate state, outputs, and errors persist without redaction or expiry.
+- Trace capture is policy-aware. Incident Triage retains complete local payloads. Portfolio Analyst removes identity-like fields and raw dollar values from persisted requests and span snapshots while executing against the original in-memory request.
 - Provider secrets live only in the backend environment. CLI providers are disabled by default and cross a high-trust local execution boundary when enabled.
 - Inputs and outputs persist as JSON. Providers may accept referenced multimodal input objects, but binary artifact storage and generated image, audio, or video outputs are future work.
 
 See [extension-guide.md](extension-guide.md) for concrete edit paths and [code-security-review.md](code-security-review.md) plus [dependency-security-report.md](dependency-security-report.md) for the preserved before-fix security baseline.
 
-## Initial agent system
+## Built-in agent systems
 
 The seeded incident-triage graph normalizes an incident report, asks an LLM for structured classification, applies deterministic routing policy, and drafts an operator response. Ground truth contains severity, route, and human-review requirement. This produces interpretable classification metrics without pretending that free-form text has a single objectively correct answer.
+
+The seeded portfolio analyst normalizes supplied profile and weighted holding context, identifies missing inputs, calculates allocation, concentration, bucket ranges, liquidity, and user-supplied scenarios deterministically, asks a model to explain those facts, and applies a deterministic financial-safety gate. Its fixtures are synthetic and its evaluation checks arithmetic invariants rather than treating prose as objective truth.

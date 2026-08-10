@@ -6,4 +6,8 @@ class AgentState(TypedDict, total=False):
     normalized: dict[str, Any]
     classification: dict[str, Any]
     policy: dict[str, Any]
+    context_patch: dict[str, Any]
+    context_status: dict[str, Any]
+    analysis: dict[str, Any]
+    portfolio_explanation: dict[str, Any]
     output: dict[str, Any]

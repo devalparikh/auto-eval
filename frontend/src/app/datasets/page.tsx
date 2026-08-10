@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
-import { DatasetsScreen } from "@/features/datasets/datasets-screen";
+import { redirect } from "next/navigation";
 
 export const metadata: Metadata = { title: "Datasets" };
 
 export default function DatasetsPage() {
-  return <DatasetsScreen />;
+  redirect("/systems/incident-triage/datasets");
 }

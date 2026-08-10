@@ -31,6 +31,12 @@ class RunStatus(StrEnum):
     FAILED = "failed"
 
 
+class TraceOrigin(StrEnum):
+    RUNTIME = "runtime"
+    EVALUATION = "evaluation"
+    LEGACY_UNKNOWN = "legacy_unknown"
+
+
 class AgentSystemRecord(Base):
     __tablename__ = "agent_systems"
 
@@ -60,6 +66,7 @@ class PromptRecord(Base):
     __tablename__ = "prompts"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    agent_system_id: Mapped[str] = mapped_column(ForeignKey("agent_systems.id"), index=True)
     key: Mapped[str] = mapped_column(String(120), unique=True, index=True)
     name: Mapped[str] = mapped_column(String(200))
     description: Mapped[str] = mapped_column(Text, default="")
@@ -85,6 +92,7 @@ class DatasetRecord(Base):
     __tablename__ = "datasets"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    agent_system_id: Mapped[str] = mapped_column(ForeignKey("agent_systems.id"), index=True)
     key: Mapped[str] = mapped_column(String(120), unique=True, index=True)
     name: Mapped[str] = mapped_column(String(200))
     description: Mapped[str] = mapped_column(Text, default="")
@@ -105,6 +113,13 @@ class DatasetVersionRecord(Base):
 
 class DatasetItemRecord(Base):
     __tablename__ = "dataset_items"
+    __table_args__ = (
+        UniqueConstraint(
+            "dataset_version_id",
+            "source_trace_id",
+            name="uq_dataset_version_source_trace",
+        ),
+    )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
     dataset_version_id: Mapped[str] = mapped_column(ForeignKey("dataset_versions.id"), index=True)
@@ -128,6 +143,19 @@ class TraceRecord(Base):
         ForeignKey("agent_system_versions.id"), index=True
     )
     prompt_version_id: Mapped[str] = mapped_column(ForeignKey("prompt_versions.id"), index=True)
+    origin_type: Mapped[str] = mapped_column(String(24), default=TraceOrigin.RUNTIME, index=True)
+    evaluation_run_id: Mapped[str | None] = mapped_column(
+        ForeignKey("eval_runs.id"), nullable=True, index=True
+    )
+    evaluation_dataset_item_id: Mapped[str | None] = mapped_column(
+        ForeignKey(
+            "dataset_items.id",
+            name="fk_trace_evaluation_dataset_item",
+            use_alter=True,
+        ),
+        nullable=True,
+        index=True,
+    )
     model_id: Mapped[str] = mapped_column(String(240), index=True)
     request_input: Mapped[dict[str, Any]] = mapped_column(JSON)
     output: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
@@ -190,6 +218,14 @@ class EvalModelResultRecord(Base):
 
 class EvalItemResultRecord(Base):
     __tablename__ = "eval_item_results"
+    __table_args__ = (
+        UniqueConstraint(
+            "eval_run_id",
+            "dataset_item_id",
+            "model_id",
+            name="uq_eval_item_model",
+        ),
+    )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
     eval_run_id: Mapped[str] = mapped_column(ForeignKey("eval_runs.id"), index=True)

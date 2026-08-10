@@ -11,7 +11,7 @@ Create `backend/src/autoeval_api/agent_systems/<system_key>/` with:
 - `scoring.py` only when the system needs its own metric suite
 - `seed.py` for example catalog records and dataset items
 
-Export a `register_handlers` function from the package and call it from `graph/registry.py::default_node_handler_registry`. Register the metric suite in `services/scoring.py::default_scoring_registry`. Add built-in seed initialization to the lifespan composition in `app.py`; deployments with their own catalog can instead inject registries and seed separately. Keep the generic runner free of incident-specific behavior. Add focused backend tests for topology, handler output, scoring, and one traced run.
+Export a `register_handlers` function from the package and call it from `graph/registry.py::default_node_handler_registry`. Register the metric suite in `services/scoring.py::default_scoring_registry`, add an `AgentSystemSpec` in `agent_systems/registry.py`, and compose built-in seeding through `agent_systems/seed.py`. Deployments with their own catalog can instead inject registries and seed separately. Keep the generic runner free of domain-specific calculations. Add focused backend tests for topology, handler output, scoring, trace projection, and one traced run.
 
 Graph node handlers return partial state dictionaries. The node named by `output_node` currently needs to place the focused result under the top-level `output` key. A graph may use other state keys internally, but the runner does not extract an arbitrary output key from the declared output node.
 
@@ -40,6 +40,8 @@ Version a finalized ground-truth dataset when a scoring change requires new labe
 Add a router under `backend/src/autoeval_api/api/routes/`, put reusable query/workflow logic under `services/`, define strict public contracts in `schemas.py`, and include the router from `app.py`. Request-scoped database access belongs in `api/dependencies.py`; cross-cutting HTTP behavior belongs in `api/middleware.py`.
 
 Keep route functions small: validate and resolve HTTP input, call one service operation, and map expected domain errors to responses. Do not move persistence or provider details into routes.
+
+Schema changes must update both `models.py` for fresh databases and `migrations.py` for existing local databases. Migration code must preserve IDs and payloads, fail explicitly on ambiguous duplicate provenance, and remain idempotent.
 
 ## Add a frontend feature
 

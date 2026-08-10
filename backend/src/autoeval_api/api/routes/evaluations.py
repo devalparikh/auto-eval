@@ -4,10 +4,9 @@ from autoeval_api.api.dependencies import (
     EvaluationServiceDependency,
     SessionDependency,
     get_or_404,
-    resolve_graph_version,
-    resolve_prompt_version,
+    resolve_run_versions,
 )
-from autoeval_api.models import DatasetVersionRecord, EvalRunRecord
+from autoeval_api.models import DatasetRecord, DatasetVersionRecord, EvalRunRecord
 from autoeval_api.schemas import CreateEvalRunRequest, EvalRunResponse
 from autoeval_api.services.evaluations import eval_run_response, list_eval_runs
 
@@ -46,8 +45,13 @@ async def create_eval_run(
     dataset_version = get_or_404(
         session, DatasetVersionRecord, payload.dataset_version_id, "Dataset version"
     )
-    graph_version = resolve_graph_version(session, payload.agent_system_version_id)
-    prompt_version = resolve_prompt_version(session, payload.prompt_version_id)
+    dataset = get_or_404(session, DatasetRecord, dataset_version.dataset_id, "Dataset")
+    _, graph_version, prompt_version = resolve_run_versions(
+        session,
+        dataset.agent_system_id,
+        payload.agent_system_version_id,
+        payload.prompt_version_id,
+    )
     try:
         run = evaluation_service.create_run(
             session,
@@ -63,4 +67,8 @@ async def create_eval_run(
     else:
         await evaluation_service.execute(run.id)
         session.refresh(run)
-    return eval_run_response(session, run)
+    return eval_run_response(
+        session,
+        run,
+        include_items=not payload.run_in_background,
+    )
