@@ -242,6 +242,7 @@ def _trace_response(
         agent_system_name=system.name,
         agent_system_version_id=trace.agent_system_version_id,
         prompt_version_id=trace.prompt_version_id,
+        prompt_version_ids=trace.prompt_version_ids or {},
         origin_type=trace.origin_type,
         evaluation_run_id=trace.evaluation_run_id,
         evaluation_dataset_item_id=trace.evaluation_dataset_item_id,

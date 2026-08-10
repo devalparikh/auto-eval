@@ -6,10 +6,19 @@ import { PageHeader } from "@/components/page-header";
 import { EmptyState, ErrorState, LoadingState } from "@/components/states";
 import { systemPath } from "@/features/systems/system-path";
 import { api } from "@/lib/api";
+import type { AgentSystemSummary } from "@/lib/types";
 import { useApiResource } from "@/lib/use-api-resource";
 
 export function SystemBrowserScreen() {
   const catalog = useApiResource(api.catalog, []);
+  const products = Object.values(
+    (catalog.data?.agent_systems ?? []).reduce<
+      Record<string, AgentSystemSummary[]>
+    >((grouped, system) => {
+      (grouped[system.product_key] ??= []).push(system);
+      return grouped;
+    }, {}),
+  );
   return (
     <>
       <PageHeader
@@ -27,41 +36,67 @@ export function SystemBrowserScreen() {
             message="Seed a built-in system or register one through the backend extension boundary."
           />
         ) : null}
-        {catalog.data?.agent_systems.map((system) => {
-          const promptCount = catalog.data?.prompts.filter(
-            (prompt) => prompt.agent_system_id === system.id,
+        {products.map((flows) => {
+          const product =
+            flows.find((flow) => flow.key === flow.product_key) ?? flows[0];
+          const systemIds = new Set(flows.map((flow) => flow.id));
+          const promptCount = catalog.data?.prompts.filter((prompt) =>
+            systemIds.has(prompt.agent_system_id),
           ).length;
-          const datasets = catalog.data?.datasets.filter(
-            (dataset) => dataset.agent_system_id === system.id,
+          const datasetCount = catalog.data?.datasets.filter((dataset) =>
+            systemIds.has(dataset.agent_system_id),
+          ).length;
+          const graphVersionCount = flows.reduce(
+            (total, flow) => total + flow.versions.length,
+            0,
           );
           return (
-            <Link
-              key={system.id}
-              href={systemPath(system.key)}
-              className="data-row group grid min-h-[190px] content-between border border-[var(--border)] bg-[var(--surface)] p-5 no-underline"
+            <article
+              key={product.product_key}
+              className="grid min-h-[190px] content-between border border-[var(--border)] bg-[var(--surface)] p-5"
             >
               <div>
                 <div className="flex items-center justify-between gap-4">
                   <span className="grid size-9 place-items-center border border-[var(--border-strong)] text-[var(--accent)]">
                     <GitBranchIcon size={17} />
                   </span>
-                  <ArrowRightIcon
-                    size={15}
-                    className="data-row-affordance text-[var(--text-faint)]"
-                  />
+                  <span className="mono text-[9px] text-[var(--text-faint)]">
+                    {flows.length} {flows.length === 1 ? "flow" : "flows"}
+                  </span>
                 </div>
                 <h2 className="mt-7 text-[17px] font-semibold tracking-[-0.035em]">
-                  {system.name}
+                  {product.name}
                 </h2>
                 <p className="mt-2 max-w-[58ch] text-[11px] leading-5 text-[var(--text-muted)]">
-                  {system.description}
+                  {product.description}
                 </p>
+                <div className="mt-5 grid gap-2">
+                  {flows
+                    .toSorted((left, right) =>
+                      left.flow_key.localeCompare(right.flow_key),
+                    )
+                    .map((flow) => (
+                      <Link
+                        key={flow.id}
+                        href={systemPath(flow.key)}
+                        className="data-row group flex items-center justify-between border border-[var(--border)] px-3 py-2 no-underline"
+                      >
+                        <span className="text-[11px] font-medium">
+                          {flow.flow_name}
+                        </span>
+                        <ArrowRightIcon
+                          size={13}
+                          className="data-row-affordance text-[var(--text-faint)]"
+                        />
+                      </Link>
+                    ))}
+                </div>
               </div>
               <p className="mono mt-6 text-[9px] text-[var(--text-faint)]">
-                {system.versions.length} graph versions · {promptCount ?? 0} prompts ·{" "}
-                {datasets?.length ?? 0} datasets
+                {graphVersionCount} graph versions · {promptCount ?? 0} prompts ·{" "}
+                {datasetCount ?? 0} datasets
               </p>
-            </Link>
+            </article>
           );
         })}
       </section>

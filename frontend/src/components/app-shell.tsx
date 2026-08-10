@@ -202,6 +202,11 @@ function scopedNavItems(systemKey: string | null) {
       exact: false,
     },
     { href: `${root}/results`, label: "Results", index: "06", exact: false },
-    { href: `${root}/versions`, label: "Versions", index: "07", exact: false },
+    {
+      href: `${root}/artifacts`,
+      label: "Artifacts",
+      index: "07",
+      exact: false,
+    },
   ];
 }

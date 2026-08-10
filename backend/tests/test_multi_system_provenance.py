@@ -74,12 +74,14 @@ def test_portfolio_query_uses_only_safe_supplied_candidates(client, session_fact
     assert payload["agent_system_key"] == "portfolio-query"
     assert payload["output"]["covered_call"]["status"] == "candidates"
     candidates = payload["output"]["covered_call"]["candidates"]
-    assert [item["contract_id"] for item in candidates] == ["NVDA_SYNTH_CALL_160"]
+    assert [item["candidate_id"] for item in candidates] == ["candidate-001"]
     assert candidates[0]["rank"] == 1
     persisted = json.dumps(payload, sort_keys=True)
-    assert '"shares"' not in persisted
-    assert '"pledged_shares"' not in persisted
-    assert '"gross_premium_usd"' not in persisted
+    assert payload["request_input"]["snapshot_id"] == "synthetic-indexed-portfolio-v2"
+    assert "snapshot" not in payload["request_input"]
+    assert '"account_id"' not in persisted
+    assert '"cost_basis"' not in persisted
+    assert '"market_value"' not in persisted
 
 
 def test_trace_membership_is_scoped_idempotent_and_conflict_safe(client, session_factory) -> None:

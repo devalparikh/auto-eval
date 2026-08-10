@@ -1,14 +1,18 @@
 from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field, replace
+from inspect import isawaitable
 from time import perf_counter
 from typing import Any
 
 from langgraph.graph import END, StateGraph
+from langgraph.runtime import Runtime
 from sqlalchemy.orm import Session
 
+from autoeval_api.graph.context import GraphRuntimeContext
 from autoeval_api.graph.registry import NodeHandlerRegistry, default_node_handler_registry
+from autoeval_api.graph.runtime_inputs import RuntimeInputCapabilityRegistry
 from autoeval_api.graph.topology import sink_node_ids, topological_sequence
 from autoeval_api.graph.trace_policy import project_inference_payload, project_trace_payload
 from autoeval_api.graph.types import AgentState
@@ -23,6 +27,7 @@ from autoeval_api.models import (
     TraceSpanRecord,
     utc_now,
 )
+from autoeval_api.services.versioning import resolve_graph_prompt_versions
 
 
 @dataclass(frozen=True)
@@ -31,6 +36,7 @@ class RunSelection:
     prompt_version: PromptVersionRecord
     model_id: str
     agent_system_key: str
+    prompt_versions: dict[str, PromptVersionRecord] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -45,9 +51,11 @@ class AgentGraphRunner:
         self,
         provider_registry: InferenceProviderRegistry,
         node_registry: NodeHandlerRegistry | None = None,
+        runtime_input_registry: RuntimeInputCapabilityRegistry | None = None,
     ) -> None:
         self.provider_registry = provider_registry
         self.node_registry = node_registry or default_node_handler_registry()
+        self.runtime_input_registry = runtime_input_registry or RuntimeInputCapabilityRegistry()
 
     async def run(
         self,
@@ -56,16 +64,28 @@ class AgentGraphRunner:
         request_input: dict[str, Any],
         trace_context: TraceContext | None = None,
     ) -> TraceRecord:
+        selection = replace(
+            selection,
+            prompt_versions=resolve_graph_prompt_versions(
+                session,
+                selection.graph_version,
+                {key: version.id for key, version in selection.prompt_versions.items()},
+            ),
+        )
         definition = selection.graph_version.definition
         self.node_registry.validate_definition(definition, selection.agent_system_key)
-        context = trace_context or TraceContext()
+        self.runtime_input_registry.validate_definition(definition)
+        trace_origin_context = trace_context or TraceContext()
         trace = TraceRecord(
             status=RunStatus.RUNNING,
             agent_system_version_id=selection.graph_version.id,
             prompt_version_id=selection.prompt_version.id,
-            origin_type=context.origin_type,
-            evaluation_run_id=context.evaluation_run_id,
-            evaluation_dataset_item_id=context.evaluation_dataset_item_id,
+            prompt_version_ids={
+                key: version.id for key, version in selection.prompt_versions.items()
+            },
+            origin_type=trace_origin_context.origin_type,
+            evaluation_run_id=trace_origin_context.evaluation_run_id,
+            evaluation_dataset_item_id=trace_origin_context.evaluation_dataset_item_id,
             model_id=selection.model_id,
             request_input=project_trace_payload(selection.agent_system_key, request_input),
         )
@@ -75,7 +95,19 @@ class AgentGraphRunner:
         started = perf_counter()
         try:
             graph = self._compile_graph(session, trace, selection)
-            state = await graph.ainvoke({"input": request_input, "data": {}})
+            state = await graph.ainvoke(
+                {"input": request_input, "data": {}},
+                context=GraphRuntimeContext(
+                    session,
+                    selection.agent_system_key,
+                    trace_id=trace.id,
+                    runtime_inputs=self.runtime_input_registry,
+                    runtime_input_modes=self._runtime_input_modes(
+                        definition,
+                        trace_origin_context.origin_type,
+                    ),
+                ),
+            )
             raw_output = state.get("output", state)
             trace.output = project_trace_payload(selection.agent_system_key, raw_output)
             trace.status = RunStatus.COMPLETE
@@ -97,7 +129,7 @@ class AgentGraphRunner:
     def _compile_graph(self, session: Session, trace: TraceRecord, selection: RunSelection):
         definition = selection.graph_version.definition
         sequence = topological_sequence(definition)
-        builder = StateGraph(AgentState)
+        builder = StateGraph(AgentState, context_schema=GraphRuntimeContext)
 
         for node in definition["nodes"]:
             node_sequence = sequence[node["id"]]
@@ -121,13 +153,20 @@ class AgentGraphRunner:
         node: dict[str, Any],
         sequence: int,
     ) -> Callable[[AgentState], Awaitable[dict[str, Any]]]:
-        async def invoke(state: AgentState) -> dict[str, Any]:
+        async def invoke(
+            state: AgentState,
+            runtime: Runtime[GraphRuntimeContext],
+        ) -> dict[str, Any]:
             snapshot = self._domain_state(state)
-            system_prompt = selection.prompt_version.content if node["kind"] == "llm" else None
+            prompt_version = (
+                self._node_prompt_version(selection, node) if node["kind"] == "llm" else None
+            )
+            system_prompt = prompt_version.content if prompt_version is not None else None
             span = TraceSpanRecord(
                 trace_id=trace.id,
                 node_id=node["id"],
                 node_kind=node["kind"],
+                prompt_version_id=prompt_version.id if prompt_version is not None else None,
                 sequence=sequence,
                 status=RunStatus.RUNNING,
                 system_prompt=system_prompt,
@@ -141,10 +180,17 @@ class AgentGraphRunner:
                 if node["kind"] == "deterministic":
                     output = self.node_registry.deterministic(
                         node["handler"], selection.agent_system_key
-                    )(snapshot)
+                    )(snapshot, runtime.context)
+                    if isawaitable(output):
+                        output = await output
                     inference = None
                 else:
-                    inference = await self._run_inference(selection, node, snapshot)
+                    inference = await self._run_inference(
+                        selection,
+                        node,
+                        snapshot,
+                        prompt_version,
+                    )
                     output = self.node_registry.llm_output(
                         node["handler"], selection.agent_system_key
                     )(snapshot, inference)
@@ -164,11 +210,27 @@ class AgentGraphRunner:
 
         return invoke
 
+    @staticmethod
+    def _runtime_input_modes(
+        definition: dict[str, Any], origin_type: str
+    ) -> dict[str, tuple[str, str]]:
+        modes: dict[str, tuple[str, str]] = {}
+        for node in definition.get("nodes", []):
+            policy = node.get("runtime_input_policy")
+            if not isinstance(policy, dict):
+                continue
+            mode_key = (
+                "evaluation_mode" if origin_type == TraceOrigin.EVALUATION else "runtime_mode"
+            )
+            modes[node["id"]] = (policy["source"], policy[mode_key])
+        return modes
+
     async def _run_inference(
         self,
         selection: RunSelection,
         node: dict[str, Any],
         state: dict[str, Any],
+        prompt_version: PromptVersionRecord,
     ) -> InferenceResponse:
         provider = self.provider_registry.get_for_model(selection.model_id)
         normalized = state.get("normalized", {})
@@ -176,17 +238,34 @@ class AgentGraphRunner:
         return await provider.complete(
             InferenceRequest(
                 model_id=selection.model_id,
-                system_prompt=selection.prompt_version.content,
+                system_prompt=prompt_version.content,
                 task=node.get("task") or node["handler"],
                 state=project_inference_payload(selection.agent_system_key, state),
+                response_schema=node.get("response_schema"),
                 agent_system_key=selection.agent_system_key,
                 modalities=modalities if isinstance(modalities, list) else [],
             )
         )
 
     @staticmethod
+    def _node_prompt_version(
+        selection: RunSelection,
+        node: dict[str, Any],
+    ) -> PromptVersionRecord:
+        prompt_key = node.get("prompt_key")
+        if not prompt_key:
+            return selection.prompt_version
+        prompt_version = selection.prompt_versions.get(prompt_key)
+        if prompt_version is None:
+            raise RuntimeError(f"No prompt version resolved for graph prompt key: {prompt_key}")
+        return prompt_version
+
+    @staticmethod
     def _domain_state(state: AgentState) -> dict[str, Any]:
-        return {"input": state.get("input", {}), **state.get("data", {})}
+        domain = {"input": state.get("input", {}), **state.get("data", {})}
+        if state.get("output") is not None:
+            domain["output"] = state["output"]
+        return domain
 
     @staticmethod
     def _graph_update(output: dict[str, Any]) -> dict[str, Any]:

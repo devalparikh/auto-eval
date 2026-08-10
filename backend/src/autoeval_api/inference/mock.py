@@ -160,13 +160,16 @@ class MockInferenceProvider:
 
     @staticmethod
     def _explain_portfolio_query(request: InferenceRequest) -> dict[str, Any]:
-        analysis = request.state.get("query_analysis", {})
-        status = analysis.get("status")
-        candidates = analysis.get("candidates", [])
+        context = request.state.get("portfolio_model_context", {})
+        status = context.get("status")
+        candidates = context.get("candidates", [])
+        fact_ids: list[str] = []
+        candidate_ids: list[str] = []
         if status == "candidates" and candidates:
             leader = candidates[0]
+            candidate_ids = [str(leader.get("candidate_id"))]
             summary = (
-                f"{leader.get('contract_id')} ranks first among the supplied contracts "
+                f"{leader.get('candidate_id')} ranks first among the supplied contracts "
                 "after coverage, liquidity, assignment, event, and quote checks."
             )
             risks = [
@@ -180,7 +183,10 @@ class MockInferenceProvider:
             summary = "No supplied contract passed every deterministic portfolio policy check."
             risks = ["Relaxing safeguards changes assignment and liquidity exposure."]
         elif status == "ready":
-            facts = analysis.get("portfolio_facts", {})
+            facts = context.get("portfolio_facts", {})
+            position_facts = facts.get("position_facts", [])
+            if position_facts:
+                fact_ids = [str(position_facts[0].get("fact_id"))]
             summary = (
                 f"The indexed snapshot contains {facts.get('position_count', 0)} positions; "
                 f"{facts.get('largest_symbol', 'none')} is the largest supplied weight."
@@ -196,6 +202,8 @@ class MockInferenceProvider:
                     "The indexed snapshot and market context are user-supplied and accurate."
                 ],
                 "risks": risks,
+                "fact_ids": fact_ids,
+                "candidate_ids": candidate_ids,
             }
         }
 

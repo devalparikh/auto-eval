@@ -1,9 +1,11 @@
 "use client";
 
+import { ArrowsOutIcon } from "@phosphor-icons/react";
 import { useState, type ReactNode } from "react";
-import { JsonViewer } from "@/components/json-viewer";
+import { Modal } from "@/components/modal";
 import { Select } from "@/components/select";
 import { LoadingState } from "@/components/states";
+import { AgentGraph, isGraphDefinition } from "@/features/systems/agent-graph";
 import { formatDate } from "@/lib/format";
 import { playPreferredUiSound } from "@/lib/sound";
 import type { VersionSummary } from "@/lib/types";
@@ -20,6 +22,10 @@ export function VersionEditor({
   loading,
   recordId,
   onSave,
+  records,
+  selectedRecordId,
+  onRecordChange,
+  associations = [],
 }: {
   kind: "graph" | "prompt";
   title: string;
@@ -32,12 +38,17 @@ export function VersionEditor({
   loading: boolean;
   recordId: string;
   onSave: (recordId: string, content: string) => Promise<void>;
+  records?: Array<{ id: string; name: string }>;
+  selectedRecordId?: string;
+  onRecordChange?: (value: string) => void;
+  associations?: Array<{ nodeId: string; label: string }>;
 }) {
   const [draft, setDraft] = useState(content);
   const [graphView, setGraphView] = useState<"structure" | "source">(
     "structure",
   );
   const [saving, setSaving] = useState(false);
+  const [expanded, setExpanded] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   async function save() {
@@ -61,6 +72,10 @@ export function VersionEditor({
 
   const selected = versions.find((version) => version.id === selectedVersionId);
   const parsedGraph = parseJson(draft);
+  const graphDefinition =
+    parsedGraph.ok && isGraphDefinition(parsedGraph.value)
+      ? parsedGraph.value
+      : null;
   return (
     <article className="version-editor overflow-hidden rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface)]">
       <div className="flex items-start justify-between gap-4 border-b border-[var(--border)] px-5 py-4">
@@ -75,18 +90,34 @@ export function VersionEditor({
             </p>
           </div>
         </div>
-        <Select
-          aria-label={`${kind} version`}
-          containerClassName="version-select"
-          value={selectedVersionId}
-          onChange={(event) => onVersionChange(event.target.value)}
-        >
-          {versions.map((version) => (
-            <option key={version.id} value={version.id}>
-              Version {version.version}
-            </option>
-          ))}
-        </Select>
+        <div className="grid shrink-0 gap-2">
+          {records && selectedRecordId && onRecordChange ? (
+            <Select
+              aria-label="Prompt family"
+              containerClassName="version-select"
+              value={selectedRecordId}
+              onChange={(event) => onRecordChange(event.target.value)}
+            >
+              {records.map((record) => (
+                <option key={record.id} value={record.id}>
+                  {record.name}
+                </option>
+              ))}
+            </Select>
+          ) : null}
+          <Select
+            aria-label={`${kind} version`}
+            containerClassName="version-select"
+            value={selectedVersionId}
+            onChange={(event) => onVersionChange(event.target.value)}
+          >
+            {versions.map((version) => (
+              <option key={version.id} value={version.id}>
+                Version {version.version}
+              </option>
+            ))}
+          </Select>
+        </div>
       </div>
       <div className="grid grid-cols-3 border-b border-[var(--border)] text-[10px]">
         <VersionMeta label="Version" value={`v${selected?.version ?? "-"}`} />
@@ -101,6 +132,22 @@ export function VersionEditor({
         />
       </div>
       <div className="p-4">
+        {kind === "prompt" ? (
+          <div className="mb-3 border border-[var(--border)] bg-[var(--surface-muted)] px-3 py-2.5">
+            <p className="text-[10px] font-medium">
+              {associations.length
+                ? `Used by ${associations.length} node${associations.length === 1 ? "" : "s"} in the selected graph`
+                : "Not referenced by the selected graph version"}
+            </p>
+            {associations.length ? (
+              <p className="mono mt-1 text-[9px] text-[var(--text-muted)]">
+                {associations
+                  .map(({ label, nodeId }) => `${label} · ${nodeId}`)
+                  .join("  /  ")}
+              </p>
+            ) : null}
+          </div>
+        ) : null}
         {loading ? (
           <LoadingState rows={6} />
         ) : kind === "graph" ? (
@@ -113,7 +160,7 @@ export function VersionEditor({
                 <button
                   type="button"
                   aria-pressed={graphView === "structure"}
-                  disabled={!parsedGraph.ok}
+                  disabled={!graphDefinition}
                   onClick={() => setGraphView("structure")}
                 >
                   Structure
@@ -126,14 +173,26 @@ export function VersionEditor({
                   Source
                 </button>
               </div>
-              <span>
-                {graphView === "structure"
-                  ? "Inspect nested nodes and edges."
-                  : "Edit the raw definition to create a new version."}
-              </span>
+              <div className="flex items-center gap-3">
+                <span>
+                  {graphView === "structure"
+                    ? "Inspect nodes, edges, and prompt associations."
+                    : "Edit the raw definition to create a new version."}
+                </span>
+                {graphView === "structure" && graphDefinition ? (
+                  <button
+                    type="button"
+                    className="app-button secondary"
+                    onClick={() => setExpanded(true)}
+                  >
+                    <ArrowsOutIcon size={13} />
+                    Expand graph
+                  </button>
+                ) : null}
+              </div>
             </div>
-            {graphView === "structure" && parsedGraph.ok ? (
-              <JsonViewer value={parsedGraph.value} />
+            {graphView === "structure" && graphDefinition ? (
+              <AgentGraph definition={graphDefinition} />
             ) : (
               <textarea
                 aria-label="Graph definition"
@@ -166,8 +225,8 @@ export function VersionEditor({
               id={kind === "graph" ? "graph-editor-help" : undefined}
               className="text-[10px] text-[var(--text-muted)]"
             >
-              {kind === "graph" && !parsedGraph.ok
-                ? "The current source is not valid JSON."
+              {kind === "graph" && !graphDefinition
+                ? "The current source is not a valid agent graph definition."
                 : "Saving creates a new immutable version."}
             </p>
           </div>
@@ -180,6 +239,17 @@ export function VersionEditor({
           </button>
         </div>
       </div>
+      {kind === "graph" && graphDefinition ? (
+        <Modal
+          open={expanded}
+          size="fullscreen"
+          title="Agent graph structure"
+          description="Pan and zoom the selected immutable graph version."
+          onClose={() => setExpanded(false)}
+        >
+          <AgentGraph definition={graphDefinition} fullscreen />
+        </Modal>
+      ) : null}
     </article>
   );
 }

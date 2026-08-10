@@ -8,6 +8,7 @@ class InferenceRequest:
     system_prompt: str
     task: str
     state: dict[str, Any]
+    response_schema: dict[str, Any] | None = None
     agent_system_key: str | None = None
     modalities: list[dict[str, Any]] = field(default_factory=list)
 

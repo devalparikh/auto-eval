@@ -5,7 +5,17 @@ from enum import StrEnum
 from typing import Any
 from uuid import uuid4
 
-from sqlalchemy import JSON, DateTime, Float, ForeignKey, Integer, String, Text, UniqueConstraint
+from sqlalchemy import (
+    JSON,
+    Boolean,
+    DateTime,
+    Float,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+)
 from sqlalchemy.orm import Mapped, mapped_column
 
 from autoeval_api.db import Base
@@ -59,6 +69,48 @@ class AgentSystemVersionRecord(Base):
     version: Mapped[int] = mapped_column(Integer)
     definition: Mapped[dict[str, Any]] = mapped_column(JSON)
     content_hash: Mapped[str] = mapped_column(String(64))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+
+
+class PortfolioSnapshotRecord(Base):
+    __tablename__ = "portfolio_snapshots"
+    __table_args__ = (
+        UniqueConstraint(
+            "agent_system_id",
+            "content_hash",
+            name="uq_portfolio_snapshot_system_hash",
+        ),
+    )
+
+    id: Mapped[str] = mapped_column(String(120), primary_key=True)
+    agent_system_id: Mapped[str] = mapped_column(ForeignKey("agent_systems.id"), index=True)
+    source_trace_id: Mapped[str | None] = mapped_column(
+        ForeignKey("traces.id"), nullable=True, index=True
+    )
+    schema_version: Mapped[int] = mapped_column(Integer)
+    label: Mapped[str] = mapped_column(String(200))
+    as_of: Mapped[str] = mapped_column(String(64))
+    source_kind: Mapped[str] = mapped_column(String(40), index=True)
+    is_synthetic: Mapped[bool] = mapped_column(Boolean, default=False)
+    content_hash: Mapped[str] = mapped_column(String(64))
+    document: Mapped[dict[str, Any]] = mapped_column(JSON)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+
+
+class AgentInputSampleRecord(Base):
+    __tablename__ = "agent_input_samples"
+    __table_args__ = (
+        UniqueConstraint(
+            "agent_system_id",
+            "source_trace_id",
+            name="uq_agent_input_sample_source_trace",
+        ),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    agent_system_id: Mapped[str] = mapped_column(ForeignKey("agent_systems.id"), index=True)
+    source_trace_id: Mapped[str] = mapped_column(ForeignKey("traces.id"), index=True)
+    input: Mapped[dict[str, Any]] = mapped_column(JSON)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
 
 
@@ -143,6 +195,7 @@ class TraceRecord(Base):
         ForeignKey("agent_system_versions.id"), index=True
     )
     prompt_version_id: Mapped[str] = mapped_column(ForeignKey("prompt_versions.id"), index=True)
+    prompt_version_ids: Mapped[dict[str, str]] = mapped_column(JSON, default=dict)
     origin_type: Mapped[str] = mapped_column(String(24), default=TraceOrigin.RUNTIME, index=True)
     evaluation_run_id: Mapped[str | None] = mapped_column(
         ForeignKey("eval_runs.id"), nullable=True, index=True
@@ -175,6 +228,9 @@ class TraceSpanRecord(Base):
     trace_id: Mapped[str] = mapped_column(ForeignKey("traces.id"), index=True)
     node_id: Mapped[str] = mapped_column(String(160))
     node_kind: Mapped[str] = mapped_column(String(40))
+    prompt_version_id: Mapped[str | None] = mapped_column(
+        ForeignKey("prompt_versions.id"), nullable=True, index=True
+    )
     sequence: Mapped[int] = mapped_column(Integer)
     status: Mapped[str] = mapped_column(String(20), default=RunStatus.RUNNING)
     system_prompt: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -199,6 +255,7 @@ class EvalRunRecord(Base):
         ForeignKey("agent_system_versions.id"), index=True
     )
     prompt_version_id: Mapped[str] = mapped_column(ForeignKey("prompt_versions.id"), index=True)
+    prompt_version_ids: Mapped[dict[str, str]] = mapped_column(JSON, default=dict)
     model_ids: Mapped[list[str]] = mapped_column(JSON)
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)

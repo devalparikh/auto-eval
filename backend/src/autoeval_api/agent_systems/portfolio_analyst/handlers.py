@@ -1,10 +1,31 @@
 from collections import defaultdict
+from copy import deepcopy
 from typing import Any
 
+from autoeval_api.agent_systems.portfolio_query.snapshot import snapshot_content_hash
+from autoeval_api.graph.context import GraphRuntimeContext
 from autoeval_api.graph.registry import NodeHandlerRegistry
 from autoeval_api.inference.base import InferenceResponse
+from autoeval_api.models import AgentSystemRecord, utc_now
+from autoeval_api.services.portfolio_snapshots import create_portfolio_snapshot
 
 REQUIRED_PROFILE_FIELDS = ("goal", "time_horizon_years", "risk_tolerance", "liquidity_need")
+SNAPSHOT_PROFILE_FIELDS = REQUIRED_PROFILE_FIELDS
+SNAPSHOT_POSITION_FIELDS = (
+    "symbol",
+    "instrument_type",
+    "asset_class",
+    "bucket",
+    "weight",
+    "shares",
+    "pledged_shares",
+    "covered_calls_allowed",
+    "assignment_acceptable",
+    "do_not_touch",
+    "min_exit_price",
+    "tags",
+    "exposures",
+)
 
 
 def register_handlers(registry: NodeHandlerRegistry) -> None:
@@ -12,6 +33,9 @@ def register_handlers(registry: NodeHandlerRegistry) -> None:
     registry.register_deterministic("validate_portfolio_context", validate_context)
     registry.register_deterministic("calculate_portfolio_exposure", calculate_exposure)
     registry.register_deterministic("apply_financial_safety", apply_financial_safety)
+    registry.register_contextual_deterministic(
+        "persist_portfolio_snapshot", persist_portfolio_snapshot
+    )
     registry.register_llm_output("merge_portfolio_context", merge_inference_output)
     registry.register_llm_output("merge_portfolio_explanation", merge_inference_output)
 
@@ -44,6 +68,7 @@ def normalize_portfolio(state: dict[str, Any]) -> dict[str, Any]:
             holding["weight"] = holding["weight"] / total_weight
     return {
         "normalized": {
+            "is_synthetic": bool(request.get("is_synthetic", False)),
             "profile": profile,
             "holdings": holdings,
             "bucket_policies": _dict_list(request.get("bucket_policies")),
@@ -126,6 +151,80 @@ def apply_financial_safety(state: dict[str, Any]) -> dict[str, Any]:
     output["disclaimer"] = (
         "Analytical support only. Review assumptions and decisions with a qualified professional."
     )
+    return {"output": output}
+
+
+def persist_portfolio_snapshot(
+    state: dict[str, Any], context: GraphRuntimeContext
+) -> dict[str, Any]:
+    """Publish an index-flow result as an immutable domain snapshot."""
+    output = deepcopy(state.get("output", {}))
+    analysis = state.get("analysis", {})
+    normalized = state.get("normalized", {})
+    holdings = normalized.get("holdings", [])
+    if not analysis.get("analysis_ready") or not isinstance(holdings, list) or not holdings:
+        return {"output": output}
+
+    request = state.get("input", {})
+    as_of = str(request.get("snapshot_as_of") or utc_now().isoformat())
+    is_synthetic = bool(request.get("is_synthetic", False))
+    positions = []
+    for index, holding in enumerate(holdings):
+        if not isinstance(holding, dict):
+            continue
+        positions.append(
+            {
+                "position_id": str(
+                    holding.get("position_id")
+                    or f"position-{index + 1}-{holding.get('symbol', 'UNKNOWN')}"
+                ),
+                **{
+                    key: deepcopy(holding[key])
+                    for key in SNAPSHOT_POSITION_FIELDS
+                    if key in holding
+                },
+            }
+        )
+    profile = normalized.get("profile", {})
+    profile = profile if isinstance(profile, dict) else {}
+    derived_analysis = deepcopy(analysis)
+    if isinstance(derived_analysis.get("profile"), dict):
+        derived_analysis["profile"] = {
+            key: deepcopy(derived_analysis["profile"][key])
+            for key in SNAPSHOT_PROFILE_FIELDS
+            if key in derived_analysis["profile"]
+        }
+    document = {
+        "schema_version": 1,
+        "as_of": as_of,
+        "is_synthetic": is_synthetic,
+        "profile": {
+            key: deepcopy(profile[key]) for key in SNAPSHOT_PROFILE_FIELDS if key in profile
+        },
+        "positions": positions,
+        "bucket_policies": deepcopy(normalized.get("bucket_policies", [])),
+        "scenarios": deepcopy(normalized.get("scenarios", [])),
+        "derived_analysis": derived_analysis,
+    }
+    content_hash = snapshot_content_hash(document)
+    owner = context.session.query(AgentSystemRecord).filter_by(key="portfolio-analyst").one()
+    snapshot = create_portfolio_snapshot(
+        context.session,
+        owner,
+        snapshot_id=f"portfolio-{content_hash[:24]}",
+        label=str(request.get("snapshot_label") or f"Indexed portfolio {as_of}"),
+        as_of=as_of,
+        source_kind="synthetic" if is_synthetic else "indexed_run",
+        is_synthetic=is_synthetic,
+        document=document,
+        source_trace_id=context.trace_id,
+    )
+    output["portfolio_snapshot"] = {
+        "id": snapshot.id,
+        "content_hash": snapshot.content_hash,
+        "as_of": snapshot.as_of,
+        "is_synthetic": snapshot.is_synthetic,
+    }
     return {"output": output}
 
 

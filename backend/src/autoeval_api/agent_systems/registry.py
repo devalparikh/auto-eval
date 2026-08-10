@@ -13,6 +13,9 @@ class AgentSystemSpec:
     input_template: dict[str, Any]
     dataset_editor: str
     primary_metric: str = "accuracy"
+    product_key: str | None = None
+    flow_key: str = "run"
+    flow_name: str = "Run"
 
 
 @dataclass(frozen=True)

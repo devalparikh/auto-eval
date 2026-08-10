@@ -26,7 +26,12 @@ const sections = [
     DatabaseIcon,
   ],
   ["evaluations", "Evaluate", "Pinned cross-model runs", FlaskIcon],
-  ["versions", "Versions", "Graph and prompt revisions", GitBranchIcon],
+  [
+    "artifacts",
+    "Artifacts",
+    "Graph, prompt, and indexed snapshot revisions",
+    GitBranchIcon,
+  ],
 ] as const;
 
 export function SystemOverviewScreen({ systemKey }: { systemKey: string }) {

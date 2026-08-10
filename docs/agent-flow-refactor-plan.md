@@ -9,7 +9,11 @@ The remaining data-model mismatch is ownership: `AgentSystemVersion` currently m
 - `portfolio-index`: normalize and analyze a supplied portfolio into an indexed snapshot
 - `portfolio-query`: answer questions over a referenced snapshot, including deterministic covered-call screening
 
-Portfolio Q&A is registered as a separate runnable system for the current compatible milestone. It must not be presented as a new version of the indexing graph because the two graphs have different input and output contracts.
+The compatible runtime milestone keeps separate registration keys, but both manifests now declare
+`product_key=portfolio-analyst` and distinct `index` and `query` flow identities. The catalog and Run
+UI can therefore present one product without pretending that the query graph is a new version of the
+index graph. The normalized database ownership below is still required before removing compatibility
+system keys.
 
 ## Target model
 
@@ -45,8 +49,14 @@ Suggested identities:
 
 Each step needs idempotent SQLite migration tests, cross-flow rejection tests, and a copy-of-current-database smoke test. This is intentionally a schema migration, not a registry trick.
 
-## Snapshot and covered-call contract
+## Completed snapshot/runtime slice
 
-The current query graph accepts a supplied immutable snapshot document, verifies its content hash, and consumes a supplied option-chain payload. The target flow adds server-side snapshot resolution by ID so a caller does not resubmit the full document. Deterministic nodes own eligibility, quote-age validation, contract coverage, DTE, delta, spread, liquidity, event restrictions, premium math, assignment impact, and ranking. The LLM receives only a structurally projected candidate summary and may explain it; it cannot manufacture contracts or alter the ranking.
+`PortfolioSnapshot` records are now immutable in SQLite. The index flow publishes snapshot references;
+the query flow accepts only a snapshot ID, resolves the canonical document through request-scoped
+LangGraph runtime context, and never copies the full snapshot into query graph state or checkpoints.
+A dedicated deterministic node constructs the provider envelope. Deterministic nodes own eligibility,
+quote-age validation, contract coverage, DTE, delta, spread, liquidity, event restrictions, premium
+math, assignment impact, and ranking. The LLM may explain those facts but cannot manufacture contracts
+or alter the ranking.
 
-Until a market-data or broker adapter exists, missing or stale chain data returns `needs_market_data`. Synthetic fixtures never reuse real account quantities. Exact shares, dollar values, cost basis, gross premium, account identifiers, and owner identity are excluded from persisted and provider-bound projections by default.
+The query flow now has a registered options-chain runtime capability: direct runs may refresh Tradier while evaluations lock a recorded fixture and never call the network. Missing, stale, or incomplete data still fails closed. Synthetic fixtures never reuse real account quantities. Exact shares, dollar values, cost basis, gross premium, account identifiers, owner identity, and raw provider contract symbols are excluded from real-portfolio provider projections and intermediate persisted spans.

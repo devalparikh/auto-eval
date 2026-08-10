@@ -29,6 +29,7 @@ from autoeval_api.schemas import (
     EvalRunResponse,
 )
 from autoeval_api.services.scoring import MetricSuite, ScoringRegistry, default_scoring_registry
+from autoeval_api.services.versioning import resolve_graph_prompt_versions
 
 
 @dataclass(frozen=True)
@@ -37,6 +38,7 @@ class EvaluationContext:
     items: list[DatasetItemRecord]
     graph_version: AgentSystemVersionRecord
     prompt_version: PromptVersionRecord
+    prompt_versions: dict[str, PromptVersionRecord]
     metric_suite: MetricSuite
     agent_system_key: str
 
@@ -59,6 +61,7 @@ class EvaluationService:
         graph_version: AgentSystemVersionRecord,
         prompt_version: PromptVersionRecord,
         model_ids: list[str],
+        prompt_versions: dict[str, PromptVersionRecord] | None = None,
     ) -> EvalRunRecord:
         if dataset_version.status != DatasetStatus.FINAL:
             raise ValueError("Only final dataset versions can be evaluated")
@@ -73,6 +76,23 @@ class EvaluationService:
         }
         if len(selected_systems) != 1:
             raise ValueError("Dataset, graph, and prompt must belong to the same agent system")
+        if prompt_versions is None:
+            prompt_versions = resolve_graph_prompt_versions(session, graph_version)
+        expected_prompt_keys = {
+            node["prompt_key"]
+            for node in graph_version.definition.get("nodes", [])
+            if node.get("kind") == "llm" and node.get("prompt_key")
+        }
+        if set(prompt_versions) != expected_prompt_keys:
+            raise ValueError("Every graph prompt key must resolve to exactly one prompt version")
+        for prompt_key, version in prompt_versions.items():
+            selected_prompt = session.get(PromptRecord, version.prompt_id)
+            if (
+                selected_prompt is None
+                or selected_prompt.key != prompt_key
+                or selected_prompt.agent_system_id != graph_version.agent_system_id
+            ):
+                raise ValueError(f"Invalid prompt version selection for {prompt_key}")
         for model_id in model_ids:
             self.runner.provider_registry.get_for_model(model_id)
         run = EvalRunRecord(
@@ -80,6 +100,7 @@ class EvaluationService:
             dataset_version_id=dataset_version.id,
             agent_system_version_id=graph_version.id,
             prompt_version_id=prompt_version.id,
+            prompt_version_ids={key: version.id for key, version in prompt_versions.items()},
             model_ids=list(dict.fromkeys(model_ids)),
         )
         session.add(run)
@@ -135,11 +156,28 @@ class EvaluationService:
         system = session.get(AgentSystemRecord, graph_version.agent_system_id)
         if system is None:
             raise RuntimeError("Evaluation agent system is no longer available")
+        prompt_versions: dict[str, PromptVersionRecord] = {}
+        for prompt_key, version_id in (run.prompt_version_ids or {}).items():
+            selected = session.get(PromptVersionRecord, version_id)
+            selected_prompt = (
+                session.get(PromptRecord, selected.prompt_id) if selected is not None else None
+            )
+            if (
+                selected is None
+                or selected_prompt is None
+                or selected_prompt.key != prompt_key
+                or selected_prompt.agent_system_id != system.id
+            ):
+                raise RuntimeError(
+                    f"Evaluation prompt version selection is no longer available: {prompt_key}"
+                )
+            prompt_versions[prompt_key] = selected
         return EvaluationContext(
             run=run,
             items=items,
             graph_version=graph_version,
             prompt_version=prompt_version,
+            prompt_versions=prompt_versions,
             metric_suite=self.scoring_registry.for_dataset(dataset.key),
             agent_system_key=system.key,
         )
@@ -160,6 +198,7 @@ class EvaluationService:
                     context.prompt_version,
                     model_id,
                     context.agent_system_key,
+                    context.prompt_versions,
                 ),
                 item.input,
                 TraceContext(
@@ -259,6 +298,7 @@ def eval_run_response(
         dataset_version_id=run.dataset_version_id,
         agent_system_version_id=run.agent_system_version_id,
         prompt_version_id=run.prompt_version_id,
+        prompt_version_ids=run.prompt_version_ids or {},
         model_ids=run.model_ids,
         error=run.error,
         created_at=run.created_at,

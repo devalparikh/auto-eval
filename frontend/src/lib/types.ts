@@ -8,6 +8,9 @@ export type VersionSummary = {
 export type AgentSystemSummary = {
   id: string;
   key: string;
+  product_key: string;
+  flow_key: string;
+  flow_name: string;
   name: string;
   description: string;
   versions: VersionSummary[];
@@ -61,12 +64,40 @@ export type Catalog = {
   models: ModelOption[];
 };
 
+export type PortfolioSnapshotSummary = {
+  id: string;
+  agent_system_id: string;
+  source_trace_id: string | null;
+  schema_version: number;
+  label: string;
+  as_of: string;
+  source_kind: string;
+  is_synthetic: boolean;
+  content_hash: string;
+  position_count: number;
+  created_at: string;
+};
+
+export type PortfolioSnapshotDetail = PortfolioSnapshotSummary & {
+  content_available: boolean;
+  content: Record<string, unknown> | null;
+};
+
+export type InputSample = {
+  id: string;
+  agent_system_id: string;
+  source_trace_id: string;
+  input: Record<string, unknown>;
+  created_at: string;
+};
+
 export type GraphNodeDefinition = {
   id: string;
   label: string;
   kind: "deterministic" | "llm";
   handler: string;
   task: string | null;
+  prompt_key?: string | null;
 };
 
 export type GraphDefinition = {

@@ -9,6 +9,9 @@ PLUGIN = AgentSystemPlugin(
         input_template=PORTFOLIO_QUERY_INPUT_TEMPLATE,
         dataset_editor="json",
         primary_metric="safety_weighted_accuracy",
+        product_key="portfolio-analyst",
+        flow_key="query",
+        flow_name="Query portfolio",
     ),
     trace_policy_module="autoeval_api.agent_systems.portfolio_query.trace_policy",
 )

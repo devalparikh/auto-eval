@@ -10,6 +10,7 @@ from autoeval_api.config import get_settings
 from autoeval_api.db import SessionLocal, create_schema
 from autoeval_api.graph.runner import AgentGraphRunner
 from autoeval_api.inference.registry import default_provider_registry
+from autoeval_api.market_data import default_runtime_input_registry
 from autoeval_api.services.scoring import default_scoring_registry
 
 __all__ = [
@@ -30,7 +31,11 @@ async def ensure_demo_runs(
     session_factory=SessionLocal,
     runner: AgentGraphRunner | None = None,
 ) -> None:
-    runner = runner or AgentGraphRunner(default_provider_registry(get_settings()))
+    settings = get_settings()
+    runner = runner or AgentGraphRunner(
+        default_provider_registry(settings),
+        runtime_input_registry=default_runtime_input_registry(settings),
+    )
     await ensure_all_demo_runs(session_factory, runner, default_scoring_registry())
 
 

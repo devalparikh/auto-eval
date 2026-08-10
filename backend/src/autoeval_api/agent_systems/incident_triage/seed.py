@@ -2,7 +2,12 @@ from collections.abc import Callable
 
 from sqlalchemy.orm import Session
 
-from autoeval_api.agent_systems.incident_triage.definition import INCIDENT_GRAPH, INCIDENT_PROMPT
+from autoeval_api.agent_systems.incident_triage.definition import (
+    INCIDENT_CLASSIFICATION_PROMPT,
+    INCIDENT_DRAFT_RESPONSE_PROMPT,
+    INCIDENT_GRAPH,
+    INCIDENT_PROMPT,
+)
 from autoeval_api.agent_systems.incident_triage.scoring import DATASET_KEY
 from autoeval_api.graph.runner import AgentGraphRunner, RunSelection
 from autoeval_api.models import (
@@ -18,10 +23,17 @@ from autoeval_api.models import (
     TraceRecord,
     utc_now,
 )
+from autoeval_api.schemas import AgentGraphDefinition
 from autoeval_api.services.datasets import create_dataset_version
 from autoeval_api.services.evaluations import EvaluationService
 from autoeval_api.services.scoring import ScoringRegistry
-from autoeval_api.services.versioning import create_agent_version, create_prompt_version
+from autoeval_api.services.versioning import (
+    create_agent_version,
+    create_prompt_version,
+    hash_json,
+    hash_text,
+    resolve_graph_prompt_versions,
+)
 
 DATASET_ITEMS = [
     (
@@ -87,9 +99,10 @@ def ensure_seed_data(
     session: Session,
 ) -> tuple[AgentSystemVersionRecord, PromptVersionRecord, DatasetVersionRecord]:
     agent_system = _get_or_create_agent_system(session)
-    graph_version = _latest_graph_version(session, agent_system)
     prompt = _get_or_create_prompt(session, agent_system)
     prompt_version = _latest_prompt_version(session, prompt)
+    _ensure_node_prompt_versions(session, agent_system)
+    graph_version = _latest_graph_version(session, agent_system)
     dataset = _get_or_create_dataset(session, agent_system)
     final_version = _get_or_create_final_dataset(session, dataset)
     _ensure_draft_dataset(session, dataset, final_version)
@@ -104,6 +117,7 @@ async def ensure_demo_runs(
     session = session_factory()
     try:
         graph_version, prompt_version, final_version = ensure_seed_data(session)
+        prompt_versions = resolve_graph_prompt_versions(session, graph_version)
         if session.query(TraceRecord).count() == 0:
             await runner.run(
                 session,
@@ -112,6 +126,7 @@ async def ensure_demo_runs(
                     prompt_version,
                     "mock/incident-specialist",
                     "incident-triage",
+                    prompt_versions,
                 ),
                 {
                     "is_synthetic": True,
@@ -128,6 +143,7 @@ async def ensure_demo_runs(
                 graph_version,
                 prompt_version,
                 ["mock/incident-specialist", "mock/incident-fast"],
+                prompt_versions,
             )
             await service.execute(run.id)
     finally:
@@ -150,10 +166,12 @@ def _get_or_create_agent_system(session: Session) -> AgentSystemRecord:
 
 
 def _latest_graph_version(session: Session, system: AgentSystemRecord) -> AgentSystemVersionRecord:
+    parsed = AgentGraphDefinition.model_validate(INCIDENT_GRAPH)
+    parsed.validate_references()
+    content_hash = hash_json(parsed.model_dump(mode="json"))
     version = (
         session.query(AgentSystemVersionRecord)
-        .filter_by(agent_system_id=system.id)
-        .order_by(AgentSystemVersionRecord.version.desc())
+        .filter_by(agent_system_id=system.id, content_hash=content_hash)
         .first()
     )
     return version or create_agent_version(session, system, INCIDENT_GRAPH)
@@ -184,6 +202,48 @@ def _latest_prompt_version(session: Session, prompt: PromptRecord) -> PromptVers
         .first()
     )
     return version or create_prompt_version(session, prompt, INCIDENT_PROMPT)
+
+
+def _ensure_node_prompt_versions(
+    session: Session,
+    agent_system: AgentSystemRecord,
+) -> dict[str, PromptVersionRecord]:
+    definitions = (
+        (
+            "incident-triage-classification",
+            "Incident classification",
+            "Classification-only instructions for the incident graph.",
+            INCIDENT_CLASSIFICATION_PROMPT,
+        ),
+        (
+            "incident-triage-draft-response",
+            "Incident draft response",
+            "Response-drafting instructions for the incident graph.",
+            INCIDENT_DRAFT_RESPONSE_PROMPT,
+        ),
+    )
+    versions: dict[str, PromptVersionRecord] = {}
+    for key, name, description, content in definitions:
+        prompt = session.query(PromptRecord).filter_by(key=key).first()
+        if prompt is None:
+            prompt = PromptRecord(
+                agent_system_id=agent_system.id,
+                key=key,
+                name=name,
+                description=description,
+            )
+            session.add(prompt)
+            session.commit()
+        elif prompt.agent_system_id != agent_system.id:
+            raise ValueError(f"Seed prompt key belongs to another agent system: {key}")
+        content_hash = hash_text(content.strip())
+        version = (
+            session.query(PromptVersionRecord)
+            .filter_by(prompt_id=prompt.id, content_hash=content_hash)
+            .first()
+        )
+        versions[key] = version or create_prompt_version(session, prompt, content)
+    return versions
 
 
 def _get_or_create_dataset(session: Session, agent_system: AgentSystemRecord) -> DatasetRecord:

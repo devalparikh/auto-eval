@@ -1,6 +1,6 @@
 from functools import lru_cache
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Literal
 
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
@@ -24,6 +24,15 @@ class Settings(BaseSettings):
     enable_cli_providers: bool = Field(default=False, alias="ENABLE_CLI_PROVIDERS")
     cli_timeout_seconds: int = 90
     cli_output_limit_bytes: int = 1_000_000
+    options_market_data_provider: Literal[
+        "unconfigured", "tradier-sandbox", "tradier-production"
+    ] = Field(default="unconfigured", alias="OPTIONS_MARKET_DATA_PROVIDER")
+    tradier_api_token: str | None = Field(default=None, alias="TRADIER_API_TOKEN")
+    market_data_timeout_seconds: float = Field(default=8, ge=1, le=30)
+    market_data_max_symbols: int = Field(default=8, ge=1, le=25)
+    market_data_max_expirations_per_symbol: int = Field(default=2, ge=1, le=8)
+    market_data_max_contracts: int = Field(default=500, ge=10, le=2_000)
+    market_data_max_response_bytes: int = Field(default=5_000_000, ge=100_000, le=20_000_000)
     max_request_bytes: int = 2_000_000
     enforce_loopback_clients: bool = True
 

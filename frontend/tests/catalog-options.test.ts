@@ -13,6 +13,9 @@ const catalog = {
     {
       id: "system",
       key: "system",
+      product_key: "system",
+      flow_key: "run",
+      flow_name: "Run",
       name: "System",
       description: "",
       default_model_ids: ["ready"],
@@ -60,19 +63,37 @@ const catalog = {
     },
   ],
   models: [
-    { id: "ready", provider: "mock", label: "Ready", supports: ["text"], available: true },
-    { id: "off", provider: "cli", label: "Off", supports: ["text"], available: false },
+    {
+      id: "ready",
+      provider: "mock",
+      label: "Ready",
+      supports: ["text"],
+      available: true,
+    },
+    {
+      id: "off",
+      provider: "cli",
+      label: "Off",
+      supports: ["text"],
+      available: false,
+    },
   ],
 } satisfies Catalog;
 
 describe("catalog option projections", () => {
   it("separates immutable and mutable dataset versions", () => {
-    expect(finalDatasetVersions(catalog).map(({ version }) => version.id)).toEqual(["final"]);
-    expect(draftDatasetVersions(catalog).map(({ version }) => version.id)).toEqual(["draft"]);
+    expect(
+      finalDatasetVersions(catalog).map(({ version }) => version.id),
+    ).toEqual(["final"]);
+    expect(
+      draftDatasetVersions(catalog).map(({ version }) => version.id),
+    ).toEqual(["draft"]);
   });
 
   it("returns only available models and the primary version lists", () => {
-    expect(availableModels(catalog).map((model) => model.id)).toEqual(["ready"]);
+    expect(availableModels(catalog).map((model) => model.id)).toEqual([
+      "ready",
+    ]);
     expect(graphVersions(catalog, "system")[0]?.id).toBe("graph-2");
     expect(promptVersions(catalog, "system")[0]?.id).toBe("prompt-3");
   });

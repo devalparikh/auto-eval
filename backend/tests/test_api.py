@@ -15,6 +15,14 @@ def test_trace_endpoint_returns_graph_and_spans(client) -> None:
     assert payload["output"]["severity"] == "critical"
     assert len(payload["spans"]) == 4
     assert payload["graph_definition"]["entry_point"] == "normalize_input"
+    assert set(payload["prompt_version_ids"]) == {
+        "incident-triage-classification",
+        "incident-triage-draft-response",
+    }
+    llm_spans = [span for span in payload["spans"] if span["node_kind"] == "llm"]
+    assert {span["prompt_version_id"] for span in llm_spans} == set(
+        payload["prompt_version_ids"].values()
+    )
 
 
 def test_final_dataset_rejects_mutation(client) -> None:
@@ -59,3 +67,7 @@ def test_eval_run_scores_multiple_models(client) -> None:
     assert payload["status"] == "complete"
     assert len(payload["results"]) == 2
     assert all("f1_macro" in result["metrics"] for result in payload["results"])
+    assert set(payload["prompt_version_ids"]) == {
+        "incident-triage-classification",
+        "incident-triage-draft-response",
+    }

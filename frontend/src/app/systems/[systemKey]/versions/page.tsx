@@ -1,7 +1,4 @@
-import type { Metadata } from "next";
-import { SystemsScreen } from "@/features/systems/systems-screen";
-
-export const metadata: Metadata = { title: "Versions" };
+import { redirect } from "next/navigation";
 
 export default async function VersionsPage({
   params,
@@ -9,5 +6,5 @@ export default async function VersionsPage({
   params: Promise<{ systemKey: string }>;
 }) {
   const { systemKey } = await params;
-  return <SystemsScreen systemKey={systemKey} />;
+  redirect(`/systems/${encodeURIComponent(systemKey)}/artifacts`);
 }

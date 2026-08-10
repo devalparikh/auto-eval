@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { modelsForSystem, parseRunInput } from "@/features/run/run-options";
+import {
+  inputForRun,
+  inputTemplateForRun,
+  modelsForSystem,
+  parseRunInput,
+} from "@/features/run/run-options";
 import type { Catalog } from "@/lib/types";
 
 const catalog = {
@@ -54,5 +59,34 @@ describe("run options", () => {
     });
     expect(() => parseRunInput("[1, 2]")).toThrow("JSON object");
     expect(() => parseRunInput("not-json")).toThrow("valid JSON");
+  });
+
+  it("keeps portfolio snapshot documents out of editable query input", () => {
+    const template = inputTemplateForRun("portfolio-query", {
+      snapshot_id: "snapshot-1",
+      snapshot: { positions: [{ shares: 200 }] },
+      market_context: { contracts: [{ symbol: "NVDA" }] },
+      question: "What changed?",
+    });
+
+    expect(template).toEqual({ question: "What changed?" });
+    expect(inputForRun("portfolio-query", template, "snapshot-2")).toEqual({
+      question: "What changed?",
+      snapshot_id: "snapshot-2",
+    });
+
+    expect(
+      inputForRun(
+        "portfolio-query",
+        {
+          question: "What changed?",
+          market_context: { contracts: [{ symbol: "NVDA" }] },
+        },
+        "snapshot-2",
+      ),
+    ).toEqual({
+      question: "What changed?",
+      snapshot_id: "snapshot-2",
+    });
   });
 });

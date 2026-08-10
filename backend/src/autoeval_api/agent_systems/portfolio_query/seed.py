@@ -1,8 +1,13 @@
 from collections.abc import Callable
 from copy import deepcopy
 
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
+from autoeval_api.agent_systems.portfolio_analyst.snapshots import (
+    SYNTHETIC_INSUFFICIENT_SHARES_SNAPSHOT_ID,
+    ensure_synthetic_portfolio_snapshots,
+)
 from autoeval_api.agent_systems.portfolio_query.definition import (
     PORTFOLIO_QUERY_GRAPH,
     PORTFOLIO_QUERY_INPUT_TEMPLATE,
@@ -23,17 +28,23 @@ from autoeval_api.models import (
     TraceRecord,
     utc_now,
 )
+from autoeval_api.schemas import AgentGraphDefinition
 from autoeval_api.services.datasets import create_dataset_version
 from autoeval_api.services.evaluations import EvaluationService
 from autoeval_api.services.scoring import ScoringRegistry
-from autoeval_api.services.versioning import create_agent_version, create_prompt_version
+from autoeval_api.services.versioning import (
+    create_agent_version,
+    create_prompt_version,
+    hash_json,
+    hash_text,
+    resolve_graph_prompt_versions,
+)
 
 
 def _dataset_items() -> list[tuple[dict, dict]]:
     eligible = deepcopy(PORTFOLIO_QUERY_INPUT_TEMPLATE)
     insufficient_shares = deepcopy(PORTFOLIO_QUERY_INPUT_TEMPLATE)
-    insufficient_shares["snapshot"]["positions"][0]["shares"] = 80
-    insufficient_shares["snapshot"]["positions"][0]["pledged_shares"] = 0
+    insufficient_shares["snapshot_id"] = SYNTHETIC_INSUFFICIENT_SHARES_SNAPSHOT_ID
     stale_quotes = deepcopy(PORTFOLIO_QUERY_INPUT_TEMPLATE)
     stale_quotes["market_context"]["quote_age_hours"] = 72
     return [
@@ -41,7 +52,7 @@ def _dataset_items() -> list[tuple[dict, dict]]:
             eligible,
             {
                 "status": "candidates",
-                "candidate_ids": ["NVDA_SYNTH_CALL_160"],
+                "candidate_ids": ["candidate-001"],
                 "market_data_fresh": True,
             },
         ),
@@ -67,10 +78,13 @@ def _dataset_items() -> list[tuple[dict, dict]]:
 def ensure_seed_data(
     session: Session,
 ) -> tuple[AgentSystemVersionRecord, PromptVersionRecord, DatasetVersionRecord]:
+    snapshot_owner = _get_or_create_snapshot_owner(session)
+    ensure_synthetic_portfolio_snapshots(session, snapshot_owner)
     system = _get_or_create_system(session)
-    graph_version = _latest_graph_version(session, system)
     prompt = _get_or_create_prompt(session, system)
     prompt_version = _latest_prompt_version(session, prompt)
+    _ensure_node_prompt_version(session, system)
+    graph_version = _latest_graph_version(session, system)
     dataset = _get_or_create_dataset(session, system)
     final_version = _get_or_create_final_dataset(session, dataset)
     _ensure_draft_dataset(session, dataset, final_version)
@@ -85,6 +99,7 @@ async def ensure_demo_runs(
     session = session_factory()
     try:
         graph_version, prompt_version, final_version = ensure_seed_data(session)
+        prompt_versions = resolve_graph_prompt_versions(session, graph_version)
         trace_exists = (
             session.query(TraceRecord).filter_by(agent_system_version_id=graph_version.id).first()
         )
@@ -96,6 +111,7 @@ async def ensure_demo_runs(
                     prompt_version,
                     "mock/portfolio-analyst",
                     "portfolio-query",
+                    prompt_versions,
                 ),
                 deepcopy(PORTFOLIO_QUERY_INPUT_TEMPLATE),
             )
@@ -110,6 +126,7 @@ async def ensure_demo_runs(
                 graph_version,
                 prompt_version,
                 ["mock/portfolio-analyst", "mock/portfolio-fast"],
+                prompt_versions,
             )
             await service.execute(run.id)
     finally:
@@ -117,26 +134,52 @@ async def ensure_demo_runs(
 
 
 def _get_or_create_system(session: Session) -> AgentSystemRecord:
+    description = (
+        "Answer questions over an immutable server-resolved portfolio snapshot using "
+        "deterministic facts, supplied market data, and policy checks."
+    )
     record = session.query(AgentSystemRecord).filter_by(key="portfolio-query").first()
     if record is None:
         record = AgentSystemRecord(
             key="portfolio-query",
             name="Investment Portfolio Q&A",
-            description=(
-                "Answer questions over a supplied, hash-verified portfolio snapshot document "
-                "using supplied market data and deterministic policy checks."
-            ),
+            description=description,
         )
         session.add(record)
+        session.commit()
+    elif record.description != description:
+        record.description = description
+        session.commit()
+    return record
+
+
+def _get_or_create_snapshot_owner(session: Session) -> AgentSystemRecord:
+    description = (
+        "Index portfolio context into an immutable snapshot and explain deterministic "
+        "exposure, concentration, bucket, liquidity, and scenario analysis."
+    )
+    record = session.query(AgentSystemRecord).filter_by(key="portfolio-analyst").first()
+    if record is None:
+        record = AgentSystemRecord(
+            key="portfolio-analyst",
+            name="Investment Portfolio Analyst",
+            description=description,
+        )
+        session.add(record)
+        session.commit()
+    elif record.description != description:
+        record.description = description
         session.commit()
     return record
 
 
 def _latest_graph_version(session: Session, system: AgentSystemRecord) -> AgentSystemVersionRecord:
+    parsed = AgentGraphDefinition.model_validate(PORTFOLIO_QUERY_GRAPH)
+    parsed.validate_references()
+    content_hash = hash_json(parsed.model_dump(mode="json"))
     version = (
         session.query(AgentSystemVersionRecord)
-        .filter_by(agent_system_id=system.id)
-        .order_by(AgentSystemVersionRecord.version.desc())
+        .filter_by(agent_system_id=system.id, content_hash=content_hash)
         .first()
     )
     return version or create_agent_version(session, system, PORTFOLIO_QUERY_GRAPH)
@@ -157,10 +200,36 @@ def _get_or_create_prompt(session: Session, system: AgentSystemRecord) -> Prompt
 
 
 def _latest_prompt_version(session: Session, prompt: PromptRecord) -> PromptVersionRecord:
+    content_hash = hash_text(PORTFOLIO_QUERY_PROMPT.strip())
     version = (
         session.query(PromptVersionRecord)
-        .filter_by(prompt_id=prompt.id)
-        .order_by(PromptVersionRecord.version.desc())
+        .filter_by(prompt_id=prompt.id, content_hash=content_hash)
+        .first()
+    )
+    return version or create_prompt_version(session, prompt, PORTFOLIO_QUERY_PROMPT)
+
+
+def _ensure_node_prompt_version(
+    session: Session,
+    system: AgentSystemRecord,
+) -> PromptVersionRecord:
+    key = "portfolio-query-explanation"
+    prompt = session.query(PromptRecord).filter_by(key=key).first()
+    if prompt is None:
+        prompt = PromptRecord(
+            agent_system_id=system.id,
+            key=key,
+            name="Portfolio query explanation",
+            description="Grounded explanation instructions for the portfolio query flow.",
+        )
+        session.add(prompt)
+        session.commit()
+    elif prompt.agent_system_id != system.id:
+        raise ValueError(f"Seed prompt key belongs to another agent system: {key}")
+    content_hash = hash_text(PORTFOLIO_QUERY_PROMPT.strip())
+    version = (
+        session.query(PromptVersionRecord)
+        .filter_by(prompt_id=prompt.id, content_hash=content_hash)
         .first()
     )
     return version or create_prompt_version(session, prompt, PORTFOLIO_QUERY_PROMPT)
@@ -187,11 +256,17 @@ def _get_or_create_final_dataset(session: Session, dataset: DatasetRecord) -> Da
         .order_by(DatasetVersionRecord.version.desc())
         .first()
     )
-    if version is not None:
+    if version is not None and _is_current_dataset_version(session, version):
         return version
+    next_version = (
+        session.query(func.max(DatasetVersionRecord.version))
+        .filter_by(dataset_id=dataset.id)
+        .scalar()
+        or 0
+    ) + 1
     version = DatasetVersionRecord(
         dataset_id=dataset.id,
-        version=1,
+        version=next_version,
         status=DatasetStatus.DRAFT,
     )
     session.add(version)
@@ -207,13 +282,23 @@ def _get_or_create_final_dataset(session: Session, dataset: DatasetRecord) -> Da
     return version
 
 
+def _is_current_dataset_version(session: Session, version: DatasetVersionRecord) -> bool:
+    items = session.query(DatasetItemRecord).filter_by(dataset_version_id=version.id).all()
+    expected_items = _dataset_items()
+    return len(items) == len(expected_items) and all(
+        any(item.input == input_value and item.expected == expected for item in items)
+        for input_value, expected in expected_items
+    )
+
+
 def _ensure_draft_dataset(
     session: Session, dataset: DatasetRecord, final_version: DatasetVersionRecord
 ) -> None:
     draft = (
         session.query(DatasetVersionRecord)
         .filter_by(dataset_id=dataset.id, status=DatasetStatus.DRAFT)
+        .order_by(DatasetVersionRecord.version.desc())
         .first()
     )
-    if draft is None:
+    if draft is None or draft.version < final_version.version:
         create_dataset_version(session, dataset, clone_from_version_id=final_version.id)

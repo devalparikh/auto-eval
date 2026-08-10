@@ -7,6 +7,7 @@ from autoeval_api.api.dependencies import (
     RunnerDependency,
     SessionDependency,
     get_or_404,
+    resolve_node_prompt_versions,
     resolve_run_versions,
 )
 from autoeval_api.graph.runner import RunSelection
@@ -58,13 +59,24 @@ async def run_trace(
         payload.agent_system_version_id,
         payload.prompt_version_id,
     )
+    prompt_versions = resolve_node_prompt_versions(
+        session,
+        graph_version,
+        payload.prompt_version_ids,
+    )
     try:
         provider_registry.get_for_model(payload.model_id)
     except (ValueError, RuntimeError) as error:
         raise HTTPException(status_code=400, detail=str(error)) from error
     trace = await runner.run(
         session,
-        RunSelection(graph_version, prompt_version, payload.model_id, system.key),
+        RunSelection(
+            graph_version,
+            prompt_version,
+            payload.model_id,
+            system.key,
+            prompt_versions,
+        ),
         payload.input,
     )
     return trace_response(session, trace)

@@ -10,7 +10,16 @@ from sqlalchemy.orm import Session
 
 from autoeval_api.agent_systems.seed import ensure_demo_runs, ensure_seed_data
 from autoeval_api.api.middleware import RequestGuardMiddleware, SecurityHeadersMiddleware
-from autoeval_api.api.routes import catalog, datasets, evaluations, traces, versions
+from autoeval_api.api.routes import (
+    artifacts,
+    catalog,
+    datasets,
+    evaluations,
+    input_samples,
+    portfolio_snapshots,
+    traces,
+    versions,
+)
 from autoeval_api.config import Settings, get_settings
 from autoeval_api.db import SessionLocal, create_schema
 from autoeval_api.graph.registry import NodeHandlerRegistry, default_node_handler_registry
@@ -19,6 +28,7 @@ from autoeval_api.inference.registry import (
     InferenceProviderRegistry,
     default_provider_registry,
 )
+from autoeval_api.market_data import default_runtime_input_registry
 from autoeval_api.services.evaluations import EvaluationService
 from autoeval_api.services.scoring import ScoringRegistry, default_scoring_registry
 
@@ -41,7 +51,11 @@ def create_application(
         )
     node_registry = node_registry or default_node_handler_registry()
     scoring_registry = scoring_registry or default_scoring_registry()
-    runner = runner or AgentGraphRunner(provider_registry, node_registry)
+    runner = runner or AgentGraphRunner(
+        provider_registry,
+        node_registry,
+        default_runtime_input_registry(settings),
+    )
     evaluation_service = evaluation_service or EvaluationService(
         session_factory, runner, scoring_registry
     )
@@ -84,6 +98,9 @@ def create_application(
     app.add_middleware(SecurityHeadersMiddleware)
 
     app.include_router(catalog.router)
+    app.include_router(artifacts.router)
+    app.include_router(portfolio_snapshots.router)
+    app.include_router(input_samples.router)
     app.include_router(versions.router)
     app.include_router(traces.router)
     app.include_router(datasets.router)

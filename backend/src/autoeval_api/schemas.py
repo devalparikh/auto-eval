@@ -1,4 +1,5 @@
 from datetime import datetime
+from enum import StrEnum
 from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -8,12 +9,24 @@ class StrictModel(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
+class RuntimeInputPolicy(StrictModel):
+    source: str = Field(pattern=r"^[a-z][a-z0-9_]{1,80}$")
+    runtime_mode: Literal["locked", "refresh"] = "refresh"
+    evaluation_mode: Literal["locked", "refresh"] = "locked"
+
+
 class AgentNodeDefinition(StrictModel):
     id: str = Field(pattern=r"^[a-z][a-z0-9_]{1,80}$")
     label: str = Field(min_length=1, max_length=120)
     kind: Literal["deterministic", "llm"]
     handler: str = Field(pattern=r"^[a-z][a-z0-9_]{1,80}$")
     task: str | None = Field(default=None, max_length=240)
+    prompt_key: str | None = Field(
+        default=None,
+        pattern=r"^[a-z][a-z0-9-]{1,119}$",
+    )
+    response_schema: dict[str, Any] | None = None
+    runtime_input_policy: RuntimeInputPolicy | None = None
 
 
 class AgentEdgeDefinition(StrictModel):
@@ -38,6 +51,9 @@ class AgentGraphDefinition(StrictModel):
         for edge in self.edges:
             if edge.source not in node_ids or edge.target not in node_ids:
                 raise ValueError("Every edge must reference known nodes")
+        for node in self.nodes:
+            if node.kind != "llm" and node.prompt_key is not None:
+                raise ValueError("Only LLM nodes can reference a prompt key")
 
 
 class VersionSummary(BaseModel):
@@ -50,6 +66,9 @@ class VersionSummary(BaseModel):
 class AgentSystemSummary(BaseModel):
     id: str
     key: str
+    product_key: str
+    flow_key: str
+    flow_name: str
     name: str
     description: str
     versions: list[VersionSummary]
@@ -103,6 +122,78 @@ class CatalogResponse(BaseModel):
     models: list[ModelOption]
 
 
+class PortfolioSnapshotSummary(BaseModel):
+    id: str
+    agent_system_id: str
+    source_trace_id: str | None
+    schema_version: int
+    label: str
+    as_of: str
+    source_kind: str
+    is_synthetic: bool
+    content_hash: str
+    position_count: int
+    created_at: datetime
+
+
+class PortfolioSnapshotDetail(PortfolioSnapshotSummary):
+    content_available: bool
+    content: dict[str, Any]
+
+
+class ArtifactKind(StrEnum):
+    GRAPH = "graph"
+    PROMPT = "prompt"
+    DATASET = "dataset"
+    PORTFOLIO_SNAPSHOT = "portfolio_snapshot"
+
+
+class NodePromptArtifactBinding(BaseModel):
+    node_id: str
+    prompt_key: str | None
+    uses_legacy_default: bool
+    current_prompt_version_id: str | None = None
+    available_versions: list[VersionSummary] = []
+
+
+class ArtifactSummary(BaseModel):
+    id: str
+    kind: ArtifactKind
+    agent_system_id: str
+    key: str
+    name: str
+    version: int | None = None
+    status: str | None = None
+    content_hash: str | None = None
+    content_available: bool = True
+    created_at: datetime
+
+
+class ArtifactCatalogResponse(BaseModel):
+    agent_system_id: str
+    agent_system_key: str
+    agent_system_name: str
+    artifacts: list[ArtifactSummary]
+
+
+class ArtifactDetail(ArtifactSummary):
+    content: Any
+    node_prompt_bindings: list[NodePromptArtifactBinding] = []
+
+
+class CreateInputSampleRequest(StrictModel):
+    input: dict[str, Any]
+    source_trace_id: str = Field(min_length=1, max_length=36)
+
+
+class InputSampleResponse(BaseModel):
+    id: str
+    agent_system_id: str
+    source_trace_id: str
+    input: dict[str, Any]
+    created_at: datetime
+
+
 class CreateAgentVersionRequest(StrictModel):
     definition: AgentGraphDefinition
 
@@ -135,6 +226,7 @@ class RunTraceRequest(StrictModel):
     agent_system_id: str | None = None
     agent_system_version_id: str | None = None
     prompt_version_id: str | None = None
+    prompt_version_ids: dict[str, str] = Field(default_factory=dict, max_length=80)
 
 
 class TraceSpanResponse(BaseModel):
@@ -142,6 +234,7 @@ class TraceSpanResponse(BaseModel):
     trace_id: str
     node_id: str
     node_kind: str
+    prompt_version_id: str | None
     sequence: int
     status: str
     system_prompt: str | None
@@ -175,6 +268,7 @@ class TraceResponse(BaseModel):
     agent_system_name: str
     agent_system_version_id: str
     prompt_version_id: str
+    prompt_version_ids: dict[str, str] = {}
     origin_type: str
     evaluation_run_id: str | None
     evaluation_dataset_item_id: str | None
@@ -253,6 +347,7 @@ class CreateEvalRunRequest(StrictModel):
     model_ids: list[str] = Field(min_length=1, max_length=12)
     agent_system_version_id: str | None = None
     prompt_version_id: str | None = None
+    prompt_version_ids: dict[str, str] = Field(default_factory=dict, max_length=80)
     run_in_background: bool = True
 
 
@@ -280,6 +375,7 @@ class EvalRunResponse(BaseModel):
     dataset_version_id: str
     agent_system_version_id: str
     prompt_version_id: str
+    prompt_version_ids: dict[str, str] = {}
     model_ids: list[str]
     error: str | None
     created_at: datetime

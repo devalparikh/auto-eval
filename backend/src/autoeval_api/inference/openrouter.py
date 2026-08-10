@@ -11,6 +11,7 @@ from autoeval_api.inference.model_catalog import OpenRouterModelConfig, openrout
 class OpenRouterInferenceProvider:
     provider_id = "openrouter"
     api_url = "https://openrouter.ai/api/v1/chat/completions"
+    finance_agent_system_keys = frozenset({"portfolio-analyst", "portfolio-query"})
 
     def __init__(
         self,
@@ -38,6 +39,8 @@ class OpenRouterInferenceProvider:
             "HTTP-Referer": self.settings.openrouter_app_url,
             "X-OpenRouter-Title": self.settings.openrouter_app_name,
         }
+        if request.agent_system_key in self.finance_agent_system_keys:
+            headers["X-OpenRouter-Cache"] = "false"
 
         timeout = httpx.Timeout(90, connect=10)
         async with httpx.AsyncClient(
@@ -46,7 +49,7 @@ class OpenRouterInferenceProvider:
             transport=self.transport,
         ) as client:
             response = await client.post(self.api_url, headers=headers, json=payload)
-            response.raise_for_status()
+            self._raise_for_status(response)
         body = response.json()
         raw_text = body["choices"][0]["message"]["content"]
         if not isinstance(raw_text, str):
@@ -87,17 +90,71 @@ class OpenRouterInferenceProvider:
                 {"role": "system", "content": request.system_prompt},
                 {"role": "user", "content": user_content},
             ],
-            "max_tokens": self.settings.openrouter_max_output_tokens,
             "provider": {"data_collection": model.data_collection},
         }
+        is_finance_request = request.agent_system_key in self.finance_agent_system_keys
+        requires_zdr = is_finance_request and not self._is_synthetic_finance_state(request.state)
+        if requires_zdr:
+            payload["provider"]["zdr"] = True
+        output_token_parameter = (
+            model.zdr_output_token_parameter
+            if requires_zdr and model.zdr_output_token_parameter is not None
+            else "max_tokens"
+        )
+        payload[output_token_parameter] = self.settings.openrouter_max_output_tokens
         if "response_format" in model.supported_parameters:
-            payload["response_format"] = {"type": "json_object"}
+            if (
+                request.response_schema is not None
+                and "structured_outputs" in model.supported_parameters
+            ):
+                payload["response_format"] = {
+                    "type": "json_schema",
+                    "json_schema": {
+                        "name": "autoeval_response",
+                        "strict": True,
+                        "schema": request.response_schema,
+                    },
+                }
+            else:
+                payload["response_format"] = {"type": "json_object"}
             payload["provider"]["require_parameters"] = True
         if "temperature" in model.supported_parameters:
             payload["temperature"] = 0
         if "seed" in model.supported_parameters:
             payload["seed"] = 0
         return payload
+
+    @staticmethod
+    def _is_synthetic_finance_state(state: dict[str, Any]) -> bool:
+        request_input = state.get("input")
+        if isinstance(request_input, dict) and request_input.get("is_synthetic") is True:
+            return True
+        normalized = state.get("normalized")
+        if isinstance(normalized, dict) and normalized.get("is_synthetic") is True:
+            return True
+        model_context = state.get("portfolio_model_context")
+        snapshot = model_context.get("snapshot") if isinstance(model_context, dict) else None
+        return isinstance(snapshot, dict) and snapshot.get("is_synthetic") is True
+
+    @staticmethod
+    def _raise_for_status(response: httpx.Response) -> None:
+        if not response.is_error:
+            return
+
+        message: object = response.reason_phrase
+        try:
+            body = response.json()
+        except (json.JSONDecodeError, UnicodeDecodeError):
+            body = None
+        if isinstance(body, dict):
+            error = body.get("error")
+            if isinstance(error, dict):
+                message = error.get("message") or message
+            elif isinstance(error, str):
+                message = error
+
+        safe_message = " ".join(str(message).split())[:1000]
+        raise RuntimeError(f"OpenRouter request failed ({response.status_code}): {safe_message}")
 
     @staticmethod
     def _require_safe_input(model: OpenRouterModelConfig, request: InferenceRequest) -> None:

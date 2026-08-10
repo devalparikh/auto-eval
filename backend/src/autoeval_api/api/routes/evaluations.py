@@ -4,6 +4,7 @@ from autoeval_api.api.dependencies import (
     EvaluationServiceDependency,
     SessionDependency,
     get_or_404,
+    resolve_node_prompt_versions,
     resolve_run_versions,
 )
 from autoeval_api.models import DatasetRecord, DatasetVersionRecord, EvalRunRecord
@@ -52,6 +53,11 @@ async def create_eval_run(
         payload.agent_system_version_id,
         payload.prompt_version_id,
     )
+    prompt_versions = resolve_node_prompt_versions(
+        session,
+        graph_version,
+        payload.prompt_version_ids,
+    )
     try:
         run = evaluation_service.create_run(
             session,
@@ -59,6 +65,7 @@ async def create_eval_run(
             graph_version,
             prompt_version,
             payload.model_ids,
+            prompt_versions,
         )
     except (ValueError, RuntimeError) as error:
         raise HTTPException(status_code=400, detail=str(error)) from error

@@ -15,6 +15,10 @@ import {
 import { ModelPicker } from "@/features/evaluations/model-picker";
 import { RunStatusPanel } from "@/features/evaluations/run-status-panel";
 import { useEvalRunPolling } from "@/features/evaluations/use-eval-run-polling";
+import {
+  promptForGraphKey,
+  promptKeysForGraph,
+} from "@/features/systems/graph-prompts";
 import { api } from "@/lib/api";
 import { playPreferredUiSound } from "@/lib/sound";
 import { useApiResource } from "@/lib/use-api-resource";
@@ -31,6 +35,24 @@ export function EvaluationsScreen({ systemKey }: { systemKey: string }) {
   const models = availableModels(catalog.data, systemKey);
   const graphs = graphVersions(catalog.data, systemKey);
   const prompts = promptVersions(catalog.data, systemKey);
+  const [selectedGraphVersionId, setSelectedGraphVersionId] = useState("");
+  const graphVersionId = selectedGraphVersionId || graphs[0]?.id || "";
+  const graphDetail = useApiResource(
+    () =>
+      graphVersionId
+        ? api.agentVersion(graphVersionId)
+        : Promise.reject(new Error("Select a graph version")),
+    [graphVersionId],
+  );
+  const promptKeys = promptKeysForGraph(graphDetail.data?.definition ?? null);
+  const promptFamilies = promptKeys.map((key) => ({
+    key,
+    prompt: promptForGraphKey(catalog.data, system?.id, key),
+  }));
+  const missingPromptKeys = promptFamilies
+    .filter(({ prompt }) => !prompt?.versions.length)
+    .map(({ key }) => key);
+  const usesKeyedPrompts = promptKeys.length > 0;
   const selectedModels =
     requestedModels ??
     system?.default_model_ids.filter((modelId) =>
@@ -51,14 +73,21 @@ export function EvaluationsScreen({ systemKey }: { systemKey: string }) {
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
+    const promptVersionIds = Object.fromEntries(
+      promptKeys.map((key) => [key, String(form.get(`promptVersion:${key}`))]),
+    );
+    const legacyPromptVersionId = usesKeyedPrompts
+      ? Object.values(promptVersionIds)[0]
+      : String(form.get("promptVersion"));
     setError(null);
     setSubmitting(true);
     try {
       const created = await api.createEvalRun({
         dataset_version_id: String(form.get("datasetVersion")),
         model_ids: selectedModels,
-        agent_system_version_id: String(form.get("graphVersion")),
-        prompt_version_id: String(form.get("promptVersion")),
+        agent_system_version_id: graphVersionId,
+        prompt_version_id: legacyPromptVersionId,
+        ...(usesKeyedPrompts ? { prompt_version_ids: promptVersionIds } : {}),
       });
       setRun(created);
     } catch (caught) {
@@ -103,7 +132,15 @@ export function EvaluationsScreen({ systemKey }: { systemKey: string }) {
                 </div>
                 <div className="field">
                   <label htmlFor="eval-graph">Agent system</label>
-                  <Select id="eval-graph" name="graphVersion" required>
+                  <Select
+                    id="eval-graph"
+                    name="graphVersion"
+                    value={graphVersionId}
+                    required
+                    onChange={(event) =>
+                      setSelectedGraphVersionId(event.target.value)
+                    }
+                  >
                     {graphs.map((version) => (
                       <option key={version.id} value={version.id}>
                         {system?.name} v{version.version}
@@ -111,24 +148,52 @@ export function EvaluationsScreen({ systemKey }: { systemKey: string }) {
                     ))}
                   </Select>
                 </div>
-                <div className="field">
-                  <label htmlFor="eval-prompt">System prompt</label>
-                  <Select id="eval-prompt" name="promptVersion" required>
-                    {prompts.map((version) => (
-                      <option key={version.id} value={version.id}>
-                        Prompt v{version.version}
-                      </option>
-                    ))}
-                  </Select>
-                </div>
+                {usesKeyedPrompts ? (
+                  promptFamilies.map(({ key, prompt }) => (
+                    <div className="field" key={key}>
+                      <label htmlFor={`eval-prompt-${key}`}>
+                        Prompt · {key}
+                      </label>
+                      <Select
+                        id={`eval-prompt-${key}`}
+                        name={`promptVersion:${key}`}
+                        disabled={!prompt?.versions.length}
+                        required
+                      >
+                        {prompt?.versions.map((version) => (
+                          <option key={version.id} value={version.id}>
+                            {prompt.name} v{version.version}
+                          </option>
+                        ))}
+                      </Select>
+                    </div>
+                  ))
+                ) : (
+                  <div className="field">
+                    <label htmlFor="eval-prompt">System prompt</label>
+                    <Select id="eval-prompt" name="promptVersion" required>
+                      {prompts.map((version) => (
+                        <option key={version.id} value={version.id}>
+                          Prompt v{version.version}
+                        </option>
+                      ))}
+                    </Select>
+                  </div>
+                )}
               </div>
               <ModelPicker
                 models={models}
                 selectedModelIds={selectedModels}
                 onChange={setSelectedModels}
               />
-              {error ? (
-                <p className="text-[12px] text-[var(--danger)]">{error}</p>
+              {missingPromptKeys.length || graphDetail.error || error ? (
+                <p role="alert" className="text-[12px] text-[var(--danger)]">
+                  {missingPromptKeys.length
+                    ? `The selected graph references missing prompt families: ${missingPromptKeys.join(", ")}.`
+                    : graphDetail.error
+                      ? `The selected graph could not be loaded: ${graphDetail.error}`
+                      : error}
+                </p>
               ) : null}
               <div className="flex items-center justify-between gap-3 border-t border-[var(--border)] pt-4">
                 <p className="text-[10px] text-[var(--text-muted)]">
@@ -139,7 +204,10 @@ export function EvaluationsScreen({ systemKey }: { systemKey: string }) {
                   disabled={
                     submitting ||
                     selectedModels.length === 0 ||
-                    datasets.length === 0
+                    datasets.length === 0 ||
+                    graphDetail.loading ||
+                    Boolean(graphDetail.error) ||
+                    missingPromptKeys.length > 0
                   }
                 >
                   <FlaskIcon size={15} />

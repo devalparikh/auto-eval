@@ -6,7 +6,8 @@ Each run compiles only the selected graph definition into its own LangGraph inst
 
 ## Reproducibility contract
 
-Every run resolves five inputs before execution:
+Every run resolves five inputs before execution. A product may expose multiple flow registrations,
+but one run still selects exactly one graph:
 
 1. owning agent system
 2. agent system version
@@ -63,6 +64,7 @@ autoeval_api/
     seed.py                 built-in seed composition
   graph/                    generic topology, node registry, runner
   inference/                provider contract, adapters, registry
+  market_data/              registered runtime capabilities and Tradier options adapter
   services/                 domain workflows, queries, serialization, scoring
   models.py                 persistence records
   migrations.py             additive upgrade path for the original SQLite schema
@@ -79,6 +81,8 @@ Routes validate HTTP input and translate domain errors. Services own domain quer
 - `services/scoring.py` composes metric suites contributed by system plugins. Evaluation orchestration asks the registry for a suite instead of importing a concrete system.
 - `agent_systems/registry.py::builtin_system_plugins` is the single built-in composition root. Each package exports `plugin.py` and keeps its definition, handlers, scoring, seed data, and trace projection local.
 - The shared graph state has only `input`, a mergeable system-owned `data` envelope, and `output`; adding a system does not require adding domain fields to a global state type.
+- Request-scoped `GraphRuntimeContext` carries repositories and local resources that must not enter graph state. Portfolio Query uses it to resolve a full snapshot locally, then an explicit deterministic node constructs the provider-safe model context.
+- A node may declare a registered `runtime_input_policy` capability with separate direct-runtime and evaluation modes. The runner resolves direct Portfolio Q&A to `refresh` and evaluations to `locked`; locked mode requires the recorded fixture and cannot call a provider. The observation is runtime provenance, not graph or prompt version content.
 
 There is currently no `DatasetImporter`, `ArtifactStore`, or `EvaluationDispatcher` interface. Dataset edits use the dataset service, payloads are stored as JSON in SQLite, and evaluation background work runs in the FastAPI process. Introduce a real interface only when adding a second implementation.
 
@@ -113,7 +117,7 @@ Keep domain behavior in its feature directory. Promote a component to `component
 
 - SQLite and the in-process evaluation task are suitable for local, single-process use only.
 - There is no authentication or authorization. Keep both servers on loopback.
-- Trace capture and outbound inference are policy-aware. Portfolio systems remove identity-like fields, exact shares, and raw dollar values from persisted requests, span snapshots, and model context while deterministic calculations execute against the original in-memory request.
+- Trace capture and outbound inference are separate policy boundaries. Non-synthetic portfolio traces remove identity-like fields, exact shares, symbols, and raw dollar values; provider calls receive only an explicit typed model context. Synthetic fixtures may retain richer local trace output for evaluation and inspection.
 - Provider secrets live only in the backend environment. CLI providers are disabled by default and cross a high-trust local execution boundary when enabled.
 - Inputs and outputs persist as JSON. Providers may accept referenced multimodal input objects, but binary artifact storage and generated image, audio, or video outputs are future work.
 
@@ -123,8 +127,8 @@ See [extension-guide.md](extension-guide.md) for concrete edit paths and [code-s
 
 The seeded incident-triage graph normalizes an incident report, asks an LLM for structured classification, applies deterministic routing policy, and drafts an operator response. Ground truth contains severity, route, and human-review requirement. This produces interpretable classification metrics without pretending that free-form text has a single objectively correct answer.
 
-The seeded portfolio analyst normalizes supplied profile and weighted holding context, identifies missing inputs, calculates allocation, concentration, bucket ranges, liquidity, and user-supplied scenarios deterministically, asks a model to explain those facts, and applies a deterministic financial-safety gate. Its fixtures are synthetic and its evaluation checks arithmetic invariants rather than treating prose as objective truth.
+The Portfolio Analyst index flow normalizes supplied profile and holding context, identifies missing inputs, calculates allocation, concentration, bucket ranges, liquidity, and user-supplied scenarios deterministically, asks a model to explain those facts, applies a deterministic financial-safety gate, and persists an immutable snapshot outside LangGraph state. Its fixtures are synthetic and its evaluation checks arithmetic invariants rather than treating prose as objective truth.
 
-The seeded portfolio Q&A graph consumes a supplied snapshot document and verifies its content hash. For covered-call questions, deterministic handlers validate call type, standard contract multiplier, quote freshness, lot-level share coverage and restrictions, DTE, delta, liquidity, spread, event timing, assignment constraints, premium math, and ranking. Duplicate-symbol lots are aggregated without allowing an ineligible sleeve to overwrite an eligible one. The model receives only an allowlisted computed candidate summary and cannot create or alter candidates. The graph reports that market data is required instead of inventing a chain. Durable snapshot lookup by ID remains part of the flow migration rather than being implied by an unverified identifier.
+The Portfolio Analyst query flow accepts a snapshot ID and question. It resolves the canonical snapshot from immutable local storage through request-scoped runtime context; the full snapshot never enters query graph state. A separate deterministic node either consumes a locked fixture or refreshes the registered options-chain capability. The initial live adapter uses Tradier with explicit timeout/size limits and records source, mode, provider reference, as-of/fetch time, quote delay/freshness, separate Greeks provenance, and contract count. Full real chains remain request-local. Tradier sandbox data is 15 minutes delayed with no Greeks; production brokerage quotes are real-time and Greeks are hourly. For covered-call questions, deterministic handlers validate call type, standard contract multiplier, quote freshness, lot-level share coverage and restrictions, DTE, delta availability/range, liquidity, spread, event timing, assignment constraints, premium math, and ranking. Unknown earnings timing fails closed when the blackout is enabled. Duplicate-symbol lots are aggregated without allowing an ineligible sleeve to overwrite an eligible one. The model receives the bounded question plus typed, allowlisted facts, safe market provenance, and aliased candidates; provider contract symbols never enter inference.
 
-Portfolio Analyst and Portfolio Q&A are separate runnable LangGraphs. They are temporarily represented as separate systems because the current persistent version aggregate owns one graph. The target multi-flow ownership model and migration are specified in [agent-flow-refactor-plan.md](agent-flow-refactor-plan.md).
+Portfolio Analyst is one logical product with separate `index` and `query` flow manifests. The catalog and Run UI expose that relationship while the current compatibility storage keeps independent runtime keys and graph-version histories. The normalized persistent multi-flow model is specified in [agent-flow-refactor-plan.md](agent-flow-refactor-plan.md). The two graphs are never merged.

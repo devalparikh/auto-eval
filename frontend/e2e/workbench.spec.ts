@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 
 const incidentRoot = "/systems/incident-triage";
+const portfolioQueryRoot = "/systems/portfolio-query";
 
 test("serves request-scoped CSP nonces", async ({ page }) => {
   const response = await page.goto(`${incidentRoot}/traces`);
@@ -60,14 +61,15 @@ test("uses the shared select treatment and themed JSON disclosures", async ({
     ),
   ).toBe(true);
 
-  await page.goto(`${incidentRoot}/versions`);
-  await expect(page.getByText("Structured JSON")).toBeVisible();
-  await page.getByRole("button", { name: "Collapse" }).click();
-  await expect(page.locator(".json-branch[open]")).toHaveCount(0);
-  await page.getByRole("button", { name: "Expand" }).click();
-  await expect(page.locator(".json-branch[open]")).toHaveCount(
-    await page.locator(".json-branch").count(),
-  );
+  await page.goto(`${incidentRoot}/artifacts`);
+  await expect(page.getByLabel("Agent graph structure")).toBeVisible();
+  await page.getByRole("button", { name: "Expand graph" }).click();
+  await expect(page.getByRole("dialog")).toBeVisible();
+  await expect(
+    page.getByRole("dialog").getByLabel("Agent graph structure"),
+  ).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("dialog")).toBeHidden();
 });
 
 test("keeps route navigation immediate when reduced motion is requested", async ({
@@ -189,6 +191,28 @@ test("run a trace and review it into a draft dataset", async ({ page }) => {
   await expect(
     page.getByText(/Incident triage ground truth v\d+ · draft/),
   ).toBeVisible();
+});
+
+test("runs Q&A against a server-resolved synthetic portfolio snapshot", async ({
+  page,
+}) => {
+  await page.goto(`${portfolioQueryRoot}/run`);
+  const snapshot = page.getByLabel("Indexed snapshot");
+  await expect(snapshot).toBeVisible();
+  await expect(snapshot).toHaveValue("synthetic-indexed-portfolio-v2");
+
+  const advancedInput = page.getByLabel("Advanced query input (JSON)");
+  const advancedValue = await advancedInput.inputValue();
+  expect(advancedValue).not.toContain("snapshot_id");
+  expect(advancedValue).not.toContain("positions");
+  expect(advancedValue).not.toContain("market_context");
+
+  await page.getByRole("button", { name: "Run inference" }).click();
+  await expect(
+    page.getByRole("link", { name: "Inspect full trace" }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Expand" }).click();
+  await expect(page.getByText("NVDA_SYNTH_CALL_160").first()).toBeVisible();
 });
 
 test("run the seeded evaluation workflow", async ({ page }) => {

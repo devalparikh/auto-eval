@@ -1,19 +1,37 @@
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from typing import Any
 
+from autoeval_api.graph.context import GraphRuntimeContext
 from autoeval_api.inference.base import InferenceResponse
 
-DeterministicHandler = Callable[[dict[str, Any]], dict[str, Any]]
+DeterministicResult = dict[str, Any] | Awaitable[dict[str, Any]]
+DeterministicHandler = Callable[[dict[str, Any]], DeterministicResult]
+ContextualDeterministicHandler = Callable[
+    [dict[str, Any], GraphRuntimeContext], DeterministicResult
+]
 LlmOutputHandler = Callable[[dict[str, Any], InferenceResponse], dict[str, Any]]
 
 
 class NodeHandlerRegistry:
     def __init__(self) -> None:
-        self._deterministic: dict[tuple[str | None, str], DeterministicHandler] = {}
+        self._deterministic: dict[tuple[str | None, str], ContextualDeterministicHandler] = {}
         self._llm_output: dict[tuple[str | None, str], LlmOutputHandler] = {}
 
     def register_deterministic(
         self, name: str, handler: DeterministicHandler, system_key: str | None = None
+    ) -> None:
+        def without_context(
+            state: dict[str, Any], _context: GraphRuntimeContext | None = None
+        ) -> DeterministicResult:
+            return handler(state)
+
+        self._register(self._deterministic, system_key, name, without_context)
+
+    def register_contextual_deterministic(
+        self,
+        name: str,
+        handler: ContextualDeterministicHandler,
+        system_key: str | None = None,
     ) -> None:
         self._register(self._deterministic, system_key, name, handler)
 
@@ -22,7 +40,9 @@ class NodeHandlerRegistry:
     ) -> None:
         self._register(self._llm_output, system_key, name, handler)
 
-    def deterministic(self, name: str, system_key: str | None = None) -> DeterministicHandler:
+    def deterministic(
+        self, name: str, system_key: str | None = None
+    ) -> ContextualDeterministicHandler:
         handler = self._deterministic.get((system_key, name)) or self._deterministic.get(
             (None, name)
         )
@@ -68,6 +88,11 @@ class ScopedNodeHandlerRegistry:
 
     def register_deterministic(self, name: str, handler: DeterministicHandler) -> None:
         self.registry.register_deterministic(name, handler, self.system_key)
+
+    def register_contextual_deterministic(
+        self, name: str, handler: ContextualDeterministicHandler
+    ) -> None:
+        self.registry.register_contextual_deterministic(name, handler, self.system_key)
 
     def register_llm_output(self, name: str, handler: LlmOutputHandler) -> None:
         self.registry.register_llm_output(name, handler, self.system_key)

@@ -12,9 +12,9 @@ AutoEval is a local-first workspace for building, tracing, versioning, and evalu
 - Evaluation runs across multiple models with exact match, accuracy, macro precision, recall, F1, cost, and latency
 - Capability-aware OpenRouter and deterministic mock inference providers behind the same interface
 - Optional, disabled-by-default local CLI provider boundary
-- Seeded Incident Triage, Investment Portfolio Analyst, and Investment Portfolio Q&A systems
+- Seeded Incident Triage and Portfolio Analyst product flows
 - Deterministic portfolio allocation, concentration, bucket, liquidity, and scenario analysis
-- Covered-call screening over a supplied hash-verified snapshot document and option-chain data
+- Immutable server-owned portfolio snapshots plus covered-call screening over locked fixtures or refreshed option data
 - A dedicated system run page that persists every execution as a trace
 - In-place schema migrations and SQLite foreign-key enforcement
 - FastAPI unit and integration tests plus frontend unit and Playwright test harnesses
@@ -35,6 +35,10 @@ OpenRouter is optional. Add `OPENROUTER_API_KEY` to `.env`, then choose an OpenR
 
 The checked-in model catalog currently includes GPT-5.6 **Luna** (not “Luma”), DeepSeek V4 Flash, and NVIDIA Nemotron 3 Ultra (free). Model request parameters are capability-driven. The free Nemotron route is restricted to inputs explicitly marked synthetic because its provider policy is not appropriate for confidential portfolio data.
 
+Live portfolio option chains are optional. The initial adapter uses Tradier's fixed official API endpoints and never accepts a request-supplied URL. To enable it, set `OPTIONS_MARKET_DATA_PROVIDER=tradier-sandbox` or `tradier-production` and add `TRADIER_API_TOKEN`. The sandbox uses 15-minute delayed stock/options data and does not provide Greeks; production brokerage accounts receive real-time quotes, while Tradier documents Greeks as hourly. With the default `unconfigured` provider, real-portfolio refreshes fail clearly without making a network request; synthetic demos remain key-free.
+
+Direct Portfolio Q&A runs refresh the registered options-chain capability. Evaluations lock the recorded `market_context` fixture and never call the network, so the same dataset version stays reproducible. Every observation records source, mode, provider reference, as-of/fetch time, quote freshness/delay, separate Greeks provenance, and contract count without putting the full real chain into graph state or traces. `AUTOEVAL_MARKET_DATA_TIMEOUT_SECONDS`, `AUTOEVAL_MARKET_DATA_MAX_SYMBOLS`, `AUTOEVAL_MARKET_DATA_MAX_EXPIRATIONS_PER_SYMBOL`, `AUTOEVAL_MARKET_DATA_MAX_CONTRACTS`, and `AUTOEVAL_MARKET_DATA_MAX_RESPONSE_BYTES` bound the adapter. When earnings timing is unknown and `earnings_blackout` is enabled, the deterministic policy rejects the candidate instead of assuming no event.
+
 ## Tests
 
 ```bash
@@ -46,7 +50,7 @@ make verify
 
 `make check` is the practical edit loop: backend lint, format checks, and tests plus frontend lint, type checks, and unit tests. `make verify` adds the production frontend build and Playwright end-to-end suite.
 
-Run `make seed` to ensure all three built-in systems and their synthetic demo results exist without starting the servers.
+Run `make seed` to ensure the built-in flows, immutable synthetic portfolio snapshots, and demo results exist without starting the servers.
 
 ## Project map
 
@@ -90,8 +94,8 @@ See [the architecture](docs/architecture.md), [multi-system and provenance desig
 
 - AutoEval is a local, single-user MVP with no authentication. Do not expose it to a network or place it behind a public reverse proxy.
 - The workspace ships three built-in runnable systems; creating or importing arbitrary systems still uses code-level extension seams rather than a generic creation UI.
-- A persisted `AgentSystemVersion` still represents one runnable graph. Portfolio Q&A is therefore registered as a separate runnable system in this milestone; the planned `AgentSystem -> AgentFlow -> AgentFlowVersion` migration is documented in [agent-flow-refactor-plan.md](docs/agent-flow-refactor-plan.md).
-- Portfolio Q&A verifies the supplied snapshot document's content hash but does not yet resolve a snapshot ID from a durable index. A stale or missing option chain returns `needs_market_data`; live broker and market-data adapters are not implemented.
+- Portfolio Analyst is presented as one product with `index` and `query` flows. Each flow has its own runtime registration and independently versioned LangGraph; the persisted `AgentFlow` normalization remains the additive migration documented in [agent-flow-refactor-plan.md](docs/agent-flow-refactor-plan.md).
+- Portfolio Q&A resolves an immutable snapshot ID from the local database. Tradier is the first optional options-chain adapter; no broker trading/order adapter is implemented, and stale, missing, or incomplete market data fails closed.
 - A graph definition's `output_node` is validated, but its handler currently needs to return the top-level `output` key for a focused trace result. Arbitrary output-node keys are not extracted.
 - Incident traces retain full local payloads. Portfolio traces apply a code-level projection that removes identity-like fields and raw dollar values, but configurable retention and deletion policies are not implemented.
 - Multimodal inputs must be provider-ready JSON references. Binary upload/storage and image or audio generation outputs are not implemented.

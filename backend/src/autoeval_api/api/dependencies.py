@@ -17,6 +17,7 @@ from autoeval_api.services.versioning import (
     default_agent_system,
     latest_agent_version,
     latest_prompt_version,
+    resolve_graph_prompt_versions,
 )
 
 Record = TypeVar("Record")
@@ -120,3 +121,16 @@ def resolve_run_versions(
         graph_version = resolve_graph_version(session, None, system.id)
     prompt_version = resolve_prompt_version(session, prompt_version_id, system.id)
     return system, graph_version, prompt_version
+
+
+def resolve_node_prompt_versions(
+    session: Session,
+    graph_version: AgentSystemVersionRecord,
+    requested_version_ids: dict[str, str] | None,
+) -> dict[str, PromptVersionRecord]:
+    try:
+        return resolve_graph_prompt_versions(session, graph_version, requested_version_ids)
+    except LookupError as error:
+        raise HTTPException(status_code=404, detail=str(error)) from error
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error

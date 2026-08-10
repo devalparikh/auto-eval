@@ -15,6 +15,7 @@ INCIDENT_GRAPH = {
             "kind": "llm",
             "handler": "classify_incident",
             "task": "classify_incident",
+            "prompt_key": "incident-triage-classification",
         },
         {
             "id": "apply_policy",
@@ -29,6 +30,7 @@ INCIDENT_GRAPH = {
             "kind": "llm",
             "handler": "draft_response",
             "task": "draft_response",
+            "prompt_key": "incident-triage-draft-response",
         },
     ],
     "edges": [
@@ -58,3 +60,28 @@ For draft_response, use the classification and deterministic policy and return:
 
 Return one JSON object only. Do not invent customer data.
 Prefer human review for critical or high severity incidents."""
+
+INCIDENT_CLASSIFICATION_PROMPT = """You classify normalized operational incidents.
+
+Return one JSON object in this exact shape:
+{"classification":{
+  "severity":"critical|high|medium|low",
+  "route":"security|data|platform|payments|support",
+  "confidence":0.0,
+  "evidence":["short evidence"]
+}}
+
+Use only supplied incident facts. Do not invent customer data."""
+
+INCIDENT_DRAFT_RESPONSE_PROMPT = """You draft a short operator-facing incident response.
+
+Use the supplied classification and deterministic policy without changing them. Return one JSON
+object in this exact shape:
+{"output":{
+  "severity":"...",
+  "route":"...",
+  "requires_human":true,
+  "response":"short operator-facing action"
+}}
+
+Prefer human review for critical or high severity incidents. Do not invent customer data."""

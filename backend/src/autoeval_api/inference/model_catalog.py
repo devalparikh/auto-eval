@@ -14,6 +14,7 @@ class OpenRouterModelConfig:
     requires_synthetic_input: bool = False
     notice: str | None = None
     blocked_agent_system_keys: tuple[str, ...] = ()
+    zdr_output_token_parameter: Literal["max_tokens", "max_completion_tokens"] | None = None
 
     def descriptor(self, available: bool) -> ModelDescriptor:
         return ModelDescriptor(
@@ -33,8 +34,15 @@ OPENROUTER_MODELS = (
         label="OpenAI GPT-5.6 Luna",
         supports=("text", "image", "file"),
         supported_parameters=frozenset(
-            {"max_tokens", "response_format", "seed", "structured_outputs"}
+            {
+                "max_completion_tokens",
+                "max_tokens",
+                "response_format",
+                "seed",
+                "structured_outputs",
+            }
         ),
+        zdr_output_token_parameter="max_completion_tokens",
     ),
     OpenRouterModelConfig(
         slug="deepseek/deepseek-v4-flash",

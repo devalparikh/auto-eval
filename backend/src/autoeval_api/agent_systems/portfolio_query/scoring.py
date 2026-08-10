@@ -14,11 +14,19 @@ REQUIRED_CANDIDATE_CHECKS = {
     "not_do_not_touch",
     "fully_covered",
     "dte_in_range",
+    "delta_available",
+    "greeks_fresh",
     "delta_in_range",
+    "open_interest_available",
     "liquid_open_interest",
+    "underlying_price_valid",
+    "quote_values_valid",
+    "quote_timestamp_available",
+    "underlying_timestamp_available",
     "spread_in_range",
     "strike_upside_in_range",
     "exit_floor_met",
+    "event_data_known",
     "event_policy_met",
     "valid_bid",
 }
@@ -83,7 +91,7 @@ def _actual_projection(actual: dict[str, Any]) -> dict[str, Any]:
     return {
         "status": covered_call.get("status"),
         "candidate_ids": [
-            item.get("contract_id")
+            item.get("candidate_id")
             for item in covered_call.get("candidates", [])
             if isinstance(item, dict)
         ],
