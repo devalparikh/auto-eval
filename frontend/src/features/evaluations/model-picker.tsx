@@ -50,13 +50,18 @@ export function ModelPicker({
               >
                 {checked ? <CheckIcon size={12} weight="bold" /> : null}
               </span>
-              <span className="min-w-0">
+              <span className="min-w-0 flex-1">
                 <span className="block truncate text-[12px] font-semibold">
                   {model.label}
                 </span>
                 <span className="mt-0.5 block text-[10px] text-[var(--text-muted)]">
                   {model.provider} · {model.supports.join(", ")}
                 </span>
+                {model.notice ? (
+                  <span className="mt-1 block text-[10px] leading-4 text-amber-700 dark:text-amber-300">
+                    {model.notice}
+                  </span>
+                ) : null}
               </span>
             </label>
           );

@@ -33,8 +33,18 @@ export function draftDatasetVersions(
   return datasetVersionsByStatus(catalog, "draft", systemKey);
 }
 
-export function availableModels(catalog: Catalog | null): ModelOption[] {
-  return catalog?.models.filter((model) => model.available) ?? [];
+export function availableModels(
+  catalog: Catalog | null,
+  systemKey?: string,
+): ModelOption[] {
+  return (
+    catalog?.models.filter(
+      (model) =>
+        model.available &&
+        (!systemKey ||
+          !model.blocked_agent_system_keys?.includes(systemKey)),
+    ) ?? []
+  );
 }
 
 export function graphVersions(

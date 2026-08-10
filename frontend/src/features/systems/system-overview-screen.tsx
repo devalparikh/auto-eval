@@ -5,6 +5,7 @@ import {
   DatabaseIcon,
   FlaskIcon,
   GitBranchIcon,
+  PlayIcon,
   PulseIcon,
 } from "@phosphor-icons/react";
 import Link from "next/link";
@@ -16,8 +17,14 @@ import { api } from "@/lib/api";
 import { useApiResource } from "@/lib/use-api-resource";
 
 const sections = [
+  ["run", "Run", "Execute one request with pinned versions", PlayIcon],
   ["traces", "Traces", "Runtime and evaluation executions", PulseIcon],
-  ["datasets", "Datasets", "Reviewed examples and immutable versions", DatabaseIcon],
+  [
+    "datasets",
+    "Datasets",
+    "Reviewed examples and immutable versions",
+    DatabaseIcon,
+  ],
   ["evaluations", "Evaluate", "Pinned cross-model runs", FlaskIcon],
   ["versions", "Versions", "Graph and prompt revisions", GitBranchIcon],
 ] as const;
@@ -26,7 +33,8 @@ export function SystemOverviewScreen({ systemKey }: { systemKey: string }) {
   const catalog = useApiResource(api.catalog, []);
   const system = systemByKey(catalog.data, systemKey);
   if (catalog.loading) return <LoadingState rows={9} />;
-  if (catalog.error) return <ErrorState message={catalog.error} retry={catalog.reload} />;
+  if (catalog.error)
+    return <ErrorState message={catalog.error} retry={catalog.reload} />;
   if (!system) return <ErrorState message="Agent system not found" />;
   const datasets = catalog.data?.datasets.filter(
     (dataset) => dataset.agent_system_id === system.id,
@@ -49,7 +57,10 @@ export function SystemOverviewScreen({ systemKey }: { systemKey: string }) {
                   {description}
                 </p>
               </div>
-              <ArrowRightIcon size={14} className="data-row-affordance text-[var(--text-faint)]" />
+              <ArrowRightIcon
+                size={14}
+                className="data-row-affordance text-[var(--text-faint)]"
+              />
             </Link>
           ))}
         </div>
@@ -61,12 +72,21 @@ export function SystemOverviewScreen({ systemKey }: { systemKey: string }) {
             <Inventory label="Graph versions" value={system.versions.length} />
             <Inventory
               label="Prompt families"
-              value={catalog.data?.prompts.filter((item) => item.agent_system_id === system.id).length ?? 0}
+              value={
+                catalog.data?.prompts.filter(
+                  (item) => item.agent_system_id === system.id,
+                ).length ?? 0
+              }
             />
             <Inventory label="Datasets" value={datasets?.length ?? 0} />
             <Inventory
               label="Dataset versions"
-              value={datasets?.reduce((total, dataset) => total + dataset.versions.length, 0) ?? 0}
+              value={
+                datasets?.reduce(
+                  (total, dataset) => total + dataset.versions.length,
+                  0,
+                ) ?? 0
+              }
             />
           </dl>
         </aside>

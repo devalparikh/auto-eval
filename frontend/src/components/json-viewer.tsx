@@ -3,7 +3,13 @@
 import { CaretRightIcon } from "@phosphor-icons/react";
 import { useRef } from "react";
 
-export function JsonViewer({ value }: { value: unknown }) {
+export function JsonViewer({
+  value,
+  label = "Graph definition",
+}: {
+  value: unknown;
+  label?: string;
+}) {
   const treeRef = useRef<HTMLDivElement>(null);
 
   function setAllExpanded(open: boolean) {
@@ -26,7 +32,7 @@ export function JsonViewer({ value }: { value: unknown }) {
         </div>
       </div>
       <div ref={treeRef} className="json-tree">
-        <JsonBranch label="Graph definition" value={value} depth={0} />
+        <JsonBranch label={label} value={value} depth={0} />
       </div>
     </div>
   );

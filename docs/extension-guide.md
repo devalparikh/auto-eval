@@ -6,12 +6,14 @@ This guide names the smallest edit surface for each common extension. Start at t
 
 Create `backend/src/autoeval_api/agent_systems/<system_key>/` with:
 
+- `plugin.py` for its `AgentSystemSpec`, package path, and optional trace policy
 - `definition.py` for the graph definition and prompt text
 - `handlers.py` for deterministic transforms and LLM response adapters
-- `scoring.py` only when the system needs its own metric suite
+- `scoring.py` exporting `scoring_entries`
 - `seed.py` for example catalog records and dataset items
+- `trace_policy.py` when persisted or provider-bound payloads require structural projection
 
-Export a `register_handlers` function from the package and call it from `graph/registry.py::default_node_handler_registry`. Register the metric suite in `services/scoring.py::default_scoring_registry`, add an `AgentSystemSpec` in `agent_systems/registry.py`, and compose built-in seeding through `agent_systems/seed.py`. Deployments with their own catalog can instead inject registries and seed separately. Keep the generic runner free of domain-specific calculations. Add focused backend tests for topology, handler output, scoring, trace projection, and one traced run.
+Export `register_handlers` from the handler module and add the package's `PLUGIN` to `agent_systems/registry.py::builtin_system_plugins`. That is the only built-in composition edit: handler, scorer, seed, trace-policy, catalog, and demo registration are derived from the plugin. Deployments with their own catalog can instead inject registries and seed separately. Keep the generic runner free of domain-specific calculations. Add focused backend tests for topology, handler output, scoring, trace projection, registry scoping, and one traced run.
 
 Graph node handlers return partial state dictionaries. The node named by `output_node` currently needs to place the focused result under the top-level `output` key. A graph may use other state keys internally, but the runner does not extract an arbitrary output key from the declared output node.
 
@@ -23,15 +25,17 @@ Graph node handlers return partial state dictionaries. The node named by `output
 
 Provider selection is model-ID based. Keep API keys in backend settings, use fixed outbound destinations, return normalized token/cost metadata, and never place provider secrets in trace payloads. CLI adapters must keep shell execution disabled and remain opt-in.
 
+To add an OpenRouter model, add one `OpenRouterModelConfig` in `inference/model_catalog.py` with its stable provider slug, supported modalities, supported request parameters, data-collection routing policy, and any UI notice. Do not make the live OpenRouter catalog part of application startup: pinned local config keeps evaluations reproducible and offline startup deterministic. Verify catalog drift separately against OpenRouter's models API and cover payload differences with `httpx.MockTransport` tests.
+
 ## Add a node handler
 
-Put system-specific handlers beside the agent under `agent_systems/<system_key>/handlers.py`. Register deterministic functions with `NodeHandlerRegistry.register_deterministic` and LLM response adapters with `register_llm_output`. Graph versions store the registered string name, so renaming or removing a handler can make an old graph version unrunnable; prefer adding a new name and retaining the old handler.
+Put system-specific handlers beside the agent under `agent_systems/<system_key>/handlers.py`. The plugin receives a registry already scoped to its system key. Register deterministic functions with `register_deterministic` and LLM response adapters with `register_llm_output`. Graph versions store the registered string name, so renaming or removing a handler can make an old graph version unrunnable; prefer adding a new name and retaining the old handler.
 
 Use `graph/topology.py` only for graph-wide validation or ordering that is independent of a particular agent system.
 
 ## Add or change scoring
 
-Metric contracts and registry behavior live in `backend/src/autoeval_api/services/scoring.py`. Put domain-specific metric calculation in `agent_systems/<system_key>/scoring.py`, implement `MetricSuite`, and add the dataset-key mapping to `services/scoring.py::default_scoring_registry`. A deployment may instead construct `ScoringRegistry` and pass it to `app.py::create_application`. Keep evaluation orchestration in `services/evaluations.py`; it should select and call a suite, not know label names.
+Metric contracts and registry behavior live in `backend/src/autoeval_api/services/scoring.py`. Put domain-specific metric calculation in `agent_systems/<system_key>/scoring.py`, implement `MetricSuite`, and return its dataset-key mapping from `scoring_entries`. A deployment may instead construct `ScoringRegistry` and pass it to `app.py::create_application`. Keep evaluation orchestration in `services/evaluations.py`; it should select and call a suite, not know label names.
 
 Version a finalized ground-truth dataset when a scoring change requires new labels. Final dataset versions are immutable.
 

@@ -2,17 +2,11 @@
 
 import { ArrowRightIcon, PlayIcon } from "@phosphor-icons/react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useState } from "react";
 import { PageHeader } from "@/components/page-header";
 import { EmptyState, ErrorState, LoadingState } from "@/components/states";
 import { StatusBadge } from "@/components/status-badge";
 import { systemByKey } from "@/features/catalog/catalog-options";
 import { systemPath } from "@/features/systems/system-path";
-import {
-  RunTraceModal,
-  type RunTraceInput,
-} from "@/features/traces/run-trace-modal";
 import { api } from "@/lib/api";
 import {
   formatCost,
@@ -21,52 +15,25 @@ import {
   shortId,
   textPreview,
 } from "@/lib/format";
-import { playPreferredUiSound } from "@/lib/sound";
 import { useApiResource } from "@/lib/use-api-resource";
 
 export function TracesScreen({ systemKey }: { systemKey: string }) {
-  const router = useRouter();
   const catalog = useApiResource(api.catalog, []);
   const system = systemByKey(catalog.data, systemKey);
   const traces = useApiResource(
     () => (system?.id ? api.traces(system.id) : Promise.resolve([])),
     [system?.id],
   );
-  const [modalOpen, setModalOpen] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
-  const [submitError, setSubmitError] = useState<string | null>(null);
-
-  async function runTrace(payload: RunTraceInput) {
-    setSubmitting(true);
-    setSubmitError(null);
-    try {
-      const trace = await api.runTrace({
-        input: payload.input,
-        model_id: payload.modelId,
-        agent_system_id: system?.id,
-        agent_system_version_id: payload.graphVersionId,
-        prompt_version_id: payload.promptVersionId,
-      });
-      playPreferredUiSound("success");
-      setModalOpen(false);
-      router.push(systemPath(systemKey, `traces/${trace.id}`));
-    } catch (caught) {
-      setSubmitError(caught instanceof Error ? caught.message : "Trace failed");
-    } finally {
-      setSubmitting(false);
-    }
-  }
-
   return (
     <>
       <PageHeader
         title={`${system?.name ?? "Agent system"} traces`}
         description="Inspect runtime and evaluation executions, node by node."
         action={
-          <button className="app-button" onClick={() => setModalOpen(true)}>
+          <Link className="app-button" href={systemPath(systemKey, "run")}>
             <PlayIcon size={15} weight="fill" />
-            Run trace
-          </button>
+            Run inference
+          </Link>
         }
       />
       <section className="p-4 md:p-7">
@@ -79,7 +46,9 @@ export function TracesScreen({ systemKey }: { systemKey: string }) {
             <span aria-hidden="true" />
           </div>
           {traces.loading ? <LoadingState rows={7} /> : null}
-          {traces.error ? <ErrorState message={traces.error} retry={traces.reload} /> : null}
+          {traces.error ? (
+            <ErrorState message={traces.error} retry={traces.reload} />
+          ) : null}
           {!traces.loading && !traces.error && traces.data?.length === 0 ? (
             <EmptyState
               title="No traces yet"
@@ -128,16 +97,6 @@ export function TracesScreen({ systemKey }: { systemKey: string }) {
           ))}
         </div>
       </section>
-      <RunTraceModal
-        open={modalOpen}
-        catalog={catalog.data}
-        systemKey={systemKey}
-        loading={catalog.loading}
-        submitting={submitting}
-        error={submitError}
-        onClose={() => setModalOpen(false)}
-        onSubmit={runTrace}
-      />
     </>
   );
 }

@@ -64,6 +64,7 @@ Do not prescribe transactions, timing, price targets, or guaranteed outcomes. Do
 be a fiduciary. Return one JSON object only and keep observations tied to supplied facts."""
 
 PORTFOLIO_INPUT_TEMPLATE = {
+    "is_synthetic": True,
     "profile": {
         "goal": "Long-term growth with a durable core",
         "time_horizon_years": 15,

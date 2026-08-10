@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 
 from autoeval_api.graph.registry import NodeHandlerRegistry, default_node_handler_registry
 from autoeval_api.graph.topology import sink_node_ids, topological_sequence
-from autoeval_api.graph.trace_policy import project_trace_payload
+from autoeval_api.graph.trace_policy import project_inference_payload, project_trace_payload
 from autoeval_api.graph.types import AgentState
 from autoeval_api.inference.base import InferenceRequest, InferenceResponse
 from autoeval_api.inference.registry import InferenceProviderRegistry
@@ -30,7 +30,7 @@ class RunSelection:
     graph_version: AgentSystemVersionRecord
     prompt_version: PromptVersionRecord
     model_id: str
-    agent_system_key: str = "incident-triage"
+    agent_system_key: str
 
 
 @dataclass(frozen=True)
@@ -57,7 +57,7 @@ class AgentGraphRunner:
         trace_context: TraceContext | None = None,
     ) -> TraceRecord:
         definition = selection.graph_version.definition
-        self.node_registry.validate_definition(definition)
+        self.node_registry.validate_definition(definition, selection.agent_system_key)
         context = trace_context or TraceContext()
         trace = TraceRecord(
             status=RunStatus.RUNNING,
@@ -75,8 +75,9 @@ class AgentGraphRunner:
         started = perf_counter()
         try:
             graph = self._compile_graph(session, trace, selection)
-            state = await graph.ainvoke({"input": request_input})
-            trace.output = state.get("output", state)
+            state = await graph.ainvoke({"input": request_input, "data": {}})
+            raw_output = state.get("output", state)
+            trace.output = project_trace_payload(selection.agent_system_key, raw_output)
             trace.status = RunStatus.COMPLETE
         except Exception as error:
             trace.status = RunStatus.FAILED
@@ -121,7 +122,7 @@ class AgentGraphRunner:
         sequence: int,
     ) -> Callable[[AgentState], Awaitable[dict[str, Any]]]:
         async def invoke(state: AgentState) -> dict[str, Any]:
-            snapshot = dict(state)
+            snapshot = self._domain_state(state)
             system_prompt = selection.prompt_version.content if node["kind"] == "llm" else None
             span = TraceSpanRecord(
                 trace_id=trace.id,
@@ -138,15 +139,19 @@ class AgentGraphRunner:
 
             try:
                 if node["kind"] == "deterministic":
-                    output = self.node_registry.deterministic(node["handler"])(snapshot)
+                    output = self.node_registry.deterministic(
+                        node["handler"], selection.agent_system_key
+                    )(snapshot)
                     inference = None
                 else:
                     inference = await self._run_inference(selection, node, snapshot)
-                    output = self.node_registry.llm_output(node["handler"])(snapshot, inference)
-                span.output = project_trace_payload(selection.agent_system_key, output)
+                    output = self.node_registry.llm_output(
+                        node["handler"], selection.agent_system_key
+                    )(snapshot, inference)
+                span.output = self._span_output(selection.agent_system_key, output, inference)
                 span.status = RunStatus.COMPLETE
                 self._apply_usage(span, inference)
-                return output
+                return self._graph_update(output)
             except Exception as error:
                 span.status = RunStatus.FAILED
                 span.error = self._safe_error(error)
@@ -173,10 +178,25 @@ class AgentGraphRunner:
                 model_id=selection.model_id,
                 system_prompt=selection.prompt_version.content,
                 task=node.get("task") or node["handler"],
-                state=state,
+                state=project_inference_payload(selection.agent_system_key, state),
+                agent_system_key=selection.agent_system_key,
                 modalities=modalities if isinstance(modalities, list) else [],
             )
         )
+
+    @staticmethod
+    def _domain_state(state: AgentState) -> dict[str, Any]:
+        return {"input": state.get("input", {}), **state.get("data", {})}
+
+    @staticmethod
+    def _graph_update(output: dict[str, Any]) -> dict[str, Any]:
+        update: dict[str, Any] = {}
+        data = {key: value for key, value in output.items() if key != "output"}
+        if data:
+            update["data"] = data
+        if "output" in output:
+            update["output"] = output["output"]
+        return update
 
     @staticmethod
     def _apply_usage(span: TraceSpanRecord, response: InferenceResponse | None) -> None:
@@ -185,6 +205,22 @@ class AgentGraphRunner:
         span.input_tokens = response.input_tokens
         span.output_tokens = response.output_tokens
         span.cost_usd = response.cost_usd
+
+    @staticmethod
+    def _span_output(
+        system_key: str,
+        output: dict[str, Any],
+        response: InferenceResponse | None,
+    ) -> dict[str, Any]:
+        projected = project_trace_payload(system_key, output)
+        if response is None:
+            return projected
+        metadata = {
+            key: response.metadata[key]
+            for key in ("request_id", "resolved_model", "deterministic")
+            if response.metadata.get(key) is not None
+        }
+        return {**projected, "_inference": metadata} if metadata else projected
 
     @staticmethod
     def _safe_error(error: Exception) -> str:

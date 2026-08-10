@@ -92,6 +92,8 @@ class ModelOption(BaseModel):
     label: str
     supports: list[str]
     available: bool
+    notice: str | None = None
+    blocked_agent_system_keys: list[str] = []
 
 
 class CatalogResponse(BaseModel):

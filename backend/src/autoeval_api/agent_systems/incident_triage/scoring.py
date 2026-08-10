@@ -137,3 +137,7 @@ def _percentile(values: list[float], percentile: float) -> float:
     ordered = sorted(values)
     index = max(0, min(len(ordered) - 1, round((len(ordered) - 1) * percentile)))
     return ordered[index]
+
+
+def scoring_entries() -> list[tuple[str, IncidentTriageMetricSuite]]:
+    return [(DATASET_KEY, IncidentTriageMetricSuite())]

@@ -89,10 +89,9 @@ export function AppShell({
         </Link>
         <nav aria-label="Primary" className="shell-nav">
           {navItems.map((item) => {
-            const active =
-              item.exact
-                ? pathname === item.href
-                : pathname === item.href || pathname.startsWith(`${item.href}/`);
+            const active = item.exact
+              ? pathname === item.href
+              : pathname === item.href || pathname.startsWith(`${item.href}/`);
             return (
               <Link
                 key={item.href}
@@ -147,9 +146,7 @@ export function AppShell({
         <div
           key={pathname}
           className={`route-content ${
-            showInitialEntry
-              ? "route-content-initial"
-              : "route-content-change"
+            showInitialEntry ? "route-content-initial" : "route-content-change"
           }`}
         >
           {children}
@@ -195,10 +192,16 @@ function scopedNavItems(systemKey: string | null) {
   return [
     workspace,
     { href: root, label: "Overview", index: "01", exact: true },
-    { href: `${root}/traces`, label: "Traces", index: "02", exact: false },
-    { href: `${root}/datasets`, label: "Datasets", index: "03", exact: false },
-    { href: `${root}/evaluations`, label: "Evaluate", index: "04", exact: false },
-    { href: `${root}/results`, label: "Results", index: "05", exact: false },
-    { href: `${root}/versions`, label: "Versions", index: "06", exact: false },
+    { href: `${root}/run`, label: "Run", index: "02", exact: false },
+    { href: `${root}/traces`, label: "Traces", index: "03", exact: false },
+    { href: `${root}/datasets`, label: "Datasets", index: "04", exact: false },
+    {
+      href: `${root}/evaluations`,
+      label: "Evaluate",
+      index: "05",
+      exact: false,
+    },
+    { href: `${root}/results`, label: "Results", index: "06", exact: false },
+    { href: `${root}/versions`, label: "Versions", index: "07", exact: false },
   ];
 }

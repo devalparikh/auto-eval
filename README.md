@@ -10,10 +10,12 @@ AutoEval is a local-first workspace for building, tracing, versioning, and evalu
 - Trustworthy trace-to-dataset provenance with idempotent promotion and reverse membership
 - Runtime and evaluation trace origins recorded as separate facts from dataset membership
 - Evaluation runs across multiple models with exact match, accuracy, macro precision, recall, F1, cost, and latency
-- OpenRouter and deterministic mock inference providers behind the same interface
+- Capability-aware OpenRouter and deterministic mock inference providers behind the same interface
 - Optional, disabled-by-default local CLI provider boundary
-- Seeded Incident Triage and Investment Portfolio Analyst systems
+- Seeded Incident Triage, Investment Portfolio Analyst, and Investment Portfolio Q&A systems
 - Deterministic portfolio allocation, concentration, bucket, liquidity, and scenario analysis
+- Covered-call screening over a supplied hash-verified snapshot document and option-chain data
+- A dedicated system run page that persists every execution as a trace
 - In-place schema migrations and SQLite foreign-key enforcement
 - FastAPI unit and integration tests plus frontend unit and Playwright test harnesses
 
@@ -29,7 +31,9 @@ make dev
 
 Open [http://localhost:3000](http://localhost:3000). The API runs at [http://localhost:8000](http://localhost:8000), with interactive development docs at [http://localhost:8000/docs](http://localhost:8000/docs).
 
-OpenRouter is optional. Add `OPENROUTER_API_KEY` to `.env`, then choose an OpenRouter model in the evaluation form. The mock models require no network or secrets.
+OpenRouter is optional. Add `OPENROUTER_API_KEY` to `.env`, then choose an OpenRouter model on a system's **Run** or **Evaluations** page. The adapter posts to the fixed API endpoint `https://openrouter.ai/api/v1/chat/completions`; `OPENROUTER_APP_URL=http://localhost:3000` is only the optional application-attribution referrer, not the API base URL. The mock models require no network or secrets.
+
+The checked-in model catalog currently includes GPT-5.6 **Luna** (not “Luma”), DeepSeek V4 Flash, and NVIDIA Nemotron 3 Ultra (free). Model request parameters are capability-driven. The free Nemotron route is restricted to inputs explicitly marked synthetic because its provider policy is not appropriate for confidential portfolio data.
 
 ## Tests
 
@@ -42,7 +46,7 @@ make verify
 
 `make check` is the practical edit loop: backend lint, format checks, and tests plus frontend lint, type checks, and unit tests. `make verify` adds the production frontend build and Playwright end-to-end suite.
 
-Run `make seed` to ensure both built-in systems and their synthetic demo results exist without starting the servers.
+Run `make seed` to ensure all three built-in systems and their synthetic demo results exist without starting the servers.
 
 ## Project map
 
@@ -64,6 +68,7 @@ frontend/src/
   lib/            Typed API client and cross-feature utilities
 docs/
   architecture.md
+  agent-flow-refactor-plan.md
   extension-guide.md
   code-security-review.md
   dependency-security-report.md
@@ -84,7 +89,9 @@ See [the architecture](docs/architecture.md), [multi-system and provenance desig
 ## Current limitations
 
 - AutoEval is a local, single-user MVP with no authentication. Do not expose it to a network or place it behind a public reverse proxy.
-- The workspace ships two built-in systems; creating or importing arbitrary systems still uses code-level extension seams rather than a generic creation UI.
+- The workspace ships three built-in runnable systems; creating or importing arbitrary systems still uses code-level extension seams rather than a generic creation UI.
+- A persisted `AgentSystemVersion` still represents one runnable graph. Portfolio Q&A is therefore registered as a separate runnable system in this milestone; the planned `AgentSystem -> AgentFlow -> AgentFlowVersion` migration is documented in [agent-flow-refactor-plan.md](docs/agent-flow-refactor-plan.md).
+- Portfolio Q&A verifies the supplied snapshot document's content hash but does not yet resolve a snapshot ID from a durable index. A stale or missing option chain returns `needs_market_data`; live broker and market-data adapters are not implemented.
 - A graph definition's `output_node` is validated, but its handler currently needs to return the top-level `output` key for a focused trace result. Arbitrary output-node keys are not extracted.
 - Incident traces retain full local payloads. Portfolio traces apply a code-level projection that removes identity-like fields and raw dollar values, but configurable retention and deletion policies are not implemented.
 - Multimodal inputs must be provider-ready JSON references. Binary upload/storage and image or audio generation outputs are not implemented.

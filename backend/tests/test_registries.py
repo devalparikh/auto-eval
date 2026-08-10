@@ -50,6 +50,15 @@ def test_node_registry_accepts_registered_handlers() -> None:
         registry.register_deterministic("copy_input", lambda state: state)
 
 
+def test_node_registry_scopes_identical_handler_names_by_system() -> None:
+    registry = NodeHandlerRegistry()
+    registry.scoped("one").register_deterministic("normalize", lambda _state: {"one": True})
+    registry.scoped("two").register_deterministic("normalize", lambda _state: {"two": True})
+
+    assert registry.deterministic("normalize", "one")({}) == {"one": True}
+    assert registry.deterministic("normalize", "two")({}) == {"two": True}
+
+
 def test_scoring_registry_selects_suite_by_dataset_key() -> None:
     suite = FakeMetricSuite()
     registry = ScoringRegistry([("example-dataset", suite)])

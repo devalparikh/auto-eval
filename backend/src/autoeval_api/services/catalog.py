@@ -24,6 +24,8 @@ def catalog_response(
                 label=model.label,
                 supports=list(model.supports),
                 available=model.available,
+                notice=model.notice,
+                blocked_agent_system_keys=list(model.blocked_agent_system_keys),
             )
             for model in provider_registry.models()
         ],

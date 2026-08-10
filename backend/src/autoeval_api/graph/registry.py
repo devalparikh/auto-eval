@@ -9,50 +9,74 @@ LlmOutputHandler = Callable[[dict[str, Any], InferenceResponse], dict[str, Any]]
 
 class NodeHandlerRegistry:
     def __init__(self) -> None:
-        self._deterministic: dict[str, DeterministicHandler] = {}
-        self._llm_output: dict[str, LlmOutputHandler] = {}
+        self._deterministic: dict[tuple[str | None, str], DeterministicHandler] = {}
+        self._llm_output: dict[tuple[str | None, str], LlmOutputHandler] = {}
 
-    def register_deterministic(self, name: str, handler: DeterministicHandler) -> None:
-        self._register(self._deterministic, name, handler)
+    def register_deterministic(
+        self, name: str, handler: DeterministicHandler, system_key: str | None = None
+    ) -> None:
+        self._register(self._deterministic, system_key, name, handler)
 
-    def register_llm_output(self, name: str, handler: LlmOutputHandler) -> None:
-        self._register(self._llm_output, name, handler)
+    def register_llm_output(
+        self, name: str, handler: LlmOutputHandler, system_key: str | None = None
+    ) -> None:
+        self._register(self._llm_output, system_key, name, handler)
 
-    def deterministic(self, name: str) -> DeterministicHandler:
-        try:
-            return self._deterministic[name]
-        except KeyError as error:
-            raise ValueError(f"Unknown deterministic node handler: {name}") from error
+    def deterministic(self, name: str, system_key: str | None = None) -> DeterministicHandler:
+        handler = self._deterministic.get((system_key, name)) or self._deterministic.get(
+            (None, name)
+        )
+        if handler is None:
+            raise ValueError(f"Unknown deterministic node handler: {system_key or '*'}:{name}")
+        return handler
 
-    def llm_output(self, name: str) -> LlmOutputHandler:
-        try:
-            return self._llm_output[name]
-        except KeyError as error:
-            raise ValueError(f"Unknown LLM node handler: {name}") from error
+    def llm_output(self, name: str, system_key: str | None = None) -> LlmOutputHandler:
+        handler = self._llm_output.get((system_key, name)) or self._llm_output.get((None, name))
+        if handler is None:
+            raise ValueError(f"Unknown LLM node handler: {system_key or '*'}:{name}")
+        return handler
 
-    def validate_definition(self, definition: dict[str, Any]) -> None:
+    def validate_definition(
+        self, definition: dict[str, Any], system_key: str | None = None
+    ) -> None:
         for node in definition["nodes"]:
             if node["kind"] == "deterministic":
-                self.deterministic(node["handler"])
+                self.deterministic(node["handler"], system_key)
             else:
-                self.llm_output(node["handler"])
+                self.llm_output(node["handler"], system_key)
+
+    def scoped(self, system_key: str) -> "ScopedNodeHandlerRegistry":
+        return ScopedNodeHandlerRegistry(self, system_key)
 
     @staticmethod
-    def _register(registry: dict[str, Callable], name: str, handler: Callable) -> None:
-        if name in registry:
-            raise ValueError(f"Node handler is already registered: {name}")
-        registry[name] = handler
+    def _register(
+        registry: dict[tuple[str | None, str], Callable],
+        system_key: str | None,
+        name: str,
+        handler: Callable,
+    ) -> None:
+        key = (system_key, name)
+        if key in registry:
+            raise ValueError(f"Node handler is already registered: {system_key or '*'}:{name}")
+        registry[key] = handler
+
+
+class ScopedNodeHandlerRegistry:
+    def __init__(self, registry: NodeHandlerRegistry, system_key: str) -> None:
+        self.registry = registry
+        self.system_key = system_key
+
+    def register_deterministic(self, name: str, handler: DeterministicHandler) -> None:
+        self.registry.register_deterministic(name, handler, self.system_key)
+
+    def register_llm_output(self, name: str, handler: LlmOutputHandler) -> None:
+        self.registry.register_llm_output(name, handler, self.system_key)
 
 
 def default_node_handler_registry() -> NodeHandlerRegistry:
-    from autoeval_api.agent_systems.incident_triage.handlers import (
-        register_handlers as register_incident_handlers,
-    )
-    from autoeval_api.agent_systems.portfolio_analyst.handlers import (
-        register_handlers as register_portfolio_handlers,
-    )
+    from autoeval_api.agent_systems.registry import builtin_system_plugins
 
     registry = NodeHandlerRegistry()
-    register_incident_handlers(registry)
-    register_portfolio_handlers(registry)
+    for plugin in builtin_system_plugins():
+        plugin.register_handlers(registry)
     return registry

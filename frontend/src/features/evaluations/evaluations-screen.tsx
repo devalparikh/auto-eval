@@ -28,7 +28,7 @@ export function EvaluationsScreen({ systemKey }: { systemKey: string }) {
   const { run, setRun } = useEvalRunPolling();
   const previousRunStatus = useRef<string | null>(null);
   const datasets = finalDatasetVersions(catalog.data, systemKey);
-  const models = availableModels(catalog.data);
+  const models = availableModels(catalog.data, systemKey);
   const graphs = graphVersions(catalog.data, systemKey);
   const prompts = promptVersions(catalog.data, systemKey);
   const selectedModels =

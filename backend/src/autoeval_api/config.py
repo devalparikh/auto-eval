@@ -20,6 +20,7 @@ class Settings(BaseSettings):
     openrouter_api_key: str | None = Field(default=None, alias="OPENROUTER_API_KEY")
     openrouter_app_url: str = Field(default="http://localhost:3000", alias="OPENROUTER_APP_URL")
     openrouter_app_name: str = Field(default="AutoEval", alias="OPENROUTER_APP_NAME")
+    openrouter_max_output_tokens: int = Field(default=4096, ge=256, le=32_768)
     enable_cli_providers: bool = Field(default=False, alias="ENABLE_CLI_PROVIDERS")
     cli_timeout_seconds: int = 90
     cli_output_limit_bytes: int = 1_000_000

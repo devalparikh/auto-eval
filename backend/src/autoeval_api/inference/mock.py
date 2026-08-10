@@ -50,6 +50,8 @@ class MockInferenceProvider:
             output = {"context_patch": request.state.get("normalized", {})}
         elif request.task == "explain_portfolio":
             output = self._explain_portfolio(request)
+        elif request.task == "explain_portfolio_query":
+            output = self._explain_portfolio_query(request)
         else:
             output = {"result": "Mock provider completed the requested task."}
 
@@ -153,6 +155,47 @@ class MockInferenceProvider:
                     "Review concentration, bucket ranges, and scenario assumptions against "
                     "the stated goal, horizon, risk tolerance, and liquidity need."
                 ),
+            }
+        }
+
+    @staticmethod
+    def _explain_portfolio_query(request: InferenceRequest) -> dict[str, Any]:
+        analysis = request.state.get("query_analysis", {})
+        status = analysis.get("status")
+        candidates = analysis.get("candidates", [])
+        if status == "candidates" and candidates:
+            leader = candidates[0]
+            summary = (
+                f"{leader.get('contract_id')} ranks first among the supplied contracts "
+                "after coverage, liquidity, assignment, event, and quote checks."
+            )
+            risks = [
+                "Assignment can sell the covered shares at the strike price.",
+                "Option quotes and Greeks can change before an order is reviewed.",
+            ]
+        elif status == "needs_market_data":
+            summary = "Fresh supplied option-chain data is required before ranking candidates."
+            risks = ["Stale quotes cannot support an actionable comparison."]
+        elif status == "blocked":
+            summary = "No supplied contract passed every deterministic portfolio policy check."
+            risks = ["Relaxing safeguards changes assignment and liquidity exposure."]
+        elif status == "ready":
+            facts = analysis.get("portfolio_facts", {})
+            summary = (
+                f"The indexed snapshot contains {facts.get('position_count', 0)} positions; "
+                f"{facts.get('largest_symbol', 'none')} is the largest supplied weight."
+            )
+            risks = ["The answer is limited to the indexed snapshot fields supplied."]
+        else:
+            summary = "More indexed portfolio context is required to answer this question."
+            risks = ["Missing context can make portfolio conclusions incomplete."]
+        return {
+            "answer": {
+                "summary": summary,
+                "assumptions": [
+                    "The indexed snapshot and market context are user-supplied and accurate."
+                ],
+                "risks": risks,
             }
         }
 

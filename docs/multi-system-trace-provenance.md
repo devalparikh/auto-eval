@@ -11,6 +11,7 @@ The browser mirrors that ownership:
 ```text
 /systems
 /systems/{system-key}
+  /run
   /traces
   /datasets
   /evaluations
@@ -18,7 +19,9 @@ The browser mirrors that ownership:
   /versions
 ```
 
-The two built-ins prove the boundary with different inputs, graphs, labels, scorers, and safety policies. Generic JSON editors remain the fallback; an agent can retain a focused editor such as the Incident Triage ground-truth fields.
+The three built-ins prove the boundary with different inputs, graphs, labels, scorers, and safety policies. Generic JSON editors remain the fallback; an agent can retain a focused editor such as the Incident Triage ground-truth fields.
+
+Registration is code-level and system-scoped. Each selected graph is compiled independently for its run; there is no shared mega-graph. A duplicate handler name in another system resolves inside that system's namespace rather than colliding globally.
 
 ## Provenance model
 
@@ -74,4 +77,6 @@ The migration is idempotent and preserves existing identifiers, payloads, trace 
 
 Portfolio Analyst uses model calls for context extraction and explanation while deterministic handlers own profile completeness, weights, allocation, concentration HHI, effective holdings, bucket ranges, liquidity, and scenario arithmetic. A final deterministic node removes transaction prescriptions and adds the analytical-support boundary.
 
-All committed examples are synthetic. The persisted trace projection removes identity-like fields and raw dollar values; weights, categories, confirmed policies, and calculated outputs remain inspectable. This does not replace a future configurable retention/deletion policy or authentication for shared deployment.
+All committed examples are synthetic. Portfolio-specific trace projections remove identity-like fields, exact shares, and raw dollar values; weights, categories, confirmed policies, and calculated outputs remain inspectable. The same projection is applied before an LLM provider call. This does not replace a future configurable retention/deletion policy or authentication for shared deployment.
+
+Portfolio Q&A is a second independently compiled graph that consumes an indexed snapshot. In this milestone it is registered as a separate runnable system because the current persisted system version owns exactly one graph. [The flow refactor plan](agent-flow-refactor-plan.md) moves both graphs under one Portfolio Analyst product system without merging their nodes.

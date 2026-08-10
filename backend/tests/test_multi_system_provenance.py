@@ -1,3 +1,4 @@
+import json
 from copy import deepcopy
 
 import pytest
@@ -7,6 +8,12 @@ from autoeval_api.agent_systems.portfolio_analyst.definition import (
     PORTFOLIO_INPUT_TEMPLATE,
 )
 from autoeval_api.agent_systems.portfolio_analyst.seed import ensure_seed_data
+from autoeval_api.agent_systems.portfolio_query.definition import (
+    PORTFOLIO_QUERY_INPUT_TEMPLATE,
+)
+from autoeval_api.agent_systems.portfolio_query.seed import (
+    ensure_seed_data as ensure_portfolio_query_seed_data,
+)
 from autoeval_api.models import (
     AgentSystemRecord,
     DatasetItemRecord,
@@ -43,6 +50,36 @@ def test_portfolio_system_runs_with_sanitized_trace(client, session_factory) -> 
     assert "name" not in payload["request_input"]["profile"]
     assert "value" not in payload["request_input"]["holdings"][0]
     assert all("Synthetic owner" not in str(span["input"]) for span in payload["spans"])
+
+
+def test_portfolio_query_uses_only_safe_supplied_candidates(client, session_factory) -> None:
+    session = session_factory()
+    graph, prompt, _ = ensure_portfolio_query_seed_data(session)
+    system = session.get(AgentSystemRecord, graph.agent_system_id)
+
+    response = client.post(
+        "/api/traces/run",
+        json={
+            "agent_system_id": system.id,
+            "agent_system_version_id": graph.id,
+            "prompt_version_id": prompt.id,
+            "model_id": "mock/portfolio-analyst",
+            "input": deepcopy(PORTFOLIO_QUERY_INPUT_TEMPLATE),
+        },
+    )
+
+    assert response.status_code == 201
+    payload = response.json()
+    assert payload["status"] == "complete"
+    assert payload["agent_system_key"] == "portfolio-query"
+    assert payload["output"]["covered_call"]["status"] == "candidates"
+    candidates = payload["output"]["covered_call"]["candidates"]
+    assert [item["contract_id"] for item in candidates] == ["NVDA_SYNTH_CALL_160"]
+    assert candidates[0]["rank"] == 1
+    persisted = json.dumps(payload, sort_keys=True)
+    assert '"shares"' not in persisted
+    assert '"pledged_shares"' not in persisted
+    assert '"gross_premium_usd"' not in persisted
 
 
 def test_trace_membership_is_scoped_idempotent_and_conflict_safe(client, session_factory) -> None:

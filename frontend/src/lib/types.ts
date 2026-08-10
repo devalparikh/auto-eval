@@ -50,6 +50,8 @@ export type ModelOption = {
   label: string;
   supports: string[];
   available: boolean;
+  notice?: string | null;
+  blocked_agent_system_keys?: string[];
 };
 
 export type Catalog = {

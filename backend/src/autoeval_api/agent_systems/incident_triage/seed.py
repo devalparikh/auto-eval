@@ -26,6 +26,7 @@ from autoeval_api.services.versioning import create_agent_version, create_prompt
 DATASET_ITEMS = [
     (
         {
+            "is_synthetic": True,
             "text": "Production API is returning 503 for every customer in us-east.",
             "service": "public-api",
             "customer_tier": "enterprise",
@@ -34,6 +35,7 @@ DATASET_ITEMS = [
     ),
     (
         {
+            "is_synthetic": True,
             "text": (
                 "An access token was leaked in a public repository and used without authorization."
             ),
@@ -44,6 +46,7 @@ DATASET_ITEMS = [
     ),
     (
         {
+            "is_synthetic": True,
             "text": "Checkout payment attempts are failing after the gateway release.",
             "service": "checkout",
             "customer_tier": "standard",
@@ -52,6 +55,7 @@ DATASET_ITEMS = [
     ),
     (
         {
+            "is_synthetic": True,
             "text": "Customer records appear corrupt and recent invoices are missing.",
             "service": "ledger",
             "customer_tier": "enterprise",
@@ -60,6 +64,7 @@ DATASET_ITEMS = [
     ),
     (
         {
+            "is_synthetic": True,
             "text": "A customer needs help changing the email address on their profile.",
             "service": "accounts",
             "customer_tier": "standard",
@@ -68,6 +73,7 @@ DATASET_ITEMS = [
     ),
     (
         {
+            "is_synthetic": True,
             "text": "The dashboard is unavailable for customers in Europe.",
             "service": "dashboard",
             "customer_tier": "standard",
@@ -101,8 +107,14 @@ async def ensure_demo_runs(
         if session.query(TraceRecord).count() == 0:
             await runner.run(
                 session,
-                RunSelection(graph_version, prompt_version, "mock/incident-specialist"),
+                RunSelection(
+                    graph_version,
+                    prompt_version,
+                    "mock/incident-specialist",
+                    "incident-triage",
+                ),
                 {
+                    "is_synthetic": True,
                     "text": "The public API is down for enterprise customers after deployment.",
                     "service": "public-api",
                     "customer_tier": "enterprise",

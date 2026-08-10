@@ -57,3 +57,7 @@ def _actual_projection(actual: dict[str, Any]) -> dict[str, Any]:
         "concentration_flag_count": len(metrics.get("concentration_flags", [])),
         "scenario_count": len(metrics.get("scenarios", [])),
     }
+
+
+def scoring_entries() -> list[tuple[str, PortfolioAnalysisMetricSuite]]:
+    return [(DATASET_KEY, PortfolioAnalysisMetricSuite())]

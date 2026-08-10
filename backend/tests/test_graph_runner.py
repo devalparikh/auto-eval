@@ -20,7 +20,7 @@ async def test_runner_records_every_graph_node(session_factory) -> None:
 
     trace = await runner.run(
         session,
-        RunSelection(graph_version, prompt_version, "mock/incident-specialist"),
+        RunSelection(graph_version, prompt_version, "mock/incident-specialist", "incident-triage"),
         {"text": "Checkout payment attempts fail for every customer.", "service": "checkout"},
     )
 
@@ -30,3 +30,5 @@ async def test_runner_records_every_graph_node(session_factory) -> None:
     assert trace.output["route"] == "payments"
     assert len(spans) == 4
     assert sum(span.input_tokens for span in spans) > 0
+    llm_spans = [span for span in spans if span.node_kind == "llm"]
+    assert all(span.output["_inference"] == {"deterministic": True} for span in llm_spans)

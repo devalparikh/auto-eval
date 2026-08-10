@@ -30,7 +30,10 @@ test("persists an accessible color theme across reloads and routes", async ({
   ).toBeVisible();
 
   await page.goto(incidentRoot);
-  await page.getByRole("link", { name: /Datasets/ }).first().click();
+  await page
+    .getByRole("link", { name: /Datasets/ })
+    .first()
+    .click();
   await expect(page.getByRole("heading", { name: /datasets/i })).toBeVisible();
   await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
 });
@@ -73,14 +76,17 @@ test("keeps route navigation immediate when reduced motion is requested", async 
   await page.emulateMedia({ reducedMotion: "reduce" });
   await page.goto(`${incidentRoot}/traces`);
   await page.getByRole("link", { name: /Results/ }).click();
-  await expect(
-    page.getByRole("heading", { name: /results/i }),
-  ).toBeVisible();
+  await expect(page.getByRole("heading", { name: /results/i })).toBeVisible();
   await expect(page.locator("#main-content")).toHaveCount(1);
-  await expect(page.locator(".route-content")).toHaveCSS("animation-name", "none");
+  await expect(page.locator(".route-content")).toHaveCSS(
+    "animation-name",
+    "none",
+  );
 });
 
-test("keeps shell geometry stable across primary navigation", async ({ page }) => {
+test("keeps shell geometry stable across primary navigation", async ({
+  page,
+}) => {
   await page.setViewportSize({ width: 1280, height: 720 });
   await page.goto(`${incidentRoot}/traces`);
   await expect(page.getByRole("heading", { name: /traces/i })).toBeVisible();
@@ -89,9 +95,9 @@ test("keeps shell geometry stable across primary navigation", async ({ page }) =
   const widths: number[] = [];
   async function recordShellWidth() {
     widths.push(
-      await page.locator(".shell-header").evaluate((header) =>
-        Math.round(header.getBoundingClientRect().width),
-      ),
+      await page
+        .locator(".shell-header")
+        .evaluate((header) => Math.round(header.getBoundingClientRect().width)),
     );
     await expect(page.locator("#main-content")).toHaveCount(1);
   }
@@ -101,16 +107,16 @@ test("keeps shell geometry stable across primary navigation", async ({ page }) =
   await expect(page.getByRole("heading", { name: /Evaluate/i })).toBeVisible();
   await recordShellWidth();
   await page.getByRole("link", { name: /Results/ }).click();
-  await expect(
-    page.getByRole("heading", { name: /results/i }),
-  ).toBeVisible();
+  await expect(page.getByRole("heading", { name: /results/i })).toBeVisible();
   await recordShellWidth();
 
   expect(new Set(widths).size).toBe(1);
   await expect(page.locator(".route-content-change")).toHaveCount(1);
 });
 
-test("uses stable geometry and layered feedback for row hover", async ({ page }) => {
+test("uses stable geometry and layered feedback for row hover", async ({
+  page,
+}) => {
   await page.goto(`${incidentRoot}/results`);
   const row = page.locator(".data-row").first();
   await expect(row).toBeVisible();
@@ -119,7 +125,9 @@ test("uses stable geometry and layered feedback for row hover", async ({ page })
     actionTransform: getComputedStyle(
       element.querySelector(".data-row-affordance")!,
     ).transform,
-    washOpacity: Number.parseFloat(getComputedStyle(element, "::before").opacity),
+    washOpacity: Number.parseFloat(
+      getComputedStyle(element, "::before").opacity,
+    ),
   }));
 
   await row.hover();
@@ -128,7 +136,9 @@ test("uses stable geometry and layered feedback for row hover", async ({ page })
     actionTransform: getComputedStyle(
       element.querySelector(".data-row-affordance")!,
     ).transform,
-    washOpacity: Number.parseFloat(getComputedStyle(element, "::before").opacity),
+    washOpacity: Number.parseFloat(
+      getComputedStyle(element, "::before").opacity,
+    ),
   }));
 
   expect(before.washOpacity).toBe(0);
@@ -151,7 +161,7 @@ test("inspect a trace and its graph", async ({ page }) => {
 
 test("run a trace and review it into a draft dataset", async ({ page }) => {
   await page.goto(`${incidentRoot}/traces`);
-  await page.getByRole("button", { name: "Run trace" }).click();
+  await page.getByRole("link", { name: "Run inference" }).click();
   await page.getByLabel("Request input (JSON)").fill(
     JSON.stringify({
       text: "Payment callbacks are delayed for premium customers.",
@@ -159,7 +169,11 @@ test("run a trace and review it into a draft dataset", async ({ page }) => {
       customer_tier: "standard",
     }),
   );
-  await page.getByRole("button", { name: "Run trace" }).last().click();
+  await page.getByRole("button", { name: "Run inference" }).click();
+  await expect(
+    page.getByRole("link", { name: "Inspect full trace" }),
+  ).toBeVisible();
+  await page.getByRole("link", { name: "Inspect full trace" }).click();
   await expect(page.getByText("Execution graph")).toBeVisible();
 
   await page.getByRole("button", { name: "Add to dataset" }).click();
@@ -167,18 +181,20 @@ test("run a trace and review it into a draft dataset", async ({ page }) => {
     page.getByRole("heading", { name: "Review dataset example" }),
   ).toBeVisible();
   await page.getByRole("button", { name: "Add example" }).click();
-  await expect(page.getByText("Example added. Membership is now persisted on this trace.")).toBeVisible();
+  await expect(
+    page.getByText("Example added. Membership is now persisted on this trace."),
+  ).toBeVisible();
   await page.getByRole("button", { name: "Done" }).click();
   await page.reload();
-  await expect(page.getByText(/Incident triage ground truth v\d+ · draft/)).toBeVisible();
+  await expect(
+    page.getByText(/Incident triage ground truth v\d+ · draft/),
+  ).toBeVisible();
 });
 
 test("run the seeded evaluation workflow", async ({ page }) => {
   test.setTimeout(45_000);
   await page.goto(`${incidentRoot}/evaluations`);
-  await expect(
-    page.getByRole("heading", { name: /Evaluate/i }),
-  ).toBeVisible();
+  await expect(page.getByRole("heading", { name: /Evaluate/i })).toBeVisible();
   await page.getByRole("button", { name: "Start evaluation" }).click();
   await expect(page.getByText(/^Run [a-f0-9]{8}$/)).toBeVisible();
   await expect(page.getByRole("link", { name: "View results" })).toBeVisible({
@@ -190,9 +206,7 @@ test("run the seeded evaluation workflow", async ({ page }) => {
 
 test("results render model metrics and scatter plot", async ({ page }) => {
   await page.goto(`${incidentRoot}/results`);
-  await expect(
-    page.getByRole("heading", { name: /results/i }),
-  ).toBeVisible();
+  await expect(page.getByRole("heading", { name: /results/i })).toBeVisible();
   await expect(page.getByText("Model comparison")).toBeVisible();
   await expect(
     page.getByRole("img", { name: "Scatter chart of total cost by accuracy" }),

@@ -1,6 +1,8 @@
 # Architecture
 
-AutoEval separates reusable execution infrastructure from each agent system's domain logic. The backend composes registries and services once; an agent package contributes definitions, handlers, seed data, and optional scoring. The frontend follows the same rule: routes select a feature screen, while the feature owns its forms and state.
+AutoEval separates reusable execution infrastructure from each agent system's domain logic. The backend composes registries and services once; an agent package contributes one plugin manifest plus definitions, handlers, seed data, optional scoring, and an optional trace policy. The frontend follows the same rule: routes select a feature screen, while the feature owns its forms and state.
+
+Each run compiles only the selected graph definition into its own LangGraph instance. Handler names are resolved through a system-scoped registry, so two growing systems may use the same local handler name without collision. AutoEval never constructs one global LangGraph containing nodes from every registered system.
 
 ## Reproducibility contract
 
@@ -54,9 +56,10 @@ autoeval_api/
     middleware.py           request limits and security headers
     routes/                 one router per API domain
   agent_systems/
-    registry.py             code-level UX and default-model metadata
+    registry.py             plugin composition and code-level UX metadata
     incident_triage/        built-in incident example
     portfolio_analyst/      synthetic portfolio analyst and deterministic math
+    portfolio_query/        supplied-snapshot questions and covered-call screening
     seed.py                 built-in seed composition
   graph/                    generic topology, node registry, runner
   inference/                provider contract, adapters, registry
@@ -70,10 +73,12 @@ Routes validate HTTP input and translate domain errors. Services own domain quer
 
 ## Implemented extension points
 
-- `inference/base.py` defines the provider contract. `InferenceProviderRegistry.register` adds an adapter without changing the runner.
-- `graph/registry.py` registers deterministic and LLM-output handlers. The runner resolves handlers by the stable names stored in a graph version.
-- `services/scoring.py` owns metric suites and their registry. Evaluation orchestration asks the registry for a suite instead of importing incident-triage metrics.
-- `agent_systems/incident_triage/` demonstrates how one system groups its definition, handlers, scoring, and seed data.
+- `inference/base.py` defines the provider contract. `InferenceProviderRegistry.register` adds an adapter without changing the runner. OpenRouter model capabilities live in the typed, deterministic `inference/model_catalog.py` rather than being fetched at process startup.
+- LLM span output records allowlisted inference metadata, including OpenRouter's returned resolved model ID and request ID, alongside requested model provenance on the parent trace.
+- `graph/registry.py` registers deterministic and LLM-output handlers under `(system_key, handler_name)`. The runner resolves handlers through the selected system scope.
+- `services/scoring.py` composes metric suites contributed by system plugins. Evaluation orchestration asks the registry for a suite instead of importing a concrete system.
+- `agent_systems/registry.py::builtin_system_plugins` is the single built-in composition root. Each package exports `plugin.py` and keeps its definition, handlers, scoring, seed data, and trace projection local.
+- The shared graph state has only `input`, a mergeable system-owned `data` envelope, and `output`; adding a system does not require adding domain fields to a global state type.
 
 There is currently no `DatasetImporter`, `ArtifactStore`, or `EvaluationDispatcher` interface. Dataset edits use the dataset service, payloads are stored as JSON in SQLite, and evaluation background work runs in the FastAPI process. Introduce a real interface only when adding a second implementation.
 
@@ -90,6 +95,7 @@ frontend/src/
     traces/             trace list, run flow, DAG, inspector, review flow
     datasets/           draft editing and finalization
     evaluations/        model selection, launch, and polling
+    run/                one-off pinned inference and latest trace result
     results/            tables, row projection, and cost/accuracy chart
     systems/            graph and prompt version editors
   lib/                 API client, DTOs, formatting, shared data hook, CSP
@@ -107,7 +113,7 @@ Keep domain behavior in its feature directory. Promote a component to `component
 
 - SQLite and the in-process evaluation task are suitable for local, single-process use only.
 - There is no authentication or authorization. Keep both servers on loopback.
-- Trace capture is policy-aware. Incident Triage retains complete local payloads. Portfolio Analyst removes identity-like fields and raw dollar values from persisted requests and span snapshots while executing against the original in-memory request.
+- Trace capture and outbound inference are policy-aware. Portfolio systems remove identity-like fields, exact shares, and raw dollar values from persisted requests, span snapshots, and model context while deterministic calculations execute against the original in-memory request.
 - Provider secrets live only in the backend environment. CLI providers are disabled by default and cross a high-trust local execution boundary when enabled.
 - Inputs and outputs persist as JSON. Providers may accept referenced multimodal input objects, but binary artifact storage and generated image, audio, or video outputs are future work.
 
@@ -118,3 +124,7 @@ See [extension-guide.md](extension-guide.md) for concrete edit paths and [code-s
 The seeded incident-triage graph normalizes an incident report, asks an LLM for structured classification, applies deterministic routing policy, and drafts an operator response. Ground truth contains severity, route, and human-review requirement. This produces interpretable classification metrics without pretending that free-form text has a single objectively correct answer.
 
 The seeded portfolio analyst normalizes supplied profile and weighted holding context, identifies missing inputs, calculates allocation, concentration, bucket ranges, liquidity, and user-supplied scenarios deterministically, asks a model to explain those facts, and applies a deterministic financial-safety gate. Its fixtures are synthetic and its evaluation checks arithmetic invariants rather than treating prose as objective truth.
+
+The seeded portfolio Q&A graph consumes a supplied snapshot document and verifies its content hash. For covered-call questions, deterministic handlers validate call type, standard contract multiplier, quote freshness, lot-level share coverage and restrictions, DTE, delta, liquidity, spread, event timing, assignment constraints, premium math, and ranking. Duplicate-symbol lots are aggregated without allowing an ineligible sleeve to overwrite an eligible one. The model receives only an allowlisted computed candidate summary and cannot create or alter candidates. The graph reports that market data is required instead of inventing a chain. Durable snapshot lookup by ID remains part of the flow migration rather than being implied by an unverified identifier.
+
+Portfolio Analyst and Portfolio Q&A are separate runnable LangGraphs. They are temporarily represented as separate systems because the current persistent version aggregate owns one graph. The target multi-flow ownership model and migration are specified in [agent-flow-refactor-plan.md](agent-flow-refactor-plan.md).

@@ -8,6 +8,7 @@ class InferenceRequest:
     system_prompt: str
     task: str
     state: dict[str, Any]
+    agent_system_key: str | None = None
     modalities: list[dict[str, Any]] = field(default_factory=list)
 
 
@@ -28,6 +29,8 @@ class ModelDescriptor:
     label: str
     supports: tuple[str, ...]
     available: bool = True
+    notice: str | None = None
+    blocked_agent_system_keys: tuple[str, ...] = ()
 
 
 class InferenceProvider(Protocol):
