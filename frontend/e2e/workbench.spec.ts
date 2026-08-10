@@ -74,6 +74,63 @@ test("keeps route navigation immediate when reduced motion is requested", async 
     page.getByRole("heading", { name: "Evaluation results" }),
   ).toBeVisible();
   await expect(page.locator("#main-content")).toHaveCount(1);
+  await expect(page.locator(".route-content")).toHaveCSS("animation-name", "none");
+});
+
+test("keeps shell geometry stable across primary navigation", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await page.goto("/traces");
+  await expect(page.getByRole("heading", { name: "Traces" })).toBeVisible();
+  await page.waitForTimeout(550);
+
+  const widths: number[] = [];
+  async function recordShellWidth() {
+    widths.push(
+      await page.locator(".shell-header").evaluate((header) =>
+        Math.round(header.getBoundingClientRect().width),
+      ),
+    );
+    await expect(page.locator("#main-content")).toHaveCount(1);
+  }
+
+  await recordShellWidth();
+  await page.getByRole("link", { name: /Evaluate/ }).click();
+  await expect(page.getByRole("heading", { name: "Run evaluation" })).toBeVisible();
+  await recordShellWidth();
+  await page.getByRole("link", { name: /Results/ }).click();
+  await expect(
+    page.getByRole("heading", { name: "Evaluation results" }),
+  ).toBeVisible();
+  await recordShellWidth();
+
+  expect(new Set(widths).size).toBe(1);
+  await expect(page.locator(".route-content-change")).toHaveCount(1);
+});
+
+test("uses stable geometry and layered feedback for row hover", async ({ page }) => {
+  await page.goto("/results");
+  const row = page.locator(".data-row").first();
+  await expect(row).toBeVisible();
+
+  const before = await row.evaluate((element) => ({
+    actionTransform: getComputedStyle(
+      element.querySelector(".data-row-affordance")!,
+    ).transform,
+    washOpacity: Number.parseFloat(getComputedStyle(element, "::before").opacity),
+  }));
+
+  await row.hover();
+  await page.waitForTimeout(30);
+  const hovered = await row.evaluate((element) => ({
+    actionTransform: getComputedStyle(
+      element.querySelector(".data-row-affordance")!,
+    ).transform,
+    washOpacity: Number.parseFloat(getComputedStyle(element, "::before").opacity),
+  }));
+
+  expect(before.washOpacity).toBe(0);
+  expect(hovered.washOpacity).toBeGreaterThan(0.7);
+  expect(hovered.actionTransform).not.toBe(before.actionTransform);
 });
 
 test("inspect a trace and its graph", async ({ page }) => {

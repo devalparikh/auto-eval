@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 
 const workflow = [
   {
@@ -28,7 +29,7 @@ export default function HomePage() {
     <div className="landing">
       <section className="landing-hero" aria-labelledby="landing-title">
         <div className="landing-copy">
-          <p className="landing-kicker">Local agent workbench</p>
+          <p className="landing-kicker">Local agent workbench / 001</p>
           <h1 id="landing-title" className="landing-title">
             See where your agent <em>breaks.</em>
           </h1>
@@ -55,7 +56,7 @@ export default function HomePage() {
             <li>immutable versions</li>
           </ul>
         </div>
-        <TraceField />
+        <LandingArtwork />
       </section>
 
       <section className="landing-loop" aria-labelledby="loop-title">
@@ -79,107 +80,32 @@ export default function HomePage() {
       </section>
 
       <footer className="landing-close">
-        <span>Local single-user workspace</span>
+        <span>AutoEval / local single-user workspace</span>
         <span>Trace → dataset → evaluation → result</span>
       </footer>
     </div>
   );
 }
 
-function TraceField() {
+function LandingArtwork() {
   return (
-    <figure
-      className="trace-field"
-      aria-label="The seeded incident-triage graph: normalize input, classify incident, apply policy, and draft response"
-    >
-      <figcaption className="trace-field-header">
-        <span>Incident-triage trace · v1</span>
-        <span className="trace-field-live">ready</span>
+    <figure className="landing-art">
+      <Image
+        className="landing-art-image"
+        src="/images/autoeval-landscape-hero-v2.jpg"
+        alt="Airy dithered landscape of a pale mountain basin and stepping stones crossing a clear stream."
+        fill
+        preload
+        sizes="(max-width: 780px) 100vw, 56vw"
+      />
+      <figcaption className="landing-art-caption">
+        <span>System inspection / 001</span>
+        <span>failure isolated</span>
       </figcaption>
-      <svg
-        className="trace-field-lines"
-        viewBox="0 0 1000 1000"
-        preserveAspectRatio="none"
-        aria-hidden="true"
-      >
-        <path
-          className="trace-line-base"
-          d="M240 240 C390 240 470 420 650 420"
-        />
-        <path
-          className="trace-line-flow"
-          d="M240 240 C390 240 470 420 650 420"
-        />
-        <path
-          className="trace-line-base"
-          d="M650 420 C650 545 435 535 330 650"
-        />
-        <path
-          className="trace-line-flow"
-          d="M650 420 C650 545 435 535 330 650"
-        />
-        <path
-          className="trace-line-base"
-          d="M330 650 C490 650 555 790 730 790"
-        />
-        <path
-          className="trace-line-flow"
-          d="M330 650 C490 650 555 790 730 790"
-        />
-      </svg>
-      <HeroNode
-        className="hero-node-1"
-        name="normalize_input"
-        kind="deterministic"
-        detail="shape request"
-      />
-      <HeroNode
-        className="hero-node-2"
-        name="classify_incident"
-        kind="llm"
-        detail="severity + route"
-      />
-      <HeroNode
-        className="hero-node-3"
-        name="apply_policy"
-        kind="deterministic"
-        detail="review policy"
-      />
-      <HeroNode
-        className="hero-node-4"
-        name="draft_response"
-        kind="llm"
-        detail="operator draft"
-      />
-      <div className="trace-field-footer" aria-hidden="true">
+      <div className="landing-art-meta" aria-hidden="true">
         <span>:: :: ·· :: · ::: ·· ::</span>
-        <span>4 nodes · directed</span>
+        <span>precision / trace / repair</span>
       </div>
     </figure>
-  );
-}
-
-function HeroNode({
-  className,
-  name,
-  kind,
-  detail,
-}: {
-  className: string;
-  name: string;
-  kind: string;
-  detail: string;
-}) {
-  return (
-    <div className={`hero-node ${className}`} aria-hidden="true">
-      <div className="hero-node-top">
-        <span className="hero-node-name">{name}</span>
-        <span className="hero-node-kind">{kind}</span>
-      </div>
-      <div className="hero-node-body">
-        <span>{detail}</span>
-        <span className="hero-node-state">ok</span>
-      </div>
-    </div>
   );
 }

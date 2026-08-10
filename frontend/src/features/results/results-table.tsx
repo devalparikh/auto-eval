@@ -82,7 +82,7 @@ export function ResultsTable({
                   <Link
                     href={`/traces/${traceId}`}
                     aria-label={`Open a trace for ${row.model_id}`}
-                    className="grid size-7 place-items-center rounded-[7px] text-[var(--text-muted)] hover:bg-[var(--surface-muted)] hover:text-[var(--text)]"
+                    className="data-row-affordance grid size-7 place-items-center rounded-[7px] text-[var(--text-muted)] hover:bg-[var(--surface-muted)] hover:text-[var(--text)]"
                   >
                     <ArrowUpRightIcon size={13} />
                   </Link>

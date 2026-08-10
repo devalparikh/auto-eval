@@ -9,9 +9,9 @@ import {
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
+  useEffect,
   useState,
   useSyncExternalStore,
-  ViewTransition,
   type MouseEvent,
   type ReactNode,
 } from "react";
@@ -37,11 +37,17 @@ export function AppShell({
 }) {
   const pathname = usePathname();
   const [theme, setTheme] = useState(initialTheme);
+  const [showInitialEntry, setShowInitialEntry] = useState(true);
   const soundEnabled = useSyncExternalStore(
     subscribeToSoundPreference,
     readSoundPreference,
     () => true,
   );
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => setShowInitialEntry(false), 520);
+    return () => window.clearTimeout(timer);
+  }, []);
 
   function toggleSound() {
     const next = !soundEnabled;
@@ -141,16 +147,18 @@ export function AppShell({
           </button>
         </div>
       </header>
-      <ViewTransition
-        key={pathname}
-        enter="route-enter"
-        exit="route-exit"
-        default="none"
-      >
-        <main id="main-content" className="route-frame">
+      <main id="main-content" className="route-frame">
+        <div
+          key={pathname}
+          className={`route-content ${
+            showInitialEntry
+              ? "route-content-initial"
+              : "route-content-change"
+          }`}
+        >
           {children}
-        </main>
-      </ViewTransition>
+        </div>
+      </main>
     </div>
   );
 }

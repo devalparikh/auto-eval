@@ -107,7 +107,10 @@ export function TracesScreen() {
               <time className="text-[11px] text-[var(--text-muted)] max-md:hidden">
                 {formatDate(trace.started_at)}
               </time>
-              <ArrowRightIcon size={14} className="text-[var(--text-faint)]" />
+              <ArrowRightIcon
+                size={14}
+                className="data-row-affordance text-[var(--text-faint)]"
+              />
             </Link>
           ))}
         </div>

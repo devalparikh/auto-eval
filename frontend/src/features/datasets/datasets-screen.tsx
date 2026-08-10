@@ -180,10 +180,13 @@ export function DatasetsScreen() {
                 {detail.data?.status === "draft" ? (
                   <PencilSimpleIcon
                     size={14}
-                    className="text-[var(--text-faint)]"
+                    className="data-row-affordance text-[var(--text-faint)]"
                   />
                 ) : (
-                  <LockIcon size={13} className="text-[var(--text-faint)]" />
+                  <LockIcon
+                    size={13}
+                    className="data-row-affordance text-[var(--text-faint)]"
+                  />
                 )}
               </button>
             );
