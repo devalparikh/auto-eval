@@ -3,6 +3,7 @@
 import { PlusIcon } from "@phosphor-icons/react";
 import type { FormEvent } from "react";
 import { Modal } from "@/components/modal";
+import { Select } from "@/components/select";
 import { LoadingState } from "@/components/states";
 import {
   availableModels,
@@ -85,45 +86,53 @@ export function RunTraceModal({
             </div>
             <div className="field">
               <label htmlFor="trace-model">Model</label>
-              <select id="trace-model" name="model" className="app-select">
+              <Select id="trace-model" name="model">
                 {models.map((model) => (
                   <option key={model.id} value={model.id}>
                     {model.label}
                   </option>
                 ))}
-              </select>
+              </Select>
             </div>
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="field">
               <label htmlFor="trace-graph">Agent system</label>
-              <select id="trace-graph" name="graphVersion" className="app-select">
+              <Select id="trace-graph" name="graphVersion">
                 {graphs.map((version) => (
                   <option key={version.id} value={version.id}>
                     Incident triage v{version.version}
                   </option>
                 ))}
-              </select>
+              </Select>
             </div>
             <div className="field">
               <label htmlFor="trace-prompt">System prompt</label>
-              <select id="trace-prompt" name="promptVersion" className="app-select">
+              <Select id="trace-prompt" name="promptVersion">
                 {prompts.map((version) => (
                   <option key={version.id} value={version.id}>
                     Triage prompt v{version.version}
                   </option>
                 ))}
-              </select>
+              </Select>
             </div>
           </div>
-          {error ? <p className="text-[12px] text-[var(--danger)]">{error}</p> : null}
+          {error ? (
+            <p className="text-[12px] text-[var(--danger)]">{error}</p>
+          ) : null}
           <div className="flex justify-end gap-2 border-t border-[var(--border)] pt-4">
-            <button type="button" className="app-button secondary" onClick={onClose}>
+            <button
+              type="button"
+              className="app-button secondary"
+              onClick={onClose}
+            >
               Cancel
             </button>
             <button
               className="app-button"
-              disabled={submitting || graphs.length === 0 || prompts.length === 0}
+              disabled={
+                submitting || graphs.length === 0 || prompts.length === 0
+              }
             >
               {submitting ? "Running..." : "Run trace"}
               {!submitting ? <PlusIcon size={14} /> : null}

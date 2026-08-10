@@ -32,7 +32,10 @@ export function TraceInspector({ span }: { span: TraceSpan | null }) {
         <StatusBadge status={span.status} />
       </div>
       <div className="grid grid-cols-3 border-b border-[var(--border)]">
-        <InspectorMetric label="Latency" value={formatDuration(span.latency_ms)} />
+        <InspectorMetric
+          label="Latency"
+          value={formatDuration(span.latency_ms)}
+        />
         <InspectorMetric label="Cost" value={formatCost(span.cost_usd)} />
         <InspectorMetric
           label="Tokens"
@@ -88,7 +91,9 @@ function InspectorSection({
   return (
     <section className="border-b border-[var(--border)] p-4 last:border-b-0">
       <div className="mb-2 flex items-center justify-between">
-        <h3 className="text-[10px] font-semibold text-[var(--text-muted)]">{label}</h3>
+        <h3 className="text-[10px] font-semibold text-[var(--text-muted)]">
+          {label}
+        </h3>
         {action}
       </div>
       {children}
@@ -98,7 +103,7 @@ function InspectorSection({
 
 function JsonBlock({ value }: { value: Record<string, unknown> }) {
   return (
-    <pre className="mono max-h-52 overflow-auto whitespace-pre-wrap break-words rounded-[8px] bg-[var(--surface-muted)] p-3 text-[10px] leading-5 text-[var(--text-muted)]">
+    <pre className="mono max-h-52 overflow-auto whitespace-pre-wrap break-words rounded-[2px] border border-[var(--border)] bg-[var(--canvas)] p-3 text-[10px] leading-5 text-[var(--text-muted)]">
       {JSON.stringify(value, null, 2)}
     </pre>
   );

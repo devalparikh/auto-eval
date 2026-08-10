@@ -1,6 +1,6 @@
 "use client";
 
-import { BracketsCurlyIcon, SparkleIcon } from "@phosphor-icons/react";
+import { BracketsCurlyIcon, WaveformIcon } from "@phosphor-icons/react";
 import {
   Background,
   BackgroundVariant,
@@ -36,7 +36,7 @@ export function TraceGraph({
   );
 
   return (
-    <div className="h-[420px] w-full bg-[var(--surface)] md:h-[520px]">
+    <div className="h-[420px] w-full bg-[var(--canvas)] md:h-[520px]">
       <ReactFlow
         nodes={nodes}
         edges={edges}
@@ -59,7 +59,7 @@ export function TraceGraph({
         />
         <Controls
           showInteractive={false}
-          className="!overflow-hidden !rounded-[8px] !border-[var(--border)] !bg-[var(--surface-raised)] !shadow-none"
+          className="!overflow-hidden !rounded-[2px] !border-[var(--border-strong)] !bg-[var(--surface-raised)] !shadow-none"
         />
       </ReactFlow>
     </div>
@@ -67,31 +67,36 @@ export function TraceGraph({
 }
 
 function TraceNode({ data }: NodeProps<Node<TraceNodeData>>) {
-  const Icon = data.definition.kind === "llm" ? SparkleIcon : BracketsCurlyIcon;
+  const Icon =
+    data.definition.kind === "llm" ? WaveformIcon : BracketsCurlyIcon;
   return (
     <div
-      className={`w-[208px] rounded-[10px] border bg-[var(--surface-raised)] p-3 shadow-[0_10px_30px_rgba(20,33,45,0.08)] transition-[border-color,transform] duration-150 ${
-        data.selected ? "border-[var(--accent)]" : "border-[var(--border-strong)]"
+      className={`relative w-[208px] rounded-[2px] border bg-[var(--surface-raised)] p-3 shadow-[0_14px_40px_rgba(0,0,0,0.24)] transition-[border-color,transform,box-shadow] duration-150 ${
+        data.selected
+          ? "border-[var(--accent)] shadow-[0_0_0_1px_var(--accent),0_18px_45px_rgba(0,0,0,0.32)]"
+          : "border-[var(--border-strong)]"
       }`}
     >
       <Handle
         type="target"
         position={Position.Left}
-        className="!size-2 !border-0 !bg-[var(--border-strong)]"
+        className="!size-1.5 !border-0 !bg-[var(--border-strong)]"
       />
       <div className="flex items-center gap-2">
         <div
-          className={`grid size-7 place-items-center rounded-[7px] ${
+          className={`grid size-7 place-items-center rounded-[2px] border ${
             data.definition.kind === "llm"
-              ? "bg-[var(--accent-soft)] text-[var(--accent)]"
-              : "bg-[var(--surface-muted)] text-[var(--text-muted)]"
+              ? "border-[var(--accent)]/20 bg-[var(--accent-soft)] text-[var(--accent)]"
+              : "border-[var(--border)] bg-[var(--surface-muted)] text-[var(--text-muted)]"
           }`}
         >
           <Icon size={14} weight="bold" />
         </div>
         <div className="min-w-0">
-          <p className="truncate text-[12px] font-semibold">{data.definition.label}</p>
-          <p className="mono text-[9px] text-[var(--text-faint)]">
+          <p className="truncate text-[12px] font-semibold">
+            {data.definition.label}
+          </p>
+          <p className="mono mt-0.5 text-[8px] tracking-[0.04em] text-[var(--text-faint)]">
             {data.definition.kind}
           </p>
         </div>
@@ -103,7 +108,7 @@ function TraceNode({ data }: NodeProps<Node<TraceNodeData>>) {
       <Handle
         type="source"
         position={Position.Right}
-        className="!size-2 !border-0 !bg-[var(--border-strong)]"
+        className="!size-1.5 !border-0 !bg-[var(--border-strong)]"
       />
     </div>
   );

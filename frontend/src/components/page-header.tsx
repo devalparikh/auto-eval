@@ -10,10 +10,10 @@ export function PageHeader({
   action?: ReactNode;
 }) {
   return (
-    <header className="flex min-h-[72px] items-center justify-between gap-6 border-b border-[var(--border)] bg-[var(--surface)] px-5 py-4 md:px-7">
+    <header className="page-header">
       <div className="min-w-0">
-        <h1 className="text-[18px] font-semibold tracking-[-0.025em]">{title}</h1>
-        <p className="mt-0.5 truncate text-[12px] text-[var(--text-muted)]">{description}</p>
+        <h1 className="page-header-title">{title}</h1>
+        <p className="page-header-description">{description}</p>
       </div>
       {action}
     </header>

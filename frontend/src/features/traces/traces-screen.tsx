@@ -19,6 +19,7 @@ import {
   shortId,
   textPreview,
 } from "@/lib/format";
+import { playPreferredUiSound } from "@/lib/sound";
 import { useApiResource } from "@/lib/use-api-resource";
 
 export function TracesScreen() {
@@ -43,6 +44,7 @@ export function TracesScreen() {
         agent_system_version_id: payload.graphVersionId,
         prompt_version_id: payload.promptVersionId,
       });
+      playPreferredUiSound("success");
       setModalOpen(false);
       router.push(`/traces/${trace.id}`);
     } catch (caught) {

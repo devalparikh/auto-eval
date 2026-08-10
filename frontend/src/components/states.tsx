@@ -30,8 +30,16 @@ export function EmptyState({ title, message }: { title: string; message: string 
   return (
     <div className="grid min-h-64 place-items-center px-5 text-center">
       <div>
-        <p className="font-semibold">{title}</p>
-        <p className="mt-1 max-w-sm text-[12px] text-[var(--text-muted)]">{message}</p>
+        <div
+          className="mono mx-auto mb-4 grid size-10 place-items-center border border-dashed border-[var(--border-strong)] text-[11px] text-[var(--accent)]"
+          aria-hidden="true"
+        >
+          ::
+        </div>
+        <p className="font-semibold tracking-[-0.02em]">{title}</p>
+        <p className="mt-1.5 max-w-sm text-[11px] leading-5 text-[var(--text-muted)]">
+          {message}
+        </p>
       </div>
     </div>
   );

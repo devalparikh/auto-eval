@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
-import { headers } from "next/headers";
+import { cookies, headers } from "next/headers";
 import type { ReactNode } from "react";
 import { AppShell } from "@/components/app-shell";
+import { colorThemeFromCookie, THEME_COOKIE_NAME } from "@/lib/theme";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -11,13 +12,20 @@ export const metadata: Metadata = {
 
 export const dynamic = "force-dynamic";
 
-export default async function RootLayout({ children }: { children: ReactNode }) {
+export default async function RootLayout({
+  children,
+}: {
+  children: ReactNode;
+}) {
   // Reading request headers guarantees nonce-bearing responses render per request.
   await headers();
+  const theme = colorThemeFromCookie(
+    (await cookies()).get(THEME_COOKIE_NAME)?.value,
+  );
   return (
-    <html lang="en">
+    <html lang="en" data-theme={theme} data-scroll-behavior="smooth">
       <body>
-        <AppShell>{children}</AppShell>
+        <AppShell initialTheme={theme}>{children}</AppShell>
       </body>
     </html>
   );

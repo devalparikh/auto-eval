@@ -1,68 +1,175 @@
 "use client";
 
 import {
-  BezierCurveIcon,
-  ChartScatterIcon,
-  DatabaseIcon,
-  FlaskIcon,
-  GitBranchIcon,
+  MoonIcon,
+  SpeakerHighIcon,
+  SpeakerSlashIcon,
+  SunIcon,
 } from "@phosphor-icons/react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import type { ReactNode } from "react";
+import {
+  useState,
+  useSyncExternalStore,
+  ViewTransition,
+  type MouseEvent,
+  type ReactNode,
+} from "react";
+import { playUiSound, UI_SOUND_STORAGE_KEY, type UiSound } from "@/lib/sound";
+import { THEME_COOKIE_NAME, type ColorTheme } from "@/lib/theme";
+
+const SOUND_PREFERENCE_EVENT = "autoeval:sound-preference";
 
 const navItems = [
-  { href: "/traces", label: "Traces", icon: BezierCurveIcon },
-  { href: "/datasets", label: "Datasets", icon: DatabaseIcon },
-  { href: "/evaluations", label: "Run eval", icon: FlaskIcon },
-  { href: "/results", label: "Results", icon: ChartScatterIcon },
-  { href: "/systems", label: "Versions", icon: GitBranchIcon },
+  { href: "/traces", label: "Traces", index: "01" },
+  { href: "/datasets", label: "Datasets", index: "02" },
+  { href: "/evaluations", label: "Evaluate", index: "03" },
+  { href: "/results", label: "Results", index: "04" },
+  { href: "/systems", label: "Versions", index: "05" },
 ];
 
-export function AppShell({ children }: { children: ReactNode }) {
+export function AppShell({
+  children,
+  initialTheme,
+}: {
+  children: ReactNode;
+  initialTheme: ColorTheme;
+}) {
   const pathname = usePathname();
+  const [theme, setTheme] = useState(initialTheme);
+  const soundEnabled = useSyncExternalStore(
+    subscribeToSoundPreference,
+    readSoundPreference,
+    () => true,
+  );
+
+  function toggleSound() {
+    const next = !soundEnabled;
+    playUiSound(next ? "toggle-on" : "toggle-off");
+    window.localStorage.setItem(UI_SOUND_STORAGE_KEY, String(next));
+    window.dispatchEvent(new Event(SOUND_PREFERENCE_EVENT));
+  }
+
+  function toggleTheme() {
+    const next = theme === "dark" ? "light" : "dark";
+    setTheme(next);
+    document.documentElement.dataset.theme = next;
+    document.cookie = `${THEME_COOKIE_NAME}=${next}; Path=/; Max-Age=31536000; SameSite=Lax`;
+    if (soundEnabled) playUiSound("select");
+  }
+
+  function handleSound(event: MouseEvent<HTMLDivElement>) {
+    if (!soundEnabled) return;
+    const target = event.target instanceof Element ? event.target : null;
+    if (!target || target.closest(".sound-toggle")) return;
+
+    const explicit = target.closest<HTMLElement>("[data-sound]")?.dataset
+      .sound as UiSound | undefined;
+    const sound = explicit ?? inferSound(target);
+    if (sound) playUiSound(sound);
+  }
 
   return (
-    <div className="min-h-[100dvh] md:grid md:grid-cols-[216px_minmax(0,1fr)]">
-      <aside className="border-b border-white/8 bg-[var(--sidebar)] text-white md:sticky md:top-0 md:h-[100dvh] md:border-r md:border-b-0">
-        <div className="flex h-16 items-center gap-3 px-4 md:h-[72px] md:px-5">
-          <div className="grid size-8 place-items-center rounded-[8px] bg-[#eff4ff] text-[#244b9b]">
-            <BezierCurveIcon size={18} weight="bold" />
-          </div>
-          <div>
-            <div className="text-[15px] font-semibold tracking-[-0.02em]">AutoEval</div>
-            <div className="text-[11px] text-[var(--sidebar-muted)]">Agent workbench</div>
-          </div>
-        </div>
-        <nav
-          aria-label="Primary"
-          className="flex gap-1 overflow-x-auto px-3 pb-3 md:grid md:overflow-visible md:px-3 md:pb-0"
+    <div className="app-shell" onClickCapture={handleSound}>
+      <a className="skip-link" href="#main-content">
+        Skip to content
+      </a>
+      <header className="shell-header">
+        <Link
+          href="/"
+          className="shell-brand"
+          aria-label="AutoEval home"
+          data-sound="navigate"
         >
+          <span className="shell-brand-mark" aria-hidden="true">
+            a/e
+          </span>
+          <span className="shell-brand-name">AutoEval</span>
+          <span className="shell-brand-version">v0.1</span>
+        </Link>
+        <nav aria-label="Primary" className="shell-nav">
           {navItems.map((item) => {
-            const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
-            const Icon = item.icon;
+            const active =
+              pathname === item.href || pathname.startsWith(`${item.href}/`);
             return (
               <Link
                 key={item.href}
                 href={item.href}
                 aria-current={active ? "page" : undefined}
-                className={`flex min-h-10 shrink-0 items-center gap-2.5 rounded-[8px] px-3 text-[13px] font-medium transition-colors duration-150 ${
-                  active
-                    ? "bg-white/10 text-white"
-                    : "text-[var(--sidebar-muted)] hover:bg-white/6 hover:text-white"
-                }`}
+                className="shell-nav-link"
+                data-sound="navigate"
               >
-                <Icon size={17} weight={active ? "fill" : "regular"} />
+                <span className="shell-nav-index" aria-hidden="true">
+                  {item.index}
+                </span>
                 {item.label}
               </Link>
             );
           })}
         </nav>
-        <div className="absolute bottom-5 left-5 hidden text-[11px] text-[var(--sidebar-muted)] md:block">
-          Local workspace
+        <div className="shell-controls">
+          <span className="shell-status" aria-label="Local workspace connected">
+            <span className="shell-status-dot" aria-hidden="true" />
+            loopback / local
+          </span>
+          <button
+            type="button"
+            className="shell-icon-button theme-toggle"
+            aria-label={`Use ${theme === "dark" ? "light" : "dark"} theme`}
+            title={`Use ${theme === "dark" ? "light" : "dark"} theme`}
+            onClick={toggleTheme}
+          >
+            {theme === "dark" ? <MoonIcon size={16} /> : <SunIcon size={16} />}
+          </button>
+          <button
+            type="button"
+            className="shell-icon-button sound-toggle"
+            aria-label={
+              soundEnabled
+                ? "Turn interface sounds off"
+                : "Turn interface sounds on"
+            }
+            aria-pressed={soundEnabled}
+            title={soundEnabled ? "Sounds on" : "Sounds off"}
+            onClick={toggleSound}
+          >
+            {soundEnabled ? (
+              <SpeakerHighIcon size={16} />
+            ) : (
+              <SpeakerSlashIcon size={16} />
+            )}
+          </button>
         </div>
-      </aside>
-      <main className="min-w-0">{children}</main>
+      </header>
+      <ViewTransition
+        key={pathname}
+        enter="route-enter"
+        exit="route-exit"
+        default="none"
+      >
+        <main id="main-content" className="route-frame">
+          {children}
+        </main>
+      </ViewTransition>
     </div>
   );
+}
+
+function inferSound(target: Element): UiSound | null {
+  if (target.closest(".app-button")) return "press";
+  if (target.closest(".data-row")) return "select";
+  return null;
+}
+
+function readSoundPreference() {
+  return window.localStorage.getItem(UI_SOUND_STORAGE_KEY) !== "false";
+}
+
+function subscribeToSoundPreference(onChange: () => void) {
+  window.addEventListener("storage", onChange);
+  window.addEventListener(SOUND_PREFERENCE_EVENT, onChange);
+  return () => {
+    window.removeEventListener("storage", onChange);
+    window.removeEventListener(SOUND_PREFERENCE_EVENT, onChange);
+  };
 }

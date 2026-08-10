@@ -3,10 +3,9 @@
 import { CheckIcon } from "@phosphor-icons/react";
 import { useState, type FormEvent } from "react";
 import { Modal } from "@/components/modal";
+import { Select } from "@/components/select";
 import { draftDatasetVersions } from "@/features/catalog/catalog-options";
-import {
-  GroundTruthFields,
-} from "@/features/datasets/ground-truth-fields";
+import { GroundTruthFields } from "@/features/datasets/ground-truth-fields";
 import {
   groundTruthFromForm,
   groundTruthFromRecord,
@@ -49,7 +48,9 @@ export function AddToDatasetModal({
       setSaved(true);
       window.setTimeout(onClose, 700);
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Could not add example");
+      setError(
+        caught instanceof Error ? caught.message : "Could not add example",
+      );
     } finally {
       setSaving(false);
     }
@@ -65,28 +66,41 @@ export function AddToDatasetModal({
       <form onSubmit={submit} className="grid gap-4 p-5">
         <div className="field">
           <label htmlFor="dataset-version">Draft dataset</label>
-          <select id="dataset-version" name="datasetVersion" className="app-select" required>
+          <Select id="dataset-version" name="datasetVersion" required>
             {drafts.map(({ dataset, version }) => (
               <option key={version.id} value={version.id}>
                 {dataset.name} v{version.version}
               </option>
             ))}
-          </select>
+          </Select>
         </div>
         <GroundTruthFields
           initial={groundTruthFromRecord(traceOutput)}
           idPrefix="expected"
         />
         <div className="rounded-[8px] bg-[var(--surface-muted)] p-3">
-          <p className="text-[10px] font-semibold text-[var(--text-muted)]">Request</p>
-          <p className="mt-1 text-[11px] leading-5">{textPreview(traceInput)}</p>
+          <p className="text-[10px] font-semibold text-[var(--text-muted)]">
+            Request
+          </p>
+          <p className="mt-1 text-[11px] leading-5">
+            {textPreview(traceInput)}
+          </p>
         </div>
-        {error ? <p className="text-[12px] text-[var(--danger)]">{error}</p> : null}
+        {error ? (
+          <p className="text-[12px] text-[var(--danger)]">{error}</p>
+        ) : null}
         <div className="flex justify-end gap-2 border-t border-[var(--border)] pt-4">
-          <button type="button" className="app-button secondary" onClick={onClose}>
+          <button
+            type="button"
+            className="app-button secondary"
+            onClick={onClose}
+          >
             Cancel
           </button>
-          <button className="app-button" disabled={saving || saved || drafts.length === 0}>
+          <button
+            className="app-button"
+            disabled={saving || saved || drafts.length === 0}
+          >
             {saved ? <CheckIcon size={14} /> : null}
             {saved ? "Added" : saving ? "Adding..." : "Add example"}
           </button>
