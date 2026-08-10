@@ -1,8 +1,9 @@
 "use client";
 
 import { FlaskIcon } from "@phosphor-icons/react";
-import { useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { PageHeader } from "@/components/page-header";
+import { Select } from "@/components/select";
 import { ErrorState, LoadingState } from "@/components/states";
 import {
   availableModels,
@@ -14,6 +15,7 @@ import { ModelPicker } from "@/features/evaluations/model-picker";
 import { RunStatusPanel } from "@/features/evaluations/run-status-panel";
 import { useEvalRunPolling } from "@/features/evaluations/use-eval-run-polling";
 import { api } from "@/lib/api";
+import { playPreferredUiSound } from "@/lib/sound";
 import { useApiResource } from "@/lib/use-api-resource";
 
 export function EvaluationsScreen() {
@@ -25,10 +27,21 @@ export function EvaluationsScreen() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { run, setRun } = useEvalRunPolling();
+  const previousRunStatus = useRef<string | null>(null);
   const datasets = finalDatasetVersions(catalog.data);
   const models = availableModels(catalog.data);
   const graphs = graphVersions(catalog.data);
   const prompts = promptVersions(catalog.data);
+
+  useEffect(() => {
+    if (
+      run?.status === "complete" &&
+      previousRunStatus.current !== "complete"
+    ) {
+      playPreferredUiSound("success");
+    }
+    previousRunStatus.current = run?.status ?? null;
+  }, [run?.status]);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -44,7 +57,9 @@ export function EvaluationsScreen() {
       });
       setRun(created);
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Could not start evaluation");
+      setError(
+        caught instanceof Error ? caught.message : "Could not start evaluation",
+      );
     } finally {
       setSubmitting(false);
     }
@@ -73,33 +88,33 @@ export function EvaluationsScreen() {
               <div className="grid gap-4 md:grid-cols-3">
                 <div className="field">
                   <label htmlFor="eval-dataset">Dataset version</label>
-                  <select id="eval-dataset" name="datasetVersion" className="app-select" required>
+                  <Select id="eval-dataset" name="datasetVersion" required>
                     {datasets.map(({ dataset, version }) => (
                       <option key={version.id} value={version.id}>
                         {dataset.name} v{version.version}
                       </option>
                     ))}
-                  </select>
+                  </Select>
                 </div>
                 <div className="field">
                   <label htmlFor="eval-graph">Agent system</label>
-                  <select id="eval-graph" name="graphVersion" className="app-select" required>
+                  <Select id="eval-graph" name="graphVersion" required>
                     {graphs.map((version) => (
                       <option key={version.id} value={version.id}>
                         Incident triage v{version.version}
                       </option>
                     ))}
-                  </select>
+                  </Select>
                 </div>
                 <div className="field">
                   <label htmlFor="eval-prompt">System prompt</label>
-                  <select id="eval-prompt" name="promptVersion" className="app-select" required>
+                  <Select id="eval-prompt" name="promptVersion" required>
                     {prompts.map((version) => (
                       <option key={version.id} value={version.id}>
                         Triage prompt v{version.version}
                       </option>
                     ))}
-                  </select>
+                  </Select>
                 </div>
               </div>
               <ModelPicker
@@ -107,14 +122,20 @@ export function EvaluationsScreen() {
                 selectedModelIds={selectedModels}
                 onChange={setSelectedModels}
               />
-              {error ? <p className="text-[12px] text-[var(--danger)]">{error}</p> : null}
+              {error ? (
+                <p className="text-[12px] text-[var(--danger)]">{error}</p>
+              ) : null}
               <div className="flex items-center justify-between gap-3 border-t border-[var(--border)] pt-4">
                 <p className="text-[10px] text-[var(--text-muted)]">
                   {datasets[0]?.version.item_count ?? 0} examples per model
                 </p>
                 <button
                   className="app-button"
-                  disabled={submitting || selectedModels.length === 0 || datasets.length === 0}
+                  disabled={
+                    submitting ||
+                    selectedModels.length === 0 ||
+                    datasets.length === 0
+                  }
                 >
                   <FlaskIcon size={15} />
                   {submitting ? "Starting..." : "Start evaluation"}

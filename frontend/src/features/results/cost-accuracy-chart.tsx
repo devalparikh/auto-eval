@@ -1,5 +1,6 @@
 "use client";
 
+import { useReducedMotion } from "motion/react";
 import {
   CartesianGrid,
   ResponsiveContainer,
@@ -21,6 +22,7 @@ type ChartPoint = {
 };
 
 export function CostAccuracyChart({ rows }: { rows: ResultRow[] }) {
+  const reduceMotion = useReducedMotion();
   const points: ChartPoint[] = rows.map((row) => ({
     name: row.model_id.split("/").slice(-1)[0],
     cost: row.metrics.total_cost_usd,
@@ -80,7 +82,12 @@ export function CostAccuracyChart({ rows }: { rows: ResultRow[] }) {
                 content={<ChartTooltip />}
                 cursor={{ stroke: "var(--border-strong)", strokeDasharray: "3 4" }}
               />
-              <Scatter data={points} fill="var(--accent)" isAnimationActive />
+              <Scatter
+                data={points}
+                fill="var(--accent)"
+                isAnimationActive={!reduceMotion}
+                animationDuration={420}
+              />
             </ScatterChart>
           </ResponsiveContainer>
         </div>
@@ -99,7 +106,7 @@ function ChartTooltip({
   const point = payload?.[0]?.payload;
   if (!active || !point) return null;
   return (
-    <div className="rounded-[8px] border border-[var(--border-strong)] bg-[var(--surface-raised)] p-3 shadow-lg">
+    <div className="rounded-[2px] border border-[var(--border-strong)] bg-[var(--surface-raised)] p-3 shadow-lg">
       <p className="text-[11px] font-semibold">{point.name}</p>
       <p className="mono mt-2 text-[10px] text-[var(--text-muted)]">
         Accuracy {formatPercent(point.accuracy)}

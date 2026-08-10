@@ -1,8 +1,11 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
+import { JsonViewer } from "@/components/json-viewer";
+import { Select } from "@/components/select";
 import { LoadingState } from "@/components/states";
 import { formatDate } from "@/lib/format";
+import { playPreferredUiSound } from "@/lib/sound";
 import type { VersionSummary } from "@/lib/types";
 
 export function VersionEditor({
@@ -31,6 +34,9 @@ export function VersionEditor({
   onSave: (recordId: string, content: string) => Promise<void>;
 }) {
   const [draft, setDraft] = useState(content);
+  const [graphView, setGraphView] = useState<"structure" | "source">(
+    "structure",
+  );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -39,8 +45,10 @@ export function VersionEditor({
     setError(null);
     try {
       await onSave(recordId, draft);
+      playPreferredUiSound("success");
     } catch (caught) {
-      const message = caught instanceof Error ? caught.message : "Could not create version";
+      const message =
+        caught instanceof Error ? caught.message : "Could not create version";
       setError(
         kind === "graph" && caught instanceof SyntaxError
           ? "Graph definition must be valid JSON."
@@ -52,8 +60,9 @@ export function VersionEditor({
   }
 
   const selected = versions.find((version) => version.id === selectedVersionId);
+  const parsedGraph = parseJson(draft);
   return (
-    <article className="overflow-hidden rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface)]">
+    <article className="version-editor overflow-hidden rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface)]">
       <div className="flex items-start justify-between gap-4 border-b border-[var(--border)] px-5 py-4">
         <div className="flex min-w-0 gap-3">
           <div className="grid size-8 shrink-0 place-items-center rounded-[8px] bg-[var(--accent-soft)] text-[var(--accent)]">
@@ -61,12 +70,14 @@ export function VersionEditor({
           </div>
           <div className="min-w-0">
             <h2 className="truncate text-[13px] font-semibold">{title}</h2>
-            <p className="mt-1 text-[10px] text-[var(--text-muted)]">{description}</p>
+            <p className="mt-1 text-[10px] text-[var(--text-muted)]">
+              {description}
+            </p>
           </div>
         </div>
-        <select
+        <Select
           aria-label={`${kind} version`}
-          className="app-select w-auto min-w-[110px]"
+          containerClassName="version-select"
           value={selectedVersionId}
           onChange={(event) => onVersionChange(event.target.value)}
         >
@@ -75,7 +86,7 @@ export function VersionEditor({
               Version {version.version}
             </option>
           ))}
-        </select>
+        </Select>
       </div>
       <div className="grid grid-cols-3 border-b border-[var(--border)] text-[10px]">
         <VersionMeta label="Version" value={`v${selected?.version ?? "-"}`} />
@@ -83,15 +94,62 @@ export function VersionEditor({
           label="Created"
           value={selected ? formatDate(selected.created_at) : "-"}
         />
-        <VersionMeta label="Hash" value={selected?.content_hash?.slice(0, 9) ?? "-"} mono />
+        <VersionMeta
+          label="Hash"
+          value={selected?.content_hash?.slice(0, 9) ?? "-"}
+          mono
+        />
       </div>
       <div className="p-4">
         {loading ? (
           <LoadingState rows={6} />
+        ) : kind === "graph" ? (
+          <>
+            <div className="version-view-toolbar">
+              <div
+                className="version-view-switch"
+                aria-label="Graph definition view"
+              >
+                <button
+                  type="button"
+                  aria-pressed={graphView === "structure"}
+                  disabled={!parsedGraph.ok}
+                  onClick={() => setGraphView("structure")}
+                >
+                  Structure
+                </button>
+                <button
+                  type="button"
+                  aria-pressed={graphView === "source"}
+                  onClick={() => setGraphView("source")}
+                >
+                  Source
+                </button>
+              </div>
+              <span>
+                {graphView === "structure"
+                  ? "Inspect nested nodes and edges."
+                  : "Edit the raw definition to create a new version."}
+              </span>
+            </div>
+            {graphView === "structure" && parsedGraph.ok ? (
+              <JsonViewer value={parsedGraph.value} />
+            ) : (
+              <textarea
+                aria-label="Graph definition"
+                aria-invalid={!parsedGraph.ok}
+                aria-describedby="graph-editor-help"
+                className="app-textarea mono version-source-editor text-[10px] leading-5"
+                value={draft}
+                onChange={(event) => setDraft(event.target.value)}
+                spellCheck={false}
+              />
+            )}
+          </>
         ) : (
           <textarea
-            aria-label={kind === "graph" ? "Graph definition" : "System prompt"}
-            className="app-textarea mono min-h-[440px] text-[10px] leading-5"
+            aria-label="System prompt"
+            className="app-textarea mono version-source-editor text-[10px] leading-5"
             value={draft}
             onChange={(event) => setDraft(event.target.value)}
             spellCheck={false}
@@ -99,9 +157,18 @@ export function VersionEditor({
         )}
         <div className="mt-3 flex items-center justify-between gap-4">
           <div>
-            {error ? <p className="text-[11px] text-[var(--danger)]">{error}</p> : null}
-            <p className="text-[10px] text-[var(--text-muted)]">
-              Saving creates a new immutable version.
+            {error ? (
+              <p role="alert" className="text-[11px] text-[var(--danger)]">
+                {error}
+              </p>
+            ) : null}
+            <p
+              id={kind === "graph" ? "graph-editor-help" : undefined}
+              className="text-[10px] text-[var(--text-muted)]"
+            >
+              {kind === "graph" && !parsedGraph.ok
+                ? "The current source is not valid JSON."
+                : "Saving creates a new immutable version."}
             </p>
           </div>
           <button
@@ -115,6 +182,16 @@ export function VersionEditor({
       </div>
     </article>
   );
+}
+
+function parseJson(
+  value: string,
+): { ok: true; value: unknown } | { ok: false } {
+  try {
+    return { ok: true, value: JSON.parse(value) as unknown };
+  } catch {
+    return { ok: false };
+  }
 }
 
 function VersionMeta({

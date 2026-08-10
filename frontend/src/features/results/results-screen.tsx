@@ -2,6 +2,7 @@
 
 import { useState, type ReactNode } from "react";
 import { PageHeader } from "@/components/page-header";
+import { Select } from "@/components/select";
 import {
   finalDatasetVersions,
   graphVersions,
@@ -19,11 +20,14 @@ export function ResultsScreen() {
   const [graphVersionId, setGraphVersionId] = useState("");
   const [promptVersionId, setPromptVersionId] = useState("");
   const datasets = finalDatasetVersions(catalog.data);
-  const datasetVersionId = requestedDatasetVersionId || datasets[0]?.version.id || "";
+  const datasetVersionId =
+    requestedDatasetVersionId || datasets[0]?.version.id || "";
 
   const query = (() => {
     if (!datasetVersionId) return "";
-    const params = new URLSearchParams({ dataset_version_id: datasetVersionId });
+    const params = new URLSearchParams({
+      dataset_version_id: datasetVersionId,
+    });
     if (graphVersionId) params.set("agent_system_version_id", graphVersionId);
     if (promptVersionId) params.set("prompt_version_id", promptVersionId);
     return `?${params.toString()}`;
@@ -43,8 +47,7 @@ export function ResultsScreen() {
       <section className="grid gap-4 p-4 md:p-7">
         <div className="grid gap-3 rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface)] p-4 md:grid-cols-3">
           <FilterField label="Dataset version">
-            <select
-              className="app-select"
+            <Select
               value={datasetVersionId}
               onChange={(event) => setDatasetVersionId(event.target.value)}
             >
@@ -53,11 +56,10 @@ export function ResultsScreen() {
                   {dataset.name} v{version.version}
                 </option>
               ))}
-            </select>
+            </Select>
           </FilterField>
           <FilterField label="Agent system version">
-            <select
-              className="app-select"
+            <Select
               value={graphVersionId}
               onChange={(event) => setGraphVersionId(event.target.value)}
             >
@@ -67,11 +69,10 @@ export function ResultsScreen() {
                   Version {version.version}
                 </option>
               ))}
-            </select>
+            </Select>
           </FilterField>
           <FilterField label="Prompt version">
-            <select
-              className="app-select"
+            <Select
               value={promptVersionId}
               onChange={(event) => setPromptVersionId(event.target.value)}
             >
@@ -81,7 +82,7 @@ export function ResultsScreen() {
                   Version {version.version}
                 </option>
               ))}
-            </select>
+            </Select>
           </FilterField>
         </div>
         <div className="grid gap-4 2xl:grid-cols-[minmax(0,1.25fr)_minmax(420px,0.75fr)]">
@@ -98,7 +99,13 @@ export function ResultsScreen() {
   );
 }
 
-function FilterField({ label, children }: { label: string; children: ReactNode }) {
+function FilterField({
+  label,
+  children,
+}: {
+  label: string;
+  children: ReactNode;
+}) {
   return (
     <label className="field">
       <span>{label}</span>

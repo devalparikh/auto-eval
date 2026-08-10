@@ -44,14 +44,16 @@ export function ModelPicker({
               <span
                 className={`grid size-5 place-items-center rounded-[5px] border ${
                   checked
-                    ? "border-[var(--accent)] bg-[var(--accent)] text-white"
+                    ? "border-[var(--accent)] bg-[var(--accent)] text-[var(--accent-ink)]"
                     : "border-[var(--border-strong)]"
                 }`}
               >
                 {checked ? <CheckIcon size={12} weight="bold" /> : null}
               </span>
               <span className="min-w-0">
-                <span className="block truncate text-[12px] font-semibold">{model.label}</span>
+                <span className="block truncate text-[12px] font-semibold">
+                  {model.label}
+                </span>
                 <span className="mt-0.5 block text-[10px] text-[var(--text-muted)]">
                   {model.provider} · {model.supports.join(", ")}
                 </span>

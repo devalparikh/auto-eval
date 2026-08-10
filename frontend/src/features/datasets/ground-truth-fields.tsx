@@ -3,6 +3,7 @@ import {
   SEVERITY_OPTIONS,
   type GroundTruth,
 } from "@/features/datasets/ground-truth";
+import { Select } from "@/components/select";
 
 export function GroundTruthFields({
   initial,
@@ -59,13 +60,13 @@ function SelectField({
   return (
     <div className="field">
       <label htmlFor={id}>{label}</label>
-      <select id={id} name={name} className="app-select" defaultValue={value}>
+      <Select id={id} name={name} defaultValue={value}>
         {options.map((option) => (
           <option key={option} value={option}>
             {labels[option] ?? option}
           </option>
         ))}
-      </select>
+      </Select>
     </div>
   );
 }
