@@ -6,26 +6,35 @@ import { PageHeader } from "@/components/page-header";
 import { ErrorState, LoadingState } from "@/components/states";
 import { systemByKey } from "@/features/catalog/catalog-options";
 import { graphPromptAssociations } from "@/features/systems/graph-prompts";
-import { SnapshotArtifact } from "@/features/systems/snapshot-artifact";
+import { NodeSnapshotBrowser } from "@/features/systems/node-snapshot-browser";
 import { VersionEditor } from "@/features/systems/version-editor";
 import { api } from "@/lib/api";
 import { useApiResource } from "@/lib/use-api-resource";
 
 type ArtifactKind = "graph" | "prompt" | "snapshot";
 
-export function SystemsScreen({ systemKey }: { systemKey: string }) {
+export function SystemsScreen({
+  systemKey,
+  initialSnapshotId,
+}: {
+  systemKey: string;
+  initialSnapshotId?: string;
+}) {
   const catalog = useApiResource(api.catalog, []);
   const system = systemByKey(catalog.data, systemKey);
   const prompts =
     catalog.data?.prompts.filter(
       (item) => item.agent_system_id === system?.id,
     ) ?? [];
-  const supportsSnapshots = system?.product_key === "portfolio-analyst";
-  const [activeKind, setActiveKind] = useState<ArtifactKind>("graph");
+  const [activeKind, setActiveKind] = useState<ArtifactKind>(
+    initialSnapshotId ? "snapshot" : "graph",
+  );
   const [requestedGraphVersionId, setGraphVersionId] = useState("");
   const [requestedPromptId, setPromptId] = useState("");
   const [requestedPromptVersionId, setPromptVersionId] = useState("");
-  const [requestedSnapshotId, setSnapshotId] = useState("");
+  const [requestedSnapshotId, setSnapshotId] = useState(
+    initialSnapshotId ?? "",
+  );
   const prompt =
     prompts.find((item) => item.id === requestedPromptId) ?? prompts[0];
   const graphVersionId =
@@ -52,24 +61,28 @@ export function SystemsScreen({ systemKey }: { systemKey: string }) {
   );
   const snapshots = useApiResource(
     () =>
-      supportsSnapshots
-        ? api.portfolioSnapshots("portfolio-analyst")
+      system
+        ? api.nodeSnapshots({ productKey: system.product_key })
         : Promise.resolve([]),
-    [supportsSnapshots],
+    [system?.product_key],
   );
-  const snapshotId = (snapshots.data ?? []).some(
-    (snapshot) => snapshot.id === requestedSnapshotId,
-  )
-    ? requestedSnapshotId
-    : snapshots.data?.[0]?.id || "";
+  const snapshotId =
+    (snapshots.data ?? []).find(
+      (snapshot) => snapshot.id === requestedSnapshotId,
+    )?.id ?? snapshots.data?.[0]?.id ?? "";
   const snapshotDetail = useApiResource(
     () =>
-      snapshotId ? api.portfolioSnapshot(snapshotId) : Promise.resolve(null),
+      snapshotId ? api.nodeSnapshot(snapshotId) : Promise.resolve(null),
     [snapshotId],
   );
   const promptAssociations = graphPromptAssociations(
     graphDetail.data?.definition ?? null,
     prompt?.key ?? "",
+  );
+  const hasNodeSnapshots = Boolean(
+    graphDetail.data?.definition.nodes.some(
+      (node) => node.snapshot_policy || node.runtime_input_policy,
+    ) || snapshots.data?.length,
   );
 
   const artifactKinds = [
@@ -85,12 +98,12 @@ export function SystemsScreen({ systemKey }: { systemKey: string }) {
       detail: `${prompts.length} families`,
       icon: TextTIcon,
     },
-    ...(supportsSnapshots
+    ...(hasNodeSnapshots
       ? [
           {
             kind: "snapshot" as const,
             label: "Snapshots",
-            detail: `${snapshots.data?.length ?? 0} indexed`,
+            detail: `${snapshots.data?.length ?? 0} records`,
             icon: DatabaseIcon,
           },
         ]
@@ -101,7 +114,7 @@ export function SystemsScreen({ systemKey }: { systemKey: string }) {
     <>
       <PageHeader
         title={`${system?.name ?? "Agent system"} artifacts`}
-        description="Inspect immutable graph structure, prompt source, and indexed product state."
+        description="Inspect immutable graph structure, prompt source, and node-owned snapshots."
       />
       {catalog.loading ? <LoadingState rows={8} /> : null}
       {catalog.error ? (
@@ -206,7 +219,8 @@ export function SystemsScreen({ systemKey }: { systemKey: string }) {
             ) : activeKind === "prompt" ? (
               <ErrorState message="This system has no prompt artifacts." />
             ) : (
-              <SnapshotArtifact
+              <NodeSnapshotBrowser
+                systemKey={systemKey}
                 snapshots={snapshots.data ?? []}
                 selectedSnapshotId={snapshotId}
                 onSnapshotChange={setSnapshotId}

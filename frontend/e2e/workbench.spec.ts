@@ -72,6 +72,33 @@ test("uses the shared select treatment and themed JSON disclosures", async ({
   await expect(page.getByRole("dialog")).toBeHidden();
 });
 
+test("groups growing node-output snapshots by deterministic node", async ({
+  page,
+}) => {
+  await page.goto(`${portfolioQueryRoot}/artifacts`);
+  await expect(page.getByLabel("Agent graph structure")).toBeVisible();
+  await page.getByRole("button", { name: "Expand graph" }).click();
+  const graphDialog = page.getByRole("dialog");
+  await expect(
+    graphDialog.getByText("external input · options_chain"),
+  ).toBeVisible();
+  await expect(graphDialog.getByText("run refresh")).toBeVisible();
+  await expect(graphDialog.getByText("eval locked")).toBeVisible();
+  await expect(graphDialog.getByText("conditional")).toBeVisible();
+  await page.keyboard.press("Escape");
+
+  await page.getByRole("button", { name: /Snapshots/ }).click();
+  await expect(page.getByRole("heading", { name: "Node snapshots" })).toBeVisible();
+  await expect(page.getByText("Deterministic nodes")).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: /Persist immutable portfolio snapshot/ }),
+  ).toBeVisible();
+  await page
+    .getByRole("button", { name: /Resolve or fetch external options observation/ })
+    .click();
+  await expect(page.getByText("options_chain").first()).toBeVisible();
+});
+
 test("keeps route navigation immediate when reduced motion is requested", async ({
   page,
 }) => {
@@ -114,6 +141,43 @@ test("keeps shell geometry stable across primary navigation", async ({
 
   expect(new Set(widths).size).toBe(1);
   await expect(page.locator(".route-content-change")).toHaveCount(1);
+});
+
+test("zooms through code structure and switches Git comparisons", async ({
+  page,
+}) => {
+  await page.goto("/codebase");
+  await expect(
+    page.getByLabel(/Codebase graph at Areas detail/),
+  ).toBeVisible();
+  await expect(page.locator(".codebase-summary")).toContainText(
+    "Local changes",
+  );
+
+  await page.getByRole("button", { name: "Zoom In" }).click();
+  await page.getByRole("button", { name: "Zoom In" }).click();
+  await expect(page.locator(".codebase-map-level")).toContainText("Modules");
+
+  await page.getByRole("button", { name: "Logic", exact: true }).click();
+  await expect(page.locator(".codebase-summary")).toContainText(
+    "agent-maintained",
+  );
+  await expect(
+    page.getByLabel(/Codebase graph at Systems detail/),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Files", exact: true }).click();
+
+  await page.getByRole("button", { name: "Staged", exact: true }).click();
+  await expect(page.locator(".codebase-summary")).toContainText(
+    "Staged changes",
+  );
+
+  await page.getByRole("button", { name: "Commit", exact: true }).click();
+  await expect(
+    page.getByRole("combobox", { name: "Commit revision" }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Compare", exact: true }).click();
+  await expect(page.locator(".codebase-summary")).toContainText("Commit");
 });
 
 test("uses stable geometry and layered feedback for row hover", async ({
@@ -212,7 +276,7 @@ test("runs Q&A against a server-resolved synthetic portfolio snapshot", async ({
     page.getByRole("link", { name: "Inspect full trace" }),
   ).toBeVisible();
   await page.getByRole("button", { name: "Expand" }).click();
-  await expect(page.getByText("NVDA_SYNTH_CALL_160").first()).toBeVisible();
+  await expect(page.getByText("candidate-001").first()).toBeVisible();
 });
 
 test("run the seeded evaluation workflow", async ({ page }) => {

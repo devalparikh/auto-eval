@@ -1,5 +1,6 @@
 from collections.abc import Callable
 from copy import deepcopy
+from datetime import datetime
 
 from sqlalchemy import func
 from sqlalchemy.orm import Session
@@ -12,6 +13,12 @@ from autoeval_api.agent_systems.portfolio_query.definition import (
     PORTFOLIO_QUERY_GRAPH,
     PORTFOLIO_QUERY_INPUT_TEMPLATE,
     PORTFOLIO_QUERY_PROMPT,
+)
+from autoeval_api.agent_systems.portfolio_query.runtime_fixtures import (
+    ELIGIBLE_OPTIONS_PAYLOAD,
+    ELIGIBLE_OPTIONS_PROVENANCE,
+    STALE_OPTIONS_PAYLOAD,
+    STALE_OPTIONS_PROVENANCE,
 )
 from autoeval_api.agent_systems.portfolio_query.scoring import DATASET_KEY
 from autoeval_api.graph.runner import AgentGraphRunner, RunSelection
@@ -31,6 +38,7 @@ from autoeval_api.models import (
 from autoeval_api.schemas import AgentGraphDefinition
 from autoeval_api.services.datasets import create_dataset_version
 from autoeval_api.services.evaluations import EvaluationService
+from autoeval_api.services.runtime_input_snapshots import create_runtime_input_snapshot
 from autoeval_api.services.scoring import ScoringRegistry
 from autoeval_api.services.versioning import (
     create_agent_version,
@@ -41,12 +49,14 @@ from autoeval_api.services.versioning import (
 )
 
 
-def _dataset_items() -> list[tuple[dict, dict]]:
+def _dataset_items(
+    eligible_runtime_snapshot_id: str,
+    stale_runtime_snapshot_id: str,
+) -> list[tuple[dict, dict, dict[str, str]]]:
     eligible = deepcopy(PORTFOLIO_QUERY_INPUT_TEMPLATE)
     insufficient_shares = deepcopy(PORTFOLIO_QUERY_INPUT_TEMPLATE)
     insufficient_shares["snapshot_id"] = SYNTHETIC_INSUFFICIENT_SHARES_SNAPSHOT_ID
     stale_quotes = deepcopy(PORTFOLIO_QUERY_INPUT_TEMPLATE)
-    stale_quotes["market_context"]["quote_age_hours"] = 72
     return [
         (
             eligible,
@@ -55,6 +65,7 @@ def _dataset_items() -> list[tuple[dict, dict]]:
                 "candidate_ids": ["candidate-001"],
                 "market_data_fresh": True,
             },
+            {"load_portfolio_market_data": eligible_runtime_snapshot_id},
         ),
         (
             insufficient_shares,
@@ -63,6 +74,7 @@ def _dataset_items() -> list[tuple[dict, dict]]:
                 "candidate_ids": [],
                 "market_data_fresh": True,
             },
+            {"load_portfolio_market_data": eligible_runtime_snapshot_id},
         ),
         (
             stale_quotes,
@@ -71,6 +83,7 @@ def _dataset_items() -> list[tuple[dict, dict]]:
                 "candidate_ids": [],
                 "market_data_fresh": False,
             },
+            {"load_portfolio_market_data": stale_runtime_snapshot_id},
         ),
     ]
 
@@ -81,12 +94,20 @@ def ensure_seed_data(
     snapshot_owner = _get_or_create_snapshot_owner(session)
     ensure_synthetic_portfolio_snapshots(session, snapshot_owner)
     system = _get_or_create_system(session)
+    eligible_runtime_snapshot, stale_runtime_snapshot = _ensure_runtime_input_snapshots(
+        session, system
+    )
     prompt = _get_or_create_prompt(session, system)
     prompt_version = _latest_prompt_version(session, prompt)
     _ensure_node_prompt_version(session, system)
     graph_version = _latest_graph_version(session, system)
     dataset = _get_or_create_dataset(session, system)
-    final_version = _get_or_create_final_dataset(session, dataset)
+    final_version = _get_or_create_final_dataset(
+        session,
+        dataset,
+        eligible_runtime_snapshot.id,
+        stale_runtime_snapshot.id,
+    )
     _ensure_draft_dataset(session, dataset, final_version)
     return graph_version, prompt_version, final_version
 
@@ -173,6 +194,49 @@ def _get_or_create_snapshot_owner(session: Session) -> AgentSystemRecord:
     return record
 
 
+def _ensure_runtime_input_snapshots(session: Session, system: AgentSystemRecord):
+    eligible = _create_seed_runtime_input_snapshot(
+        session,
+        system,
+        "Synthetic eligible options observation",
+        ELIGIBLE_OPTIONS_PAYLOAD,
+        ELIGIBLE_OPTIONS_PROVENANCE,
+    )
+    stale = _create_seed_runtime_input_snapshot(
+        session,
+        system,
+        "Synthetic stale options observation",
+        STALE_OPTIONS_PAYLOAD,
+        STALE_OPTIONS_PROVENANCE,
+    )
+    return eligible, stale
+
+
+def _create_seed_runtime_input_snapshot(
+    session: Session,
+    system: AgentSystemRecord,
+    label: str,
+    payload: dict,
+    provenance: dict,
+):
+    return create_runtime_input_snapshot(
+        session,
+        system,
+        source_trace_id=None,
+        node_id="load_portfolio_market_data",
+        source_key="options_chain",
+        schema_version=1,
+        label=label,
+        observed_at=datetime.fromisoformat(str(provenance["as_of"]).replace("Z", "+00:00")),
+        fetched_at=datetime.fromisoformat(str(provenance["fetched_at"]).replace("Z", "+00:00")),
+        provider=str(provenance["provider"]),
+        source_kind="seed_fixture",
+        is_synthetic=True,
+        payload=deepcopy(payload),
+        provenance=deepcopy(provenance),
+    )
+
+
 def _latest_graph_version(session: Session, system: AgentSystemRecord) -> AgentSystemVersionRecord:
     parsed = AgentGraphDefinition.model_validate(PORTFOLIO_QUERY_GRAPH)
     parsed.validate_references()
@@ -249,14 +313,24 @@ def _get_or_create_dataset(session: Session, system: AgentSystemRecord) -> Datas
     return record
 
 
-def _get_or_create_final_dataset(session: Session, dataset: DatasetRecord) -> DatasetVersionRecord:
+def _get_or_create_final_dataset(
+    session: Session,
+    dataset: DatasetRecord,
+    eligible_runtime_snapshot_id: str,
+    stale_runtime_snapshot_id: str,
+) -> DatasetVersionRecord:
     version = (
         session.query(DatasetVersionRecord)
         .filter_by(dataset_id=dataset.id, status=DatasetStatus.FINAL)
         .order_by(DatasetVersionRecord.version.desc())
         .first()
     )
-    if version is not None and _is_current_dataset_version(session, version):
+    if version is not None and _is_current_dataset_version(
+        session,
+        version,
+        eligible_runtime_snapshot_id,
+        stale_runtime_snapshot_id,
+    ):
         return version
     next_version = (
         session.query(func.max(DatasetVersionRecord.version))
@@ -272,8 +346,16 @@ def _get_or_create_final_dataset(session: Session, dataset: DatasetRecord) -> Da
     session.add(version)
     session.flush()
     session.add_all(
-        DatasetItemRecord(dataset_version_id=version.id, input=input_value, expected=expected)
-        for input_value, expected in _dataset_items()
+        DatasetItemRecord(
+            dataset_version_id=version.id,
+            input=input_value,
+            expected=expected,
+            runtime_input_snapshot_ids=runtime_input_snapshot_ids,
+        )
+        for input_value, expected, runtime_input_snapshot_ids in _dataset_items(
+            eligible_runtime_snapshot_id,
+            stale_runtime_snapshot_id,
+        )
     )
     session.flush()
     version.status = DatasetStatus.FINAL
@@ -282,12 +364,25 @@ def _get_or_create_final_dataset(session: Session, dataset: DatasetRecord) -> Da
     return version
 
 
-def _is_current_dataset_version(session: Session, version: DatasetVersionRecord) -> bool:
+def _is_current_dataset_version(
+    session: Session,
+    version: DatasetVersionRecord,
+    eligible_runtime_snapshot_id: str,
+    stale_runtime_snapshot_id: str,
+) -> bool:
     items = session.query(DatasetItemRecord).filter_by(dataset_version_id=version.id).all()
-    expected_items = _dataset_items()
+    expected_items = _dataset_items(
+        eligible_runtime_snapshot_id,
+        stale_runtime_snapshot_id,
+    )
     return len(items) == len(expected_items) and all(
-        any(item.input == input_value and item.expected == expected for item in items)
-        for input_value, expected in expected_items
+        any(
+            item.input == input_value
+            and item.expected == expected
+            and item.runtime_input_snapshot_ids == runtime_ids
+            for item in items
+        )
+        for input_value, expected, runtime_ids in expected_items
     )
 
 

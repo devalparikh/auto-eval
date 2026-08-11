@@ -1,5 +1,6 @@
 import asyncio
 from copy import deepcopy
+from datetime import datetime
 
 import pytest
 
@@ -19,10 +20,11 @@ from autoeval_api.agent_systems.portfolio_query.handlers import (
     resolve_snapshot_reference,
     validate_portfolio_query,
 )
-from autoeval_api.agent_systems.portfolio_query.seed import (
-    _dataset_items,
-    ensure_seed_data,
+from autoeval_api.agent_systems.portfolio_query.runtime_fixtures import (
+    ELIGIBLE_OPTIONS_PAYLOAD,
+    ELIGIBLE_OPTIONS_PROVENANCE,
 )
+from autoeval_api.agent_systems.portfolio_query.seed import ensure_seed_data
 from autoeval_api.agent_systems.portfolio_query.trace_policy import (
     project_inference_payload,
     project_payload,
@@ -30,8 +32,13 @@ from autoeval_api.agent_systems.portfolio_query.trace_policy import (
 from autoeval_api.graph.context import GraphRuntimeContext
 from autoeval_api.graph.runtime_inputs import RuntimeInputCapabilityRegistry
 from autoeval_api.inference.base import InferenceResponse
-from autoeval_api.models import AgentSystemRecord
+from autoeval_api.models import AgentSystemRecord, DatasetItemRecord
 from autoeval_api.services.portfolio_snapshots import create_portfolio_snapshot
+from autoeval_api.services.runtime_input_snapshots import (
+    create_runtime_input_snapshot,
+    resolve_runtime_input_snapshot,
+    runtime_input_snapshot_binding,
+)
 
 
 class NeverRefreshCapability:
@@ -39,16 +46,67 @@ class NeverRefreshCapability:
         raise AssertionError("locked runtime inputs must never call a provider")
 
 
-def analysis_for(session, request_input: dict) -> dict:
-    ensure_seed_data(session)
+def analysis_for(
+    session,
+    request_input: dict,
+    *,
+    market_payload: dict | None = None,
+    runtime_snapshot_id: str | None = None,
+    bind_runtime_snapshot: bool = True,
+) -> dict:
+    _graph, _prompt, dataset = ensure_seed_data(session)
     runtime_inputs = RuntimeInputCapabilityRegistry()
     runtime_inputs.register("options_chain", NeverRefreshCapability())
     context = GraphRuntimeContext(
         session,
         "portfolio-query",
         runtime_inputs=runtime_inputs,
-        runtime_input_modes={"load_portfolio_market_data": ("options_chain", "locked")},
+        runtime_input_modes={"load_portfolio_market_data": ("options_chain", "locked", 1)},
     )
+    if bind_runtime_snapshot:
+        if market_payload is not None:
+            owner = session.query(AgentSystemRecord).filter_by(key="portfolio-query").one()
+            provenance = deepcopy(ELIGIBLE_OPTIONS_PROVENANCE)
+            record = create_runtime_input_snapshot(
+                session,
+                owner,
+                source_trace_id=None,
+                node_id="load_portfolio_market_data",
+                source_key="options_chain",
+                schema_version=1,
+                label="Portfolio Query test observation",
+                observed_at=datetime.fromisoformat(str(provenance["as_of"]).replace("Z", "+00:00")),
+                fetched_at=datetime.fromisoformat(
+                    str(provenance["fetched_at"]).replace("Z", "+00:00")
+                ),
+                provider=str(provenance["provider"]),
+                source_kind="test_fixture",
+                is_synthetic=True,
+                payload=deepcopy(market_payload),
+                provenance=provenance,
+            )
+        else:
+            if runtime_snapshot_id is None:
+                item = next(
+                    item
+                    for item in session.query(DatasetItemRecord)
+                    .filter_by(dataset_version_id=dataset.id)
+                    .all()
+                    if item.expected.get("status") == "candidates"
+                )
+                runtime_snapshot_id = item.runtime_input_snapshot_ids["load_portfolio_market_data"]
+            record, _payload = resolve_runtime_input_snapshot(
+                session,
+                runtime_snapshot_id,
+                owner_system_key="portfolio-query",
+                source_key="options_chain",
+                node_id="load_portfolio_market_data",
+                schema_version=1,
+            )
+        context.bind_runtime_input_snapshot(
+            "load_portfolio_market_data",
+            runtime_input_snapshot_binding(record),
+        )
     state = {"input": request_input}
     state.update(resolve_snapshot_reference(state, context))
     state.update(normalize_portfolio_query(state))
@@ -63,12 +121,11 @@ def test_covered_call_rejects_put_contracts(session_factory) -> None:
     session = session_factory()
     try:
         request_input = deepcopy(PORTFOLIO_QUERY_INPUT_TEMPLATE)
-        request_input["market_context"]["contracts"] = request_input["market_context"]["contracts"][
-            :1
-        ]
-        request_input["market_context"]["contracts"][0]["option_type"] = "put"
+        payload = deepcopy(ELIGIBLE_OPTIONS_PAYLOAD)
+        payload["contracts"] = payload["contracts"][:1]
+        payload["contracts"][0]["option_type"] = "put"
 
-        analysis = analysis_for(session, request_input)["query_analysis"]
+        analysis = analysis_for(session, request_input, market_payload=payload)["query_analysis"]
 
         assert analysis["status"] == "blocked"
         assert analysis["candidates"] == []
@@ -82,9 +139,8 @@ def test_locked_market_data_requires_a_recorded_observation(session_factory) -> 
     session = session_factory()
     try:
         request_input = deepcopy(PORTFOLIO_QUERY_INPUT_TEMPLATE)
-        request_input.pop("market_context")
 
-        state = analysis_for(session, request_input)
+        state = analysis_for(session, request_input, bind_runtime_snapshot=False)
 
         assert state["market_data_observation"]["mode"] == "locked"
         assert state["market_data_observation"]["error_code"] == "locked_observation_missing"
@@ -100,11 +156,12 @@ def test_unknown_earnings_status_fails_closed_when_blackout_is_enabled(
     session = session_factory()
     try:
         request_input = deepcopy(PORTFOLIO_QUERY_INPUT_TEMPLATE)
-        for contract in request_input["market_context"]["contracts"]:
+        payload = deepcopy(ELIGIBLE_OPTIONS_PAYLOAD)
+        for contract in payload["contracts"]:
             contract["event_data_known"] = False
             contract["earnings_before_expiry"] = None
 
-        analysis = analysis_for(session, request_input)["query_analysis"]
+        analysis = analysis_for(session, request_input, market_payload=payload)["query_analysis"]
 
         assert analysis["status"] == "blocked"
         assert "event_data_known" in analysis["blocked_reasons"]
@@ -174,10 +231,34 @@ def test_inline_snapshot_is_rejected_in_favor_of_server_reference(session_factor
 def test_seeded_dataset_items_resolve_immutable_snapshot_ids(session_factory) -> None:
     session = session_factory()
     try:
-        for request_input, _expected in _dataset_items():
-            state = analysis_for(session, deepcopy(request_input))
+        _graph, _prompt, dataset = ensure_seed_data(session)
+        items = session.query(DatasetItemRecord).filter_by(dataset_version_id=dataset.id).all()
+        for item in items:
+            snapshot_id = item.runtime_input_snapshot_ids["load_portfolio_market_data"]
+            state = analysis_for(
+                session,
+                deepcopy(item.input),
+                runtime_snapshot_id=snapshot_id,
+            )
             assert state["portfolio_snapshot_reference"]["resolution_status"] == "resolved"
-            assert "snapshot" not in request_input
+            assert "snapshot" not in item.input
+            assert "market_context" not in item.input
+            assert state["market_data_observation"]["runtime_input_snapshot"]["id"] == snapshot_id
+    finally:
+        session.close()
+
+
+def test_generic_question_does_not_require_an_options_observation(session_factory) -> None:
+    session = session_factory()
+    try:
+        request_input = deepcopy(PORTFOLIO_QUERY_INPUT_TEMPLATE)
+        request_input["question"] = "How many positions are in this portfolio?"
+
+        state = analysis_for(session, request_input, bind_runtime_snapshot=False)
+
+        assert state["normalized_query"]["intent"] == "portfolio_question"
+        assert state["market_data_observation"]["status"] == "not_required"
+        assert state["query_status"]["ready"] is True
     finally:
         session.close()
 
@@ -192,11 +273,13 @@ def test_provider_projection_is_explicit_and_supports_synthetic_qa(session_facto
 
         assert set(projected) == {"input", "portfolio_model_context"}
         assert projected["input"] == {"is_synthetic": True}
-        assert "Which supplied covered-call" in serialized
+        assert "Which covered-call candidate" in serialized
         assert "position:synthetic-tactical-nvda" in serialized
         assert "'symbol': 'NVDA'" in serialized
         assert "synthetic-indexed-portfolio-v2" not in serialized
-        assert "content_hash" not in serialized
+        assert projected["portfolio_model_context"]["market_data"]["runtime_input_snapshot"][
+            "content_hash"
+        ]
         assert "gross_premium_usd" not in serialized
         assert "provider_contract_id" not in serialized
         assert "NVDA_SYNTH_CALL_160" not in serialized

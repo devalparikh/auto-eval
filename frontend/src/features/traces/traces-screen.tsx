@@ -28,7 +28,7 @@ export function TracesScreen({ systemKey }: { systemKey: string }) {
     <>
       <PageHeader
         title={`${system?.name ?? "Agent system"} traces`}
-        description="Inspect runtime and evaluation executions, node by node."
+        description="Inspect runtime and evaluation executions. Add traces to datasets for future evaluation and analysis"
         action={
           <Link className="app-button" href={systemPath(systemKey, "run")}>
             <PlayIcon size={15} weight="fill" />

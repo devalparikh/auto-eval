@@ -34,13 +34,13 @@ export function SnapshotArtifact({
     <article className="overflow-hidden rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface)]">
       <div className="flex flex-wrap items-start justify-between gap-4 border-b border-[var(--border)] px-5 py-4">
         <div>
-          <h2 className="text-[13px] font-semibold">Indexed snapshot</h2>
+          <h2 className="text-[13px] font-semibold">Portfolio state</h2>
           <p className="mt-1 text-[10px] text-[var(--text-muted)]">
             Immutable portfolio content produced by the Index flow.
           </p>
         </div>
         <Select
-          aria-label="Portfolio snapshot"
+          aria-label="Portfolio state snapshot"
           containerClassName="version-select"
           value={selectedSnapshotId}
           disabled={snapshots.length === 0}

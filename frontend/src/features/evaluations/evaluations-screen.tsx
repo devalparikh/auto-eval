@@ -19,6 +19,7 @@ import {
   promptForGraphKey,
   promptKeysForGraph,
 } from "@/features/systems/graph-prompts";
+import { RuntimeInputNotice } from "@/features/systems/runtime-input-notice";
 import { api } from "@/lib/api";
 import { playPreferredUiSound } from "@/lib/sound";
 import { useApiResource } from "@/lib/use-api-resource";
@@ -103,7 +104,7 @@ export function EvaluationsScreen({ systemKey }: { systemKey: string }) {
     <>
       <PageHeader
         title={`Evaluate ${system?.name ?? "agent system"}`}
-        description="Pin every version and compare the same ground truth across models."
+        description="Pin every artifact and compare models against the same dataset-locked external observations."
       />
       <section className="grid gap-5 p-4 md:p-7 xl:grid-cols-[minmax(0,720px)_minmax(280px,1fr)]">
         <div className="overflow-hidden rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface)]">
@@ -181,6 +182,10 @@ export function EvaluationsScreen({ systemKey }: { systemKey: string }) {
                   </div>
                 )}
               </div>
+              <RuntimeInputNotice
+                definition={graphDetail.data?.definition ?? null}
+                context="evaluation"
+              />
               <ModelPicker
                 models={models}
                 selectedModelIds={selectedModels}

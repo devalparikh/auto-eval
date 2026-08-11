@@ -191,6 +191,7 @@ class EvaluationService:
         completed: list[tuple[DatasetItemRecord, TraceRecord]] = []
         # One SQLAlchemy session owns this local run, so item execution is deliberately serialized.
         for item in context.items:
+            self._require_locked_runtime_inputs(context.graph_version, item)
             trace = await self.runner.run(
                 session,
                 RunSelection(
@@ -206,6 +207,7 @@ class EvaluationService:
                     evaluation_run_id=context.run.id,
                     evaluation_dataset_item_id=item.id,
                 ),
+                runtime_input_snapshot_ids=item.runtime_input_snapshot_ids or {},
             )
             if trace.status != RunStatus.COMPLETE:
                 raise RuntimeError(trace.error or "Agent run failed")
@@ -224,6 +226,43 @@ class EvaluationService:
             )
             session.commit()
         self._store_model_results(session, context, model_id, completed)
+
+    @staticmethod
+    def _require_locked_runtime_inputs(
+        graph_version: AgentSystemVersionRecord,
+        item: DatasetItemRecord,
+    ) -> None:
+        locked_nodes = {
+            node["id"]
+            for node in graph_version.definition.get("nodes", [])
+            if isinstance(node.get("runtime_input_policy"), dict)
+            and node["runtime_input_policy"].get("evaluation_mode") == "locked"
+            and node["runtime_input_policy"].get("required", True)
+        }
+        missing = sorted(locked_nodes - set(item.runtime_input_snapshot_ids or {}))
+        if not missing:
+            return
+        # Compatibility only for finalized Portfolio Query versions that predate
+        # runtime-input artifacts and stored this one observation inline.
+        legacy_node = next(
+            (
+                node
+                for node in graph_version.definition.get("nodes", [])
+                if node.get("id") == "load_portfolio_market_data"
+            ),
+            None,
+        )
+        if (
+            set(missing) == {"load_portfolio_market_data"}
+            and isinstance(legacy_node, dict)
+            and legacy_node.get("runtime_input_policy", {}).get("source") == "options_chain"
+            and isinstance(item.input.get("market_context"), dict)
+        ):
+            return
+        raise RuntimeError(
+            "Evaluation item is missing locked runtime-input snapshots for nodes: "
+            + ", ".join(missing)
+        )
 
     @staticmethod
     def _mark_failed(session: Session, run_id: str, error: Exception) -> None:

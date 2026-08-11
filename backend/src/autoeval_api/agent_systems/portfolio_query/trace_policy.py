@@ -167,6 +167,7 @@ def _market_data(value: Any) -> dict[str, Any]:
         return {}
     freshness = value.get("freshness", {})
     greeks = value.get("greeks", {})
+    runtime_snapshot = value.get("runtime_input_snapshot", {})
     return {
         key: deepcopy(value.get(key))
         for key in (
@@ -196,6 +197,17 @@ def _market_data(value: Any) -> dict[str, Any]:
             key: deepcopy(greeks.get(key))
             for key in ("status", "as_of", "age_seconds")
             if isinstance(greeks, dict) and greeks.get(key) is not None
+        },
+        "runtime_input_snapshot": {
+            key: deepcopy(runtime_snapshot.get(key))
+            for key in (
+                "id",
+                "source_key",
+                "schema_version",
+                "content_hash",
+                "is_synthetic",
+            )
+            if isinstance(runtime_snapshot, dict) and runtime_snapshot.get(key) is not None
         },
     }
 
@@ -251,7 +263,6 @@ def _restore_synthetic_details(source: dict[str, Any], projected: dict[str, Any]
 
 def _synthetic_trace_candidate(value: dict[str, Any]) -> dict[str, Any]:
     projected = _candidate(value, include_symbol=True)
-    projected["provider_contract_id"] = str(value.get("provider_contract_id", ""))
     projected["contracts"] = value.get("contracts")
     metrics = value.get("metrics", {})
     if isinstance(metrics, dict):

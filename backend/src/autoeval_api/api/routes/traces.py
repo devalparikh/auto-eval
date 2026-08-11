@@ -78,5 +78,6 @@ async def run_trace(
             prompt_versions,
         ),
         payload.input,
+        runtime_input_snapshot_ids=payload.runtime_input_snapshot_ids,
     )
     return trace_response(session, trace)

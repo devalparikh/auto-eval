@@ -41,7 +41,10 @@ export function TraceDetailScreen({
     return (
       <>
         <PageHeader title="Trace" description="Execution details" />
-        <ErrorState message={trace.error ?? "Trace not found"} retry={trace.reload} />
+        <ErrorState
+          message={trace.error ?? "Trace not found"}
+          retry={trace.reload}
+        />
       </>
     );
   }
@@ -53,7 +56,10 @@ export function TraceDetailScreen({
         title={`Trace ${shortId(currentTrace.id)}`}
         description={textPreview(currentTrace.request_input)}
         action={
-          <button className="app-button secondary" onClick={() => setDatasetModalOpen(true)}>
+          <button
+            className="app-button secondary"
+            onClick={() => setDatasetModalOpen(true)}
+          >
             <DatabaseIcon size={15} />
             Add to dataset
           </button>
@@ -71,15 +77,25 @@ export function TraceDetailScreen({
           <StatusBadge status={currentTrace.status} />
           <Metric
             label="Origin"
-            value={currentTrace.origin_type === "evaluation" ? "evaluation" : "runtime"}
+            value={
+              currentTrace.origin_type === "evaluation"
+                ? "evaluation"
+                : "runtime"
+            }
           />
-          <Metric label="Latency" value={formatDuration(currentTrace.latency_ms)} />
+          <Metric
+            label="Latency"
+            value={formatDuration(currentTrace.latency_ms)}
+          />
           <Metric label="Cost" value={formatCost(currentTrace.cost_usd)} />
           <Metric
             label="Tokens"
             value={`${currentTrace.input_tokens + currentTrace.output_tokens}`}
           />
-          <Metric label="Model" value={currentTrace.model_id.split("/").slice(-1)[0]} />
+          <Metric
+            label="Model"
+            value={currentTrace.model_id.split("/").slice(-1)[0]}
+          />
         </div>
       </section>
       <section className="grid gap-3 border-b border-[var(--border)] bg-[var(--surface)] px-4 py-3 md:grid-cols-2 md:px-7">
@@ -119,13 +135,14 @@ export function TraceDetailScreen({
             onSelect={setSelectedNodeId}
           />
         </section>
-        <TraceInspector span={activeSpan} />
+        <TraceInspector span={activeSpan} systemKey={systemKey} />
       </div>
       <AddToDatasetModal
         open={datasetModalOpen}
         traceId={currentTrace.id}
         traceInput={currentTrace.request_input}
         traceOutput={currentTrace.output ?? {}}
+        runtimeInputSnapshotIds={currentTrace.runtime_input_snapshot_ids}
         systemKey={systemKey}
         onClose={() => setDatasetModalOpen(false)}
         onMembershipChanged={async () => {
@@ -142,7 +159,10 @@ function ProvenanceBlock({ label, value }: { label: string; value: string }) {
       <p className="mono text-[9px] uppercase tracking-[0.08em] text-[var(--text-faint)]">
         {label}
       </p>
-      <p className="mt-1 truncate text-[10px] text-[var(--text-muted)]" title={value}>
+      <p
+        className="mt-1 truncate text-[10px] text-[var(--text-muted)]"
+        title={value}
+      >
         {value}
       </p>
     </div>

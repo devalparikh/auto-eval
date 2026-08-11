@@ -97,6 +97,81 @@ class PortfolioSnapshotRecord(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
 
 
+class RuntimeInputSnapshotRecord(Base):
+    __tablename__ = "runtime_input_snapshots"
+    __table_args__ = (
+        UniqueConstraint(
+            "agent_system_id",
+            "content_hash",
+            name="uq_runtime_input_snapshot_system_hash",
+        ),
+        UniqueConstraint(
+            "source_trace_id",
+            "node_id",
+            "source_key",
+            name="uq_runtime_input_snapshot_trace_node_source",
+        ),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    agent_system_id: Mapped[str] = mapped_column(ForeignKey("agent_systems.id"), index=True)
+    source_trace_id: Mapped[str | None] = mapped_column(
+        ForeignKey("traces.id"), nullable=True, index=True
+    )
+    node_id: Mapped[str] = mapped_column(String(160), index=True)
+    source_key: Mapped[str] = mapped_column(String(120), index=True)
+    schema_version: Mapped[int] = mapped_column(Integer)
+    label: Mapped[str] = mapped_column(String(200))
+    observed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    fetched_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    provider: Mapped[str] = mapped_column(String(120), index=True)
+    source_kind: Mapped[str] = mapped_column(String(40), index=True)
+    is_synthetic: Mapped[bool] = mapped_column(Boolean, default=False)
+    content_hash: Mapped[str] = mapped_column(String(64))
+    payload: Mapped[dict[str, Any]] = mapped_column(JSON)
+    provenance: Mapped[dict[str, Any]] = mapped_column(JSON)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+
+
+class NodeOutputSnapshotRecord(Base):
+    """Generic immutable catalog row for any snapshot-enabled graph node output."""
+
+    __tablename__ = "node_output_snapshots"
+    __table_args__ = (
+        UniqueConstraint(
+            "agent_system_id",
+            "node_id",
+            "content_hash",
+            name="uq_node_output_snapshot_system_node_hash",
+        ),
+    )
+
+    id: Mapped[str] = mapped_column(String(120), primary_key=True)
+    agent_system_id: Mapped[str] = mapped_column(ForeignKey("agent_systems.id"), index=True)
+    source_trace_id: Mapped[str | None] = mapped_column(
+        ForeignKey("traces.id"), nullable=True, index=True
+    )
+    node_id: Mapped[str] = mapped_column(String(160), index=True)
+    node_kind: Mapped[str] = mapped_column(String(40))
+    output_key: Mapped[str] = mapped_column(String(120), index=True)
+    snapshot_kind: Mapped[str] = mapped_column(String(40), index=True)
+    schema_version: Mapped[int] = mapped_column(Integer)
+    label: Mapped[str] = mapped_column(String(200))
+    observed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    captured_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    source: Mapped[str] = mapped_column(String(120), index=True)
+    provider: Mapped[str | None] = mapped_column(String(120), nullable=True, index=True)
+    capture_mode: Mapped[str] = mapped_column(String(40), index=True)
+    is_synthetic: Mapped[bool] = mapped_column(Boolean, default=False)
+    content_hash: Mapped[str] = mapped_column(String(64))
+    content: Mapped[dict[str, Any]] = mapped_column(JSON)
+    provenance: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    node_metadata: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    reveal_policy_key: Mapped[str] = mapped_column(String(80), default="generic")
+    storage_adapter: Mapped[str] = mapped_column(String(80), default="generic_json")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+
+
 class AgentInputSampleRecord(Base):
     __tablename__ = "agent_input_samples"
     __table_args__ = (
@@ -177,6 +252,7 @@ class DatasetItemRecord(Base):
     dataset_version_id: Mapped[str] = mapped_column(ForeignKey("dataset_versions.id"), index=True)
     input: Mapped[dict[str, Any]] = mapped_column(JSON)
     expected: Mapped[dict[str, Any]] = mapped_column(JSON)
+    runtime_input_snapshot_ids: Mapped[dict[str, str]] = mapped_column(JSON, default=dict)
     source_trace_id: Mapped[str | None] = mapped_column(
         ForeignKey("traces.id"), nullable=True, index=True
     )
@@ -196,6 +272,8 @@ class TraceRecord(Base):
     )
     prompt_version_id: Mapped[str] = mapped_column(ForeignKey("prompt_versions.id"), index=True)
     prompt_version_ids: Mapped[dict[str, str]] = mapped_column(JSON, default=dict)
+    runtime_input_snapshot_ids: Mapped[dict[str, str]] = mapped_column(JSON, default=dict)
+    node_snapshot_ids: Mapped[dict[str, str]] = mapped_column(JSON, default=dict)
     origin_type: Mapped[str] = mapped_column(String(24), default=TraceOrigin.RUNTIME, index=True)
     evaluation_run_id: Mapped[str | None] = mapped_column(
         ForeignKey("eval_runs.id"), nullable=True, index=True
@@ -231,6 +309,13 @@ class TraceSpanRecord(Base):
     prompt_version_id: Mapped[str | None] = mapped_column(
         ForeignKey("prompt_versions.id"), nullable=True, index=True
     )
+    runtime_input_snapshot_id: Mapped[str | None] = mapped_column(
+        ForeignKey("runtime_input_snapshots.id"), nullable=True, index=True
+    )
+    node_snapshot_id: Mapped[str | None] = mapped_column(String(120), nullable=True, index=True)
+    snapshot_role: Mapped[str | None] = mapped_column(String(24), nullable=True)
+    snapshot_resolution_mode: Mapped[str | None] = mapped_column(String(24), nullable=True)
+    snapshot_metadata: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
     sequence: Mapped[int] = mapped_column(Integer)
     status: Mapped[str] = mapped_column(String(20), default=RunStatus.RUNNING)
     system_prompt: Mapped[str | None] = mapped_column(Text, nullable=True)

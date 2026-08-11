@@ -83,12 +83,100 @@ export type PortfolioSnapshotDetail = PortfolioSnapshotSummary & {
   content: Record<string, unknown> | null;
 };
 
+export type RuntimeInputSnapshotSummary = {
+  id: string;
+  agent_system_id: string;
+  source_trace_id: string | null;
+  node_id: string;
+  source_key: string;
+  schema_version: number;
+  label: string;
+  observed_at: string;
+  fetched_at: string;
+  provider: string;
+  source_kind: string;
+  is_synthetic: boolean;
+  content_hash: string;
+  created_at: string;
+};
+
+export type RuntimeInputSnapshotDetail = RuntimeInputSnapshotSummary & {
+  provenance: Record<string, unknown>;
+  content_available: boolean;
+  content: Record<string, unknown> | null;
+};
+
+export type NodeSnapshotUsage = {
+  trace_id: string;
+  agent_system_key: string;
+  span_id: string;
+  node_id: string;
+  role: "produced" | "consumed";
+  resolution_mode: "computed" | "live" | "replayed" | "resolved" | "seeded";
+  status: string;
+  latency_ms: number;
+  started_at: string;
+  completed_at: string | null;
+  error: string | null;
+  metadata: Record<string, unknown>;
+};
+
+export type NodeSnapshotSummary = {
+  id: string;
+  agent_system_id: string;
+  agent_system_key: string;
+  product_key: string;
+  flow_key: string;
+  flow_name: string;
+  node_id: string;
+  node_label: string;
+  node_kind: "deterministic" | "external_input";
+  output_key: string;
+  snapshot_kind: "state" | "external_observation" | "node_output";
+  schema_version: number;
+  label: string;
+  observed_at: string;
+  captured_at: string;
+  source: string;
+  provider: string | null;
+  capture_mode: "computed" | "live" | "replayed" | "seeded" | "imported";
+  is_synthetic: boolean;
+  content_hash: string;
+  usage_count: number;
+  latest_usage: NodeSnapshotUsage | null;
+};
+
+export type NodeSnapshotDetail = NodeSnapshotSummary & {
+  provenance: Record<string, unknown>;
+  node_metadata: Record<string, unknown>;
+  usages: NodeSnapshotUsage[];
+  content_available: boolean;
+  content: Record<string, unknown> | null;
+};
+
 export type InputSample = {
   id: string;
   agent_system_id: string;
   source_trace_id: string;
   input: Record<string, unknown>;
   created_at: string;
+};
+
+export type RuntimeInputPolicy = {
+  source: string;
+  runtime_mode: "locked" | "refresh";
+  evaluation_mode: "locked" | "refresh";
+  schema_version: number;
+  required: boolean;
+};
+
+export type NodeSnapshotPolicy = {
+  output_key: string;
+  snapshot_kind: "state" | "external_observation" | "node_output";
+  schema_version: number;
+  binding_mode: "produce" | "consume" | "produce_or_consume";
+  reveal_policy_key: string;
+  required: boolean;
 };
 
 export type GraphNodeDefinition = {
@@ -98,6 +186,8 @@ export type GraphNodeDefinition = {
   handler: string;
   task: string | null;
   prompt_key?: string | null;
+  runtime_input_policy?: RuntimeInputPolicy | null;
+  snapshot_policy?: NodeSnapshotPolicy | null;
 };
 
 export type GraphDefinition = {
@@ -129,7 +219,7 @@ export type TraceSpan = {
   id: string;
   trace_id: string;
   node_id: string;
-  node_kind: "deterministic" | "llm";
+  node_kind: "deterministic" | "external_input" | "llm";
   sequence: number;
   status: string;
   system_prompt: string | null;
@@ -142,6 +232,17 @@ export type TraceSpan = {
   output_tokens: number;
   started_at: string;
   completed_at: string | null;
+  runtime_input_snapshot_id?: string | null;
+  node_snapshot_id?: string | null;
+  snapshot_role?: "produced" | "consumed" | null;
+  snapshot_resolution_mode?:
+    | "computed"
+    | "live"
+    | "replayed"
+    | "resolved"
+    | "seeded"
+    | null;
+  snapshot_metadata?: Record<string, unknown>;
 };
 
 export type Trace = {
@@ -170,6 +271,8 @@ export type Trace = {
   completed_at: string | null;
   graph_definition: GraphDefinition | null;
   spans: TraceSpan[];
+  runtime_input_snapshot_ids?: Record<string, string>;
+  node_snapshot_ids?: Record<string, string>;
 };
 
 export type DatasetMembership = {
@@ -211,6 +314,7 @@ export type DatasetItem = {
   source_trace_id: string | null;
   created_at: string;
   updated_at: string;
+  runtime_input_snapshot_ids?: Record<string, string>;
 };
 
 export type DatasetVersionDetail = DatasetVersionSummary & {
@@ -266,4 +370,104 @@ export type EvalRun = {
   completed_at: string | null;
   results: EvalModelResult[];
   item_results: EvalItemResult[];
+};
+
+export type CodebaseSource = "current" | "working" | "staged" | "commit" | "pr";
+export type CodebaseMode = "files" | "logic";
+
+export type CodebaseNodeKind =
+  | "area"
+  | "module"
+  | "file"
+  | "symbol"
+  | "system"
+  | "domain"
+  | "capability"
+  | "component";
+export type CodebaseEdgeKind =
+  | "contains"
+  | "imports"
+  | "depends_on"
+  | "calls"
+  | "produces"
+  | "consumes";
+export type CodebaseChangeStatus =
+  "unchanged" | "added" | "modified" | "removed" | "renamed";
+
+export type CodebaseRepository = {
+  name: string;
+  root: string;
+  branch: string;
+  head: string;
+  short_head: string;
+  dirty: boolean;
+};
+
+export type CodebaseComparison = {
+  source: CodebaseSource;
+  label: string;
+  base_ref: string | null;
+  target_ref: string;
+};
+
+export type CodebaseNode = {
+  id: string;
+  kind: CodebaseNodeKind;
+  label: string;
+  path: string;
+  parent_id: string | null;
+  detail_level: number;
+  language: string | null;
+  symbol_kind: string | null;
+  line: number | null;
+  lines: number;
+  status: CodebaseChangeStatus;
+  additions: number;
+  deletions: number;
+  before_path: string | null;
+  description: string | null;
+  source_paths: string[];
+  responsibilities: string[];
+};
+
+export type CodebaseEdge = {
+  id: string;
+  source: string;
+  target: string;
+  kind: CodebaseEdgeKind;
+  status: CodebaseChangeStatus;
+  label: string | null;
+};
+
+export type CodebaseGraph = {
+  mode: CodebaseMode;
+  model_path: string | null;
+  repository: CodebaseRepository;
+  comparison: CodebaseComparison;
+  summary: {
+    areas: number;
+    modules: number;
+    files: number;
+    symbols: number;
+    changed_files: number;
+    additions: number;
+    deletions: number;
+    truncated: boolean;
+  };
+  nodes: CodebaseNode[];
+  edges: CodebaseEdge[];
+};
+
+export type CodebaseCommit = {
+  oid: string;
+  short_oid: string;
+  subject: string;
+  author: string;
+  authored_at: string;
+};
+
+export type CodebaseRevisions = {
+  repository: CodebaseRepository;
+  commits: CodebaseCommit[];
+  pull_requests_available: boolean;
 };

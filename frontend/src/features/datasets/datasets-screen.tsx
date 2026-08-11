@@ -18,7 +18,9 @@ export function DatasetsScreen({ systemKey }: { systemKey: string }) {
   const catalog = useApiResource(api.catalog, []);
   const system = systemByKey(catalog.data, systemKey);
   const datasets =
-    catalog.data?.datasets.filter((item) => item.agent_system_id === system?.id) ?? [];
+    catalog.data?.datasets.filter(
+      (item) => item.agent_system_id === system?.id,
+    ) ?? [];
   const [requestedDatasetId, setDatasetId] = useState("");
   const datasetId = requestedDatasetId || datasets[0]?.id || "";
   const dataset = datasets.find((item) => item.id === datasetId) ?? null;
@@ -29,7 +31,9 @@ export function DatasetsScreen({ systemKey }: { systemKey: string }) {
   const selectedVersionId =
     (dataset?.versions.some((item) => item.id === requestedVersionId)
       ? requestedVersionId
-      : "") || dataset?.versions[0]?.id || "";
+      : "") ||
+    dataset?.versions[0]?.id ||
+    "";
   const detail = useApiResource(
     () =>
       selectedVersionId
@@ -62,7 +66,9 @@ export function DatasetsScreen({ systemKey }: { systemKey: string }) {
     if (!dataset) return;
     setWorking(true);
     setActionError(null);
-    const source = dataset.versions.find((version) => version.status === "final");
+    const source = dataset.versions.find(
+      (version) => version.status === "final",
+    );
     try {
       const created = await api.createDatasetVersion(dataset.id, source?.id);
       await catalog.reload();
@@ -81,7 +87,7 @@ export function DatasetsScreen({ systemKey }: { systemKey: string }) {
     <>
       <PageHeader
         title={`${system?.name ?? "Agent system"} datasets`}
-        description="Review trace examples, then freeze an immutable evaluation input."
+        description="Review business inputs and locked runtime observations, then freeze an immutable evaluation dataset."
         action={
           <button
             className="app-button secondary"
@@ -145,7 +151,11 @@ export function DatasetsScreen({ systemKey }: { systemKey: string }) {
               </span>
             </div>
             {selectedVersion?.status === "draft" ? (
-              <button className="app-button" onClick={finalize} disabled={working}>
+              <button
+                className="app-button"
+                onClick={finalize}
+                disabled={working}
+              >
                 <LockIcon size={14} />
                 {working ? "Finalizing..." : "Finalize version"}
               </button>
@@ -174,25 +184,47 @@ export function DatasetsScreen({ systemKey }: { systemKey: string }) {
             <button
               key={item.id}
               type="button"
-              onClick={() => detail.data?.status === "draft" && setEditingItem(item)}
+              onClick={() =>
+                detail.data?.status === "draft" && setEditingItem(item)
+              }
               className="data-row grid min-h-[62px] w-full grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_90px_34px] items-center gap-3 border-b border-[var(--border)] px-4 text-left last:border-b-0 max-md:grid-cols-[minmax(0,1fr)_76px_30px]"
             >
               <div className="min-w-0">
-                <p className="truncate text-[12px] font-medium">{textPreview(item.input)}</p>
+                <p className="truncate text-[12px] font-medium">
+                  {textPreview(item.input)}
+                </p>
                 <p className="mono mt-1 text-[9px] text-[var(--text-faint)]">
                   {shortId(item.id)} · {formatDate(item.updated_at)}
                 </p>
+                {Object.keys(item.runtime_input_snapshot_ids ?? {}).length ? (
+                  <p className="mono mt-1 truncate text-[9px] text-[var(--accent)]">
+                    {Object.keys(item.runtime_input_snapshot_ids ?? {}).length}{" "}
+                    locked observation
+                    {Object.keys(item.runtime_input_snapshot_ids ?? {})
+                      .length === 1
+                      ? ""
+                      : "s"}
+                  </p>
+                ) : null}
               </div>
               <p className="truncate text-[10px] text-[var(--text-muted)] max-md:hidden">
                 {textPreview(item.expected)}
               </p>
               <span className="mono text-[9px] text-[var(--text-faint)]">
-                {item.source_trace_id ? `trace ${shortId(item.source_trace_id)}` : "manual"}
+                {item.source_trace_id
+                  ? `trace ${shortId(item.source_trace_id)}`
+                  : "manual"}
               </span>
               {detail.data?.status === "draft" ? (
-                <PencilSimpleIcon size={14} className="data-row-affordance text-[var(--text-faint)]" />
+                <PencilSimpleIcon
+                  size={14}
+                  className="data-row-affordance text-[var(--text-faint)]"
+                />
               ) : (
-                <LockIcon size={13} className="data-row-affordance text-[var(--text-faint)]" />
+                <LockIcon
+                  size={13}
+                  className="data-row-affordance text-[var(--text-faint)]"
+                />
               )}
             </button>
           ))}

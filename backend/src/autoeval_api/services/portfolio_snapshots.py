@@ -1,4 +1,5 @@
 from copy import deepcopy
+from datetime import UTC, datetime
 from typing import Any
 
 from sqlalchemy.orm import Session
@@ -6,6 +7,7 @@ from sqlalchemy.orm import Session
 from autoeval_api.agent_systems.portfolio_query.snapshot import snapshot_content_hash
 from autoeval_api.models import AgentSystemRecord, PortfolioSnapshotRecord
 from autoeval_api.schemas import PortfolioSnapshotDetail, PortfolioSnapshotSummary
+from autoeval_api.services.snapshot_catalog import ensure_node_output_snapshot
 
 
 def create_portfolio_snapshot(
@@ -35,6 +37,8 @@ def create_portfolio_snapshot(
             raise ValueError(
                 f"Portfolio snapshot ID already exists with different content: {snapshot_id}"
             )
+        _catalog_portfolio_snapshot(session, owner, existing)
+        session.commit()
         return existing
 
     record = PortfolioSnapshotRecord(
@@ -50,6 +54,8 @@ def create_portfolio_snapshot(
         document=normalized,
     )
     session.add(record)
+    session.flush()
+    _catalog_portfolio_snapshot(session, owner, record)
     session.commit()
     session.refresh(record)
     return record
@@ -121,6 +127,50 @@ def portfolio_snapshot_detail(record: PortfolioSnapshotRecord) -> PortfolioSnaps
 def _position_count(document: dict[str, Any]) -> int:
     positions = document.get("positions")
     return len(positions) if isinstance(positions, list) else 0
+
+
+def _catalog_portfolio_snapshot(
+    session: Session,
+    owner: AgentSystemRecord,
+    record: PortfolioSnapshotRecord,
+) -> None:
+    try:
+        observed_at = datetime.fromisoformat(record.as_of.replace("Z", "+00:00"))
+    except ValueError:
+        observed_at = record.created_at
+    if observed_at.tzinfo is None:
+        observed_at = observed_at.replace(tzinfo=UTC)
+    ensure_node_output_snapshot(
+        session,
+        owner,
+        snapshot_id=record.id,
+        source_trace_id=record.source_trace_id,
+        node_id="persist_portfolio_snapshot",
+        node_kind="deterministic",
+        output_key="portfolio_state",
+        snapshot_kind="state",
+        schema_version=record.schema_version,
+        label=record.label,
+        observed_at=observed_at,
+        captured_at=record.created_at,
+        source=record.source_kind,
+        provider=None,
+        capture_mode="seeded" if record.source_trace_id is None else "computed",
+        is_synthetic=record.is_synthetic,
+        content_hash=record.content_hash,
+        content=record.document,
+        provenance={
+            "source_kind": record.source_kind,
+            "source_trace_id": record.source_trace_id,
+            "as_of": record.as_of,
+        },
+        node_metadata={
+            "position_count": _position_count(record.document),
+            "output_contract": "indexed_portfolio_state",
+        },
+        reveal_policy_key="portfolio_state",
+        storage_adapter="portfolio_snapshot",
+    )
 
 
 def _redacted_content(document: dict[str, Any]) -> dict[str, Any]:

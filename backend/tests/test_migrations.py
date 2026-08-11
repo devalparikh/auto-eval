@@ -58,13 +58,50 @@ def test_legacy_database_is_scoped_and_backfilled(tmp_path) -> None:
         snapshot_columns = {
             item["name"] for item in inspect(connection).get_columns("portfolio_snapshots")
         }
+        runtime_snapshot_columns = {
+            item["name"] for item in inspect(connection).get_columns("runtime_input_snapshots")
+        }
+        node_snapshot_columns = {
+            item["name"] for item in inspect(connection).get_columns("node_output_snapshots")
+        }
+        dataset_item_columns = {
+            item["name"] for item in inspect(connection).get_columns("dataset_items")
+        }
+        trace_columns = {item["name"] for item in inspect(connection).get_columns("traces")}
+        runtime_snapshot_mapping = connection.execute(
+            text("SELECT runtime_input_snapshot_ids FROM traces WHERE id = 'trace'")
+        ).scalar_one()
 
     assert prompt_owner == "system"
     assert dataset_owner == "system"
     assert trace_origin == ("evaluation", "run", "item")
     assert "uq_dataset_version_source_trace" in indexes
-    assert migration_versions == [1, 2, 3, 4]
+    assert migration_versions == [1, 2, 3, 4, 5, 6, 7]
     assert {"id", "agent_system_id", "content_hash", "document"} <= snapshot_columns
+    assert {
+        "id",
+        "agent_system_id",
+        "node_id",
+        "source_key",
+        "schema_version",
+        "content_hash",
+        "payload",
+        "provenance",
+    } <= runtime_snapshot_columns
+    assert "runtime_input_snapshot_ids" in dataset_item_columns
+    assert "runtime_input_snapshot_ids" in trace_columns
+    assert "node_snapshot_ids" in trace_columns
+    assert {
+        "id",
+        "agent_system_id",
+        "node_id",
+        "output_key",
+        "snapshot_kind",
+        "content_hash",
+        "content",
+        "node_metadata",
+    } <= node_snapshot_columns
+    assert runtime_snapshot_mapping == "{}"
 
 
 def test_portfolio_snapshots_are_database_immutable(tmp_path) -> None:
@@ -144,7 +181,17 @@ def test_prompt_selection_migration_backfills_llm_span_provenance(tmp_path) -> N
             text("SELECT prompt_version_ids FROM traces WHERE id = 'trace'")
         ).scalar_one()
         eval_columns = {item["name"] for item in inspect(connection).get_columns("eval_runs")}
+        span_columns = {item["name"] for item in inspect(connection).get_columns("trace_spans")}
+        dataset_item_columns = {
+            item["name"] for item in inspect(connection).get_columns("dataset_items")
+        }
+        runtime_mapping = connection.execute(
+            text("SELECT runtime_input_snapshot_ids FROM traces WHERE id = 'trace'")
+        ).scalar_one()
 
     assert spans == [("code-span", None), ("llm-span", "prompt-v1")]
     assert trace_mapping == "{}"
     assert "prompt_version_ids" in eval_columns
+    assert "runtime_input_snapshot_id" in span_columns
+    assert "runtime_input_snapshot_ids" in dataset_item_columns
+    assert runtime_mapping == "{}"

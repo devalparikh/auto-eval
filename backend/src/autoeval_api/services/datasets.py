@@ -20,6 +20,9 @@ from autoeval_api.schemas import (
     DatasetVersionDetail,
     DatasetVersionSummary,
 )
+from autoeval_api.services.runtime_input_snapshots import (
+    validate_runtime_input_snapshot_map,
+)
 
 
 def get_dataset_version(session: Session, version_id: str) -> DatasetVersionRecord:
@@ -59,11 +62,17 @@ def create_dataset_version(
             raise ValueError("Clone source belongs to another dataset")
         source_items = session.query(DatasetItemRecord).filter_by(dataset_version_id=source.id)
         for item in source_items:
+            validate_runtime_input_snapshot_map(
+                session,
+                dataset.agent_system_id,
+                item.runtime_input_snapshot_ids,
+            )
             session.add(
                 DatasetItemRecord(
                     dataset_version_id=version.id,
                     input=item.input,
                     expected=item.expected,
+                    runtime_input_snapshot_ids=dict(item.runtime_input_snapshot_ids or {}),
                     source_trace_id=item.source_trace_id,
                 )
             )
@@ -77,12 +86,20 @@ def add_dataset_item(
     version: DatasetVersionRecord,
     input_payload: dict[str, Any],
     expected: dict[str, Any],
+    runtime_input_snapshot_ids: dict[str, str] | None = None,
 ) -> DatasetItemRecord:
     require_draft(version)
+    dataset = _dataset_for_version(session, version)
+    validate_runtime_input_snapshot_map(
+        session,
+        dataset.agent_system_id,
+        runtime_input_snapshot_ids,
+    )
     item = DatasetItemRecord(
         dataset_version_id=version.id,
         input=input_payload,
         expected=expected,
+        runtime_input_snapshot_ids=dict(runtime_input_snapshot_ids or {}),
     )
     session.add(item)
     try:
@@ -109,6 +126,11 @@ def add_trace_to_dataset(
         raise LookupError("Dataset or trace agent system not found")
     if dataset.agent_system_id != graph_version.agent_system_id:
         raise ValueError("Trace and dataset belong to different agent systems")
+    validate_runtime_input_snapshot_map(
+        session,
+        dataset.agent_system_id,
+        trace.runtime_input_snapshot_ids,
+    )
 
     existing = _trace_item(session, version.id, trace.id)
     if existing is not None:
@@ -116,12 +138,15 @@ def add_trace_to_dataset(
             raise ValueError(
                 f"Trace is already included with different expected values ({existing.id})"
             )
+        if (existing.runtime_input_snapshot_ids or {}) != (trace.runtime_input_snapshot_ids or {}):
+            raise ValueError("Trace dataset item has different runtime-input snapshot bindings")
         return existing, False
 
     item = DatasetItemRecord(
         dataset_version_id=version.id,
         input=trace.request_input,
         expected=expected,
+        runtime_input_snapshot_ids=dict(trace.runtime_input_snapshot_ids or {}),
         source_trace_id=trace.id,
     )
     session.add(item)
@@ -135,6 +160,10 @@ def add_trace_to_dataset(
         if existing.expected != expected:
             raise ValueError(
                 f"Trace is already included with different expected values ({existing.id})"
+            ) from None
+        if (existing.runtime_input_snapshot_ids or {}) != (trace.runtime_input_snapshot_ids or {}):
+            raise ValueError(
+                "Trace dataset item has different runtime-input snapshot bindings"
             ) from None
         return existing, False
     session.refresh(item)
@@ -154,14 +183,32 @@ def update_dataset_item(
     item: DatasetItemRecord,
     input_payload: dict[str, Any] | None,
     expected: dict[str, Any],
+    runtime_input_snapshot_ids: dict[str, str] | None = None,
 ) -> DatasetItemRecord:
     version = get_dataset_version(session, item.dataset_version_id)
     require_draft(version)
+    dataset = _dataset_for_version(session, version)
+    selected_snapshot_ids = (
+        runtime_input_snapshot_ids
+        if runtime_input_snapshot_ids is not None
+        else item.runtime_input_snapshot_ids
+    )
+    validate_runtime_input_snapshot_map(
+        session,
+        dataset.agent_system_id,
+        selected_snapshot_ids,
+    )
     if item.source_trace_id is not None:
         if input_payload is not None and input_payload != item.input:
             raise ValueError("Trace-derived inputs are immutable; update expected values only")
+        if runtime_input_snapshot_ids is not None and runtime_input_snapshot_ids != (
+            item.runtime_input_snapshot_ids or {}
+        ):
+            raise ValueError("Trace-derived runtime-input snapshot bindings are immutable")
     elif input_payload is not None:
         item.input = input_payload
+    if item.source_trace_id is None and runtime_input_snapshot_ids is not None:
+        item.runtime_input_snapshot_ids = dict(runtime_input_snapshot_ids)
     item.expected = expected
     item.updated_at = utc_now()
     session.add(item)
@@ -178,9 +225,16 @@ def finalize_dataset_version(
     session: Session, version: DatasetVersionRecord
 ) -> DatasetVersionRecord:
     require_draft(version)
+    dataset = _dataset_for_version(session, version)
     item_count = session.query(DatasetItemRecord).filter_by(dataset_version_id=version.id).count()
     if item_count == 0:
         raise ValueError("A dataset version must have at least one item before finalizing")
+    for item in session.query(DatasetItemRecord).filter_by(dataset_version_id=version.id):
+        validate_runtime_input_snapshot_map(
+            session,
+            dataset.agent_system_id,
+            item.runtime_input_snapshot_ids,
+        )
     version.status = DatasetStatus.FINAL
     version.finalized_at = utc_now()
     session.add(version)
@@ -237,3 +291,13 @@ def dataset_version_detail(session: Session, version: DatasetVersionRecord) -> D
         dataset_id=version.dataset_id,
         items=[DatasetItemResponse.model_validate(item, from_attributes=True) for item in items],
     )
+
+
+def _dataset_for_version(
+    session: Session,
+    version: DatasetVersionRecord,
+) -> DatasetRecord:
+    dataset = session.get(DatasetRecord, version.dataset_id)
+    if dataset is None:
+        raise LookupError("Dataset not found")
+    return dataset

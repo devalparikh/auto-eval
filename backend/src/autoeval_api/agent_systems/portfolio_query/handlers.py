@@ -17,7 +17,12 @@ from autoeval_api.market_data import (
     OptionsChainRequest,
     OptionsMarketDataError,
 )
+from autoeval_api.models import AgentSystemRecord
 from autoeval_api.services.portfolio_snapshots import resolve_portfolio_snapshot
+from autoeval_api.services.runtime_input_snapshots import (
+    create_runtime_input_snapshot,
+    runtime_input_snapshot_binding,
+)
 
 MODEL_QUESTION_MAX_CHARS = 600
 SNAPSHOT_RESOURCE_KEY = "portfolio_query.snapshot"
@@ -65,6 +70,18 @@ def resolve_snapshot_reference(
         return {"portfolio_snapshot_reference": reference}
 
     context.resources[SNAPSHOT_RESOURCE_KEY] = document
+    context.bind_node_snapshot(
+        "resolve_portfolio_snapshot",
+        record.id,
+        role="consumed",
+        resolution_mode="resolved",
+        metadata={
+            "output_key": "portfolio_state",
+            "schema_version": record.schema_version,
+            "content_hash": record.content_hash,
+            "is_synthetic": record.is_synthetic,
+        },
+    )
     reference.update(
         {
             "content_hash": record.content_hash,
@@ -120,12 +137,13 @@ async def load_portfolio_market_data(
         }
 
     if runtime_input.mode == "locked":
-        observation, contracts = _locked_market_observation(state, query)
+        observation, contracts = _locked_market_observation(state, query, context)
     else:
         observation, contracts = await _refreshed_market_observation(
             query,
             context,
             runtime_input.capability,
+            runtime_input.schema_version,
         )
     if contracts:
         context.resources[MARKET_DATA_RESOURCE_KEY] = contracts
@@ -133,8 +151,53 @@ async def load_portfolio_market_data(
 
 
 def _locked_market_observation(
-    state: dict[str, Any], query: dict[str, Any]
+    state: dict[str, Any], query: dict[str, Any], context: GraphRuntimeContext
 ) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+    binding = context.runtime_input_snapshot(MARKET_DATA_NODE_ID, OPTIONS_CHAIN_SOURCE)
+    if binding is not None:
+        contracts = _dict_list(binding.payload.get("contracts"))
+        if not contracts:
+            return _market_data_error("locked", "snapshot_payload_invalid"), []
+        provenance = binding.provenance
+        freshness = (
+            dict(provenance.get("freshness", {}))
+            if isinstance(provenance.get("freshness"), dict)
+            else {}
+        )
+        age_seconds = _number(freshness.get("age_seconds"), -1)
+        max_age_seconds = query["policy"]["max_quote_age_hours"] * 3600
+        freshness.update(
+            {
+                "status": ("fresh" if 0 <= age_seconds <= max_age_seconds else "stale"),
+                "max_age_seconds": round(max_age_seconds, 3),
+            }
+        )
+        return (
+            {
+                "source": str(provenance.get("source", OPTIONS_CHAIN_SOURCE)),
+                "mode": "locked",
+                "status": "ready",
+                "provider": str(provenance.get("provider", "recorded-snapshot")),
+                "provider_ref": provenance.get("provider_ref"),
+                "as_of": provenance.get("as_of"),
+                "fetched_at": provenance.get("fetched_at"),
+                "freshness": freshness,
+                "greeks": dict(provenance.get("greeks", {}))
+                if isinstance(provenance.get("greeks"), dict)
+                else {},
+                "contract_count": len(contracts),
+                "runtime_input_snapshot": {
+                    "id": binding.id,
+                    "source_key": binding.source_key,
+                    "schema_version": binding.schema_version,
+                    "content_hash": binding.content_hash,
+                    "is_synthetic": binding.is_synthetic,
+                },
+            },
+            contracts,
+        )
+
+    # Compatibility only for finalized dataset versions created before runtime snapshots.
     supplied = state.get("input", {}).get("market_context")
     if not isinstance(supplied, dict):
         return _market_data_error("locked", "locked_observation_missing"), []
@@ -178,6 +241,7 @@ async def _refreshed_market_observation(
     query: dict[str, Any],
     context: GraphRuntimeContext,
     capability: Any,
+    schema_version: int,
 ) -> tuple[dict[str, Any], list[dict[str, Any]]]:
     snapshot = context.resources.get(SNAPSHOT_RESOURCE_KEY, {})
     reference = query.get("snapshot", {})
@@ -239,6 +303,32 @@ async def _refreshed_market_observation(
             "age_seconds": round(greeks_age, 3) if greeks_age is not None else None,
         },
         "contract_count": len(result.contracts),
+    }
+    owner = context.session.query(AgentSystemRecord).filter_by(key=context.agent_system_key).one()
+    record = create_runtime_input_snapshot(
+        context.session,
+        owner,
+        source_trace_id=context.trace_id,
+        node_id=MARKET_DATA_NODE_ID,
+        source_key=OPTIONS_CHAIN_SOURCE,
+        schema_version=schema_version,
+        label=f"{result.source} options observation",
+        observed_at=result.as_of,
+        fetched_at=result.fetched_at,
+        provider=result.provider_id,
+        source_kind="synthetic" if bool(reference.get("is_synthetic")) else "live_refresh",
+        is_synthetic=bool(reference.get("is_synthetic")),
+        payload={"schema_version": schema_version, "contracts": list(result.contracts)},
+        provenance=observation,
+    )
+    binding = runtime_input_snapshot_binding(record)
+    context.bind_runtime_input_snapshot(MARKET_DATA_NODE_ID, binding)
+    observation["runtime_input_snapshot"] = {
+        "id": binding.id,
+        "source_key": binding.source_key,
+        "schema_version": binding.schema_version,
+        "content_hash": binding.content_hash,
+        "is_synthetic": binding.is_synthetic,
     }
     return observation, list(result.contracts)
 
@@ -768,6 +858,7 @@ def _market_data_reference(value: Any) -> dict[str, Any]:
         return {}
     freshness = value.get("freshness", {})
     greeks = value.get("greeks", {})
+    runtime_snapshot = value.get("runtime_input_snapshot", {})
     return {
         key: value.get(key)
         for key in (
@@ -797,6 +888,17 @@ def _market_data_reference(value: Any) -> dict[str, Any]:
             key: greeks.get(key)
             for key in ("status", "as_of", "age_seconds")
             if isinstance(greeks, dict) and greeks.get(key) is not None
+        },
+        "runtime_input_snapshot": {
+            key: runtime_snapshot.get(key)
+            for key in (
+                "id",
+                "source_key",
+                "schema_version",
+                "content_hash",
+                "is_synthetic",
+            )
+            if isinstance(runtime_snapshot, dict) and runtime_snapshot.get(key) is not None
         },
     }
 

@@ -24,6 +24,7 @@ import {
   promptForGraphKey,
   promptKeysForGraph,
 } from "@/features/systems/graph-prompts";
+import { RuntimeInputNotice } from "@/features/systems/runtime-input-notice";
 import { systemPath } from "@/features/systems/system-path";
 import { api } from "@/lib/api";
 import { formatCost, formatDate, formatDuration, shortId } from "@/lib/format";
@@ -265,7 +266,7 @@ export function RunWorkbench({
     <>
       <PageHeader
         title={pageTitle}
-        description="Execute one request with pinned versions. Every run is recorded as a trace."
+        description="Execute one request with pinned artifacts. External-input nodes refresh their observations during a direct run; every execution is recorded as a trace."
       />
       <section className="grid gap-4 p-4 md:p-7 xl:grid-cols-[minmax(0,1.35fr)_minmax(320px,0.65fr)]">
         <form
@@ -403,6 +404,10 @@ export function RunWorkbench({
                 ) : null}
               </div>
             </div>
+            <RuntimeInputNotice
+              definition={graphDetail.data?.definition ?? null}
+              context="run"
+            />
             <div className="field">
               <label htmlFor="run-input">
                 {isPortfolioQuery

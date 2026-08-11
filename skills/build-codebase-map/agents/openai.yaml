@@ -1,0 +1,4 @@
+interface:
+  display_name: "Build Codebase Map"
+  short_description: "Build file and logic maps with Git diffs"
+  default_prompt: "Use $build-codebase-map to add a focus-preserving file and logic map with Git diff overlays to this repository."

@@ -6,7 +6,19 @@ from typing import Any
 class ResolvedRuntimeInput:
     source: str
     mode: str
+    schema_version: int
     capability: Any
+
+
+@dataclass(frozen=True)
+class RuntimeInputSnapshotBinding:
+    id: str
+    source_key: str
+    schema_version: int
+    content_hash: str
+    is_synthetic: bool
+    payload: dict[str, Any]
+    provenance: dict[str, Any]
 
 
 class RuntimeInputCapabilityRegistry:

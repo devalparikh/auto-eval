@@ -4,6 +4,7 @@ from typing import Annotated, TypeVar
 from fastapi import Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 
+from autoeval_api.codebase.service import CodebaseGraphService
 from autoeval_api.graph.runner import AgentGraphRunner
 from autoeval_api.inference.registry import InferenceProviderRegistry
 from autoeval_api.models import (
@@ -43,12 +44,17 @@ def evaluation_service_dependency(request: Request) -> EvaluationService:
     return request.app.state.evaluation_service
 
 
+def codebase_service_dependency(request: Request) -> CodebaseGraphService:
+    return request.app.state.codebase_service
+
+
 SessionDependency = Annotated[Session, Depends(session_dependency)]
 RunnerDependency = Annotated[AgentGraphRunner, Depends(runner_dependency)]
 ProviderRegistryDependency = Annotated[
     InferenceProviderRegistry, Depends(provider_registry_dependency)
 ]
 EvaluationServiceDependency = Annotated[EvaluationService, Depends(evaluation_service_dependency)]
+CodebaseServiceDependency = Annotated[CodebaseGraphService, Depends(codebase_service_dependency)]
 
 
 def get_or_404(session: Session, model: type[Record], record_id: str, label: str) -> Record:

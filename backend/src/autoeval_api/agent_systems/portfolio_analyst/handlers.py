@@ -219,6 +219,19 @@ def persist_portfolio_snapshot(
         document=document,
         source_trace_id=context.trace_id,
     )
+    context.bind_node_snapshot(
+        "persist_portfolio_snapshot",
+        snapshot.id,
+        role="produced",
+        resolution_mode="computed",
+        metadata={
+            "output_key": "portfolio_state",
+            "schema_version": snapshot.schema_version,
+            "content_hash": snapshot.content_hash,
+            "is_synthetic": snapshot.is_synthetic,
+            "position_count": len(positions),
+        },
+    )
     output["portfolio_snapshot"] = {
         "id": snapshot.id,
         "content_hash": snapshot.content_hash,

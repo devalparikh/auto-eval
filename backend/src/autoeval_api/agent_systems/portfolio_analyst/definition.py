@@ -52,6 +52,14 @@ PORTFOLIO_GRAPH = {
             "kind": "deterministic",
             "handler": "persist_portfolio_snapshot",
             "task": None,
+            "snapshot_policy": {
+                "output_key": "portfolio_state",
+                "snapshot_kind": "state",
+                "schema_version": 1,
+                "binding_mode": "produce",
+                "reveal_policy_key": "portfolio_state",
+                "required": True,
+            },
         },
     ],
     "edges": [

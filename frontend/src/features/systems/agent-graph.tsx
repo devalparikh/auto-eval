@@ -1,6 +1,11 @@
 "use client";
 
-import { BracketsCurlyIcon, WaveformIcon } from "@phosphor-icons/react";
+import {
+  BracketsCurlyIcon,
+  CloudArrowDownIcon,
+  DatabaseIcon,
+  WaveformIcon,
+} from "@phosphor-icons/react";
 import {
   Background,
   BackgroundVariant,
@@ -36,13 +41,24 @@ export function buildAgentGraph(definition: GraphDefinition): {
     levelCounts.set(level, index + 1);
     const entry = node.id === definition.entry_point;
     const output = node.id === definition.output_node;
+    const runtimePolicy = node.runtime_input_policy;
+    const snapshotPolicy = node.snapshot_policy;
     return {
       id: node.id,
       type: "agentNode",
       position: { x: level * 286, y: index * 172 },
       ariaLabel: [
         node.label,
-        `${node.kind} node`,
+        runtimePolicy ? "external input node" : `${node.kind} node`,
+        runtimePolicy ? `source ${runtimePolicy.source}` : null,
+        runtimePolicy ? `run ${runtimePolicy.runtime_mode}` : null,
+        runtimePolicy ? `evaluation ${runtimePolicy.evaluation_mode}` : null,
+        runtimePolicy?.schema_version
+          ? `schema version ${runtimePolicy.schema_version}`
+          : null,
+        runtimePolicy && !runtimePolicy.required ? "conditional" : null,
+        snapshotPolicy ? `snapshot output ${snapshotPolicy.output_key}` : null,
+        snapshotPolicy ? `snapshot ${snapshotPolicy.binding_mode}` : null,
         node.prompt_key ? `prompt ${node.prompt_key}` : null,
         entry ? "entry point" : null,
         output ? "output node" : null,
@@ -112,7 +128,11 @@ export function AgentGraph({
         nodesDraggable={false}
         nodesConnectable={false}
         elementsSelectable={false}
-        defaultViewport={{ x: 28, y: fullscreen ? 220 : 148, zoom: fullscreen ? 0.9 : 0.72 }}
+        defaultViewport={{
+          x: 28,
+          y: fullscreen ? 220 : 148,
+          zoom: fullscreen ? 0.9 : 0.72,
+        }}
         minZoom={0.35}
         maxZoom={1.5}
         proOptions={{ hideAttribution: true }}
@@ -133,8 +153,15 @@ export function AgentGraph({
 }
 
 function AgentNode({ data }: NodeProps<Node<AgentNodeData>>) {
-  const Icon =
-    data.definition.kind === "llm" ? WaveformIcon : BracketsCurlyIcon;
+  const runtimePolicy = data.definition.runtime_input_policy;
+  const snapshotPolicy = data.definition.snapshot_policy;
+  const Icon = runtimePolicy
+    ? CloudArrowDownIcon
+    : snapshotPolicy
+      ? DatabaseIcon
+    : data.definition.kind === "llm"
+      ? WaveformIcon
+      : BracketsCurlyIcon;
   return (
     <div className="relative w-[216px] rounded-[2px] border border-[var(--border-strong)] bg-[var(--surface-raised)] p-3 shadow-[0_14px_40px_rgba(0,0,0,0.24)]">
       <Handle
@@ -143,7 +170,13 @@ function AgentNode({ data }: NodeProps<Node<AgentNodeData>>) {
         className="!size-1.5 !border-0 !bg-[var(--border-strong)]"
       />
       <div className="flex items-start gap-2">
-        <div className="grid size-7 shrink-0 place-items-center rounded-[2px] border border-[var(--border)] bg-[var(--surface-muted)] text-[var(--text-muted)]">
+        <div
+          className={`grid size-7 shrink-0 place-items-center rounded-[2px] border ${
+            runtimePolicy
+              ? "border-[var(--accent)]/30 bg-[var(--accent-soft)] text-[var(--accent)]"
+              : "border-[var(--border)] bg-[var(--surface-muted)] text-[var(--text-muted)]"
+          }`}
+        >
           <Icon size={14} weight="bold" />
         </div>
         <div className="min-w-0 flex-1">
@@ -151,7 +184,9 @@ function AgentNode({ data }: NodeProps<Node<AgentNodeData>>) {
             {data.definition.label}
           </p>
           <p className="mono mt-0.5 text-[8px] tracking-[0.04em] text-[var(--text-faint)]">
-            {data.definition.kind} · {data.definition.handler}
+            {runtimePolicy
+              ? `external input · ${runtimePolicy.source}`
+              : `${data.definition.kind} · ${data.definition.handler}`}
           </p>
         </div>
       </div>
@@ -160,6 +195,25 @@ function AgentNode({ data }: NodeProps<Node<AgentNodeData>>) {
         {data.output ? <NodeTag>output</NodeTag> : null}
         {data.definition.prompt_key ? (
           <NodeTag>prompt · {data.definition.prompt_key}</NodeTag>
+        ) : null}
+        {runtimePolicy ? (
+          <>
+            <NodeTag>external input</NodeTag>
+            <NodeTag>source · {runtimePolicy.source}</NodeTag>
+            <NodeTag>run {runtimePolicy.runtime_mode}</NodeTag>
+            <NodeTag>eval {runtimePolicy.evaluation_mode}</NodeTag>
+            {runtimePolicy.schema_version ? (
+              <NodeTag>schema v{runtimePolicy.schema_version}</NodeTag>
+            ) : null}
+            {!runtimePolicy.required ? <NodeTag>conditional</NodeTag> : null}
+          </>
+        ) : null}
+        {snapshotPolicy ? (
+          <>
+            <NodeTag>snapshot · {snapshotPolicy.output_key}</NodeTag>
+            <NodeTag>{snapshotPolicy.binding_mode}</NodeTag>
+            <NodeTag>{snapshotPolicy.snapshot_kind.replaceAll("_", " ")}</NodeTag>
+          </>
         ) : null}
       </div>
       <Handle

@@ -1,13 +1,21 @@
 import type {
   AgentVersionDetail,
   Catalog,
+  CodebaseGraph,
+  CodebaseMode,
+  CodebaseRevisions,
+  CodebaseSource,
   DatasetItem,
   DatasetVersionDetail,
   EvalRun,
   InputSample,
+  NodeSnapshotDetail,
+  NodeSnapshotSummary,
   PortfolioSnapshotDetail,
   PortfolioSnapshotSummary,
   PromptVersionDetail,
+  RuntimeInputSnapshotDetail,
+  RuntimeInputSnapshotSummary,
   Trace,
   TraceDatasetTargets,
 } from "@/lib/types";
@@ -46,6 +54,12 @@ export async function apiRequest<T>(
 
 export const api = {
   catalog: () => apiRequest<Catalog>("/catalog"),
+  codebaseRevisions: () => apiRequest<CodebaseRevisions>("/codebase/revisions"),
+  codebaseGraph: (mode: CodebaseMode, source: CodebaseSource, ref?: string) => {
+    const params = new URLSearchParams({ mode, source });
+    if (ref) params.set("ref", ref);
+    return apiRequest<CodebaseGraph>(`/codebase/graph?${params.toString()}`);
+  },
   portfolioSnapshots: (agentSystemKey?: string, syntheticOnly = false) => {
     const params = new URLSearchParams();
     if (agentSystemKey) params.set("agent_system_key", agentSystemKey);
@@ -57,6 +71,47 @@ export const api = {
   },
   portfolioSnapshot: (snapshotId: string) =>
     apiRequest<PortfolioSnapshotDetail>(`/portfolio-snapshots/${snapshotId}`),
+  runtimeInputSnapshots: (
+    agentSystemId: string,
+    filters: {
+      sourceKey?: string;
+      nodeId?: string;
+      syntheticOnly?: boolean;
+      limit?: number;
+    } = {},
+  ) => {
+    const params = new URLSearchParams();
+    if (filters.sourceKey) params.set("source_key", filters.sourceKey);
+    if (filters.nodeId) params.set("node_id", filters.nodeId);
+    if (filters.syntheticOnly) params.set("synthetic_only", "true");
+    if (filters.limit) params.set("limit", String(filters.limit));
+    const query = params.size ? `?${params.toString()}` : "";
+    return apiRequest<RuntimeInputSnapshotSummary[]>(
+      `/agent-systems/${agentSystemId}/runtime-input-snapshots${query}`,
+    );
+  },
+  runtimeInputSnapshot: (snapshotId: string) =>
+    apiRequest<RuntimeInputSnapshotDetail>(
+      `/runtime-input-snapshots/${snapshotId}`,
+    ),
+  nodeSnapshots: (filters: {
+    productKey?: string;
+    agentSystemId?: string;
+    nodeId?: string;
+    limit?: number;
+  }) => {
+    const params = new URLSearchParams();
+    if (filters.productKey) params.set("product_key", filters.productKey);
+    if (filters.agentSystemId)
+      params.set("agent_system_id", filters.agentSystemId);
+    if (filters.nodeId) params.set("node_id", filters.nodeId);
+    if (filters.limit) params.set("limit", String(filters.limit));
+    return apiRequest<NodeSnapshotSummary[]>(
+      `/node-snapshots?${params.toString()}`,
+    );
+  },
+  nodeSnapshot: (snapshotId: string) =>
+    apiRequest<NodeSnapshotDetail>(`/node-snapshots/${snapshotId}`),
   traces: (agentSystemId?: string) =>
     apiRequest<Trace[]>(
       `/traces${agentSystemId ? `?agent_system_id=${encodeURIComponent(agentSystemId)}` : ""}`,

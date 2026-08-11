@@ -7,6 +7,9 @@ export type TraceNodeData = {
   latency: number;
   cost: number;
   selected: boolean;
+  snapshotId: string | null;
+  snapshotRole: "produced" | "consumed" | null;
+  snapshotMode: string | null;
 };
 
 export function buildTraceGraph(
@@ -33,6 +36,10 @@ export function buildTraceGraph(
         latency: span?.latency_ms ?? 0,
         cost: span?.cost_usd ?? 0,
         selected: selectedNodeId === node.id,
+        snapshotId:
+          span?.node_snapshot_id ?? span?.runtime_input_snapshot_id ?? null,
+        snapshotRole: span?.snapshot_role ?? null,
+        snapshotMode: span?.snapshot_resolution_mode ?? null,
       },
     };
   });

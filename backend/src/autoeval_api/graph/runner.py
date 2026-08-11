@@ -27,6 +27,10 @@ from autoeval_api.models import (
     TraceSpanRecord,
     utc_now,
 )
+from autoeval_api.services.runtime_input_snapshots import (
+    resolve_runtime_input_snapshot,
+    runtime_input_snapshot_binding,
+)
 from autoeval_api.services.versioning import resolve_graph_prompt_versions
 
 
@@ -63,6 +67,7 @@ class AgentGraphRunner:
         selection: RunSelection,
         request_input: dict[str, Any],
         trace_context: TraceContext | None = None,
+        runtime_input_snapshot_ids: dict[str, str] | None = None,
     ) -> TraceRecord:
         selection = replace(
             selection,
@@ -88,25 +93,34 @@ class AgentGraphRunner:
             evaluation_dataset_item_id=trace_origin_context.evaluation_dataset_item_id,
             model_id=selection.model_id,
             request_input=project_trace_payload(selection.agent_system_key, request_input),
+            runtime_input_snapshot_ids={},
+            node_snapshot_ids={},
         )
         session.add(trace)
         session.commit()
 
         started = perf_counter()
+        runtime_context: GraphRuntimeContext | None = None
         try:
+            runtime_input_modes = self._runtime_input_modes(
+                definition,
+                trace_origin_context.origin_type,
+            )
+            runtime_context = GraphRuntimeContext(
+                session,
+                selection.agent_system_key,
+                trace_id=trace.id,
+                runtime_inputs=self.runtime_input_registry,
+                runtime_input_modes=runtime_input_modes,
+            )
+            self._bind_locked_runtime_input_snapshots(
+                runtime_context,
+                runtime_input_snapshot_ids or {},
+            )
             graph = self._compile_graph(session, trace, selection)
             state = await graph.ainvoke(
                 {"input": request_input, "data": {}},
-                context=GraphRuntimeContext(
-                    session,
-                    selection.agent_system_key,
-                    trace_id=trace.id,
-                    runtime_inputs=self.runtime_input_registry,
-                    runtime_input_modes=self._runtime_input_modes(
-                        definition,
-                        trace_origin_context.origin_type,
-                    ),
-                ),
+                context=runtime_context,
             )
             raw_output = state.get("output", state)
             trace.output = project_trace_payload(selection.agent_system_key, raw_output)
@@ -121,6 +135,9 @@ class AgentGraphRunner:
             trace.cost_usd = round(sum(span.cost_usd for span in spans), 8)
             trace.input_tokens = sum(span.input_tokens for span in spans)
             trace.output_tokens = sum(span.output_tokens for span in spans)
+            if runtime_context is not None:
+                trace.runtime_input_snapshot_ids = dict(runtime_context.runtime_input_snapshot_ids)
+                trace.node_snapshot_ids = dict(runtime_context.node_snapshot_ids)
             session.add(trace)
             session.commit()
             session.refresh(trace)
@@ -162,6 +179,7 @@ class AgentGraphRunner:
                 self._node_prompt_version(selection, node) if node["kind"] == "llm" else None
             )
             system_prompt = prompt_version.content if prompt_version is not None else None
+            node_snapshot = runtime.context.node_snapshots.get(node["id"])
             span = TraceSpanRecord(
                 trace_id=trace.id,
                 node_id=node["id"],
@@ -171,6 +189,17 @@ class AgentGraphRunner:
                 status=RunStatus.RUNNING,
                 system_prompt=system_prompt,
                 input=project_trace_payload(selection.agent_system_key, snapshot),
+                runtime_input_snapshot_id=runtime.context.runtime_input_snapshot_ids.get(
+                    node["id"]
+                ),
+                node_snapshot_id=node_snapshot.id if node_snapshot is not None else None,
+                snapshot_role=node_snapshot.role if node_snapshot is not None else None,
+                snapshot_resolution_mode=(
+                    node_snapshot.resolution_mode if node_snapshot is not None else None
+                ),
+                snapshot_metadata=(
+                    dict(node_snapshot.metadata) if node_snapshot is not None else {}
+                ),
             )
             session.add(span)
             session.commit()
@@ -183,6 +212,7 @@ class AgentGraphRunner:
                     )(snapshot, runtime.context)
                     if isawaitable(output):
                         output = await output
+                    self._validate_node_snapshot_policy(runtime.context, node)
                     inference = None
                 else:
                     inference = await self._run_inference(
@@ -203,6 +233,18 @@ class AgentGraphRunner:
                 span.error = self._safe_error(error)
                 raise
             finally:
+                span.runtime_input_snapshot_id = runtime.context.runtime_input_snapshot_ids.get(
+                    node["id"]
+                )
+                node_snapshot = runtime.context.node_snapshots.get(node["id"])
+                span.node_snapshot_id = node_snapshot.id if node_snapshot is not None else None
+                span.snapshot_role = node_snapshot.role if node_snapshot is not None else None
+                span.snapshot_resolution_mode = (
+                    node_snapshot.resolution_mode if node_snapshot is not None else None
+                )
+                span.snapshot_metadata = (
+                    dict(node_snapshot.metadata) if node_snapshot is not None else {}
+                )
                 span.latency_ms = round((perf_counter() - started) * 1000, 3)
                 span.completed_at = utc_now()
                 session.add(span)
@@ -213,8 +255,8 @@ class AgentGraphRunner:
     @staticmethod
     def _runtime_input_modes(
         definition: dict[str, Any], origin_type: str
-    ) -> dict[str, tuple[str, str]]:
-        modes: dict[str, tuple[str, str]] = {}
+    ) -> dict[str, tuple[str, str, int]]:
+        modes: dict[str, tuple[str, str, int]] = {}
         for node in definition.get("nodes", []):
             policy = node.get("runtime_input_policy")
             if not isinstance(policy, dict):
@@ -222,8 +264,67 @@ class AgentGraphRunner:
             mode_key = (
                 "evaluation_mode" if origin_type == TraceOrigin.EVALUATION else "runtime_mode"
             )
-            modes[node["id"]] = (policy["source"], policy[mode_key])
+            modes[node["id"]] = (
+                policy["source"],
+                policy[mode_key],
+                int(policy.get("schema_version", 1)),
+            )
         return modes
+
+    @staticmethod
+    def _bind_locked_runtime_input_snapshots(
+        context: GraphRuntimeContext,
+        selected_ids: dict[str, str],
+    ) -> None:
+        unknown_nodes = sorted(set(selected_ids) - set(context.runtime_input_modes))
+        if unknown_nodes:
+            raise ValueError(
+                "Runtime-input snapshots selected for nodes without a policy: "
+                + ", ".join(unknown_nodes)
+            )
+        for node_id, snapshot_id in selected_ids.items():
+            source_key, mode, schema_version = context.runtime_input_modes[node_id]
+            if mode != "locked":
+                raise ValueError(f"Runtime-input snapshot cannot bind refresh-mode node: {node_id}")
+            record, _payload = resolve_runtime_input_snapshot(
+                context.session,
+                snapshot_id,
+                owner_system_key=context.agent_system_key,
+                source_key=source_key,
+                node_id=node_id,
+                schema_version=schema_version,
+            )
+            context.bind_runtime_input_snapshot(
+                node_id,
+                runtime_input_snapshot_binding(record),
+            )
+
+    @staticmethod
+    def _validate_node_snapshot_policy(
+        context: GraphRuntimeContext,
+        node: dict[str, Any],
+    ) -> None:
+        policy = node.get("snapshot_policy")
+        if not isinstance(policy, dict):
+            return
+        binding = context.node_snapshots.get(node["id"])
+        if binding is None:
+            if policy.get("required", True):
+                raise RuntimeError(
+                    f"Snapshot-enabled node did not bind an output snapshot: {node['id']}"
+                )
+            return
+        binding_mode = policy.get("binding_mode", "produce")
+        if binding_mode == "produce" and binding.role != "produced":
+            raise RuntimeError(f"Snapshot node must produce its binding: {node['id']}")
+        if binding_mode == "consume" and binding.role != "consumed":
+            raise RuntimeError(f"Snapshot node must consume its binding: {node['id']}")
+        output_key = binding.metadata.get("output_key")
+        if output_key != policy.get("output_key"):
+            raise RuntimeError(f"Snapshot output key does not match graph policy: {node['id']}")
+        schema_version = binding.metadata.get("schema_version")
+        if schema_version != policy.get("schema_version", 1):
+            raise RuntimeError(f"Snapshot schema version does not match graph policy: {node['id']}")
 
     async def _run_inference(
         self,

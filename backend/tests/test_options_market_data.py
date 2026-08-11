@@ -32,8 +32,8 @@ def test_portfolio_market_data_policy_refreshes_runtime_and_locks_evaluations() 
         PORTFOLIO_QUERY_GRAPH, TraceOrigin.EVALUATION
     )
 
-    assert runtime_modes["load_portfolio_market_data"] == ("options_chain", "refresh")
-    assert evaluation_modes["load_portfolio_market_data"] == ("options_chain", "locked")
+    assert runtime_modes["load_portfolio_market_data"] == ("options_chain", "refresh", 1)
+    assert evaluation_modes["load_portfolio_market_data"] == ("options_chain", "locked", 1)
 
 
 @pytest.mark.asyncio

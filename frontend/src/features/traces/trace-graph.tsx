@@ -1,6 +1,11 @@
 "use client";
 
-import { BracketsCurlyIcon, WaveformIcon } from "@phosphor-icons/react";
+import {
+  BracketsCurlyIcon,
+  CloudArrowDownIcon,
+  DatabaseIcon,
+  WaveformIcon,
+} from "@phosphor-icons/react";
 import {
   Background,
   BackgroundVariant,
@@ -67,8 +72,15 @@ export function TraceGraph({
 }
 
 function TraceNode({ data }: NodeProps<Node<TraceNodeData>>) {
-  const Icon =
-    data.definition.kind === "llm" ? WaveformIcon : BracketsCurlyIcon;
+  const runtimePolicy = data.definition.runtime_input_policy;
+  const snapshotPolicy = data.definition.snapshot_policy;
+  const Icon = runtimePolicy
+    ? CloudArrowDownIcon
+    : snapshotPolicy
+      ? DatabaseIcon
+    : data.definition.kind === "llm"
+      ? WaveformIcon
+      : BracketsCurlyIcon;
   return (
     <div
       className={`relative w-[208px] rounded-[2px] border bg-[var(--surface-raised)] p-3 shadow-[0_14px_40px_rgba(0,0,0,0.24)] transition-[border-color,transform,box-shadow] duration-150 ${
@@ -85,7 +97,7 @@ function TraceNode({ data }: NodeProps<Node<TraceNodeData>>) {
       <div className="flex items-center gap-2">
         <div
           className={`grid size-7 place-items-center rounded-[2px] border ${
-            data.definition.kind === "llm"
+            runtimePolicy || data.definition.kind === "llm"
               ? "border-[var(--accent)]/20 bg-[var(--accent-soft)] text-[var(--accent)]"
               : "border-[var(--border)] bg-[var(--surface-muted)] text-[var(--text-muted)]"
           }`}
@@ -97,10 +109,46 @@ function TraceNode({ data }: NodeProps<Node<TraceNodeData>>) {
             {data.definition.label}
           </p>
           <p className="mono mt-0.5 text-[8px] tracking-[0.04em] text-[var(--text-faint)]">
-            {data.definition.kind}
+            {runtimePolicy
+              ? `external input · ${runtimePolicy.source}`
+              : data.definition.kind}
           </p>
         </div>
       </div>
+      {runtimePolicy ? (
+        <div className="mono mt-2 flex flex-wrap gap-1 text-[8px] text-[var(--accent)]">
+          <span className="bg-[var(--accent-soft)] px-1.5 py-1">
+            run {runtimePolicy.runtime_mode}
+          </span>
+          <span className="bg-[var(--accent-soft)] px-1.5 py-1">
+            eval {runtimePolicy.evaluation_mode}
+          </span>
+          {runtimePolicy.schema_version ? (
+            <span className="bg-[var(--accent-soft)] px-1.5 py-1">
+              schema v{runtimePolicy.schema_version}
+            </span>
+          ) : null}
+          {!runtimePolicy.required ? (
+            <span className="bg-[var(--accent-soft)] px-1.5 py-1">
+              conditional
+            </span>
+          ) : null}
+        </div>
+      ) : null}
+      {snapshotPolicy && !runtimePolicy ? (
+        <div className="mono mt-2 flex flex-wrap gap-1 text-[8px] text-[var(--accent)]">
+          <span className="bg-[var(--accent-soft)] px-1.5 py-1">
+            snapshot · {snapshotPolicy.output_key}
+          </span>
+        </div>
+      ) : null}
+      {data.snapshotId ? (
+        <div className="mono mt-2 text-[8px] text-[var(--accent)]">
+          <span className="bg-[var(--accent-soft)] px-1.5 py-1">
+            {data.snapshotRole ?? "used"} · {data.snapshotMode ?? "snapshot"}
+          </span>
+        </div>
+      ) : null}
       <div className="mt-3 flex items-center justify-between border-t border-[var(--border)] pt-2 text-[10px] text-[var(--text-muted)]">
         <span className="mono">{formatDuration(data.latency)}</span>
         <span className="mono">{formatCost(data.cost)}</span>

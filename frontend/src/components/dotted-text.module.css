@@ -1,0 +1,69 @@
+.dottedText {
+  position: relative;
+  display: inline-block;
+  color: var(--dotted-text-color);
+}
+
+.staticText {
+  color: inherit;
+}
+
+@supports ((background-clip: text) or (-webkit-background-clip: text)) {
+  .staticText {
+    background-image: radial-gradient(
+      circle,
+      var(--dotted-text-color) 0 var(--dotted-text-dot-size),
+      transparent calc(var(--dotted-text-dot-size) + 0.3px)
+    );
+    background-position: center;
+    background-size: var(--dotted-text-dot-spacing)
+      var(--dotted-text-dot-spacing);
+    color: transparent;
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+}
+
+.canvas {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 120ms ease;
+}
+
+.dottedText[data-enhanced="true"] .staticText {
+  background-image: none;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+}
+
+.dottedText[data-enhanced="true"] .canvas {
+  opacity: 1;
+}
+
+.staticText::selection {
+  background: var(--dotted-text-color);
+  color: var(--selection-ink);
+  -webkit-text-fill-color: var(--selection-ink);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .dottedText[data-enhanced="true"] .canvas {
+    cursor: crosshair;
+    pointer-events: auto;
+  }
+}
+
+@media (forced-colors: active) {
+  .staticText,
+  .dottedText[data-enhanced="true"] .staticText {
+    background-image: none;
+    color: CanvasText;
+    -webkit-text-fill-color: CanvasText;
+  }
+
+  .canvas {
+    display: none;
+  }
+}

@@ -93,7 +93,13 @@ def _add_item(
 ) -> DatasetItemResponse:
     try:
         version = get_dataset_version(session, version_id)
-        item = add_dataset_item(session, version, payload.input, payload.expected)
+        item = add_dataset_item(
+            session,
+            version,
+            payload.input,
+            payload.expected,
+            payload.runtime_input_snapshot_ids,
+        )
     except LookupError as error:
         raise HTTPException(status_code=404, detail=str(error)) from error
     except ValueError as error:
@@ -109,7 +115,13 @@ def update_item(
 ) -> DatasetItemResponse:
     item = get_or_404(session, DatasetItemRecord, item_id, "Dataset item")
     try:
-        item = update_dataset_item(session, item, payload.input, payload.expected)
+        item = update_dataset_item(
+            session,
+            item,
+            payload.input,
+            payload.expected,
+            payload.runtime_input_snapshot_ids,
+        )
     except ValueError as error:
         raise HTTPException(status_code=409, detail=str(error)) from error
     return DatasetItemResponse.model_validate(item, from_attributes=True)

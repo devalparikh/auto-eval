@@ -20,6 +20,8 @@ from autoeval_api.models import (
     DatasetRecord,
     DatasetStatus,
     DatasetVersionRecord,
+    RuntimeInputSnapshotRecord,
+    TraceSpanRecord,
 )
 
 
@@ -76,12 +78,70 @@ def test_portfolio_query_uses_only_safe_supplied_candidates(client, session_fact
     candidates = payload["output"]["covered_call"]["candidates"]
     assert [item["candidate_id"] for item in candidates] == ["candidate-001"]
     assert candidates[0]["rank"] == 1
+    runtime_snapshot_id = payload["runtime_input_snapshot_ids"]["load_portfolio_market_data"]
+    runtime_snapshot = session.get(RuntimeInputSnapshotRecord, runtime_snapshot_id)
+    market_span = (
+        session.query(TraceSpanRecord)
+        .filter_by(trace_id=payload["id"], node_id="load_portfolio_market_data")
+        .one()
+    )
     persisted = json.dumps(payload, sort_keys=True)
+    assert runtime_snapshot is not None
+    assert runtime_snapshot.source_trace_id == payload["id"]
+    assert runtime_snapshot.source_key == "options_chain"
+    assert runtime_snapshot.schema_version == 1
+    assert runtime_snapshot.is_synthetic is True
+    assert runtime_snapshot.payload["contracts"]
+    assert market_span.runtime_input_snapshot_id == runtime_snapshot_id
+    assert payload["output"]["market_data"]["runtime_input_snapshot"]["id"] == runtime_snapshot_id
     assert payload["request_input"]["snapshot_id"] == "synthetic-indexed-portfolio-v2"
     assert "snapshot" not in payload["request_input"]
+    assert '"market_context"' not in persisted
+    assert "NVDA_SYNTH_CALL_160" not in persisted
+    assert "NVDA_SYNTH_CALL_165" not in persisted
     assert '"account_id"' not in persisted
     assert '"cost_basis"' not in persisted
     assert '"market_value"' not in persisted
+
+
+def test_portfolio_query_evaluation_replays_pinned_observation(client, session_factory) -> None:
+    session = session_factory()
+    graph, prompt, dataset = ensure_portfolio_query_seed_data(session)
+
+    response = client.post(
+        "/api/eval-runs",
+        json={
+            "dataset_version_id": dataset.id,
+            "agent_system_version_id": graph.id,
+            "prompt_version_id": prompt.id,
+            "model_ids": ["mock/portfolio-analyst"],
+            "run_in_background": False,
+        },
+    )
+
+    assert response.status_code == 201
+    run = response.json()
+    assert run["status"] == "complete"
+    candidate_result = next(
+        result for result in run["item_results"] if result["expected"]["status"] == "candidates"
+    )
+    item = session.get(DatasetItemRecord, candidate_result["dataset_item_id"])
+    trace = client.get(f"/api/traces/{candidate_result['trace_id']}").json()
+    snapshot_id = item.runtime_input_snapshot_ids["load_portfolio_market_data"]
+    market_span = next(
+        span for span in trace["spans"] if span["node_id"] == "load_portfolio_market_data"
+    )
+    persisted = json.dumps(trace, sort_keys=True)
+
+    assert trace["origin_type"] == "evaluation"
+    assert trace["runtime_input_snapshot_ids"] == {"load_portfolio_market_data": snapshot_id}
+    assert market_span["runtime_input_snapshot_id"] == snapshot_id
+    assert market_span["output"]["market_data_observation"]["mode"] == "locked"
+    assert trace["output"]["covered_call"]["candidates"][0]["candidate_id"] == "candidate-001"
+    assert trace["output"]["market_data"]["runtime_input_snapshot"]["id"] == snapshot_id
+    assert "NVDA_SYNTH_CALL_160" not in persisted
+    assert "NVDA_SYNTH_CALL_165" not in persisted
+    assert "provider_contract_id" not in persisted
 
 
 def test_trace_membership_is_scoped_idempotent_and_conflict_safe(client, session_factory) -> None:

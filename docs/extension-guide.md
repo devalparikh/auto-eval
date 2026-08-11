@@ -53,6 +53,19 @@ Add a directory under `frontend/src/features/<domain>/` and keep its screen, for
 
 When the API changes, update `frontend/src/lib/types.ts` and `frontend/src/lib/api.ts` first. Put pure domain projections near the owning feature, as `features/catalog/catalog-options.ts` and `features/results/result-rows.ts` do. Do not add a global helper until more than one feature owns the same behavior.
 
+## Reuse the codebase map
+
+The map is split so it can move into a standalone local app without inheriting AutoEval's evaluation domain:
+
+- `backend/src/autoeval_api/codebase/repository.py` owns configured-root Git snapshots and safe revision resolution.
+- `backend/src/autoeval_api/codebase/parser.py` extracts language, symbols, and import references.
+- `backend/src/autoeval_api/codebase/graph.py` builds the hierarchy, import edges, and red/green change projection.
+- `backend/src/autoeval_api/codebase/logic.py` validates `.codemap/logic.json` and projects Git changes onto logical ownership.
+- `frontend/src/features/codebase/codebase-layout.ts` scopes one source graph around the zoom focus and aggregates hidden dependencies.
+- `frontend/src/features/codebase/codebase-map.tsx` owns pan, zoom, minimap, and selection.
+
+For another repository, set `AUTOEVAL_CODEBASE_ROOT` to its absolute path. Run `$maintain-codebase-logic` in that checkout to add its logical model. For another host application, preserve the response contract in `codebase/schemas.py`, port the repository and graph adapters behind a local-only endpoint, and adapt only the API client, app shell, and theme tokens. Do not add an arbitrary path query parameter. A standalone version should keep repository-root configuration in the server process or launcher.
+
 ## Validate an extension
 
 ```bash

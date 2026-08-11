@@ -12,6 +12,7 @@ import {
   groundTruthFromRecord,
 } from "@/features/datasets/ground-truth";
 import { systemPath } from "@/features/systems/system-path";
+import { RuntimeSnapshotRefs } from "@/features/systems/runtime-snapshot-refs";
 import { api } from "@/lib/api";
 import { textPreview } from "@/lib/format";
 import { useApiResource } from "@/lib/use-api-resource";
@@ -21,6 +22,7 @@ export function AddToDatasetModal({
   traceId,
   traceInput,
   traceOutput,
+  runtimeInputSnapshotIds,
   systemKey,
   onClose,
   onMembershipChanged,
@@ -29,6 +31,7 @@ export function AddToDatasetModal({
   traceId: string;
   traceInput: Record<string, unknown>;
   traceOutput: Record<string, unknown>;
+  runtimeInputSnapshotIds?: Record<string, string>;
   systemKey: string;
   onClose: () => void;
   onMembershipChanged: () => Promise<void>;
@@ -40,7 +43,8 @@ export function AddToDatasetModal({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [savedVersionId, setSavedVersionId] = useState<string | null>(null);
-  const eligibleTargets = targets.data?.targets.filter((target) => target.eligible) ?? [];
+  const eligibleTargets =
+    targets.data?.targets.filter((target) => target.eligible) ?? [];
   const expectedSuggestion = targets.data?.evaluation_expected ?? traceOutput;
 
   function close() {
@@ -58,7 +62,10 @@ export function AddToDatasetModal({
       expected =
         systemKey === "incident-triage"
           ? groundTruthFromForm(form)
-          : (JSON.parse(String(form.get("expectedJson"))) as Record<string, unknown>);
+          : (JSON.parse(String(form.get("expectedJson"))) as Record<
+              string,
+              unknown
+            >);
     } catch {
       setError("Expected output must be a valid JSON object.");
       return;
@@ -70,7 +77,9 @@ export function AddToDatasetModal({
       setSavedVersionId(versionId);
       await Promise.all([targets.reload(), onMembershipChanged()]);
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Could not add example");
+      setError(
+        caught instanceof Error ? caught.message : "Could not add example",
+      );
     } finally {
       setSaving(false);
     }
@@ -84,7 +93,9 @@ export function AddToDatasetModal({
       onClose={close}
     >
       {targets.loading ? <LoadingState rows={5} /> : null}
-      {targets.error ? <ErrorState message={targets.error} retry={targets.reload} /> : null}
+      {targets.error ? (
+        <ErrorState message={targets.error} retry={targets.reload} />
+      ) : null}
       {!targets.loading && !targets.error ? (
         <form onSubmit={submit} className="grid gap-4 p-5" aria-busy={saving}>
           {targets.data?.memberships.length ? (
@@ -105,8 +116,8 @@ export function AddToDatasetModal({
           {targets.data?.evaluation_expected ? (
             <div className="flex gap-2 rounded-[2px] border border-[var(--warning)] bg-[var(--warning-soft)] p-3 text-[10px] leading-5">
               <WarningIcon size={14} className="mt-0.5 shrink-0" />
-              This evaluation trace is prefilled from the original reviewed expected value,
-              never from the model&apos;s actual output.
+              This evaluation trace is prefilled from the original reviewed
+              expected value, never from the model&apos;s actual output.
             </div>
           ) : null}
           <div className="field">
@@ -124,7 +135,9 @@ export function AddToDatasetModal({
                   disabled={!target.eligible}
                 >
                   {target.dataset_name} v{target.dataset_version}
-                  {target.reason === "already_in_version" ? " · Already included" : ""}
+                  {target.reason === "already_in_version"
+                    ? " · Already included"
+                    : ""}
                 </option>
               ))}
             </Select>
@@ -148,13 +161,35 @@ export function AddToDatasetModal({
             </div>
           )}
           <div className="rounded-[2px] bg-[var(--surface-muted)] p-3">
-            <p className="text-[10px] font-semibold text-[var(--text-muted)]">Request</p>
-            <p className="mt-1 text-[11px] leading-5">{textPreview(traceInput)}</p>
+            <p className="text-[10px] font-semibold text-[var(--text-muted)]">
+              Request
+            </p>
+            <p className="mt-1 text-[11px] leading-5">
+              {textPreview(traceInput)}
+            </p>
           </div>
+          {Object.keys(runtimeInputSnapshotIds ?? {}).length ? (
+            <section className="border border-[var(--border)] bg-[var(--surface-muted)] p-3">
+              <p className="text-[10px] font-semibold text-[var(--text-muted)]">
+                Locked runtime observations
+              </p>
+              <p className="mt-1 mb-3 text-[10px] leading-5 text-[var(--text-muted)]">
+                Promotion preserves these node-to-snapshot references. They are
+                not copied into the editable request input.
+              </p>
+              <RuntimeSnapshotRefs
+                systemKey={systemKey}
+                bindings={runtimeInputSnapshotIds}
+              />
+            </section>
+          ) : null}
           {!targets.data?.targets.length ? (
             <p className="text-[11px] leading-5 text-[var(--text-muted)]">
               No compatible draft exists. Create one from the{" "}
-              <Link className="underline" href={systemPath(systemKey, "datasets")}>
+              <Link
+                className="underline"
+                href={systemPath(systemKey, "datasets")}
+              >
                 dataset workspace
               </Link>
               .
@@ -170,21 +205,35 @@ export function AddToDatasetModal({
             </p>
           ) : null}
           {savedVersionId ? (
-            <p role="status" aria-live="polite" className="text-[11px] text-[var(--success)]">
+            <p
+              role="status"
+              aria-live="polite"
+              className="text-[11px] text-[var(--success)]"
+            >
               Example added. Membership is now persisted on this trace.
             </p>
           ) : null}
           <div className="flex justify-end gap-2 border-t border-[var(--border)] pt-4">
             {savedVersionId ? (
-              <Link className="app-button secondary" href={systemPath(systemKey, "datasets")}>
+              <Link
+                className="app-button secondary"
+                href={systemPath(systemKey, "datasets")}
+              >
                 View dataset
               </Link>
             ) : null}
-            <button type="button" className="app-button secondary" onClick={close}>
+            <button
+              type="button"
+              className="app-button secondary"
+              onClick={close}
+            >
               {savedVersionId ? "Done" : "Cancel"}
             </button>
             {!savedVersionId ? (
-              <button className="app-button" disabled={saving || eligibleTargets.length === 0}>
+              <button
+                className="app-button"
+                disabled={saving || eligibleTargets.length === 0}
+              >
                 {saving ? "Adding..." : "Add example"}
                 {!saving ? <CheckIcon size={14} /> : null}
               </button>

@@ -16,6 +16,7 @@ AutoEval is a local-first workspace for building, tracing, versioning, and evalu
 - Deterministic portfolio allocation, concentration, bucket, liquidity, and scenario analysis
 - Immutable server-owned portfolio snapshots plus covered-call screening over locked fixtures or refreshed option data
 - A dedicated system run page that persists every execution as a trace
+- A focus-preserving codebase map with file and agent-maintained logic modes plus Git diff overlays
 - In-place schema migrations and SQLite foreign-key enforcement
 - FastAPI unit and integration tests plus frontend unit and Playwright test harnesses
 
@@ -37,7 +38,7 @@ The checked-in model catalog currently includes GPT-5.6 **Luna** (not “Luma”
 
 Live portfolio option chains are optional. The initial adapter uses Tradier's fixed official API endpoints and never accepts a request-supplied URL. To enable it, set `OPTIONS_MARKET_DATA_PROVIDER=tradier-sandbox` or `tradier-production` and add `TRADIER_API_TOKEN`. The sandbox uses 15-minute delayed stock/options data and does not provide Greeks; production brokerage accounts receive real-time quotes, while Tradier documents Greeks as hourly. With the default `unconfigured` provider, real-portfolio refreshes fail clearly without making a network request; synthetic demos remain key-free.
 
-Direct Portfolio Q&A runs refresh the registered options-chain capability. Evaluations lock the recorded `market_context` fixture and never call the network, so the same dataset version stays reproducible. Every observation records source, mode, provider reference, as-of/fetch time, quote freshness/delay, separate Greeks provenance, and contract count without putting the full real chain into graph state or traces. `AUTOEVAL_MARKET_DATA_TIMEOUT_SECONDS`, `AUTOEVAL_MARKET_DATA_MAX_SYMBOLS`, `AUTOEVAL_MARKET_DATA_MAX_EXPIRATIONS_PER_SYMBOL`, `AUTOEVAL_MARKET_DATA_MAX_CONTRACTS`, and `AUTOEVAL_MARKET_DATA_MAX_RESPONSE_BYTES` bound the adapter. When earnings timing is unknown and `earnings_blackout` is enabled, the deterministic policy rejects the candidate instead of assuming no event.
+Direct Portfolio Q&A runs refresh the registered options-chain capability and capture its normalized result as an immutable runtime-input snapshot. Evaluations pin those snapshot IDs separately from business input and replay them without calling the network, so the same dataset version stays reproducible. Generic portfolio questions do not require an options snapshot; covered-call questions with no locked observation fail closed. Every observation records source, mode, provider reference, schema version, as-of/fetch time, quote freshness/delay, separate Greeks provenance, and contract count without putting the full chain into graph state, model input, or traces. `AUTOEVAL_MARKET_DATA_TIMEOUT_SECONDS`, `AUTOEVAL_MARKET_DATA_MAX_SYMBOLS`, `AUTOEVAL_MARKET_DATA_MAX_EXPIRATIONS_PER_SYMBOL`, `AUTOEVAL_MARKET_DATA_MAX_CONTRACTS`, and `AUTOEVAL_MARKET_DATA_MAX_RESPONSE_BYTES` bound the adapter. When earnings timing is unknown and `earnings_blackout` is enabled, the deterministic policy rejects the candidate instead of assuming no event. See [runtime-input-snapshots.md](docs/runtime-input-snapshots.md) for the replay contract.
 
 ## Tests
 
@@ -52,12 +53,34 @@ make verify
 
 Run `make seed` to ensure the built-in flows, immutable synthetic portfolio snapshots, and demo results exist without starting the servers.
 
+## Code map
+
+Open [http://localhost:3000/codebase](http://localhost:3000/codebase) to explore the configured repository. **Files** mode derives areas, modules, files, symbols, and imports from code. **Logic** mode reads the versioned `.codemap/logic.json` model maintained by `$maintain-codebase-logic` and shows systems, domains, capabilities, components, and architectural relationships.
+
+Zoom expands only the branch under the pointer or viewport focus. The focal node stays in place while children ease from blur to full detail. Either mode can overlay:
+
+- the full working tree against `HEAD`, including untracked files
+- the staged index against `HEAD`
+- one commit against its first parent
+- a GitHub pull request from its merge base to head, when `gh` is installed and the commits exist locally
+
+The backend reads one server-configured repository root. It never accepts a browser-supplied filesystem path. AutoEval maps itself by default; point the same local app at another checkout with an absolute path:
+
+```bash
+AUTOEVAL_CODEBASE_ROOT=/absolute/path/to/repository make dev
+```
+
+Large repositories can tune `AUTOEVAL_CODEBASE_MAX_FILES`, `AUTOEVAL_CODEBASE_MAX_FILE_BYTES`, and `AUTOEVAL_CODEBASE_MAX_SYMBOLS`. Generated folders, dependency trees, lockfiles, caches, and oversized files are excluded from the map.
+
+The viewer never invokes an agent. A coding agent owns architectural judgment by updating `.codemap/logic.json`; the deterministic viewer validates that manifest and calculates local, staged, commit, and PR impact from Git snapshots. Historical snapshots without a manifest use the current model as a projection lens.
+
 ## Project map
 
 ```text
 backend/src/autoeval_api/
   api/            Route groups, request dependencies, middleware
   agent_systems/  Built-in agent definitions, handlers, scoring, seed data
+  codebase/       Git snapshots plus file and maintained-logic graph projection
   graph/          Generic LangGraph topology, registries, trace-aware runner
   inference/      Provider contract, adapters, and provider registry
   services/       Queries and workflows for each product domain
@@ -87,6 +110,7 @@ See [the architecture](docs/architecture.md), [multi-system and provenance desig
 - Versions are immutable. Create a new version instead of editing a final record.
 - Only finalized dataset versions can start evaluations.
 - Provider keys stay in the backend environment and are never exposed through `NEXT_PUBLIC_*` values.
+- The code map reads only `AUTOEVAL_CODEBASE_ROOT`; do not replace it with a request-supplied path.
 - The CLI provider is off by default, uses fixed commands without a shell, and has timeout and output limits.
 - Evaluation work runs in-process. There is no durable queue, worker recovery, or multi-instance coordination yet.
 

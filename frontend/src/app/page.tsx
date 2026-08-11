@@ -1,6 +1,8 @@
 import Link from "next/link";
 import Image from "next/image";
 
+import { DottedText } from "@/components/dotted-text";
+
 const workflow = [
   {
     title: "Trace",
@@ -31,7 +33,10 @@ export default function HomePage() {
         <div className="landing-copy">
           <p className="landing-kicker">Local agent workbench / 001</p>
           <h1 id="landing-title" className="landing-title">
-            See where your agent <em>breaks.</em>
+            See where your agent{" "}
+            <em>
+              <DottedText color="var(--accent)">breaks.</DottedText>
+            </em>
           </h1>
           <p className="landing-description">
             AutoEval records every node, prompt, model call, token, cost, and

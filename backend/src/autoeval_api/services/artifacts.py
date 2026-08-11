@@ -7,9 +7,11 @@ from autoeval_api.models import (
     AgentSystemVersionRecord,
     DatasetRecord,
     DatasetVersionRecord,
+    NodeOutputSnapshotRecord,
     PortfolioSnapshotRecord,
     PromptRecord,
     PromptVersionRecord,
+    RuntimeInputSnapshotRecord,
 )
 from autoeval_api.schemas import (
     ArtifactCatalogResponse,
@@ -20,7 +22,9 @@ from autoeval_api.schemas import (
     VersionSummary,
 )
 from autoeval_api.services.datasets import dataset_version_detail
+from autoeval_api.services.node_snapshots import node_snapshot_detail
 from autoeval_api.services.portfolio_snapshots import portfolio_snapshot_detail
+from autoeval_api.services.runtime_input_snapshots import runtime_input_snapshot_detail
 
 
 def artifact_catalog(
@@ -52,7 +56,7 @@ def artifact_catalog(
     )
     dataset_by_id = {dataset.id: dataset for dataset in datasets}
     snapshots = (
-        session.query(PortfolioSnapshotRecord).filter_by(agent_system_id=agent_system.id).all()
+        session.query(NodeOutputSnapshotRecord).filter_by(agent_system_id=agent_system.id).all()
     )
 
     artifacts.extend(_graph_summary(agent_system, version) for version in graph_versions)
@@ -64,7 +68,7 @@ def artifact_catalog(
         _dataset_summary(agent_system, dataset_by_id[version.dataset_id], version)
         for version in dataset_versions
     )
-    artifacts.extend(_snapshot_summary(agent_system, snapshot) for snapshot in snapshots)
+    artifacts.extend(_node_snapshot_summary(agent_system, snapshot) for snapshot in snapshots)
     artifacts.sort(key=lambda item: (item.created_at, item.kind.value, item.id), reverse=True)
     return ArtifactCatalogResponse(
         agent_system_id=agent_system.id,
@@ -113,14 +117,34 @@ def artifact_detail(
             **_dataset_summary(owner, dataset, version).model_dump(),
             content=dataset_version_detail(session, version).model_dump(mode="json"),
         )
-    snapshot = session.get(PortfolioSnapshotRecord, artifact_id)
+    if kind == ArtifactKind.NODE_SNAPSHOT:
+        snapshot = session.get(NodeOutputSnapshotRecord, artifact_id)
+        if snapshot is None:
+            raise LookupError("Node snapshot artifact not found")
+        owner = _owner(session, snapshot.agent_system_id)
+        detail = node_snapshot_detail(session, snapshot.id)
+        return ArtifactDetail(
+            **_node_snapshot_summary(owner, snapshot).model_dump(),
+            content=detail.model_dump(mode="json"),
+        )
+    if kind == ArtifactKind.PORTFOLIO_SNAPSHOT:
+        snapshot = session.get(PortfolioSnapshotRecord, artifact_id)
+        if snapshot is None:
+            raise LookupError("Portfolio snapshot artifact not found")
+        owner = _owner(session, snapshot.agent_system_id)
+        detail = portfolio_snapshot_detail(snapshot)
+        return ArtifactDetail(
+            **_snapshot_summary(owner, snapshot).model_dump(),
+            content=detail.content,
+        )
+    snapshot = session.get(RuntimeInputSnapshotRecord, artifact_id)
     if snapshot is None:
-        raise LookupError("Portfolio snapshot artifact not found")
+        raise LookupError("Runtime-input artifact not found")
     owner = _owner(session, snapshot.agent_system_id)
-    detail = portfolio_snapshot_detail(snapshot)
+    detail = runtime_input_snapshot_detail(snapshot)
     return ArtifactDetail(
-        **_snapshot_summary(owner, snapshot).model_dump(),
-        content=detail.content,
+        **_runtime_input_summary(owner, snapshot).model_dump(),
+        content={"provenance": detail.provenance, "payload": detail.content},
     )
 
 
@@ -234,6 +258,38 @@ def _snapshot_summary(
         kind=ArtifactKind.PORTFOLIO_SNAPSHOT,
         agent_system_id=owner.id,
         key=snapshot.id,
+        name=snapshot.label,
+        status="immutable",
+        content_hash=snapshot.content_hash,
+        created_at=snapshot.created_at,
+    )
+
+
+def _node_snapshot_summary(
+    owner: AgentSystemRecord,
+    snapshot: NodeOutputSnapshotRecord,
+) -> ArtifactSummary:
+    return ArtifactSummary(
+        id=snapshot.id,
+        kind=ArtifactKind.NODE_SNAPSHOT,
+        agent_system_id=owner.id,
+        key=f"{snapshot.output_key}:{snapshot.node_id}",
+        name=snapshot.label,
+        status="immutable",
+        content_hash=snapshot.content_hash,
+        created_at=snapshot.created_at,
+    )
+
+
+def _runtime_input_summary(
+    owner: AgentSystemRecord,
+    snapshot: RuntimeInputSnapshotRecord,
+) -> ArtifactSummary:
+    return ArtifactSummary(
+        id=snapshot.id,
+        kind=ArtifactKind.RUNTIME_INPUT,
+        agent_system_id=owner.id,
+        key=f"{snapshot.source_key}:{snapshot.node_id}",
         name=snapshot.label,
         status="immutable",
         content_hash=snapshot.content_hash,

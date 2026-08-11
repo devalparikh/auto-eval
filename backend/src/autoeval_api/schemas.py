@@ -11,8 +11,22 @@ class StrictModel(BaseModel):
 
 class RuntimeInputPolicy(StrictModel):
     source: str = Field(pattern=r"^[a-z][a-z0-9_]{1,80}$")
+    schema_version: int = Field(default=1, ge=1)
+    required: bool = True
     runtime_mode: Literal["locked", "refresh"] = "refresh"
     evaluation_mode: Literal["locked", "refresh"] = "locked"
+
+
+class NodeSnapshotPolicy(StrictModel):
+    output_key: str = Field(pattern=r"^[a-z][a-z0-9_]{1,80}$")
+    snapshot_kind: Literal["state", "external_observation", "node_output"]
+    schema_version: int = Field(default=1, ge=1)
+    binding_mode: Literal["produce", "consume", "produce_or_consume"] = "produce"
+    reveal_policy_key: str = Field(
+        default="generic",
+        pattern=r"^[a-z][a-z0-9_]{1,80}$",
+    )
+    required: bool = True
 
 
 class AgentNodeDefinition(StrictModel):
@@ -27,6 +41,7 @@ class AgentNodeDefinition(StrictModel):
     )
     response_schema: dict[str, Any] | None = None
     runtime_input_policy: RuntimeInputPolicy | None = None
+    snapshot_policy: NodeSnapshotPolicy | None = None
 
 
 class AgentEdgeDefinition(StrictModel):
@@ -54,6 +69,8 @@ class AgentGraphDefinition(StrictModel):
         for node in self.nodes:
             if node.kind != "llm" and node.prompt_key is not None:
                 raise ValueError("Only LLM nodes can reference a prompt key")
+            if node.kind != "deterministic" and node.snapshot_policy is not None:
+                raise ValueError("Only deterministic nodes can declare a snapshot policy")
 
 
 class VersionSummary(BaseModel):
@@ -141,11 +158,84 @@ class PortfolioSnapshotDetail(PortfolioSnapshotSummary):
     content: dict[str, Any]
 
 
+class RuntimeInputSnapshotSummary(BaseModel):
+    id: str
+    agent_system_id: str
+    source_trace_id: str | None
+    node_id: str
+    source_key: str
+    schema_version: int
+    label: str
+    observed_at: datetime
+    fetched_at: datetime
+    provider: str
+    source_kind: str
+    is_synthetic: bool
+    content_hash: str
+    created_at: datetime
+
+
+class RuntimeInputSnapshotDetail(RuntimeInputSnapshotSummary):
+    provenance: dict[str, Any]
+    content_available: bool
+    content: dict[str, Any]
+
+
+class NodeSnapshotUsage(BaseModel):
+    trace_id: str
+    agent_system_key: str
+    span_id: str
+    node_id: str
+    role: Literal["produced", "consumed"]
+    resolution_mode: Literal["computed", "live", "replayed", "resolved", "seeded"]
+    status: str
+    latency_ms: float
+    started_at: datetime
+    completed_at: datetime | None
+    error: str | None = None
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class NodeSnapshotSummary(BaseModel):
+    id: str
+    agent_system_id: str
+    agent_system_key: str
+    product_key: str
+    flow_key: str
+    flow_name: str
+    node_id: str
+    node_label: str
+    node_kind: Literal["deterministic", "external_input"]
+    output_key: str
+    snapshot_kind: Literal["state", "external_observation", "node_output"]
+    schema_version: int
+    label: str
+    observed_at: datetime
+    captured_at: datetime
+    source: str
+    provider: str | None = None
+    capture_mode: Literal["computed", "live", "replayed", "seeded", "imported"]
+    is_synthetic: bool
+    content_hash: str
+    usage_count: int = 0
+    latest_usage: NodeSnapshotUsage | None = None
+
+
+class NodeSnapshotDetail(NodeSnapshotSummary):
+    provenance: dict[str, Any] = Field(default_factory=dict)
+    node_metadata: dict[str, Any] = Field(default_factory=dict)
+    usages: list[NodeSnapshotUsage] = Field(default_factory=list)
+    content_available: bool
+    content: dict[str, Any]
+
+
 class ArtifactKind(StrEnum):
     GRAPH = "graph"
     PROMPT = "prompt"
     DATASET = "dataset"
+    NODE_SNAPSHOT = "node_snapshot"
     PORTFOLIO_SNAPSHOT = "portfolio_snapshot"
+    RUNTIME_INPUT = "runtime_input"
 
 
 class NodePromptArtifactBinding(BaseModel):
@@ -227,6 +317,7 @@ class RunTraceRequest(StrictModel):
     agent_system_version_id: str | None = None
     prompt_version_id: str | None = None
     prompt_version_ids: dict[str, str] = Field(default_factory=dict, max_length=80)
+    runtime_input_snapshot_ids: dict[str, str] = Field(default_factory=dict, max_length=80)
 
 
 class TraceSpanResponse(BaseModel):
@@ -235,6 +326,11 @@ class TraceSpanResponse(BaseModel):
     node_id: str
     node_kind: str
     prompt_version_id: str | None
+    runtime_input_snapshot_id: str | None
+    node_snapshot_id: str | None = None
+    snapshot_role: str | None = None
+    snapshot_resolution_mode: str | None = None
+    snapshot_metadata: dict[str, Any] = Field(default_factory=dict)
     sequence: int
     status: str
     system_prompt: str | None
@@ -269,6 +365,8 @@ class TraceResponse(BaseModel):
     agent_system_version_id: str
     prompt_version_id: str
     prompt_version_ids: dict[str, str] = {}
+    runtime_input_snapshot_ids: dict[str, str] = {}
+    node_snapshot_ids: dict[str, str] = {}
     origin_type: str
     evaluation_run_id: str | None
     evaluation_dataset_item_id: str | None
@@ -296,11 +394,13 @@ class CreateDatasetVersionRequest(StrictModel):
 class DatasetItemInput(StrictModel):
     input: dict[str, Any]
     expected: dict[str, Any]
+    runtime_input_snapshot_ids: dict[str, str] = Field(default_factory=dict, max_length=80)
 
 
 class UpdateDatasetItemRequest(StrictModel):
     expected: dict[str, Any]
     input: dict[str, Any] | None = None
+    runtime_input_snapshot_ids: dict[str, str] | None = Field(default=None, max_length=80)
 
 
 class DatasetItemResponse(BaseModel):
@@ -308,6 +408,7 @@ class DatasetItemResponse(BaseModel):
     dataset_version_id: str
     input: dict[str, Any]
     expected: dict[str, Any]
+    runtime_input_snapshot_ids: dict[str, str] = {}
     source_trace_id: str | None
     created_at: datetime
     updated_at: datetime
