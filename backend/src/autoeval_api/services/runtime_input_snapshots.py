@@ -289,6 +289,7 @@ def _catalog_runtime_input_snapshot(
         node_id=record.node_id,
         node_kind="external_input",
         output_key=record.source_key,
+        resource_identity=None,
         snapshot_kind="external_observation",
         schema_version=record.schema_version,
         label=record.label,

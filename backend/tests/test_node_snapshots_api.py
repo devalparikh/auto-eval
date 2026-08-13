@@ -1,5 +1,8 @@
+from copy import deepcopy
+
 import pytest
 from sqlalchemy.exc import DatabaseError
+from sqlalchemy.orm.attributes import set_committed_value
 
 from autoeval_api.agent_systems.portfolio_analyst.seed import (
     ensure_seed_data as ensure_portfolio_seed_data,
@@ -9,12 +12,16 @@ from autoeval_api.agent_systems.portfolio_query.seed import (
 )
 from autoeval_api.models import (
     DatasetItemRecord,
+    DatasetRecord,
     NodeOutputSnapshotRecord,
+    PortfolioSnapshotRecord,
     RunStatus,
     TraceRecord,
     TraceSpanRecord,
     utc_now,
 )
+from autoeval_api.services.datasets import create_dataset_version
+from autoeval_api.services.node_resources import resolve_node_resource
 
 
 def test_node_snapshot_catalog_groups_state_and_observations_by_node(
@@ -97,6 +104,24 @@ def test_node_snapshot_catalog_groups_state_and_observations_by_node(
     assert payload["usages"][0]["metadata"]["trace_latency_ms"] == 61
     assert payload["content_available"] is True
 
+    current_resources = client.get(
+        "/api/node-snapshots",
+        params={
+            "agent_system_key": "portfolio-analyst",
+            "node_id": "persist_portfolio_snapshot",
+            "output_key": "portfolio_state",
+            "schema_version": 1,
+            "snapshot_kind": "state",
+            "latest_per_identity": True,
+        },
+    )
+    assert current_resources.status_code == 200
+    current_payload = current_resources.json()
+    identities = [record["resource_identity"] for record in current_payload]
+    assert len(identities) == len(set(identities))
+    assert all(record["node_id"] == "persist_portfolio_snapshot" for record in current_payload)
+    assert all(record["snapshot_kind"] == "state" for record in current_payload)
+
 
 def test_generic_node_snapshot_catalog_is_database_immutable(session_factory) -> None:
     session = session_factory()
@@ -107,3 +132,71 @@ def test_generic_node_snapshot_catalog_is_database_immutable(session_factory) ->
 
     with pytest.raises(DatabaseError, match="node_output_snapshot_immutable"):
         session.commit()
+
+
+def test_locked_node_resource_enforces_the_full_producer_contract(session_factory) -> None:
+    session = session_factory()
+    graph, _prompt, dataset = ensure_query_seed_data(session)
+    item = session.query(DatasetItemRecord).filter_by(dataset_version_id=dataset.id).first()
+    assert item is not None
+    selection = item.node_resource_selections["get_indexed_portfolio"]
+    policy = next(
+        node["resource_policy"]
+        for node in graph.definition["nodes"]
+        if node["id"] == "get_indexed_portfolio"
+    )
+
+    resolved = resolve_node_resource(
+        session,
+        consumer_system_key="portfolio-query",
+        policy_value=policy,
+        selection_value=selection,
+    )
+    assert resolved.snapshot_id == selection["snapshot_id"]
+
+    invalid_values = (
+        ("product_key", "incident-triage"),
+        ("producer_system_key", "portfolio-query"),
+        ("producer_node_id", "another_node"),
+        ("producer_output_key", "another_output"),
+        ("producer_snapshot_kind", "node_output"),
+        ("schema_version", 2),
+    )
+    for field, value in invalid_values:
+        invalid_policy = {**policy, field: value}
+        with pytest.raises(ValueError):
+            resolve_node_resource(
+                session,
+                consumer_system_key="portfolio-query",
+                policy_value=invalid_policy,
+                selection_value=selection,
+            )
+
+    domain = session.get(PortfolioSnapshotRecord, selection["snapshot_id"])
+    assert domain is not None
+    domain.document = {**deepcopy(domain.document), "as_of": "tampered"}
+    with session.no_autoflush, pytest.raises(ValueError, match="content-hash"):
+        resolve_node_resource(
+            session,
+            consumer_system_key="portfolio-query",
+            policy_value=policy,
+            selection_value=selection,
+        )
+    session.rollback()
+
+    domain = session.get(PortfolioSnapshotRecord, selection["snapshot_id"])
+    dataset_record = session.get(DatasetRecord, dataset.dataset_id)
+    assert domain is not None
+    assert dataset_record is not None
+    set_committed_value(
+        domain,
+        "document",
+        {**deepcopy(domain.document), "as_of": "tampered-before-clone"},
+    )
+    with pytest.raises(ValueError, match="content-hash"):
+        create_dataset_version(
+            session,
+            dataset_record,
+            clone_from_version_id=dataset.id,
+        )
+    session.rollback()

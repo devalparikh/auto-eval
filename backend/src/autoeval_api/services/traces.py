@@ -20,6 +20,7 @@ from autoeval_api.schemas import (
     TraceResponse,
     TraceSpanResponse,
 )
+from autoeval_api.services.datasets import trace_replayability_error
 
 
 def list_traces(
@@ -118,6 +119,7 @@ def trace_dataset_targets(session: Session, trace: TraceRecord) -> TraceDatasetT
         if trace.evaluation_dataset_item_id
         else None
     )
+    replayability_error = trace_replayability_error(session, trace)
     targets: list[DatasetTargetResponse] = []
     for dataset in datasets:
         versions = (
@@ -133,6 +135,8 @@ def trace_dataset_targets(session: Session, trace: TraceRecord) -> TraceDatasetT
                 reason = "already_in_version"
             elif trace.status != RunStatus.COMPLETE:
                 reason = "trace_not_complete"
+            elif replayability_error is not None:
+                reason = "trace_not_replayable"
             warnings: list[str] = []
             if trace.origin_type == TraceOrigin.EVALUATION:
                 warnings.append("evaluation_origin")
@@ -245,6 +249,8 @@ def _trace_response(
         prompt_version_ids=trace.prompt_version_ids or {},
         runtime_input_snapshot_ids=trace.runtime_input_snapshot_ids or {},
         node_snapshot_ids=trace.node_snapshot_ids or {},
+        node_resource_selections=trace.node_resource_selections or {},
+        capture_node_outputs=trace.capture_node_outputs,
         origin_type=trace.origin_type,
         evaluation_run_id=trace.evaluation_run_id,
         evaluation_dataset_item_id=trace.evaluation_dataset_item_id,

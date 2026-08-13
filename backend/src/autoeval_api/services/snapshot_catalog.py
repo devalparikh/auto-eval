@@ -16,6 +16,7 @@ def ensure_node_output_snapshot(
     node_id: str,
     node_kind: str,
     output_key: str,
+    resource_identity: str | None,
     snapshot_kind: str,
     schema_version: int,
     label: str,
@@ -34,11 +35,30 @@ def ensure_node_output_snapshot(
 ) -> NodeOutputSnapshotRecord:
     existing = session.get(NodeOutputSnapshotRecord, snapshot_id)
     if existing is not None:
-        if (
-            existing.agent_system_id != owner.id
-            or existing.node_id != node_id
-            or existing.content_hash != content_hash
-        ):
+        immutable_matches = (
+            existing.agent_system_id == owner.id
+            and existing.source_trace_id == source_trace_id
+            and existing.node_id == node_id
+            and existing.node_kind == node_kind
+            and existing.output_key == output_key
+            and existing.resource_identity == resource_identity
+            and existing.snapshot_kind == snapshot_kind
+            and existing.schema_version == schema_version
+            and existing.label == label
+            and _aware(existing.observed_at) == _aware(observed_at)
+            and _aware(existing.captured_at) == _aware(captured_at)
+            and existing.source == source
+            and existing.provider == provider
+            and existing.capture_mode == capture_mode
+            and existing.is_synthetic is is_synthetic
+            and existing.content_hash == content_hash
+            and existing.content == content
+            and existing.provenance == provenance
+            and existing.node_metadata == node_metadata
+            and existing.reveal_policy_key == reveal_policy_key
+            and existing.storage_adapter == storage_adapter
+        )
+        if not immutable_matches:
             raise ValueError(
                 f"Node-output snapshot ID already exists with different content: {snapshot_id}"
             )
@@ -50,6 +70,7 @@ def ensure_node_output_snapshot(
         node_id=node_id,
         node_kind=node_kind,
         output_key=output_key,
+        resource_identity=resource_identity,
         snapshot_kind=snapshot_kind,
         schema_version=schema_version,
         label=label,

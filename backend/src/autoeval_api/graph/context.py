@@ -12,9 +12,17 @@ from autoeval_api.graph.runtime_inputs import (
 
 @dataclass(frozen=True)
 class NodeSnapshotExecutionBinding:
-    id: str
+    id: str | None
     role: str
     resolution_mode: str
+    metadata: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
+class NodeResourceExecutionBinding:
+    snapshot_id: str
+    resource_identity: str | None
+    content: dict[str, Any]
     metadata: dict[str, Any] = field(default_factory=dict)
 
 
@@ -34,6 +42,9 @@ class GraphRuntimeContext:
     runtime_input_snapshot_ids: dict[str, str] = field(default_factory=dict)
     node_snapshots: dict[str, NodeSnapshotExecutionBinding] = field(default_factory=dict)
     node_snapshot_ids: dict[str, str] = field(default_factory=dict)
+    node_resources: dict[str, NodeResourceExecutionBinding] = field(default_factory=dict)
+    node_resource_selections: dict[str, dict[str, Any]] = field(default_factory=dict)
+    capture_node_outputs: bool = False
 
     def runtime_input(self, node_id: str, source: str) -> ResolvedRuntimeInput:
         configured = self.runtime_input_modes.get(node_id)
@@ -91,6 +102,51 @@ class GraphRuntimeContext:
         )
         self.node_snapshots[node_id] = binding
         self.node_snapshot_ids[node_id] = snapshot_id
+
+    def bind_node_observation(
+        self,
+        node_id: str,
+        *,
+        role: str,
+        resolution_mode: str,
+        metadata: dict[str, Any] | None = None,
+    ) -> None:
+        self.node_snapshots[node_id] = NodeSnapshotExecutionBinding(
+            id=None,
+            role=role,
+            resolution_mode=resolution_mode,
+            metadata=dict(metadata or {}),
+        )
+
+    def bind_node_resource(
+        self,
+        node_id: str,
+        binding: NodeResourceExecutionBinding,
+        *,
+        selection_mode: str,
+    ) -> None:
+        self.node_resources[node_id] = binding
+        self.node_resource_selections[node_id] = {
+            "mode": "locked",
+            "snapshot_id": binding.snapshot_id,
+        }
+        self.bind_node_snapshot(
+            node_id,
+            binding.snapshot_id,
+            role="consumed",
+            resolution_mode="resolved" if selection_mode == "current" else "replayed",
+            metadata={
+                **binding.metadata,
+                "resource_identity": binding.resource_identity,
+                "selected_mode": selection_mode,
+            },
+        )
+
+    def node_resource(self, node_id: str) -> NodeResourceExecutionBinding:
+        binding = self.node_resources.get(node_id)
+        if binding is None:
+            raise ValueError(f"Node resource was not resolved: {node_id}")
+        return binding
 
     def runtime_input_snapshot(
         self,

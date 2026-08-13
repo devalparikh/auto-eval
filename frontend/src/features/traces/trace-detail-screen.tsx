@@ -7,6 +7,7 @@ import { PageHeader } from "@/components/page-header";
 import { ErrorState, LoadingState } from "@/components/states";
 import { StatusBadge } from "@/components/status-badge";
 import { AddToDatasetModal } from "@/features/traces/add-to-dataset-modal";
+import { ResourceSnapshotRefs } from "@/features/systems/resource-snapshot-refs";
 import { systemPath } from "@/features/systems/system-path";
 import { TraceGraph } from "@/features/traces/trace-graph";
 import { TraceInspector } from "@/features/traces/trace-inspector";
@@ -96,6 +97,10 @@ export function TraceDetailScreen({
             label="Model"
             value={currentTrace.model_id.split("/").slice(-1)[0]}
           />
+          <Metric
+            label="Optional capture"
+            value={currentTrace.capture_node_outputs ? "on" : "off"}
+          />
         </div>
       </section>
       <section className="grid gap-3 border-b border-[var(--border)] bg-[var(--surface)] px-4 py-3 md:grid-cols-2 md:px-7">
@@ -107,6 +112,21 @@ export function TraceDetailScreen({
               : "Direct runtime request"
           }
         />
+        {Object.keys(currentTrace.node_resource_selections ?? {}).length ? (
+          <div className="min-w-0 md:col-span-2">
+            <p className="mono text-[9px] uppercase tracking-[0.08em] text-[var(--text-faint)]">
+              Canonical resource bindings
+            </p>
+            <p className="mt-1 mb-2 text-[10px] text-[var(--text-muted)]">
+              Current selections are resolved to exact locked snapshots before
+              execution so this trace can be audited and replayed.
+            </p>
+            <ResourceSnapshotRefs
+              systemKey={systemKey}
+              bindings={currentTrace.node_resource_selections}
+            />
+          </div>
+        ) : null}
         <ProvenanceBlock
           label="Used as a dataset source"
           value={
@@ -143,6 +163,7 @@ export function TraceDetailScreen({
         traceInput={currentTrace.request_input}
         traceOutput={currentTrace.output ?? {}}
         runtimeInputSnapshotIds={currentTrace.runtime_input_snapshot_ids}
+        nodeResourceSelections={currentTrace.node_resource_selections}
         systemKey={systemKey}
         onClose={() => setDatasetModalOpen(false)}
         onMembershipChanged={async () => {

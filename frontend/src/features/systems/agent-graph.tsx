@@ -43,6 +43,7 @@ export function buildAgentGraph(definition: GraphDefinition): {
     const output = node.id === definition.output_node;
     const runtimePolicy = node.runtime_input_policy;
     const snapshotPolicy = node.snapshot_policy;
+    const resourcePolicy = node.resource_policy;
     return {
       id: node.id,
       type: "agentNode",
@@ -59,6 +60,15 @@ export function buildAgentGraph(definition: GraphDefinition): {
         runtimePolicy && !runtimePolicy.required ? "conditional" : null,
         snapshotPolicy ? `snapshot output ${snapshotPolicy.output_key}` : null,
         snapshotPolicy ? `snapshot ${snapshotPolicy.binding_mode}` : null,
+        resourcePolicy ? `resource ${resourcePolicy.resource_key}` : null,
+        resourcePolicy ? `run ${resourcePolicy.runtime_mode}` : null,
+        resourcePolicy
+          ? `snapshot kind ${resourcePolicy.producer_snapshot_kind}`
+          : null,
+        resourcePolicy ? `evaluation ${resourcePolicy.evaluation_mode}` : null,
+        resourcePolicy
+          ? `producer ${resourcePolicy.producer_system_key} ${resourcePolicy.producer_node_id}`
+          : null,
         node.prompt_key ? `prompt ${node.prompt_key}` : null,
         entry ? "entry point" : null,
         output ? "output node" : null,
@@ -155,13 +165,14 @@ export function AgentGraph({
 function AgentNode({ data }: NodeProps<Node<AgentNodeData>>) {
   const runtimePolicy = data.definition.runtime_input_policy;
   const snapshotPolicy = data.definition.snapshot_policy;
+  const resourcePolicy = data.definition.resource_policy;
   const Icon = runtimePolicy
     ? CloudArrowDownIcon
-    : snapshotPolicy
+    : resourcePolicy || snapshotPolicy
       ? DatabaseIcon
-    : data.definition.kind === "llm"
-      ? WaveformIcon
-      : BracketsCurlyIcon;
+      : data.definition.kind === "llm"
+        ? WaveformIcon
+        : BracketsCurlyIcon;
   return (
     <div className="relative w-[216px] rounded-[2px] border border-[var(--border-strong)] bg-[var(--surface-raised)] p-3 shadow-[0_14px_40px_rgba(0,0,0,0.24)]">
       <Handle
@@ -172,7 +183,7 @@ function AgentNode({ data }: NodeProps<Node<AgentNodeData>>) {
       <div className="flex items-start gap-2">
         <div
           className={`grid size-7 shrink-0 place-items-center rounded-[2px] border ${
-            runtimePolicy
+            runtimePolicy || resourcePolicy
               ? "border-[var(--accent)]/30 bg-[var(--accent-soft)] text-[var(--accent)]"
               : "border-[var(--border)] bg-[var(--surface-muted)] text-[var(--text-muted)]"
           }`}
@@ -186,7 +197,9 @@ function AgentNode({ data }: NodeProps<Node<AgentNodeData>>) {
           <p className="mono mt-0.5 text-[8px] tracking-[0.04em] text-[var(--text-faint)]">
             {runtimePolicy
               ? `external input · ${runtimePolicy.source}`
-              : `${data.definition.kind} · ${data.definition.handler}`}
+              : resourcePolicy
+                ? `resource · ${resourcePolicy.resource_key}`
+                : `${data.definition.kind} · ${data.definition.handler}`}
           </p>
         </div>
       </div>
@@ -212,7 +225,22 @@ function AgentNode({ data }: NodeProps<Node<AgentNodeData>>) {
           <>
             <NodeTag>snapshot · {snapshotPolicy.output_key}</NodeTag>
             <NodeTag>{snapshotPolicy.binding_mode}</NodeTag>
-            <NodeTag>{snapshotPolicy.snapshot_kind.replaceAll("_", " ")}</NodeTag>
+            <NodeTag>
+              {snapshotPolicy.snapshot_kind.replaceAll("_", " ")}
+            </NodeTag>
+          </>
+        ) : null}
+        {resourcePolicy ? (
+          <>
+            <NodeTag>resource · {resourcePolicy.resource_key}</NodeTag>
+            <NodeTag>run {resourcePolicy.runtime_mode}</NodeTag>
+            <NodeTag>eval {resourcePolicy.evaluation_mode}</NodeTag>
+            <NodeTag>producer · {resourcePolicy.producer_system_key}</NodeTag>
+            <NodeTag>
+              {resourcePolicy.producer_snapshot_kind.replaceAll("_", " ")}
+            </NodeTag>
+            <NodeTag>schema v{resourcePolicy.schema_version}</NodeTag>
+            {!resourcePolicy.required ? <NodeTag>optional</NodeTag> : null}
           </>
         ) : null}
       </div>

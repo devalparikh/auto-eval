@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import {
-  inputForRun,
   inputTemplateForRun,
   modelsForSystem,
   parseRunInput,
@@ -70,23 +69,5 @@ describe("run options", () => {
     });
 
     expect(template).toEqual({ question: "What changed?" });
-    expect(inputForRun("portfolio-query", template, "snapshot-2")).toEqual({
-      question: "What changed?",
-      snapshot_id: "snapshot-2",
-    });
-
-    expect(
-      inputForRun(
-        "portfolio-query",
-        {
-          question: "What changed?",
-          market_context: { contracts: [{ symbol: "NVDA" }] },
-        },
-        "snapshot-2",
-      ),
-    ).toEqual({
-      question: "What changed?",
-      snapshot_id: "snapshot-2",
-    });
   });
 });

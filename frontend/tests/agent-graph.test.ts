@@ -55,7 +55,9 @@ describe("agent graph", () => {
     expect(graph.nodes[0]?.ariaLabel).toContain("evaluation locked");
     expect(graph.nodes[0]?.ariaLabel).toContain("schema version 1");
     expect(graph.nodes[0]?.ariaLabel).toContain("conditional");
-    expect(graph.nodes[0]?.ariaLabel).toContain("snapshot output options_chain");
+    expect(graph.nodes[0]?.ariaLabel).toContain(
+      "snapshot output options_chain",
+    );
     expect(graph.nodes[0]?.ariaLabel).toContain("snapshot produce_or_consume");
     expect(graph.nodes[1]?.ariaLabel).toContain("prompt answer-prompt");
     expect(graph.nodes[1]?.ariaLabel).toContain("output node");
@@ -65,5 +67,42 @@ describe("agent graph", () => {
   it("rejects arbitrary JSON as a graph definition", () => {
     expect(isGraphDefinition({ nodes: [] })).toBe(false);
     expect(isGraphDefinition(definition)).toBe(true);
+  });
+
+  it("exposes server-owned resource resolution in graph semantics", () => {
+    const resourceDefinition = {
+      ...definition,
+      entry_point: "resource",
+      nodes: [
+        {
+          id: "resource",
+          label: "Get indexed portfolio",
+          kind: "deterministic" as const,
+          handler: "get_indexed_portfolio",
+          task: null,
+          resource_policy: {
+            product_key: "portfolio-analyst",
+            resource_key: "indexed_portfolio",
+            producer_system_key: "portfolio-analyst",
+            producer_node_id: "persist_portfolio_snapshot",
+            producer_output_key: "portfolio_state",
+            producer_snapshot_kind: "state" as const,
+            schema_version: 1,
+            runtime_mode: "current" as const,
+            evaluation_mode: "locked" as const,
+            required: true,
+          },
+        },
+        definition.nodes[1],
+      ],
+      edges: [{ source: "resource", target: "answer" }],
+    } satisfies GraphDefinition;
+
+    const graph = buildAgentGraph(resourceDefinition);
+    expect(graph.nodes[0]?.ariaLabel).toContain("resource indexed_portfolio");
+    expect(graph.nodes[0]?.ariaLabel).toContain("run current");
+    expect(graph.nodes[0]?.ariaLabel).toContain(
+      "producer portfolio-analyst persist_portfolio_snapshot",
+    );
   });
 });

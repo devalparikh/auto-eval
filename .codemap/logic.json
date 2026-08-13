@@ -76,11 +76,11 @@
     {
       "id": "frontend.systems.run.runtime-inputs",
       "kind": "component",
-      "label": "Runtime input controls",
-      "description": "Shows live-versus-locked external input policies and snapshot evidence.",
+      "label": "Run graph and node data controls",
+      "description": "Previews the selected graph version and configures current, live, or locked data modes for deterministic nodes.",
       "parent_id": "frontend.systems.run",
-      "paths": ["frontend/src/features/systems/runtime-input-*.tsx", "frontend/src/features/systems/snapshot-artifact.tsx"],
-      "responsibilities": ["Explain runtime input modes", "Render immutable snapshot references"]
+      "paths": ["frontend/src/features/run/**", "frontend/src/features/systems/agent-graph.tsx", "frontend/src/features/systems/runtime-input-*.tsx"],
+      "responsibilities": ["Preview graph execution semantics", "Select node resource modes", "Control optional live-output capture"]
     },
     {
       "id": "frontend.evaluations",
@@ -237,20 +237,20 @@
     {
       "id": "backend.agent-runtime.runtime-inputs",
       "kind": "capability",
-      "label": "Runtime input capture",
-      "description": "Resolves live or locked external observations and preserves immutable snapshots.",
+      "label": "Node data resolution",
+      "description": "Resolves current persisted resources, live external observations, or locked snapshots through graph-owned node contracts.",
       "parent_id": "backend.agent-runtime",
-      "paths": ["backend/src/autoeval_api/graph/runtime_inputs.py", "backend/src/autoeval_api/services/runtime_input_snapshots.py"],
-      "responsibilities": ["Enforce runtime input policy", "Capture provenance and payloads"]
+      "paths": ["backend/src/autoeval_api/graph/context.py", "backend/src/autoeval_api/graph/runtime_inputs.py", "backend/src/autoeval_api/services/*snapshot*.py"],
+      "responsibilities": ["Enforce server-owned node data policy", "Resolve exact resource identity", "Capture optional observations and provenance"]
     },
     {
       "id": "backend.agent-runtime.runtime-inputs.snapshot-store",
       "kind": "component",
-      "label": "Runtime snapshot store",
-      "description": "Content-addressed persistence for external node inputs and their provenance.",
+      "label": "Node snapshot catalog",
+      "description": "Immutable catalog for state, external observation, and other deterministic node outputs with shared and node-specific metadata.",
       "parent_id": "backend.agent-runtime.runtime-inputs",
-      "paths": ["backend/src/autoeval_api/services/runtime_input_snapshots.py"],
-      "responsibilities": ["Deduplicate observations", "Return immutable snapshot records"]
+      "paths": ["backend/src/autoeval_api/services/node_snapshots.py", "backend/src/autoeval_api/services/snapshot_catalog.py", "backend/src/autoeval_api/services/runtime_input_snapshots.py"],
+      "responsibilities": ["Validate immutable snapshot contracts", "Index node outputs", "Return safe artifact detail"]
     },
     {
       "id": "backend.evaluation",
@@ -328,10 +328,10 @@
       "id": "backend.systems.portfolio.query-runtime",
       "kind": "component",
       "label": "Portfolio query runtime",
-      "description": "Loads locked or refreshed market observations before deterministic candidate ranking.",
+      "description": "Consumes indexed portfolio state through a generic node resource contract and resolves locked or refreshed market observations before deterministic ranking.",
       "parent_id": "backend.systems.portfolio",
       "paths": ["backend/src/autoeval_api/agent_systems/portfolio_query/**"],
-      "responsibilities": ["Resolve options observations", "Rank eligible candidates"]
+      "responsibilities": ["Resolve current or locked indexed state", "Resolve options observations", "Rank eligible candidates"]
     },
     {
       "id": "backend.code-intelligence",
@@ -420,13 +420,13 @@
       "source": "backend.agent-runtime.runtime-inputs",
       "target": "backend.observability.traces",
       "kind": "produces",
-      "label": "attaches immutable observations"
+      "label": "records node data mode and snapshot provenance"
     },
     {
       "source": "backend.systems.portfolio",
       "target": "backend.agent-runtime.runtime-inputs",
       "kind": "depends_on",
-      "label": "uses locked or refreshed market data"
+      "label": "uses current, live, or locked node data"
     },
     {
       "source": "backend.code-intelligence.projection",

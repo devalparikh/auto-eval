@@ -25,6 +25,19 @@ def test_trace_endpoint_returns_graph_and_spans(client) -> None:
     )
 
 
+def test_legacy_input_sample_runtime_surface_is_removed(client) -> None:
+    system_id = client.get("/api/catalog").json()["agent_systems"][0]["id"]
+
+    assert client.get(f"/api/agent-systems/{system_id}/input-samples").status_code == 404
+    assert (
+        client.post(
+            f"/api/agent-systems/{system_id}/input-samples",
+            json={"source_trace_id": "legacy", "input": {}},
+        ).status_code
+        == 404
+    )
+
+
 def test_final_dataset_rejects_mutation(client) -> None:
     catalog = client.get("/api/catalog").json()
     final_version = next(

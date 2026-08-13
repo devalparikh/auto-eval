@@ -8,16 +8,17 @@ from autoeval_api.agent_systems.portfolio_analyst.snapshots import (
     SYNTHETIC_SNAPSHOT_DOCUMENT,
 )
 from autoeval_api.agent_systems.portfolio_query.definition import (
+    PORTFOLIO_QUERY_GRAPH,
     PORTFOLIO_QUERY_INPUT_TEMPLATE,
 )
 from autoeval_api.agent_systems.portfolio_query.handlers import (
     apply_portfolio_query_safety,
     build_portfolio_model_context,
     calculate_portfolio_answer,
+    get_indexed_portfolio,
     load_portfolio_market_data,
     merge_portfolio_query_explanation,
     normalize_portfolio_query,
-    resolve_snapshot_reference,
     validate_portfolio_query,
 )
 from autoeval_api.agent_systems.portfolio_query.runtime_fixtures import (
@@ -29,10 +30,11 @@ from autoeval_api.agent_systems.portfolio_query.trace_policy import (
     project_inference_payload,
     project_payload,
 )
-from autoeval_api.graph.context import GraphRuntimeContext
+from autoeval_api.graph.context import GraphRuntimeContext, NodeResourceExecutionBinding
 from autoeval_api.graph.runtime_inputs import RuntimeInputCapabilityRegistry
 from autoeval_api.inference.base import InferenceResponse
 from autoeval_api.models import AgentSystemRecord, DatasetItemRecord
+from autoeval_api.services.node_resources import resolve_node_resource
 from autoeval_api.services.portfolio_snapshots import create_portfolio_snapshot
 from autoeval_api.services.runtime_input_snapshots import (
     create_runtime_input_snapshot,
@@ -52,6 +54,7 @@ def analysis_for(
     *,
     market_payload: dict | None = None,
     runtime_snapshot_id: str | None = None,
+    portfolio_snapshot_id: str | None = None,
     bind_runtime_snapshot: bool = True,
 ) -> dict:
     _graph, _prompt, dataset = ensure_seed_data(session)
@@ -62,6 +65,38 @@ def analysis_for(
         "portfolio-query",
         runtime_inputs=runtime_inputs,
         runtime_input_modes={"load_portfolio_market_data": ("options_chain", "locked", 1)},
+    )
+    if portfolio_snapshot_id is None:
+        item = next(
+            item
+            for item in session.query(DatasetItemRecord)
+            .filter_by(dataset_version_id=dataset.id)
+            .all()
+            if item.expected.get("status") == "candidates"
+        )
+        portfolio_snapshot_id = item.node_resource_selections["get_indexed_portfolio"][
+            "snapshot_id"
+        ]
+    resource_policy = next(
+        node["resource_policy"]
+        for node in PORTFOLIO_QUERY_GRAPH["nodes"]
+        if node["id"] == "get_indexed_portfolio"
+    )
+    resolved_resource = resolve_node_resource(
+        session,
+        consumer_system_key="portfolio-query",
+        policy_value=resource_policy,
+        selection_value={"mode": "locked", "snapshot_id": portfolio_snapshot_id},
+    )
+    context.bind_node_resource(
+        "get_indexed_portfolio",
+        NodeResourceExecutionBinding(
+            snapshot_id=resolved_resource.snapshot_id,
+            resource_identity=resolved_resource.resource_identity,
+            content=resolved_resource.content,
+            metadata=resolved_resource.metadata,
+        ),
+        selection_mode="locked",
     )
     if bind_runtime_snapshot:
         if market_payload is not None:
@@ -108,7 +143,7 @@ def analysis_for(
             runtime_input_snapshot_binding(record),
         )
     state = {"input": request_input}
-    state.update(resolve_snapshot_reference(state, context))
+    state.update(get_indexed_portfolio(state, context))
     state.update(normalize_portfolio_query(state))
     state.update(asyncio.run(load_portfolio_market_data(state, context)))
     state.update(validate_portfolio_query(state))
@@ -200,10 +235,11 @@ def test_duplicate_symbol_lots_preserve_eligible_sleeve(session_factory) -> None
             is_synthetic=True,
             document=document,
         )
-        request_input = deepcopy(PORTFOLIO_QUERY_INPUT_TEMPLATE)
-        request_input["snapshot_id"] = snapshot.id
-
-        analysis = analysis_for(session, request_input)["query_analysis"]
+        analysis = analysis_for(
+            session,
+            deepcopy(PORTFOLIO_QUERY_INPUT_TEMPLATE),
+            portfolio_snapshot_id=snapshot.id,
+        )["query_analysis"]
 
         assert analysis["status"] == "candidates"
         assert analysis["candidates"][0]["candidate_id"] == "candidate-001"
@@ -213,17 +249,18 @@ def test_duplicate_symbol_lots_preserve_eligible_sleeve(session_factory) -> None
         session.close()
 
 
-def test_inline_snapshot_is_rejected_in_favor_of_server_reference(session_factory) -> None:
+def test_request_snapshot_fields_cannot_override_selected_resource(session_factory) -> None:
     session = session_factory()
     try:
         request_input = deepcopy(PORTFOLIO_QUERY_INPUT_TEMPLATE)
         request_input["snapshot"] = deepcopy(SYNTHETIC_SNAPSHOT_DOCUMENT)
+        request_input["snapshot_id"] = "attacker-selected-snapshot"
 
         state = analysis_for(session, request_input)
 
         assert state["portfolio_snapshot_reference"]["resolution_status"] == "resolved"
-        assert state["query_status"]["ready"] is False
-        assert "snapshot.inline_not_allowed" in state["query_status"]["missing_fields"]
+        assert state["portfolio_snapshot_reference"]["id"] != "attacker-selected-snapshot"
+        assert state["query_status"]["ready"] is True
     finally:
         session.close()
 
@@ -235,13 +272,18 @@ def test_seeded_dataset_items_resolve_immutable_snapshot_ids(session_factory) ->
         items = session.query(DatasetItemRecord).filter_by(dataset_version_id=dataset.id).all()
         for item in items:
             snapshot_id = item.runtime_input_snapshot_ids["load_portfolio_market_data"]
+            portfolio_snapshot_id = item.node_resource_selections["get_indexed_portfolio"][
+                "snapshot_id"
+            ]
             state = analysis_for(
                 session,
                 deepcopy(item.input),
                 runtime_snapshot_id=snapshot_id,
+                portfolio_snapshot_id=portfolio_snapshot_id,
             )
             assert state["portfolio_snapshot_reference"]["resolution_status"] == "resolved"
             assert "snapshot" not in item.input
+            assert "snapshot_id" not in item.input
             assert "market_context" not in item.input
             assert state["market_data_observation"]["runtime_input_snapshot"]["id"] == snapshot_id
     finally:
@@ -357,8 +399,7 @@ def test_non_synthetic_snapshot_keeps_positions_out_of_traces_and_provider(
             document=document,
         )
         request_input = deepcopy(PORTFOLIO_QUERY_INPUT_TEMPLATE)
-        request_input["snapshot_id"] = snapshot.id
-        state = analysis_for(session, request_input)
+        state = analysis_for(session, request_input, portfolio_snapshot_id=snapshot.id)
 
         intermediate_trace_text = str(project_payload(state))
         provider_text = str(project_inference_payload(state))
@@ -380,6 +421,7 @@ def test_non_synthetic_snapshot_keeps_positions_out_of_traces_and_provider(
             "'shares':",
             "'largest_symbol':",
             "'gross_premium_usd':",
+            "'provider_ref':",
         ):
             assert forbidden not in intermediate_trace_text
             assert forbidden not in provider_text
@@ -414,7 +456,6 @@ def test_direct_real_run_refreshes_and_fails_cleanly_without_provider_credential
             document=document,
         )
         request_input = deepcopy(PORTFOLIO_QUERY_INPUT_TEMPLATE)
-        request_input["snapshot_id"] = snapshot.id
 
         response = client.post(
             "/api/traces/run",
@@ -424,6 +465,12 @@ def test_direct_real_run_refreshes_and_fails_cleanly_without_provider_credential
                 "prompt_version_id": prompt.id,
                 "model_id": "mock/portfolio-analyst",
                 "input": request_input,
+                "node_resource_selections": {
+                    "get_indexed_portfolio": {
+                        "mode": "locked",
+                        "snapshot_id": snapshot.id,
+                    }
+                },
             },
         )
 

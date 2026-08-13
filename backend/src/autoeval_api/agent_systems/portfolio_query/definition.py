@@ -1,5 +1,3 @@
-from autoeval_api.agent_systems.portfolio_analyst.snapshots import SYNTHETIC_SNAPSHOT_ID
-
 PORTFOLIO_QUERY_RESPONSE_SCHEMA = {
     "type": "object",
     "properties": {
@@ -27,15 +25,35 @@ PORTFOLIO_QUERY_RESPONSE_SCHEMA = {
 }
 
 PORTFOLIO_QUERY_GRAPH = {
-    "entry_point": "resolve_portfolio_snapshot",
+    "entry_point": "get_indexed_portfolio",
     "output_node": "apply_portfolio_query_safety",
     "nodes": [
         {
-            "id": "resolve_portfolio_snapshot",
-            "label": "Resolve immutable portfolio snapshot",
+            "id": "get_indexed_portfolio",
+            "label": "Get selected indexed portfolio",
             "kind": "deterministic",
-            "handler": "resolve_portfolio_snapshot",
+            "handler": "get_indexed_portfolio",
             "task": None,
+            "resource_policy": {
+                "product_key": "portfolio-analyst",
+                "resource_key": "indexed_portfolio",
+                "producer_system_key": "portfolio-analyst",
+                "producer_node_id": "persist_portfolio_snapshot",
+                "producer_output_key": "portfolio_state",
+                "producer_snapshot_kind": "state",
+                "schema_version": 1,
+                "runtime_mode": "current",
+                "evaluation_mode": "locked",
+                "required": True,
+            },
+            "snapshot_policy": {
+                "output_key": "portfolio_state",
+                "snapshot_kind": "state",
+                "schema_version": 1,
+                "binding_mode": "consume",
+                "reveal_policy_key": "portfolio_state",
+                "required": True,
+            },
         },
         {
             "id": "normalize_portfolio_query",
@@ -105,7 +123,7 @@ PORTFOLIO_QUERY_GRAPH = {
         },
     ],
     "edges": [
-        {"source": "resolve_portfolio_snapshot", "target": "normalize_portfolio_query"},
+        {"source": "get_indexed_portfolio", "target": "normalize_portfolio_query"},
         {"source": "normalize_portfolio_query", "target": "load_portfolio_market_data"},
         {"source": "load_portfolio_market_data", "target": "validate_portfolio_query"},
         {"source": "validate_portfolio_query", "target": "calculate_portfolio_answer"},
@@ -131,7 +149,6 @@ use empty lists when none support the answer. Do not issue an imperative transac
 
 PORTFOLIO_QUERY_INPUT_TEMPLATE = {
     "question": "Which covered-call candidate best fits my current policy?",
-    "snapshot_id": SYNTHETIC_SNAPSHOT_ID,
     "policy": {
         "min_dte": 21,
         "max_dte": 45,

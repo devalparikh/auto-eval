@@ -167,6 +167,9 @@ def persist_portfolio_snapshot(
 
     request = state.get("input", {})
     as_of = str(request.get("snapshot_as_of") or utc_now().isoformat())
+    portfolio_identity = str(request.get("portfolio_identity") or "default").strip()
+    if not portfolio_identity:
+        raise ValueError("portfolio_identity cannot be empty")
     is_synthetic = bool(request.get("is_synthetic", False))
     positions = []
     for index, holding in enumerate(holdings):
@@ -212,6 +215,7 @@ def persist_portfolio_snapshot(
         context.session,
         owner,
         snapshot_id=f"portfolio-{content_hash[:24]}",
+        resource_identity=portfolio_identity,
         label=str(request.get("snapshot_label") or f"Indexed portfolio {as_of}"),
         as_of=as_of,
         source_kind="synthetic" if is_synthetic else "indexed_run",
@@ -230,6 +234,7 @@ def persist_portfolio_snapshot(
             "content_hash": snapshot.content_hash,
             "is_synthetic": snapshot.is_synthetic,
             "position_count": len(positions),
+            "resource_identity": snapshot.resource_identity,
         },
     )
     output["portfolio_snapshot"] = {
@@ -237,6 +242,7 @@ def persist_portfolio_snapshot(
         "content_hash": snapshot.content_hash,
         "as_of": snapshot.as_of,
         "is_synthetic": snapshot.is_synthetic,
+        "resource_identity": snapshot.resource_identity,
     }
     return {"output": output}
 

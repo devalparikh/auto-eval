@@ -28,6 +28,7 @@ from autoeval_api.schemas import (
     EvalModelResultResponse,
     EvalRunResponse,
 )
+from autoeval_api.services.node_resources import resolve_node_resource
 from autoeval_api.services.scoring import MetricSuite, ScoringRegistry, default_scoring_registry
 from autoeval_api.services.versioning import resolve_graph_prompt_versions
 
@@ -192,6 +193,7 @@ class EvaluationService:
         # One SQLAlchemy session owns this local run, so item execution is deliberately serialized.
         for item in context.items:
             self._require_locked_runtime_inputs(context.graph_version, item)
+            self._require_locked_node_resources(session, context.graph_version, item)
             trace = await self.runner.run(
                 session,
                 RunSelection(
@@ -208,6 +210,8 @@ class EvaluationService:
                     evaluation_dataset_item_id=item.id,
                 ),
                 runtime_input_snapshot_ids=item.runtime_input_snapshot_ids or {},
+                node_resource_selections=item.node_resource_selections or {},
+                capture_node_outputs=False,
             )
             if trace.status != RunStatus.COMPLETE:
                 raise RuntimeError(trace.error or "Agent run failed")
@@ -263,6 +267,55 @@ class EvaluationService:
             "Evaluation item is missing locked runtime-input snapshots for nodes: "
             + ", ".join(missing)
         )
+
+    @staticmethod
+    def _require_locked_node_resources(
+        session: Session,
+        graph_version: AgentSystemVersionRecord,
+        item: DatasetItemRecord,
+    ) -> None:
+        policies = {
+            node["id"]: node["resource_policy"]
+            for node in graph_version.definition.get("nodes", [])
+            if isinstance(node.get("resource_policy"), dict)
+            and node["resource_policy"].get("evaluation_mode") == "locked"
+        }
+        required = {node_id for node_id, policy in policies.items() if policy.get("required", True)}
+        selected = item.node_resource_selections or {}
+        unknown = sorted(set(selected) - set(policies))
+        if unknown:
+            raise RuntimeError(
+                "Evaluation item selects resources for nodes without a policy: "
+                + ", ".join(unknown)
+            )
+        missing = sorted(required - set(selected))
+        if missing:
+            raise RuntimeError(
+                "Evaluation item is missing locked node resources for nodes: " + ", ".join(missing)
+            )
+        current = sorted(
+            node_id for node_id in required if selected.get(node_id, {}).get("mode") != "locked"
+        )
+        if current:
+            raise RuntimeError(
+                "Evaluation node resources must lock exact snapshots for nodes: "
+                + ", ".join(current)
+            )
+        system = session.get(AgentSystemRecord, graph_version.agent_system_id)
+        if system is None:
+            raise RuntimeError("Evaluation agent system is no longer available")
+        for node_id, selection in selected.items():
+            try:
+                resolve_node_resource(
+                    session,
+                    consumer_system_key=system.key,
+                    policy_value=policies[node_id],
+                    selection_value=selection,
+                )
+            except ValueError as error:
+                raise RuntimeError(
+                    f"Evaluation node resource is incompatible with graph policy: {node_id}"
+                ) from error
 
     @staticmethod
     def _mark_failed(session: Session, run_id: str, error: Exception) -> None:

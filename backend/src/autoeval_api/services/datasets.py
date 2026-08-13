@@ -12,6 +12,7 @@ from autoeval_api.models import (
     DatasetVersionRecord,
     RunStatus,
     TraceRecord,
+    TraceSpanRecord,
     utc_now,
 )
 from autoeval_api.schemas import (
@@ -19,6 +20,9 @@ from autoeval_api.schemas import (
     DatasetSummary,
     DatasetVersionDetail,
     DatasetVersionSummary,
+)
+from autoeval_api.services.node_resources import (
+    validate_dataset_node_resource_selections,
 )
 from autoeval_api.services.runtime_input_snapshots import (
     validate_runtime_input_snapshot_map,
@@ -67,12 +71,18 @@ def create_dataset_version(
                 dataset.agent_system_id,
                 item.runtime_input_snapshot_ids,
             )
+            resource_selections = validate_dataset_node_resource_selections(
+                session,
+                consumer_system_id=dataset.agent_system_id,
+                values=item.node_resource_selections,
+            )
             session.add(
                 DatasetItemRecord(
                     dataset_version_id=version.id,
                     input=item.input,
                     expected=item.expected,
                     runtime_input_snapshot_ids=dict(item.runtime_input_snapshot_ids or {}),
+                    node_resource_selections=resource_selections,
                     source_trace_id=item.source_trace_id,
                 )
             )
@@ -87,6 +97,7 @@ def add_dataset_item(
     input_payload: dict[str, Any],
     expected: dict[str, Any],
     runtime_input_snapshot_ids: dict[str, str] | None = None,
+    node_resource_selections: dict[str, Any] | None = None,
 ) -> DatasetItemRecord:
     require_draft(version)
     dataset = _dataset_for_version(session, version)
@@ -95,11 +106,17 @@ def add_dataset_item(
         dataset.agent_system_id,
         runtime_input_snapshot_ids,
     )
+    normalized_resources = validate_dataset_node_resource_selections(
+        session,
+        consumer_system_id=dataset.agent_system_id,
+        values=node_resource_selections,
+    )
     item = DatasetItemRecord(
         dataset_version_id=version.id,
         input=input_payload,
         expected=expected,
         runtime_input_snapshot_ids=dict(runtime_input_snapshot_ids or {}),
+        node_resource_selections=normalized_resources,
     )
     session.add(item)
     try:
@@ -131,6 +148,12 @@ def add_trace_to_dataset(
         dataset.agent_system_id,
         trace.runtime_input_snapshot_ids,
     )
+    normalized_resources = validate_dataset_node_resource_selections(
+        session,
+        consumer_system_id=dataset.agent_system_id,
+        values=trace.node_resource_selections,
+    )
+    _require_replayable_trace_observations(session, trace)
 
     existing = _trace_item(session, version.id, trace.id)
     if existing is not None:
@@ -140,6 +163,8 @@ def add_trace_to_dataset(
             )
         if (existing.runtime_input_snapshot_ids or {}) != (trace.runtime_input_snapshot_ids or {}):
             raise ValueError("Trace dataset item has different runtime-input snapshot bindings")
+        if (existing.node_resource_selections or {}) != normalized_resources:
+            raise ValueError("Trace dataset item has different node resource bindings")
         return existing, False
 
     item = DatasetItemRecord(
@@ -147,6 +172,7 @@ def add_trace_to_dataset(
         input=trace.request_input,
         expected=expected,
         runtime_input_snapshot_ids=dict(trace.runtime_input_snapshot_ids or {}),
+        node_resource_selections=normalized_resources,
         source_trace_id=trace.id,
     )
     session.add(item)
@@ -165,6 +191,8 @@ def add_trace_to_dataset(
             raise ValueError(
                 "Trace dataset item has different runtime-input snapshot bindings"
             ) from None
+        if (existing.node_resource_selections or {}) != normalized_resources:
+            raise ValueError("Trace dataset item has different node resource bindings") from None
         return existing, False
     session.refresh(item)
     return item, True
@@ -184,6 +212,7 @@ def update_dataset_item(
     input_payload: dict[str, Any] | None,
     expected: dict[str, Any],
     runtime_input_snapshot_ids: dict[str, str] | None = None,
+    node_resource_selections: dict[str, Any] | None = None,
 ) -> DatasetItemRecord:
     version = get_dataset_version(session, item.dataset_version_id)
     require_draft(version)
@@ -198,6 +227,16 @@ def update_dataset_item(
         dataset.agent_system_id,
         selected_snapshot_ids,
     )
+    selected_resources = (
+        node_resource_selections
+        if node_resource_selections is not None
+        else item.node_resource_selections
+    )
+    normalized_resources = validate_dataset_node_resource_selections(
+        session,
+        consumer_system_id=dataset.agent_system_id,
+        values=selected_resources,
+    )
     if item.source_trace_id is not None:
         if input_payload is not None and input_payload != item.input:
             raise ValueError("Trace-derived inputs are immutable; update expected values only")
@@ -205,10 +244,16 @@ def update_dataset_item(
             item.runtime_input_snapshot_ids or {}
         ):
             raise ValueError("Trace-derived runtime-input snapshot bindings are immutable")
+        if node_resource_selections is not None and normalized_resources != (
+            item.node_resource_selections or {}
+        ):
+            raise ValueError("Trace-derived node resource bindings are immutable")
     elif input_payload is not None:
         item.input = input_payload
     if item.source_trace_id is None and runtime_input_snapshot_ids is not None:
         item.runtime_input_snapshot_ids = dict(runtime_input_snapshot_ids)
+    if item.source_trace_id is None and node_resource_selections is not None:
+        item.node_resource_selections = normalized_resources
     item.expected = expected
     item.updated_at = utc_now()
     session.add(item)
@@ -234,6 +279,11 @@ def finalize_dataset_version(
             session,
             dataset.agent_system_id,
             item.runtime_input_snapshot_ids,
+        )
+        validate_dataset_node_resource_selections(
+            session,
+            consumer_system_id=dataset.agent_system_id,
+            values=item.node_resource_selections,
         )
     version.status = DatasetStatus.FINAL
     version.finalized_at = utc_now()
@@ -301,3 +351,28 @@ def _dataset_for_version(
     if dataset is None:
         raise LookupError("Dataset not found")
     return dataset
+
+
+def _require_replayable_trace_observations(session: Session, trace: TraceRecord) -> None:
+    error = trace_replayability_error(session, trace)
+    if error is not None:
+        raise ValueError(error)
+
+
+def trace_replayability_error(session: Session, trace: TraceRecord) -> str | None:
+    spans = session.query(TraceSpanRecord).filter_by(trace_id=trace.id).all()
+    missing_capture = [
+        span.node_id
+        for span in spans
+        if span.snapshot_resolution_mode == "live"
+        and span.node_snapshot_id is None
+        and isinstance(span.snapshot_metadata, dict)
+        and span.snapshot_metadata.get("observation_status") != "not_required"
+        and span.snapshot_metadata.get("captured") is False
+    ]
+    if missing_capture:
+        return (
+            "Trace used live observations that were not captured; rerun with "
+            "capture_node_outputs enabled: " + ", ".join(sorted(missing_capture))
+        )
+    return None

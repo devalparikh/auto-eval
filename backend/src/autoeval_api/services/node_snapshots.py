@@ -32,11 +32,22 @@ def list_node_snapshots(
     session: Session,
     *,
     agent_system_id: str | None = None,
+    agent_system_key: str | None = None,
     product_key: str | None = None,
     node_id: str | None = None,
+    output_key: str | None = None,
+    schema_version: int | None = None,
+    snapshot_kind: str | None = None,
+    resource_identity: str | None = None,
+    latest_per_identity: bool = False,
     limit: int = 200,
 ) -> list[NodeSnapshotSummary]:
-    owners = _owners(session, agent_system_id=agent_system_id, product_key=product_key)
+    owners = _owners(
+        session,
+        agent_system_id=agent_system_id,
+        agent_system_key=agent_system_key,
+        product_key=product_key,
+    )
     owner_ids = [owner.id for owner in owners]
     if not owner_ids:
         return []
@@ -46,14 +57,32 @@ def list_node_snapshots(
     )
     if node_id:
         query = query.filter_by(node_id=node_id)
-    records = (
-        query.order_by(
-            NodeOutputSnapshotRecord.observed_at.desc(),
-            NodeOutputSnapshotRecord.captured_at.desc(),
-        )
-        .limit(limit)
-        .all()
+    if output_key:
+        query = query.filter_by(output_key=output_key)
+    if schema_version is not None:
+        query = query.filter_by(schema_version=schema_version)
+    if snapshot_kind:
+        query = query.filter_by(snapshot_kind=snapshot_kind)
+    if resource_identity:
+        query = query.filter_by(resource_identity=resource_identity)
+    ordered_query = query.order_by(
+        NodeOutputSnapshotRecord.observed_at.desc(),
+        NodeOutputSnapshotRecord.captured_at.desc(),
+        NodeOutputSnapshotRecord.id.desc(),
     )
+    if latest_per_identity:
+        records = []
+        seen_identities: set[str] = set()
+        for record in ordered_query.all():
+            identity = record.resource_identity or record.id
+            if identity in seen_identities:
+                continue
+            seen_identities.add(identity)
+            records.append(record)
+            if len(records) == limit:
+                break
+    else:
+        records = ordered_query.limit(limit).all()
     usages = _usages_by_snapshot(session, [record.id for record in records])
     labels = _node_labels(session, owners)
     return [
@@ -81,7 +110,7 @@ def node_snapshot_detail(session: Session, snapshot_id: str) -> NodeSnapshotDeta
     return NodeSnapshotDetail(
         **summary.model_dump(),
         provenance=provenance,
-        node_metadata=deepcopy(record.node_metadata or {}),
+        node_metadata=_project_node_metadata(record),
         usages=usages,
         content_available=True,
         content=content,
@@ -92,10 +121,18 @@ def _owners(
     session: Session,
     *,
     agent_system_id: str | None,
+    agent_system_key: str | None,
     product_key: str | None,
 ) -> list[AgentSystemRecord]:
+    if agent_system_id and agent_system_key:
+        raise ValueError("Filter node snapshots by agent_system_id or agent_system_key, not both")
     if agent_system_id:
         owner = session.get(AgentSystemRecord, agent_system_id)
+        if owner is None:
+            raise LookupError("Agent system not found")
+        return [owner]
+    if agent_system_key:
+        owner = session.query(AgentSystemRecord).filter_by(key=agent_system_key).one_or_none()
         if owner is None:
             raise LookupError("Agent system not found")
         return [owner]
@@ -231,6 +268,7 @@ def _summary(
         node_label=labels.get((owner.id, record.node_id), record.node_id),
         node_kind=record.node_kind,
         output_key=record.output_key,
+        resource_identity=record.resource_identity,
         snapshot_kind=record.snapshot_kind,
         schema_version=record.schema_version,
         label=record.label,
@@ -285,6 +323,30 @@ def _project_generic_provenance(value: dict[str, Any]) -> dict[str, Any]:
         "status",
     }
     return {key: deepcopy(item) for key, item in value.items() if key in safe_keys}
+
+
+def _project_node_metadata(record: NodeOutputSnapshotRecord) -> dict[str, Any]:
+    if record.is_synthetic:
+        return deepcopy(record.node_metadata or {})
+    safe_keys = {
+        "captured",
+        "capture_requested",
+        "contract_count",
+        "error_code",
+        "freshness",
+        "greeks",
+        "observation_status",
+        "output_contract",
+        "position_count",
+        "schema_version",
+        "source",
+        "status",
+    }
+    return {
+        key: deepcopy(value)
+        for key, value in (record.node_metadata or {}).items()
+        if key in safe_keys
+    }
 
 
 def _payload_shape(value: Any, depth: int = 0) -> dict[str, Any]:

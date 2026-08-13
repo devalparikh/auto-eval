@@ -28,7 +28,7 @@ export function RuntimeInputNotice({
         </p>
         <p className="mt-1 text-[10px] leading-5 text-[var(--text-muted)]">
           {context === "run"
-            ? "External observations refresh when these graph nodes execute. Saved input samples contain business input only; they never capture runtime observations."
+            ? "External observations refresh when these graph nodes execute. They are recorded in the trace, and only become immutable observation artifacts when capture is enabled or the graph contract requires it."
             : "Each dataset example supplies locked observation references. Evaluations do not refresh them, so every model sees the same recorded external data."}
         </p>
         <div className="mono mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[9px] text-[var(--text-faint)]">

@@ -7,6 +7,7 @@ const detail = {
   id: "snapshot-1",
   agent_system_id: "portfolio-analyst",
   source_trace_id: "trace-1",
+  resource_identity: "main_synthetic_portfolio",
   schema_version: 1,
   label: "Synthetic portfolio",
   as_of: "2026-08-10T12:00:00Z",

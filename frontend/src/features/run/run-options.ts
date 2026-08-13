@@ -45,14 +45,3 @@ export function inputTemplateForRun(
   delete advancedInput.market_context;
   return advancedInput;
 }
-
-export function inputForRun(
-  systemKey: string,
-  advancedInput: Record<string, unknown>,
-  snapshotId: string,
-): Record<string, unknown> {
-  if (systemKey !== PORTFOLIO_QUERY_SYSTEM_KEY) return advancedInput;
-  const runtimeInput = { ...advancedInput };
-  delete runtimeInput.market_context;
-  return { ...runtimeInput, snapshot_id: snapshotId };
-}

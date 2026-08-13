@@ -74,13 +74,14 @@ export function TraceGraph({
 function TraceNode({ data }: NodeProps<Node<TraceNodeData>>) {
   const runtimePolicy = data.definition.runtime_input_policy;
   const snapshotPolicy = data.definition.snapshot_policy;
+  const resourcePolicy = data.definition.resource_policy;
   const Icon = runtimePolicy
     ? CloudArrowDownIcon
-    : snapshotPolicy
+    : resourcePolicy || snapshotPolicy
       ? DatabaseIcon
-    : data.definition.kind === "llm"
-      ? WaveformIcon
-      : BracketsCurlyIcon;
+      : data.definition.kind === "llm"
+        ? WaveformIcon
+        : BracketsCurlyIcon;
   return (
     <div
       className={`relative w-[208px] rounded-[2px] border bg-[var(--surface-raised)] p-3 shadow-[0_14px_40px_rgba(0,0,0,0.24)] transition-[border-color,transform,box-shadow] duration-150 ${
@@ -97,7 +98,7 @@ function TraceNode({ data }: NodeProps<Node<TraceNodeData>>) {
       <div className="flex items-center gap-2">
         <div
           className={`grid size-7 place-items-center rounded-[2px] border ${
-            runtimePolicy || data.definition.kind === "llm"
+            runtimePolicy || resourcePolicy || data.definition.kind === "llm"
               ? "border-[var(--accent)]/20 bg-[var(--accent-soft)] text-[var(--accent)]"
               : "border-[var(--border)] bg-[var(--surface-muted)] text-[var(--text-muted)]"
           }`}
@@ -111,7 +112,9 @@ function TraceNode({ data }: NodeProps<Node<TraceNodeData>>) {
           <p className="mono mt-0.5 text-[8px] tracking-[0.04em] text-[var(--text-faint)]">
             {runtimePolicy
               ? `external input · ${runtimePolicy.source}`
-              : data.definition.kind}
+              : resourcePolicy
+                ? `resource · ${resourcePolicy.resource_key}`
+                : data.definition.kind}
           </p>
         </div>
       </div>
@@ -142,10 +145,22 @@ function TraceNode({ data }: NodeProps<Node<TraceNodeData>>) {
           </span>
         </div>
       ) : null}
-      {data.snapshotId ? (
+      {resourcePolicy ? (
+        <div className="mono mt-2 flex flex-wrap gap-1 text-[8px] text-[var(--accent)]">
+          <span className="bg-[var(--accent-soft)] px-1.5 py-1">
+            resource · {resourcePolicy.resource_key}
+          </span>
+          <span className="bg-[var(--accent-soft)] px-1.5 py-1">
+            run {resourcePolicy.runtime_mode}
+          </span>
+        </div>
+      ) : null}
+      {data.snapshotId || data.snapshotMode ? (
         <div className="mono mt-2 text-[8px] text-[var(--accent)]">
           <span className="bg-[var(--accent-soft)] px-1.5 py-1">
-            {data.snapshotRole ?? "used"} · {data.snapshotMode ?? "snapshot"}
+            {data.snapshotId
+              ? `${data.snapshotRole ?? "used"} · ${data.snapshotMode ?? "snapshot"}`
+              : `${data.snapshotMode ?? "computed"} · not captured`}
           </span>
         </div>
       ) : null}

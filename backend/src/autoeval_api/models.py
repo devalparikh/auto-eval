@@ -87,6 +87,7 @@ class PortfolioSnapshotRecord(Base):
     source_trace_id: Mapped[str | None] = mapped_column(
         ForeignKey("traces.id"), nullable=True, index=True
     )
+    resource_identity: Mapped[str] = mapped_column(String(120), default="default", index=True)
     schema_version: Mapped[int] = mapped_column(Integer)
     label: Mapped[str] = mapped_column(String(200))
     as_of: Mapped[str] = mapped_column(String(64))
@@ -154,6 +155,7 @@ class NodeOutputSnapshotRecord(Base):
     node_id: Mapped[str] = mapped_column(String(160), index=True)
     node_kind: Mapped[str] = mapped_column(String(40))
     output_key: Mapped[str] = mapped_column(String(120), index=True)
+    resource_identity: Mapped[str | None] = mapped_column(String(120), nullable=True, index=True)
     snapshot_kind: Mapped[str] = mapped_column(String(40), index=True)
     schema_version: Mapped[int] = mapped_column(Integer)
     label: Mapped[str] = mapped_column(String(200))
@@ -169,23 +171,6 @@ class NodeOutputSnapshotRecord(Base):
     node_metadata: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
     reveal_policy_key: Mapped[str] = mapped_column(String(80), default="generic")
     storage_adapter: Mapped[str] = mapped_column(String(80), default="generic_json")
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
-
-
-class AgentInputSampleRecord(Base):
-    __tablename__ = "agent_input_samples"
-    __table_args__ = (
-        UniqueConstraint(
-            "agent_system_id",
-            "source_trace_id",
-            name="uq_agent_input_sample_source_trace",
-        ),
-    )
-
-    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
-    agent_system_id: Mapped[str] = mapped_column(ForeignKey("agent_systems.id"), index=True)
-    source_trace_id: Mapped[str] = mapped_column(ForeignKey("traces.id"), index=True)
-    input: Mapped[dict[str, Any]] = mapped_column(JSON)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
 
 
@@ -253,6 +238,7 @@ class DatasetItemRecord(Base):
     input: Mapped[dict[str, Any]] = mapped_column(JSON)
     expected: Mapped[dict[str, Any]] = mapped_column(JSON)
     runtime_input_snapshot_ids: Mapped[dict[str, str]] = mapped_column(JSON, default=dict)
+    node_resource_selections: Mapped[dict[str, dict[str, Any]]] = mapped_column(JSON, default=dict)
     source_trace_id: Mapped[str | None] = mapped_column(
         ForeignKey("traces.id"), nullable=True, index=True
     )
@@ -274,6 +260,8 @@ class TraceRecord(Base):
     prompt_version_ids: Mapped[dict[str, str]] = mapped_column(JSON, default=dict)
     runtime_input_snapshot_ids: Mapped[dict[str, str]] = mapped_column(JSON, default=dict)
     node_snapshot_ids: Mapped[dict[str, str]] = mapped_column(JSON, default=dict)
+    node_resource_selections: Mapped[dict[str, dict[str, Any]]] = mapped_column(JSON, default=dict)
+    capture_node_outputs: Mapped[bool] = mapped_column(Boolean, default=False)
     origin_type: Mapped[str] = mapped_column(String(24), default=TraceOrigin.RUNTIME, index=True)
     evaluation_run_id: Mapped[str | None] = mapped_column(
         ForeignKey("eval_runs.id"), nullable=True, index=True

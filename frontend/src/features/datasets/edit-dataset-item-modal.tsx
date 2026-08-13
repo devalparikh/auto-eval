@@ -9,6 +9,7 @@ import {
   groundTruthFromRecord,
 } from "@/features/datasets/ground-truth";
 import { RuntimeSnapshotRefs } from "@/features/systems/runtime-snapshot-refs";
+import { ResourceSnapshotRefs } from "@/features/systems/resource-snapshot-refs";
 import { api } from "@/lib/api";
 import { textPreview } from "@/lib/format";
 import type { DatasetItem } from "@/lib/types";
@@ -59,7 +60,7 @@ export function EditDatasetItemModal({
     <Modal
       open={Boolean(item)}
       title="Review ground truth"
-      description="Update only draft labels. Business input and locked runtime observations remain unchanged."
+      description="Update only draft labels. Business input, locked runtime observations, and graph resources remain unchanged."
       onClose={onClose}
     >
       <form onSubmit={submit} className="grid gap-4 p-5">
@@ -78,6 +79,21 @@ export function EditDatasetItemModal({
             <RuntimeSnapshotRefs
               systemKey={systemKey}
               bindings={item?.runtime_input_snapshot_ids}
+            />
+          </section>
+        ) : null}
+        {Object.keys(item?.node_resource_selections ?? {}).length ? (
+          <section className="border border-[var(--border)] bg-[var(--surface-muted)] p-3">
+            <h3 className="text-[10px] font-semibold">
+              Locked graph resources
+            </h3>
+            <p className="mt-1 mb-3 text-[10px] leading-5 text-[var(--text-muted)]">
+              Evaluation reuses these exact node resources. They are auditable
+              provenance and cannot be edited as business input.
+            </p>
+            <ResourceSnapshotRefs
+              systemKey={systemKey}
+              bindings={item?.node_resource_selections}
             />
           </section>
         ) : null}

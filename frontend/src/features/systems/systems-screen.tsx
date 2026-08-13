@@ -69,10 +69,11 @@ export function SystemsScreen({
   const snapshotId =
     (snapshots.data ?? []).find(
       (snapshot) => snapshot.id === requestedSnapshotId,
-    )?.id ?? snapshots.data?.[0]?.id ?? "";
+    )?.id ??
+    snapshots.data?.[0]?.id ??
+    "";
   const snapshotDetail = useApiResource(
-    () =>
-      snapshotId ? api.nodeSnapshot(snapshotId) : Promise.resolve(null),
+    () => (snapshotId ? api.nodeSnapshot(snapshotId) : Promise.resolve(null)),
     [snapshotId],
   );
   const promptAssociations = graphPromptAssociations(
@@ -81,7 +82,10 @@ export function SystemsScreen({
   );
   const hasNodeSnapshots = Boolean(
     graphDetail.data?.definition.nodes.some(
-      (node) => node.snapshot_policy || node.runtime_input_policy,
+      (node) =>
+        node.snapshot_policy ||
+        node.runtime_input_policy ||
+        node.resource_policy,
     ) || snapshots.data?.length,
   );
 
