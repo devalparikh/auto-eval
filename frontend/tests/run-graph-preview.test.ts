@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { classifyRunNode } from "@/features/run/run-graph-preview";
-import type { GraphNodeDefinition } from "@/lib/types";
+import {
+  buildRunGraphPreview,
+  classifyRunNode,
+} from "@/features/run/run-graph-preview";
+import type { GraphDefinition, GraphNodeDefinition } from "@/lib/types";
 
 const calculation = {
   id: "calculate",
@@ -61,5 +64,75 @@ describe("run graph classifications", () => {
       }),
     ).toBe("snapshot replay");
     expect(classifyRunNode(llmNode)).toBe("LLM");
+  });
+
+  it("builds a bounded left-to-right graph with accessible node semantics", () => {
+    const definition = {
+      entry_point: "calculate",
+      output_node: "explain",
+      nodes: [
+        calculation,
+        {
+          ...calculation,
+          id: "explain",
+          label: "Explain",
+          kind: "llm",
+          handler: "explain",
+          prompt_key: "explain-answer",
+        },
+      ],
+      edges: [{ source: "calculate", target: "explain" }],
+    } satisfies GraphDefinition;
+
+    const graph = buildRunGraphPreview(definition, {}, false);
+
+    expect(graph.nodes[0]?.position).toEqual({ x: 0, y: 0 });
+    expect(graph.nodes[0]?.initialWidth).toBe(204);
+    expect(graph.nodes[0]?.initialHeight).toBe(112);
+    expect(graph.nodes[1]?.position.x).toBeGreaterThan(0);
+    expect(graph.nodes[0]?.ariaLabel).toContain("entry point");
+    expect(graph.nodes[0]?.ariaLabel).toContain("continues to explain");
+    expect(graph.nodes[1]?.ariaLabel).toContain("LLM");
+    expect(graph.nodes[1]?.ariaLabel).toContain("output node");
+    expect(graph.edges[0]?.type).toBe("smoothstep");
+    expect(graph.edges[0]?.markerEnd).toBeTruthy();
+  });
+
+  it("wraps long execution paths into a directional stage grid", () => {
+    const nodes = Array.from({ length: 6 }, (_, index) => ({
+      ...calculation,
+      id: `stage-${index}`,
+      label: `Stage ${index}`,
+    }));
+    const definition = {
+      entry_point: "stage-0",
+      output_node: "stage-5",
+      nodes,
+      edges: nodes.slice(1).map((node, index) => ({
+        source: `stage-${index}`,
+        target: node.id,
+      })),
+    } satisfies GraphDefinition;
+
+    const graph = buildRunGraphPreview(definition, {}, false, 3);
+
+    expect(graph.nodes.map((node) => node.position)).toEqual([
+      { x: 0, y: 0 },
+      { x: 252, y: 0 },
+      { x: 504, y: 0 },
+      { x: 504, y: 160 },
+      { x: 252, y: 160 },
+      { x: 0, y: 160 },
+    ]);
+    expect(graph.nodes.slice(0, 3).map((node) => node.data.direction)).toEqual([
+      "forward",
+      "forward",
+      "forward",
+    ]);
+    expect(graph.nodes.slice(3).map((node) => node.data.direction)).toEqual([
+      "reverse",
+      "reverse",
+      "reverse",
+    ]);
   });
 });

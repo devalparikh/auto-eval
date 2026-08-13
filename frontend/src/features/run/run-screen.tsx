@@ -456,7 +456,10 @@ export function RunWorkbench({
               </div>
             </div>
 
-            <section aria-labelledby="run-graph-preview-title">
+            <section
+              className="min-w-0"
+              aria-labelledby="run-graph-preview-title"
+            >
               <div className="mb-2 flex items-end justify-between gap-4">
                 <div>
                   <h3
@@ -467,7 +470,7 @@ export function RunWorkbench({
                   </h3>
                   <p className="mt-1 text-[10px] text-[var(--text-muted)]">
                     Node classes reflect this direct run and its selected data
-                    bindings.
+                    bindings. Drag to pan or use the controls to zoom.
                   </p>
                 </div>
                 {graphDetail.data ? (

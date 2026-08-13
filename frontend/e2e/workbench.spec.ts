@@ -289,6 +289,37 @@ test("runs Q&A against a server-resolved synthetic portfolio snapshot", async ({
   await expect(page.getByText("candidate-001").first()).toBeVisible();
 });
 
+test("contains the Run graph preview across representative widths", async ({
+  page,
+}) => {
+  const widths = [1440, 1180, 768, 390];
+
+  for (const width of widths) {
+    await page.setViewportSize({ width, height: width <= 768 ? 900 : 820 });
+    await page.goto(`${portfolioQueryRoot}/run`);
+    const preview = page.getByLabel("Selected graph execution preview");
+    await expect(preview).toBeVisible();
+    await expect(page.locator(".react-flow__node")).toHaveCount(8);
+
+    const geometry = await preview.evaluate((element) => {
+      const documentElement = document.documentElement;
+      const bounds = element.getBoundingClientRect();
+      return {
+        documentClientWidth: documentElement.clientWidth,
+        documentScrollWidth: documentElement.scrollWidth,
+        left: bounds.left,
+        right: bounds.right,
+      };
+    });
+
+    expect(geometry.documentScrollWidth).toBeLessThanOrEqual(
+      geometry.documentClientWidth,
+    );
+    expect(geometry.left).toBeGreaterThanOrEqual(0);
+    expect(geometry.right).toBeLessThanOrEqual(geometry.documentClientWidth);
+  }
+});
+
 test("run the seeded evaluation workflow", async ({ page }) => {
   test.setTimeout(45_000);
   await page.goto(`${incidentRoot}/evaluations`);
