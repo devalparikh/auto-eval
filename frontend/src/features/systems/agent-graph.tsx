@@ -7,17 +7,14 @@ import {
   WaveformIcon,
 } from "@phosphor-icons/react";
 import {
-  Background,
-  BackgroundVariant,
-  Controls,
   Handle,
   Position,
-  ReactFlow,
   type Edge,
   type Node,
   type NodeProps,
 } from "@xyflow/react";
 import { useMemo } from "react";
+import { GraphCanvas } from "@/components/graph-canvas";
 import { graphLevels } from "@/features/traces/graph-layout";
 import type { GraphDefinition, GraphNodeDefinition } from "@/lib/types";
 
@@ -28,6 +25,8 @@ type AgentNodeData = {
 };
 
 const nodeTypes = { agentNode: AgentNode };
+const inlineFitOptions = { padding: 0.2, minZoom: 0.1, maxZoom: 0.88 };
+const fullscreenFitOptions = { padding: 0.16, minZoom: 0.1, maxZoom: 1 };
 
 export function buildAgentGraph(definition: GraphDefinition): {
   nodes: Node<AgentNodeData>[];
@@ -48,6 +47,8 @@ export function buildAgentGraph(definition: GraphDefinition): {
       id: node.id,
       type: "agentNode",
       position: { x: level * 286, y: index * 172 },
+      initialWidth: 216,
+      initialHeight: 118,
       ariaLabel: [
         node.label,
         runtimePolicy ? "external input node" : `${node.kind} node`,
@@ -127,40 +128,19 @@ export function AgentGraph({
     [definition],
   );
   return (
-    <div
-      className={`w-full overflow-hidden border border-[var(--border-strong)] bg-[var(--canvas)] ${
+    <GraphCanvas
+      ariaLabel="Agent graph structure"
+      className={`border border-[var(--border-strong)] ${
         fullscreen ? "h-[calc(100dvh-8rem)]" : "h-[440px]"
       }`}
-    >
-      <ReactFlow
-        aria-label="Agent graph structure"
-        nodes={nodes}
-        edges={edges}
-        nodeTypes={nodeTypes}
-        nodesDraggable={false}
-        nodesConnectable={false}
-        elementsSelectable={false}
-        defaultViewport={{
-          x: 28,
-          y: fullscreen ? 220 : 148,
-          zoom: fullscreen ? 0.9 : 0.72,
-        }}
-        minZoom={0.35}
-        maxZoom={1.5}
-        proOptions={{ hideAttribution: true }}
-      >
-        <Background
-          variant={BackgroundVariant.Dots}
-          gap={22}
-          size={1}
-          color="var(--border-strong)"
-        />
-        <Controls
-          showInteractive={false}
-          className="!overflow-hidden !rounded-[2px] !border-[var(--border-strong)] !bg-[var(--surface-raised)] !shadow-none"
-        />
-      </ReactFlow>
-    </div>
+      nodes={nodes}
+      edges={edges}
+      nodeTypes={nodeTypes}
+      fitViewOptions={fullscreen ? fullscreenFitOptions : inlineFitOptions}
+      minZoom={0.1}
+      maxZoom={1.5}
+      zoomOnScroll={fullscreen}
+    />
   );
 }
 

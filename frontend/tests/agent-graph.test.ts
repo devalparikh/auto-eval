@@ -47,6 +47,8 @@ describe("agent graph", () => {
   it("lays out nodes and exposes entry, output, and prompt associations", () => {
     const graph = buildAgentGraph(definition);
     expect(graph.nodes[0]?.position.x).toBe(0);
+    expect(graph.nodes[0]?.initialWidth).toBe(216);
+    expect(graph.nodes[0]?.initialHeight).toBe(118);
     expect(graph.nodes[1]?.position.x).toBeGreaterThan(0);
     expect(graph.nodes[0]?.ariaLabel).toContain("entry point");
     expect(graph.nodes[0]?.ariaLabel).toContain("external input node");

@@ -39,6 +39,18 @@ test("persists an accessible color theme across reloads and routes", async ({
   await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
 });
 
+test("renders the landing page without first-load fade gaps", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await expect(page.locator(".route-content")).toHaveCSS("opacity", "1");
+  await expect(page.locator(".landing-art-image")).toHaveCSS(
+    "animation-name",
+    "none",
+  );
+  await expect(page.locator(".landing-title canvas")).toHaveCSS("opacity", "1");
+});
+
 test("uses the shared select treatment and themed JSON disclosures", async ({
   page,
 }) => {
@@ -103,6 +115,37 @@ test("groups growing node-output snapshots by deterministic node", async ({
   await expect(page.getByText("options_chain").first()).toBeVisible();
 });
 
+test("fits the artifact graph on initial load and reload", async ({ page }) => {
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    if (attempt === 0) {
+      await page.goto(`${portfolioQueryRoot}/artifacts`);
+    } else {
+      await page.reload();
+    }
+
+    const graph = page.getByLabel("Agent graph structure");
+    await expect(graph).toBeVisible();
+    await expect(graph.locator(".react-flow__node")).toHaveCount(8);
+    const allNodesInView = await graph.evaluate((element) => {
+      const graphBounds = element.getBoundingClientRect();
+      return Array.from(element.querySelectorAll(".react-flow__node")).every(
+        (node) => {
+          const nodeBounds = node.getBoundingClientRect();
+          return (
+            nodeBounds.width > 0 &&
+            nodeBounds.height > 0 &&
+            nodeBounds.right > graphBounds.left &&
+            nodeBounds.left < graphBounds.right &&
+            nodeBounds.bottom > graphBounds.top &&
+            nodeBounds.top < graphBounds.bottom
+          );
+        },
+      );
+    });
+    expect(allNodesInView).toBe(true);
+  }
+});
+
 test("keeps route navigation immediate when reduced motion is requested", async ({
   page,
 }) => {
@@ -144,7 +187,7 @@ test("keeps shell geometry stable across primary navigation", async ({
   await recordShellWidth();
 
   expect(new Set(widths).size).toBe(1);
-  await expect(page.locator(".route-content-change")).toHaveCount(1);
+  await expect(page.locator(".route-content")).toHaveCSS("opacity", "1");
 });
 
 test("zooms through code structure and switches Git comparisons", async ({
@@ -287,6 +330,55 @@ test("runs Q&A against a server-resolved synthetic portfolio snapshot", async ({
   ).toBeVisible();
   await page.getByRole("button", { name: "Expand" }).click();
   await expect(page.getByText("candidate-001").first()).toBeVisible();
+});
+
+test("contains the Run graph preview across representative widths", async ({
+  page,
+}) => {
+  const widths = [1440, 1180, 768, 390];
+
+  for (const width of widths) {
+    await page.setViewportSize({ width, height: width <= 768 ? 900 : 820 });
+    await page.goto(`${portfolioQueryRoot}/run`);
+    const preview = page.getByLabel("Selected graph execution preview");
+    await expect(preview).toBeVisible();
+    await expect(page.locator(".react-flow__node")).toHaveCount(8);
+
+    const geometry = await preview.evaluate((element) => {
+      const documentElement = document.documentElement;
+      const bounds = element.getBoundingClientRect();
+      return {
+        documentClientWidth: documentElement.clientWidth,
+        documentScrollWidth: documentElement.scrollWidth,
+        left: bounds.left,
+        right: bounds.right,
+      };
+    });
+
+    expect(geometry.documentScrollWidth).toBeLessThanOrEqual(
+      geometry.documentClientWidth,
+    );
+    expect(geometry.left).toBeGreaterThanOrEqual(0);
+    expect(geometry.right).toBeLessThanOrEqual(geometry.documentClientWidth);
+
+    const nodePositions = await preview
+      .locator(".react-flow__node")
+      .evaluateAll((nodes) =>
+        nodes.map((node) => {
+          const bounds = node.getBoundingClientRect();
+          return { left: bounds.left, top: bounds.top };
+        }),
+      );
+    expect(new Set(nodePositions.map(({ top }) => Math.round(top))).size).toBe(
+      1,
+    );
+    expect(
+      nodePositions.every(
+        ({ left }, index) =>
+          index === 0 || left > nodePositions[index - 1]!.left,
+      ),
+    ).toBe(true);
+  }
 });
 
 test("run the seeded evaluation workflow", async ({ page }) => {

@@ -30,6 +30,8 @@ export function buildTraceGraph(
       id: node.id,
       type: "traceNode",
       position: { x: level * 278, y: index * 150 },
+      initialWidth: 208,
+      initialHeight: 118,
       data: {
         definition: node,
         status: span?.status ?? "queued",
