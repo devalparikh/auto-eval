@@ -2,7 +2,7 @@ from datetime import datetime
 from enum import StrEnum
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_serializer, model_validator
 
 
 class StrictModel(BaseModel):
@@ -29,6 +29,44 @@ class NodeSnapshotPolicy(StrictModel):
     required: bool = True
 
 
+class NodeResourcePolicy(StrictModel):
+    """Server-owned producer contract for a consumer node's persisted resource."""
+
+    product_key: str = Field(pattern=r"^[a-z][a-z0-9-]{1,119}$")
+    resource_key: str = Field(pattern=r"^[a-z][a-z0-9_]{1,80}$")
+    producer_system_key: str = Field(pattern=r"^[a-z][a-z0-9-]{1,119}$")
+    producer_node_id: str = Field(pattern=r"^[a-z][a-z0-9_]{1,80}$")
+    producer_output_key: str = Field(pattern=r"^[a-z][a-z0-9_]{1,80}$")
+    producer_snapshot_kind: Literal["state", "external_observation", "node_output"]
+    schema_version: int = Field(default=1, ge=1)
+    runtime_mode: Literal["current", "locked"] = "current"
+    evaluation_mode: Literal["locked"] = "locked"
+    required: bool = True
+
+
+class NodeResourceSelection(StrictModel):
+    mode: Literal["current", "locked"]
+    identity: str | None = Field(default=None, min_length=1, max_length=120)
+    snapshot_id: str | None = Field(default=None, min_length=1, max_length=120)
+
+    @model_validator(mode="after")
+    def validate_selection(self) -> "NodeResourceSelection":
+        if self.mode == "current":
+            if self.identity is None or self.snapshot_id is not None:
+                raise ValueError(
+                    "Current resource selection requires identity and forbids snapshot_id"
+                )
+        elif self.snapshot_id is None or self.identity is not None:
+            raise ValueError("Locked resource selection requires snapshot_id and forbids identity")
+        return self
+
+    @model_serializer(mode="plain")
+    def serialize_selection(self) -> dict[str, str]:
+        if self.mode == "current":
+            return {"mode": self.mode, "identity": str(self.identity)}
+        return {"mode": self.mode, "snapshot_id": str(self.snapshot_id)}
+
+
 class AgentNodeDefinition(StrictModel):
     id: str = Field(pattern=r"^[a-z][a-z0-9_]{1,80}$")
     label: str = Field(min_length=1, max_length=120)
@@ -42,6 +80,7 @@ class AgentNodeDefinition(StrictModel):
     response_schema: dict[str, Any] | None = None
     runtime_input_policy: RuntimeInputPolicy | None = None
     snapshot_policy: NodeSnapshotPolicy | None = None
+    resource_policy: NodeResourcePolicy | None = None
 
 
 class AgentEdgeDefinition(StrictModel):
@@ -71,6 +110,8 @@ class AgentGraphDefinition(StrictModel):
                 raise ValueError("Only LLM nodes can reference a prompt key")
             if node.kind != "deterministic" and node.snapshot_policy is not None:
                 raise ValueError("Only deterministic nodes can declare a snapshot policy")
+            if node.kind != "deterministic" and node.resource_policy is not None:
+                raise ValueError("Only deterministic nodes can declare a resource policy")
 
 
 class VersionSummary(BaseModel):
@@ -143,6 +184,7 @@ class PortfolioSnapshotSummary(BaseModel):
     id: str
     agent_system_id: str
     source_trace_id: str | None
+    resource_identity: str
     schema_version: int
     label: str
     as_of: str
@@ -207,6 +249,7 @@ class NodeSnapshotSummary(BaseModel):
     node_label: str
     node_kind: Literal["deterministic", "external_input"]
     output_key: str
+    resource_identity: str | None = None
     snapshot_kind: Literal["state", "external_observation", "node_output"]
     schema_version: int
     label: str
@@ -271,19 +314,6 @@ class ArtifactDetail(ArtifactSummary):
     node_prompt_bindings: list[NodePromptArtifactBinding] = []
 
 
-class CreateInputSampleRequest(StrictModel):
-    input: dict[str, Any]
-    source_trace_id: str = Field(min_length=1, max_length=36)
-
-
-class InputSampleResponse(BaseModel):
-    id: str
-    agent_system_id: str
-    source_trace_id: str
-    input: dict[str, Any]
-    created_at: datetime
-
-
 class CreateAgentVersionRequest(StrictModel):
     definition: AgentGraphDefinition
 
@@ -318,6 +348,11 @@ class RunTraceRequest(StrictModel):
     prompt_version_id: str | None = None
     prompt_version_ids: dict[str, str] = Field(default_factory=dict, max_length=80)
     runtime_input_snapshot_ids: dict[str, str] = Field(default_factory=dict, max_length=80)
+    node_resource_selections: dict[str, NodeResourceSelection] = Field(
+        default_factory=dict,
+        max_length=80,
+    )
+    capture_node_outputs: bool = False
 
 
 class TraceSpanResponse(BaseModel):
@@ -367,6 +402,8 @@ class TraceResponse(BaseModel):
     prompt_version_ids: dict[str, str] = {}
     runtime_input_snapshot_ids: dict[str, str] = {}
     node_snapshot_ids: dict[str, str] = {}
+    node_resource_selections: dict[str, NodeResourceSelection] = {}
+    capture_node_outputs: bool = False
     origin_type: str
     evaluation_run_id: str | None
     evaluation_dataset_item_id: str | None
@@ -395,12 +432,20 @@ class DatasetItemInput(StrictModel):
     input: dict[str, Any]
     expected: dict[str, Any]
     runtime_input_snapshot_ids: dict[str, str] = Field(default_factory=dict, max_length=80)
+    node_resource_selections: dict[str, NodeResourceSelection] = Field(
+        default_factory=dict,
+        max_length=80,
+    )
 
 
 class UpdateDatasetItemRequest(StrictModel):
     expected: dict[str, Any]
     input: dict[str, Any] | None = None
     runtime_input_snapshot_ids: dict[str, str] | None = Field(default=None, max_length=80)
+    node_resource_selections: dict[str, NodeResourceSelection] | None = Field(
+        default=None,
+        max_length=80,
+    )
 
 
 class DatasetItemResponse(BaseModel):
@@ -409,6 +454,7 @@ class DatasetItemResponse(BaseModel):
     input: dict[str, Any]
     expected: dict[str, Any]
     runtime_input_snapshot_ids: dict[str, str] = {}
+    node_resource_selections: dict[str, NodeResourceSelection] = {}
     source_trace_id: str | None
     created_at: datetime
     updated_at: datetime

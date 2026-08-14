@@ -2,7 +2,7 @@ from collections.abc import Iterable
 
 from sqlalchemy import Engine, inspect, text
 
-MIGRATION_VERSION = 7
+MIGRATION_VERSION = 9
 
 
 def apply_migrations(engine: Engine) -> None:
@@ -42,6 +42,12 @@ def apply_migrations(engine: Engine) -> None:
         if 7 not in applied:
             _apply_version_seven(connection)
             connection.execute(text("INSERT INTO schema_migrations (version) VALUES (7)"))
+        if 8 not in applied:
+            _apply_version_eight(connection)
+            connection.execute(text("INSERT INTO schema_migrations (version) VALUES (8)"))
+        if 9 not in applied:
+            _apply_version_nine(connection)
+            connection.execute(text("INSERT INTO schema_migrations (version) VALUES (9)"))
         _create_integrity_triggers(connection)
 
 
@@ -542,6 +548,235 @@ def _apply_version_seven(connection) -> None:
                 """
             )
         )
+
+
+def _apply_version_eight(connection) -> None:
+    for trigger in (
+        "prevent_portfolio_snapshot_update",
+        "prevent_node_output_snapshot_update",
+    ):
+        connection.execute(text(f"DROP TRIGGER IF EXISTS {trigger}"))
+    if _table_exists(connection, "portfolio_snapshots"):
+        _add_column_if_missing(
+            connection,
+            "portfolio_snapshots",
+            "resource_identity",
+            "VARCHAR(120) NOT NULL DEFAULT 'default'",
+        )
+        connection.execute(
+            text(
+                "CREATE INDEX IF NOT EXISTS ix_portfolio_snapshots_resource_identity "
+                "ON portfolio_snapshots (resource_identity)"
+            )
+        )
+        portfolio_columns = {
+            item["name"] for item in inspect(connection).get_columns("portfolio_snapshots")
+        }
+        trace_columns = (
+            {item["name"] for item in inspect(connection).get_columns("traces")}
+            if _table_exists(connection, "traces")
+            else set()
+        )
+        if "source_trace_id" not in portfolio_columns:
+            connection.execute(
+                text(
+                    """
+                    UPDATE portfolio_snapshots
+                    SET resource_identity = id
+                    WHERE resource_identity IS NULL OR resource_identity = ''
+                        OR resource_identity = 'default'
+                    """
+                )
+            )
+        elif "request_input" not in trace_columns:
+            connection.execute(
+                text(
+                    """
+                    UPDATE portfolio_snapshots
+                    SET resource_identity = CASE
+                        WHEN source_trace_id IS NULL THEN id
+                        ELSE 'default'
+                    END
+                    WHERE resource_identity IS NULL OR resource_identity = ''
+                        OR resource_identity = 'default'
+                    """
+                )
+            )
+        else:
+            connection.execute(
+                text(
+                    """
+                    UPDATE portfolio_snapshots
+                    SET resource_identity = CASE
+                        WHEN source_trace_id IS NULL THEN id
+                        ELSE COALESCE(
+                            (
+                                SELECT NULLIF(
+                                    json_extract(traces.request_input, '$.portfolio_identity'),
+                                    ''
+                                )
+                                FROM traces
+                                WHERE traces.id = portfolio_snapshots.source_trace_id
+                            ),
+                            'default'
+                        )
+                    END
+                    WHERE resource_identity IS NULL OR resource_identity = ''
+                        OR resource_identity = 'default'
+                    """
+                )
+            )
+    if _table_exists(connection, "node_output_snapshots"):
+        _add_column_if_missing(
+            connection,
+            "node_output_snapshots",
+            "resource_identity",
+            "VARCHAR(120)",
+        )
+        connection.execute(
+            text(
+                "CREATE INDEX IF NOT EXISTS ix_node_output_snapshots_resource_identity "
+                "ON node_output_snapshots (resource_identity)"
+            )
+        )
+        node_columns = {
+            item["name"] for item in inspect(connection).get_columns("node_output_snapshots")
+        }
+        if "storage_adapter" in node_columns:
+            connection.execute(
+                text(
+                    """
+                    UPDATE node_output_snapshots
+                    SET resource_identity = COALESCE(
+                        (
+                            SELECT portfolio_snapshots.resource_identity
+                            FROM portfolio_snapshots
+                            WHERE portfolio_snapshots.id = node_output_snapshots.id
+                        ),
+                        id
+                    )
+                    WHERE storage_adapter = 'portfolio_snapshot'
+                        AND (resource_identity IS NULL OR resource_identity = '')
+                    """
+                )
+            )
+    if _table_exists(connection, "dataset_items"):
+        _add_column_if_missing(
+            connection,
+            "dataset_items",
+            "node_resource_selections",
+            "JSON NOT NULL DEFAULT '{}'",
+        )
+    if _table_exists(connection, "traces"):
+        _add_column_if_missing(
+            connection,
+            "traces",
+            "node_resource_selections",
+            "JSON NOT NULL DEFAULT '{}'",
+        )
+        _add_column_if_missing(
+            connection,
+            "traces",
+            "capture_node_outputs",
+            "BOOLEAN NOT NULL DEFAULT 0",
+        )
+
+
+def _apply_version_nine(connection) -> None:
+    """Align legacy catalog metadata with each authoritative adapter row."""
+    if not _table_exists(connection, "node_output_snapshots"):
+        return
+    node_columns = {
+        item["name"] for item in inspect(connection).get_columns("node_output_snapshots")
+    }
+    if (
+        not {
+            "id",
+            "resource_identity",
+            "storage_adapter",
+            "node_metadata",
+        }
+        <= node_columns
+    ):
+        return
+
+    connection.execute(text("DROP TRIGGER IF EXISTS prevent_node_output_snapshot_update"))
+    if _table_exists(connection, "portfolio_snapshots"):
+        portfolio_columns = {
+            item["name"] for item in inspect(connection).get_columns("portfolio_snapshots")
+        }
+        if {"id", "resource_identity", "document"} <= portfolio_columns:
+            connection.execute(
+                text(
+                    """
+                    UPDATE node_output_snapshots
+                    SET resource_identity = (
+                            SELECT portfolio_snapshots.resource_identity
+                            FROM portfolio_snapshots
+                            WHERE portfolio_snapshots.id = node_output_snapshots.id
+                        ),
+                        node_metadata = json_object(
+                            'position_count', COALESCE(
+                                json_array_length(json_extract((
+                                    SELECT portfolio_snapshots.document
+                                    FROM portfolio_snapshots
+                                    WHERE portfolio_snapshots.id = node_output_snapshots.id
+                                ), '$.positions')),
+                                0
+                            ),
+                            'output_contract', 'indexed_portfolio_state',
+                            'resource_identity', (
+                                SELECT portfolio_snapshots.resource_identity
+                                FROM portfolio_snapshots
+                                WHERE portfolio_snapshots.id = node_output_snapshots.id
+                            )
+                        )
+                    WHERE storage_adapter = 'portfolio_snapshot'
+                        AND EXISTS (
+                            SELECT 1
+                            FROM portfolio_snapshots
+                            WHERE portfolio_snapshots.id = node_output_snapshots.id
+                        )
+                    """
+                )
+            )
+
+    if _table_exists(connection, "runtime_input_snapshots"):
+        runtime_columns = {
+            item["name"] for item in inspect(connection).get_columns("runtime_input_snapshots")
+        }
+        if {"id", "source_key", "provenance"} <= runtime_columns:
+            metadata_expression = "json_object('output_contract', source_key)"
+            for key in ("status", "contract_count", "freshness", "greeks", "error_code"):
+                metadata_expression = f"""
+                    json_patch(
+                        {metadata_expression},
+                        CASE
+                            WHEN json_type(provenance, '$.{key}') IS NOT NULL
+                            THEN json_object('{key}', json_extract(provenance, '$.{key}'))
+                            ELSE json('{{}}')
+                        END
+                    )
+                """
+            connection.execute(
+                text(
+                    f"""
+                    UPDATE node_output_snapshots
+                    SET resource_identity = NULL,
+                        node_metadata = (
+                            SELECT {metadata_expression}
+                            FROM runtime_input_snapshots
+                            WHERE runtime_input_snapshots.id = node_output_snapshots.id
+                        )
+                    WHERE storage_adapter = 'runtime_input_snapshot'
+                        AND EXISTS (
+                            SELECT 1
+                            FROM runtime_input_snapshots
+                            WHERE runtime_input_snapshots.id = node_output_snapshots.id
+                        )
+                    """
+                )
+            )
 
 
 def _add_column_if_missing(connection, table: str, column: str, definition: str) -> None:

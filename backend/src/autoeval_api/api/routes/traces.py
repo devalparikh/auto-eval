@@ -79,5 +79,7 @@ async def run_trace(
         ),
         payload.input,
         runtime_input_snapshot_ids=payload.runtime_input_snapshot_ids,
+        node_resource_selections=payload.node_resource_selections,
+        capture_node_outputs=payload.capture_node_outputs,
     )
     return trace_response(session, trace)

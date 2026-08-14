@@ -99,6 +99,7 @@ a fiduciary. Return one JSON object with `portfolio_explanation` only, tied to s
 
 PORTFOLIO_INPUT_TEMPLATE = {
     "is_synthetic": True,
+    "portfolio_identity": "synthetic-main",
     "snapshot_as_of": "2026-08-10T16:00:00Z",
     "profile": {
         "goal": "Long-term growth with a durable core",

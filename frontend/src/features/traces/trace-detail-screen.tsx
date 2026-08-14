@@ -7,6 +7,7 @@ import { PageHeader } from "@/components/page-header";
 import { ErrorState, LoadingState } from "@/components/states";
 import { StatusBadge } from "@/components/status-badge";
 import { AddToDatasetModal } from "@/features/traces/add-to-dataset-modal";
+import { SavedInputRefs } from "@/features/systems/saved-input-refs";
 import { systemPath } from "@/features/systems/system-path";
 import { TraceGraph } from "@/features/traces/trace-graph";
 import { TraceInspector } from "@/features/traces/trace-inspector";
@@ -96,6 +97,10 @@ export function TraceDetailScreen({
             label="Model"
             value={currentTrace.model_id.split("/").slice(-1)[0]}
           />
+          <Metric
+            label="Optional capture"
+            value={currentTrace.capture_node_outputs ? "on" : "off"}
+          />
         </div>
       </section>
       <section className="grid gap-3 border-b border-[var(--border)] bg-[var(--surface)] px-4 py-3 md:grid-cols-2 md:px-7">
@@ -107,6 +112,21 @@ export function TraceDetailScreen({
               : "Direct runtime request"
           }
         />
+        {Object.keys(currentTrace.node_resource_selections ?? {}).length ? (
+          <div className="min-w-0 md:col-span-2">
+            <p className="mono text-[9px] uppercase tracking-[0.08em] text-[var(--text-faint)]">
+              Saved inputs used
+            </p>
+            <p className="mt-1 mb-2 text-[10px] text-[var(--text-muted)]">
+              Latest selections are resolved to exact saved versions before
+              execution so this trace can be audited and replayed.
+            </p>
+            <SavedInputRefs
+              systemKey={systemKey}
+              selections={currentTrace.node_resource_selections}
+            />
+          </div>
+        ) : null}
         <ProvenanceBlock
           label="Used as a dataset source"
           value={
@@ -114,7 +134,7 @@ export function TraceDetailScreen({
               ? currentTrace.dataset_memberships
                   .map(
                     (membership) =>
-                      `${membership.dataset_name} v${membership.dataset_version} · ${membership.dataset_version_status}`,
+                      `${membership.dataset_name}; version: ${membership.dataset_version}; status: ${membership.dataset_version_status}`,
                   )
                   .join("  /  ")
               : "Not used as a dataset source"
@@ -143,6 +163,7 @@ export function TraceDetailScreen({
         traceInput={currentTrace.request_input}
         traceOutput={currentTrace.output ?? {}}
         runtimeInputSnapshotIds={currentTrace.runtime_input_snapshot_ids}
+        nodeResourceSelections={currentTrace.node_resource_selections}
         systemKey={systemKey}
         onClose={() => setDatasetModalOpen(false)}
         onMembershipChanged={async () => {

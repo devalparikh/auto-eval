@@ -5,8 +5,12 @@ from datetime import datetime
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
+from autoeval_api.agent_systems.portfolio_analyst.seed import (
+    ensure_seed_data as ensure_portfolio_index_seed_data,
+)
 from autoeval_api.agent_systems.portfolio_analyst.snapshots import (
     SYNTHETIC_INSUFFICIENT_SHARES_SNAPSHOT_ID,
+    SYNTHETIC_SNAPSHOT_ID,
     ensure_synthetic_portfolio_snapshots,
 )
 from autoeval_api.agent_systems.portfolio_query.definition import (
@@ -52,11 +56,22 @@ from autoeval_api.services.versioning import (
 def _dataset_items(
     eligible_runtime_snapshot_id: str,
     stale_runtime_snapshot_id: str,
-) -> list[tuple[dict, dict, dict[str, str]]]:
+) -> list[tuple[dict, dict, dict[str, str], dict[str, dict[str, str]]]]:
     eligible = deepcopy(PORTFOLIO_QUERY_INPUT_TEMPLATE)
     insufficient_shares = deepcopy(PORTFOLIO_QUERY_INPUT_TEMPLATE)
-    insufficient_shares["snapshot_id"] = SYNTHETIC_INSUFFICIENT_SHARES_SNAPSHOT_ID
     stale_quotes = deepcopy(PORTFOLIO_QUERY_INPUT_TEMPLATE)
+    eligible_portfolio = {
+        "get_indexed_portfolio": {
+            "mode": "locked",
+            "snapshot_id": SYNTHETIC_SNAPSHOT_ID,
+        }
+    }
+    insufficient_portfolio = {
+        "get_indexed_portfolio": {
+            "mode": "locked",
+            "snapshot_id": SYNTHETIC_INSUFFICIENT_SHARES_SNAPSHOT_ID,
+        }
+    }
     return [
         (
             eligible,
@@ -66,6 +81,7 @@ def _dataset_items(
                 "market_data_fresh": True,
             },
             {"load_portfolio_market_data": eligible_runtime_snapshot_id},
+            eligible_portfolio,
         ),
         (
             insufficient_shares,
@@ -75,6 +91,7 @@ def _dataset_items(
                 "market_data_fresh": True,
             },
             {"load_portfolio_market_data": eligible_runtime_snapshot_id},
+            insufficient_portfolio,
         ),
         (
             stale_quotes,
@@ -84,6 +101,7 @@ def _dataset_items(
                 "market_data_fresh": False,
             },
             {"load_portfolio_market_data": stale_runtime_snapshot_id},
+            eligible_portfolio,
         ),
     ]
 
@@ -91,6 +109,7 @@ def _dataset_items(
 def ensure_seed_data(
     session: Session,
 ) -> tuple[AgentSystemVersionRecord, PromptVersionRecord, DatasetVersionRecord]:
+    ensure_portfolio_index_seed_data(session)
     snapshot_owner = _get_or_create_snapshot_owner(session)
     ensure_synthetic_portfolio_snapshots(session, snapshot_owner)
     system = _get_or_create_system(session)
@@ -135,6 +154,12 @@ async def ensure_demo_runs(
                     prompt_versions,
                 ),
                 deepcopy(PORTFOLIO_QUERY_INPUT_TEMPLATE),
+                node_resource_selections={
+                    "get_indexed_portfolio": {
+                        "mode": "current",
+                        "identity": SYNTHETIC_SNAPSHOT_ID,
+                    }
+                },
             )
         eval_exists = (
             session.query(EvalRunRecord).filter_by(agent_system_version_id=graph_version.id).first()
@@ -351,11 +376,14 @@ def _get_or_create_final_dataset(
             input=input_value,
             expected=expected,
             runtime_input_snapshot_ids=runtime_input_snapshot_ids,
+            node_resource_selections=node_resource_selections,
         )
-        for input_value, expected, runtime_input_snapshot_ids in _dataset_items(
-            eligible_runtime_snapshot_id,
-            stale_runtime_snapshot_id,
-        )
+        for (
+            input_value,
+            expected,
+            runtime_input_snapshot_ids,
+            node_resource_selections,
+        ) in _dataset_items(eligible_runtime_snapshot_id, stale_runtime_snapshot_id)
     )
     session.flush()
     version.status = DatasetStatus.FINAL
@@ -380,9 +408,10 @@ def _is_current_dataset_version(
             item.input == input_value
             and item.expected == expected
             and item.runtime_input_snapshot_ids == runtime_ids
+            and item.node_resource_selections == resource_selections
             for item in items
         )
-        for input_value, expected, runtime_ids in expected_items
+        for input_value, expected, runtime_ids, resource_selections in expected_items
     )
 
 

@@ -38,4 +38,25 @@ describe("TraceInspector", () => {
       "/systems/portfolio-query/artifacts?snapshot=runtime-snapshot-12345678",
     );
   });
+
+  it("shows live resolution metadata even when capture was disabled", () => {
+    render(
+      <TraceInspector
+        span={{
+          ...span,
+          runtime_input_snapshot_id: null,
+          node_snapshot_id: null,
+          snapshot_role: null,
+          snapshot_resolution_mode: "live",
+          snapshot_metadata: {
+            provider: "market-provider",
+            observed_at: "2026-08-10T15:00:00Z",
+          },
+        }}
+        systemKey="portfolio-query"
+      />,
+    );
+    expect(screen.getByText("Live data: not saved")).toBeVisible();
+    expect(screen.getByText("Resolution metadata")).toBeVisible();
+  });
 });

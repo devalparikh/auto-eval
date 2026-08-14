@@ -68,6 +68,7 @@ export type PortfolioSnapshotSummary = {
   id: string;
   agent_system_id: string;
   source_trace_id: string | null;
+  resource_identity: string;
   schema_version: number;
   label: string;
   as_of: string;
@@ -132,6 +133,7 @@ export type NodeSnapshotSummary = {
   node_label: string;
   node_kind: "deterministic" | "external_input";
   output_key: string;
+  resource_identity: string | null;
   snapshot_kind: "state" | "external_observation" | "node_output";
   schema_version: number;
   label: string;
@@ -154,14 +156,6 @@ export type NodeSnapshotDetail = NodeSnapshotSummary & {
   content: Record<string, unknown> | null;
 };
 
-export type InputSample = {
-  id: string;
-  agent_system_id: string;
-  source_trace_id: string;
-  input: Record<string, unknown>;
-  created_at: string;
-};
-
 export type RuntimeInputPolicy = {
   source: string;
   runtime_mode: "locked" | "refresh";
@@ -179,6 +173,23 @@ export type NodeSnapshotPolicy = {
   required: boolean;
 };
 
+export type NodeResourcePolicy = {
+  product_key: string;
+  resource_key: string;
+  producer_system_key: string;
+  producer_node_id: string;
+  producer_output_key: string;
+  producer_snapshot_kind: "state" | "external_observation" | "node_output";
+  schema_version: number;
+  runtime_mode: "current" | "locked";
+  evaluation_mode: "locked";
+  required: boolean;
+};
+
+export type NodeResourceSelection =
+  | { mode: "current"; identity: string; snapshot_id?: never }
+  | { mode: "locked"; snapshot_id: string; identity?: never };
+
 export type GraphNodeDefinition = {
   id: string;
   label: string;
@@ -188,6 +199,7 @@ export type GraphNodeDefinition = {
   prompt_key?: string | null;
   runtime_input_policy?: RuntimeInputPolicy | null;
   snapshot_policy?: NodeSnapshotPolicy | null;
+  resource_policy?: NodeResourcePolicy | null;
 };
 
 export type GraphDefinition = {
@@ -236,12 +248,7 @@ export type TraceSpan = {
   node_snapshot_id?: string | null;
   snapshot_role?: "produced" | "consumed" | null;
   snapshot_resolution_mode?:
-    | "computed"
-    | "live"
-    | "replayed"
-    | "resolved"
-    | "seeded"
-    | null;
+    "computed" | "live" | "replayed" | "resolved" | "seeded" | null;
   snapshot_metadata?: Record<string, unknown>;
 };
 
@@ -273,6 +280,8 @@ export type Trace = {
   spans: TraceSpan[];
   runtime_input_snapshot_ids?: Record<string, string>;
   node_snapshot_ids?: Record<string, string>;
+  node_resource_selections?: Record<string, NodeResourceSelection>;
+  capture_node_outputs?: boolean;
 };
 
 export type DatasetMembership = {
@@ -294,7 +303,11 @@ export type DatasetTarget = {
   dataset_version: number;
   eligible: boolean;
   existing_item_id: string | null;
-  reason: "already_in_version" | "trace_not_complete" | null;
+  reason:
+    | "already_in_version"
+    | "trace_not_complete"
+    | "trace_not_replayable"
+    | null;
   warnings: Array<"evaluation_origin" | "same_source_dataset">;
 };
 
@@ -315,6 +328,7 @@ export type DatasetItem = {
   created_at: string;
   updated_at: string;
   runtime_input_snapshot_ids?: Record<string, string>;
+  node_resource_selections?: Record<string, NodeResourceSelection>;
 };
 
 export type DatasetVersionDetail = DatasetVersionSummary & {
@@ -385,12 +399,7 @@ export type CodebaseNodeKind =
   | "capability"
   | "component";
 export type CodebaseEdgeKind =
-  | "contains"
-  | "imports"
-  | "depends_on"
-  | "calls"
-  | "produces"
-  | "consumes";
+  "contains" | "imports" | "depends_on" | "calls" | "produces" | "consumes";
 export type CodebaseChangeStatus =
   "unchanged" | "added" | "modified" | "removed" | "renamed";
 

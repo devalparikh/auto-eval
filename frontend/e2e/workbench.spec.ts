@@ -83,18 +83,22 @@ test("groups growing node-output snapshots by deterministic node", async ({
     graphDialog.getByText("external input · options_chain"),
   ).toBeVisible();
   await expect(graphDialog.getByText("run refresh")).toBeVisible();
-  await expect(graphDialog.getByText("eval locked")).toBeVisible();
+  await expect(graphDialog.getByText("eval locked").first()).toBeVisible();
   await expect(graphDialog.getByText("conditional")).toBeVisible();
   await page.keyboard.press("Escape");
 
   await page.getByRole("button", { name: /Snapshots/ }).click();
-  await expect(page.getByRole("heading", { name: "Node snapshots" })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Node snapshots" }),
+  ).toBeVisible();
   await expect(page.getByText("Deterministic nodes")).toBeVisible();
   await expect(
     page.getByRole("button", { name: /Persist immutable portfolio snapshot/ }),
   ).toBeVisible();
   await page
-    .getByRole("button", { name: /Resolve or fetch external options observation/ })
+    .getByRole("button", {
+      name: /Resolve or fetch external options observation/,
+    })
     .click();
   await expect(page.getByText("options_chain").first()).toBeVisible();
 });
@@ -147,14 +151,13 @@ test("zooms through code structure and switches Git comparisons", async ({
   page,
 }) => {
   await page.goto("/codebase");
-  await expect(
-    page.getByLabel(/Codebase graph at Areas detail/),
-  ).toBeVisible();
+  await expect(page.getByLabel(/Codebase graph at Areas detail/)).toBeVisible();
   await expect(page.locator(".codebase-summary")).toContainText(
     "Local changes",
   );
 
   await page.getByRole("button", { name: "Zoom In" }).click();
+  await page.waitForTimeout(500);
   await page.getByRole("button", { name: "Zoom In" }).click();
   await expect(page.locator(".codebase-map-level")).toContainText("Modules");
 
@@ -253,7 +256,7 @@ test("run a trace and review it into a draft dataset", async ({ page }) => {
   await page.getByRole("button", { name: "Done" }).click();
   await page.reload();
   await expect(
-    page.getByText(/Incident triage ground truth v\d+ · draft/),
+    page.getByText(/Incident triage ground truth; version: \d+; status: draft/),
   ).toBeVisible();
 });
 
@@ -261,9 +264,16 @@ test("runs Q&A against a server-resolved synthetic portfolio snapshot", async ({
   page,
 }) => {
   await page.goto(`${portfolioQueryRoot}/run`);
-  const snapshot = page.getByLabel("Indexed snapshot");
-  await expect(snapshot).toBeVisible();
-  await expect(snapshot).toHaveValue("synthetic-indexed-portfolio-v2");
+  const resource = page.getByLabel("Saved input version");
+  await expect(resource).toBeVisible();
+  await resource.selectOption("current:synthetic-indexed-portfolio-v2");
+  await expect(resource).toHaveValue("current:synthetic-indexed-portfolio-v2");
+  await expect(page.getByText("saved input: latest")).toBeVisible();
+  await expect(
+    page.getByRole("checkbox", {
+      name: /Capture refreshed external outputs/,
+    }),
+  ).not.toBeChecked();
 
   const advancedInput = page.getByLabel("Advanced query input (JSON)");
   const advancedValue = await advancedInput.inputValue();

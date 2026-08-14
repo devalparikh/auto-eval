@@ -24,25 +24,25 @@ export function RuntimeInputNotice({
         <p className="text-[11px] font-medium">
           {context === "run"
             ? "Direct run external inputs"
-            : "Evaluation observation bindings"}
+            : "Saved evaluation observations"}
         </p>
         <p className="mt-1 text-[10px] leading-5 text-[var(--text-muted)]">
           {context === "run"
-            ? "External observations refresh when these graph nodes execute. Saved input samples contain business input only; they never capture runtime observations."
+            ? "External observations refresh when these graph nodes execute. They are recorded in the trace, and only become immutable observation artifacts when capture is enabled or the graph contract requires it."
             : "Each dataset example supplies locked observation references. Evaluations do not refresh them, so every model sees the same recorded external data."}
         </p>
-        <div className="mono mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[9px] text-[var(--text-faint)]">
+        <div className="mono mt-2 grid gap-1 text-[9px] text-[var(--text-faint)]">
           {nodes.map((node) => {
             const policy = node.runtime_input_policy!;
             const mode =
               context === "run" ? policy.runtime_mode : policy.evaluation_mode;
             return (
               <span key={node.id}>
-                {node.label} · {policy.source} · {context} {mode}
+                Node: {node.label}; source: {policy.source}; {context}: {mode}
                 {policy.schema_version
-                  ? ` · schema v${policy.schema_version}`
+                  ? `; schema: v${policy.schema_version}`
                   : ""}
-                {!policy.required ? " · conditional" : ""}
+                {!policy.required ? "; optional" : ""}
               </span>
             );
           })}

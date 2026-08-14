@@ -16,7 +16,6 @@ from autoeval_api.api.routes import (
     codebase,
     datasets,
     evaluations,
-    input_samples,
     node_snapshots,
     portfolio_snapshots,
     runtime_input_snapshots,
@@ -115,7 +114,6 @@ def create_application(
     app.include_router(node_snapshots.router)
     app.include_router(portfolio_snapshots.router)
     app.include_router(runtime_input_snapshots.router)
-    app.include_router(input_samples.router)
     app.include_router(versions.router)
     app.include_router(traces.router)
     app.include_router(datasets.router)

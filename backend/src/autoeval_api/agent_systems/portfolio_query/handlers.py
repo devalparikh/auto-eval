@@ -18,7 +18,6 @@ from autoeval_api.market_data import (
     OptionsMarketDataError,
 )
 from autoeval_api.models import AgentSystemRecord
-from autoeval_api.services.portfolio_snapshots import resolve_portfolio_snapshot
 from autoeval_api.services.runtime_input_snapshots import (
     create_runtime_input_snapshot,
     runtime_input_snapshot_binding,
@@ -31,9 +30,7 @@ MARKET_DATA_NODE_ID = "load_portfolio_market_data"
 
 
 def register_handlers(registry: NodeHandlerRegistry) -> None:
-    registry.register_contextual_deterministic(
-        "resolve_portfolio_snapshot", resolve_snapshot_reference
-    )
+    registry.register_contextual_deterministic("get_indexed_portfolio", get_indexed_portfolio)
     registry.register_deterministic("normalize_portfolio_query", normalize_portfolio_query)
     registry.register_contextual_deterministic(
         "load_portfolio_market_data", load_portfolio_market_data
@@ -49,48 +46,21 @@ def register_handlers(registry: NodeHandlerRegistry) -> None:
     )
 
 
-def resolve_snapshot_reference(
-    state: dict[str, Any], context: GraphRuntimeContext
-) -> dict[str, Any]:
-    request = state.get("input", {})
-    snapshot_id = str(request.get("snapshot_id", "")).strip()
-    reference: PortfolioSnapshotReference = {
-        "id": snapshot_id,
-        "resolution_status": "missing",
-    }
-    if not snapshot_id:
-        reference["error"] = "snapshot_id"
-        return {"portfolio_snapshot_reference": reference}
-
-    try:
-        record, document = resolve_portfolio_snapshot(context.session, snapshot_id)
-    except ValueError as error:
-        reference["resolution_status"] = "invalid"
-        reference["error"] = str(error)
-        return {"portfolio_snapshot_reference": reference}
-
+def get_indexed_portfolio(_state: dict[str, Any], context: GraphRuntimeContext) -> dict[str, Any]:
+    resource = context.node_resource("get_indexed_portfolio")
+    document = resource.content
     context.resources[SNAPSHOT_RESOURCE_KEY] = document
-    context.bind_node_snapshot(
-        "resolve_portfolio_snapshot",
-        record.id,
-        role="consumed",
-        resolution_mode="resolved",
-        metadata={
-            "output_key": "portfolio_state",
-            "schema_version": record.schema_version,
-            "content_hash": record.content_hash,
-            "is_synthetic": record.is_synthetic,
-        },
-    )
-    reference.update(
-        {
-            "content_hash": record.content_hash,
-            "schema_version": record.schema_version,
-            "as_of": record.as_of,
-            "is_synthetic": record.is_synthetic,
-            "resolution_status": "resolved",
-        }
-    )
+    reference: PortfolioSnapshotReference = {
+        "id": resource.snapshot_id,
+        "resource_identity": resource.resource_identity,
+        "content_hash": str(resource.metadata.get("content_hash", "")),
+        "schema_version": int(resource.metadata.get("schema_version", 1)),
+        "as_of": str(document.get("as_of", "")),
+        "is_synthetic": bool(resource.metadata.get("is_synthetic")),
+        "producer_system_key": str(resource.metadata.get("producer_system_key", "")),
+        "producer_node_id": str(resource.metadata.get("producer_node_id", "")),
+        "resolution_status": "resolved",
+    }
     return {"portfolio_snapshot_reference": reference}
 
 
@@ -113,7 +83,6 @@ def normalize_portfolio_query(state: dict[str, Any]) -> dict[str, Any]:
             "question": question,
             "intent": intent,
             "snapshot": dict(snapshot_reference) if isinstance(snapshot_reference, dict) else {},
-            "inline_snapshot_supplied": isinstance(request.get("snapshot"), dict),
             "policy": _normalized_policy(policy),
         }
     }
@@ -125,6 +94,20 @@ async def load_portfolio_market_data(
     query = state.get("normalized_query", {})
     runtime_input = context.runtime_input(MARKET_DATA_NODE_ID, OPTIONS_CHAIN_SOURCE)
     if query.get("intent") != "covered_call":
+        if context.node_snapshots.get(MARKET_DATA_NODE_ID) is None:
+            context.bind_node_observation(
+                MARKET_DATA_NODE_ID,
+                role="produced",
+                resolution_mode="live" if runtime_input.mode == "refresh" else "replayed",
+                metadata={
+                    "output_key": OPTIONS_CHAIN_SOURCE,
+                    "schema_version": runtime_input.schema_version,
+                    "capture_requested": context.capture_node_outputs,
+                    "captured": False,
+                    "observation_status": "not_required",
+                    "source": OPTIONS_CHAIN_SOURCE,
+                },
+            )
         return {
             "market_data_observation": {
                 "source": OPTIONS_CHAIN_SOURCE,
@@ -147,6 +130,21 @@ async def load_portfolio_market_data(
         )
     if contracts:
         context.resources[MARKET_DATA_RESOURCE_KEY] = contracts
+    if runtime_input.mode == "locked" and context.node_snapshots.get(MARKET_DATA_NODE_ID) is None:
+        context.bind_node_observation(
+            MARKET_DATA_NODE_ID,
+            role="consumed",
+            resolution_mode="replayed",
+            metadata={
+                "output_key": OPTIONS_CHAIN_SOURCE,
+                "schema_version": runtime_input.schema_version,
+                "capture_requested": False,
+                "captured": False,
+                "observation_status": observation.get("status"),
+                "source": observation.get("source"),
+                "error_code": observation.get("error_code"),
+            },
+        )
     return {"market_data_observation": observation}
 
 
@@ -269,7 +267,14 @@ async def _refreshed_market_observation(
             )
         )
     except OptionsMarketDataError as error:
-        return _market_data_error("refresh", error.code), []
+        observation = _market_data_error("refresh", error.code)
+        _bind_market_execution_observation(
+            context,
+            observation,
+            schema_version=schema_version,
+            captured=False,
+        )
+        return observation, []
 
     age_seconds = max(0.0, (result.fetched_at - result.as_of).total_seconds())
     max_age_seconds = query["policy"]["max_quote_age_hours"] * 3600
@@ -304,33 +309,88 @@ async def _refreshed_market_observation(
         },
         "contract_count": len(result.contracts),
     }
-    owner = context.session.query(AgentSystemRecord).filter_by(key=context.agent_system_key).one()
-    record = create_runtime_input_snapshot(
-        context.session,
-        owner,
-        source_trace_id=context.trace_id,
-        node_id=MARKET_DATA_NODE_ID,
-        source_key=OPTIONS_CHAIN_SOURCE,
-        schema_version=schema_version,
-        label=f"{result.source} options observation",
-        observed_at=result.as_of,
-        fetched_at=result.fetched_at,
-        provider=result.provider_id,
-        source_kind="synthetic" if bool(reference.get("is_synthetic")) else "live_refresh",
-        is_synthetic=bool(reference.get("is_synthetic")),
-        payload={"schema_version": schema_version, "contracts": list(result.contracts)},
-        provenance=observation,
-    )
-    binding = runtime_input_snapshot_binding(record)
-    context.bind_runtime_input_snapshot(MARKET_DATA_NODE_ID, binding)
-    observation["runtime_input_snapshot"] = {
-        "id": binding.id,
-        "source_key": binding.source_key,
-        "schema_version": binding.schema_version,
-        "content_hash": binding.content_hash,
-        "is_synthetic": binding.is_synthetic,
-    }
+    if context.capture_node_outputs:
+        owner = (
+            context.session.query(AgentSystemRecord).filter_by(key=context.agent_system_key).one()
+        )
+        record = create_runtime_input_snapshot(
+            context.session,
+            owner,
+            source_trace_id=context.trace_id,
+            node_id=MARKET_DATA_NODE_ID,
+            source_key=OPTIONS_CHAIN_SOURCE,
+            schema_version=schema_version,
+            label=f"{result.source} options observation",
+            observed_at=result.as_of,
+            fetched_at=result.fetched_at,
+            provider=result.provider_id,
+            source_kind="synthetic" if bool(reference.get("is_synthetic")) else "live_refresh",
+            is_synthetic=bool(reference.get("is_synthetic")),
+            payload={"schema_version": schema_version, "contracts": list(result.contracts)},
+            provenance=observation,
+        )
+        binding = runtime_input_snapshot_binding(record)
+        context.bind_runtime_input_snapshot(MARKET_DATA_NODE_ID, binding)
+        observation["runtime_input_snapshot"] = {
+            "id": binding.id,
+            "source_key": binding.source_key,
+            "schema_version": binding.schema_version,
+            "content_hash": binding.content_hash,
+            "is_synthetic": binding.is_synthetic,
+        }
+        _bind_market_execution_observation(
+            context,
+            observation,
+            schema_version=schema_version,
+            captured=True,
+            snapshot_id=binding.id,
+        )
+    else:
+        _bind_market_execution_observation(
+            context,
+            observation,
+            schema_version=schema_version,
+            captured=False,
+        )
     return observation, list(result.contracts)
+
+
+def _bind_market_execution_observation(
+    context: GraphRuntimeContext,
+    observation: dict[str, Any],
+    *,
+    schema_version: int,
+    captured: bool,
+    snapshot_id: str | None = None,
+) -> None:
+    metadata = {
+        "output_key": OPTIONS_CHAIN_SOURCE,
+        "schema_version": schema_version,
+        "capture_requested": context.capture_node_outputs,
+        "captured": captured,
+        "observation_status": observation.get("status"),
+        "source": observation.get("source"),
+        "provider": observation.get("provider"),
+        "as_of": observation.get("as_of"),
+        "fetched_at": observation.get("fetched_at"),
+        "freshness": observation.get("freshness"),
+        "error_code": observation.get("error_code"),
+    }
+    if snapshot_id is not None:
+        context.bind_node_snapshot(
+            MARKET_DATA_NODE_ID,
+            snapshot_id,
+            role="produced",
+            resolution_mode="live",
+            metadata=metadata,
+        )
+    else:
+        context.bind_node_observation(
+            MARKET_DATA_NODE_ID,
+            role="produced",
+            resolution_mode="live",
+            metadata=metadata,
+        )
 
 
 def _market_data_error(mode: str, code: str) -> dict[str, Any]:
@@ -380,10 +440,8 @@ def validate_portfolio_query(state: dict[str, Any]) -> dict[str, Any]:
     missing = []
     if not query.get("question"):
         missing.append("question")
-    if query.get("inline_snapshot_supplied"):
-        missing.append("snapshot.inline_not_allowed")
     if not snapshot.get("id"):
-        missing.append("snapshot_id")
+        missing.append("indexed_portfolio")
     if snapshot.get("resolution_status") != "resolved":
         missing.append("snapshot.reference_invalid")
 
@@ -866,7 +924,6 @@ def _market_data_reference(value: Any) -> dict[str, Any]:
             "mode",
             "status",
             "provider",
-            "provider_ref",
             "as_of",
             "fetched_at",
             "error_code",

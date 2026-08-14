@@ -8,7 +8,7 @@ import type {
   DatasetItem,
   DatasetVersionDetail,
   EvalRun,
-  InputSample,
+  NodeResourceSelection,
   NodeSnapshotDetail,
   NodeSnapshotSummary,
   PortfolioSnapshotDetail,
@@ -97,14 +97,29 @@ export const api = {
   nodeSnapshots: (filters: {
     productKey?: string;
     agentSystemId?: string;
+    agentSystemKey?: string;
     nodeId?: string;
+    outputKey?: string;
+    schemaVersion?: number;
+    snapshotKind?: "state" | "external_observation" | "node_output";
+    resourceIdentity?: string;
+    latestPerIdentity?: boolean;
     limit?: number;
   }) => {
     const params = new URLSearchParams();
     if (filters.productKey) params.set("product_key", filters.productKey);
     if (filters.agentSystemId)
       params.set("agent_system_id", filters.agentSystemId);
+    if (filters.agentSystemKey)
+      params.set("agent_system_key", filters.agentSystemKey);
     if (filters.nodeId) params.set("node_id", filters.nodeId);
+    if (filters.outputKey) params.set("output_key", filters.outputKey);
+    if (filters.schemaVersion)
+      params.set("schema_version", String(filters.schemaVersion));
+    if (filters.snapshotKind) params.set("snapshot_kind", filters.snapshotKind);
+    if (filters.resourceIdentity)
+      params.set("resource_identity", filters.resourceIdentity);
+    if (filters.latestPerIdentity) params.set("latest_per_identity", "true");
     if (filters.limit) params.set("limit", String(filters.limit));
     return apiRequest<NodeSnapshotSummary[]>(
       `/node-snapshots?${params.toString()}`,
@@ -126,18 +141,9 @@ export const api = {
     agent_system_version_id?: string;
     prompt_version_id?: string;
     prompt_version_ids?: Record<string, string>;
+    node_resource_selections?: Record<string, NodeResourceSelection>;
+    capture_node_outputs?: boolean;
   }) => apiRequest<Trace>("/traces/run", { method: "POST", body: payload }),
-  createInputSample: (
-    agentSystemId: string,
-    payload: {
-      input: Record<string, unknown>;
-      source_trace_id: string;
-    },
-  ) =>
-    apiRequest<InputSample>(`/agent-systems/${agentSystemId}/input-samples`, {
-      method: "POST",
-      body: payload,
-    }),
   datasetVersion: (versionId: string) =>
     apiRequest<DatasetVersionDetail>(`/dataset-versions/${versionId}`),
   addDatasetItemFromTrace: (

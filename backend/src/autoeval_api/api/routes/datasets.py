@@ -99,6 +99,7 @@ def _add_item(
             payload.input,
             payload.expected,
             payload.runtime_input_snapshot_ids,
+            payload.node_resource_selections,
         )
     except LookupError as error:
         raise HTTPException(status_code=404, detail=str(error)) from error
@@ -121,6 +122,7 @@ def update_item(
             payload.input,
             payload.expected,
             payload.runtime_input_snapshot_ids,
+            payload.node_resource_selections,
         )
     except ValueError as error:
         raise HTTPException(status_code=409, detail=str(error)) from error

@@ -16,6 +16,7 @@ from autoeval_api.models import (
 from autoeval_api.schemas import (
     AgentGraphDefinition,
     AgentSystemSummary,
+    NodeResourcePolicy,
     PromptSummary,
     VersionSummary,
 )
@@ -44,6 +45,7 @@ def create_agent_version(
         payload = parsed.model_dump(mode="json")
 
     _validate_graph_prompt_keys(session, agent_system, payload)
+    _validate_graph_resource_policies(session, agent_system, payload)
 
     content_hash = hash_json(payload)
     duplicate = (
@@ -107,6 +109,64 @@ def create_prompt_version(
         raise ValueError("A concurrent request created the same prompt version") from None
     session.refresh(version)
     return version
+
+
+def _validate_graph_resource_policies(
+    session: Session,
+    consumer: AgentSystemRecord,
+    definition: dict[str, Any],
+) -> None:
+    consumer_product = system_spec(consumer.key).product_key or consumer.key
+    for node in definition.get("nodes", []):
+        value = node.get("resource_policy")
+        if not isinstance(value, dict):
+            continue
+        policy = NodeResourcePolicy.model_validate(value)
+        if consumer_product != policy.product_key:
+            raise ValueError(
+                f"Resource consumer {consumer.key} does not belong to {policy.product_key}"
+            )
+        producer = (
+            session.query(AgentSystemRecord).filter_by(key=policy.producer_system_key).one_or_none()
+        )
+        if producer is None:
+            raise ValueError(f"Resource producer system not found: {policy.producer_system_key}")
+        producer_product = system_spec(producer.key).product_key or producer.key
+        if producer_product != policy.product_key:
+            raise ValueError("Resource producer and consumer must belong to the same product")
+        producer_version = (
+            session.query(AgentSystemVersionRecord)
+            .filter_by(agent_system_id=producer.id)
+            .order_by(AgentSystemVersionRecord.version.desc())
+            .first()
+        )
+        producer_node = next(
+            (
+                candidate
+                for candidate in (
+                    producer_version.definition.get("nodes", []) if producer_version else []
+                )
+                if candidate.get("id") == policy.producer_node_id
+            ),
+            None,
+        )
+        snapshot_policy = (
+            producer_node.get("snapshot_policy") if isinstance(producer_node, dict) else None
+        )
+        if not isinstance(snapshot_policy, dict):
+            raise ValueError(
+                f"Resource producer node has no snapshot contract: {policy.producer_node_id}"
+            )
+        if (
+            snapshot_policy.get("output_key") != policy.producer_output_key
+            or snapshot_policy.get("snapshot_kind") != policy.producer_snapshot_kind
+            or int(snapshot_policy.get("schema_version", 1)) != policy.schema_version
+            or snapshot_policy.get("binding_mode", "produce")
+            not in {"produce", "produce_or_consume"}
+        ):
+            raise ValueError(
+                f"Resource producer snapshot contract does not match: {policy.producer_node_id}"
+            )
 
 
 def default_agent_system(session: Session) -> AgentSystemRecord:

@@ -3,6 +3,9 @@ from typing import Any, TypedDict
 
 class PortfolioSnapshotReference(TypedDict, total=False):
     id: str
+    resource_identity: str
+    producer_system_key: str
+    producer_node_id: str
     content_hash: str
     schema_version: int
     as_of: str

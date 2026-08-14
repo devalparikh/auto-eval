@@ -46,9 +46,12 @@ snapshot, resolved indexed state, or captured a computed output.
 
 1. The graph resolves the node's `runtime_input_policy` to `refresh`.
 2. The registered capability fetches and normalizes the external observation.
-3. The normalized output is persisted in the generic catalog and its domain extension.
-4. Full content remains request-local; only a bounded reference/provenance enters graph state.
-5. The span records `produced/live` and the exact snapshot ID with fetch-step latency.
+3. The span records bounded live provenance regardless of capture choice.
+4. When `capture_node_outputs=true`, the normalized output is persisted in the generic catalog and
+   its domain extension; the default false mode leaves no reusable artifact.
+5. Full content remains request-local; only bounded provenance enters graph state.
+6. A used live observation without a captured artifact cannot be promoted to a dataset. An explicit
+   `not_required` observation remains replay-safe because no external data influenced the result.
 
 ### Evaluation replay
 
@@ -62,9 +65,13 @@ snapshot, resolved indexed state, or captured a computed output.
 
 1. The Portfolio Index flow normalizes and calculates portfolio state.
 2. `persist_portfolio_snapshot` writes an immutable state snapshot and binds `produced/computed`.
-3. A query run receives only the selected snapshot ID.
-4. `resolve_portfolio_snapshot` resolves canonical server-side content and binds `consumed/resolved`.
-5. The raw portfolio stays request-local; only intent-specific, policy-safe facts reach an LLM.
+3. A query run supplies `node_resource_selections.get_indexed_portfolio` outside domain input. The
+   selection is either `current` with a stable identity or `locked` with an exact snapshot ID.
+4. The server-owned `resource_policy` pins the producer system/node/output/kind/schema, resolves
+   canonical content, and binds `consumed/resolved` or `consumed/replayed`.
+5. A `current` selection is canonicalized to the exact locked ID on the trace; trace-to-dataset copy,
+   clone, finalization, and evaluation preserve that exact selection.
+6. The raw portfolio stays request-local; only intent-specific, policy-safe facts reach an LLM.
 
 This keeps graph, prompt, model, dataset, portfolio state, and changing external observations
 independent while giving all node outputs one observable artifact model.
@@ -79,6 +86,8 @@ market payloads remain server-side unless a product explicitly registers a safer
 ## Extension rules
 
 - Register a stable node `snapshot_policy`; do not infer snapshot identity from arbitrary state.
+- Register a server-owned `resource_policy` for cross-flow consumers; clients choose current identity
+  or an exact locked ID but cannot redirect the producer contract.
 - Register external capabilities by source key; never accept a request-supplied provider URL.
 - Version content schemas and fail closed on incompatible or corrupt locked snapshots.
 - Keep artifact metadata and per-trace usage metadata separate.

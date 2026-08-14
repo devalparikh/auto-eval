@@ -153,7 +153,7 @@ export function EvaluationsScreen({ systemKey }: { systemKey: string }) {
                   promptFamilies.map(({ key, prompt }) => (
                     <div className="field" key={key}>
                       <label htmlFor={`eval-prompt-${key}`}>
-                        Prompt · {key}
+                        Prompt: {key}
                       </label>
                       <Select
                         id={`eval-prompt-${key}`}

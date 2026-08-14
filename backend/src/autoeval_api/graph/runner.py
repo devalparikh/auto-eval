@@ -10,7 +10,7 @@ from langgraph.graph import END, StateGraph
 from langgraph.runtime import Runtime
 from sqlalchemy.orm import Session
 
-from autoeval_api.graph.context import GraphRuntimeContext
+from autoeval_api.graph.context import GraphRuntimeContext, NodeResourceExecutionBinding
 from autoeval_api.graph.registry import NodeHandlerRegistry, default_node_handler_registry
 from autoeval_api.graph.runtime_inputs import RuntimeInputCapabilityRegistry
 from autoeval_api.graph.topology import sink_node_ids, topological_sequence
@@ -27,6 +27,8 @@ from autoeval_api.models import (
     TraceSpanRecord,
     utc_now,
 )
+from autoeval_api.schemas import NodeResourceSelection
+from autoeval_api.services.node_resources import resolve_node_resource
 from autoeval_api.services.runtime_input_snapshots import (
     resolve_runtime_input_snapshot,
     runtime_input_snapshot_binding,
@@ -68,6 +70,8 @@ class AgentGraphRunner:
         request_input: dict[str, Any],
         trace_context: TraceContext | None = None,
         runtime_input_snapshot_ids: dict[str, str] | None = None,
+        node_resource_selections: dict[str, NodeResourceSelection | dict[str, Any]] | None = None,
+        capture_node_outputs: bool = False,
     ) -> TraceRecord:
         selection = replace(
             selection,
@@ -95,6 +99,8 @@ class AgentGraphRunner:
             request_input=project_trace_payload(selection.agent_system_key, request_input),
             runtime_input_snapshot_ids={},
             node_snapshot_ids={},
+            node_resource_selections={},
+            capture_node_outputs=capture_node_outputs,
         )
         session.add(trace)
         session.commit()
@@ -112,10 +118,17 @@ class AgentGraphRunner:
                 trace_id=trace.id,
                 runtime_inputs=self.runtime_input_registry,
                 runtime_input_modes=runtime_input_modes,
+                capture_node_outputs=capture_node_outputs,
             )
             self._bind_locked_runtime_input_snapshots(
                 runtime_context,
                 runtime_input_snapshot_ids or {},
+            )
+            self._bind_node_resource_selections(
+                runtime_context,
+                definition,
+                node_resource_selections or {},
+                trace_origin_context.origin_type,
             )
             graph = self._compile_graph(session, trace, selection)
             state = await graph.ainvoke(
@@ -138,6 +151,7 @@ class AgentGraphRunner:
             if runtime_context is not None:
                 trace.runtime_input_snapshot_ids = dict(runtime_context.runtime_input_snapshot_ids)
                 trace.node_snapshot_ids = dict(runtime_context.node_snapshot_ids)
+                trace.node_resource_selections = dict(runtime_context.node_resource_selections)
             session.add(trace)
             session.commit()
             session.refresh(trace)
@@ -300,6 +314,54 @@ class AgentGraphRunner:
             )
 
     @staticmethod
+    def _bind_node_resource_selections(
+        context: GraphRuntimeContext,
+        definition: dict[str, Any],
+        selected_values: dict[str, NodeResourceSelection | dict[str, Any]],
+        origin_type: str,
+    ) -> None:
+        policies = {
+            node["id"]: node["resource_policy"]
+            for node in definition.get("nodes", [])
+            if isinstance(node.get("resource_policy"), dict)
+        }
+        unknown_nodes = sorted(set(selected_values) - set(policies))
+        if unknown_nodes:
+            raise ValueError(
+                "Node resources selected for nodes without a policy: " + ", ".join(unknown_nodes)
+            )
+        missing = sorted(
+            node_id
+            for node_id, policy in policies.items()
+            if policy.get("required", True) and node_id not in selected_values
+        )
+        if missing:
+            raise ValueError("Required node resource selections are missing: " + ", ".join(missing))
+        for node_id, selected_value in selected_values.items():
+            selection = NodeResourceSelection.model_validate(selected_value)
+            policy = policies[node_id]
+            if origin_type == TraceOrigin.EVALUATION and selection.mode != "locked":
+                raise ValueError(
+                    f"Evaluation node resource must be locked to an exact snapshot: {node_id}"
+                )
+            resolved = resolve_node_resource(
+                context.session,
+                consumer_system_key=context.agent_system_key,
+                policy_value=policy,
+                selection_value=selection,
+            )
+            context.bind_node_resource(
+                node_id,
+                NodeResourceExecutionBinding(
+                    snapshot_id=resolved.snapshot_id,
+                    resource_identity=resolved.resource_identity,
+                    content=resolved.content,
+                    metadata=resolved.metadata,
+                ),
+                selection_mode=selection.mode,
+            )
+
+    @staticmethod
     def _validate_node_snapshot_policy(
         context: GraphRuntimeContext,
         node: dict[str, Any],
@@ -308,7 +370,7 @@ class AgentGraphRunner:
         if not isinstance(policy, dict):
             return
         binding = context.node_snapshots.get(node["id"])
-        if binding is None:
+        if binding is None or binding.id is None:
             if policy.get("required", True):
                 raise RuntimeError(
                     f"Snapshot-enabled node did not bind an output snapshot: {node['id']}"

@@ -12,9 +12,11 @@ import {
   groundTruthFromRecord,
 } from "@/features/datasets/ground-truth";
 import { systemPath } from "@/features/systems/system-path";
+import { SavedInputRefs } from "@/features/systems/saved-input-refs";
 import { RuntimeSnapshotRefs } from "@/features/systems/runtime-snapshot-refs";
 import { api } from "@/lib/api";
 import { textPreview } from "@/lib/format";
+import type { NodeResourceSelection } from "@/lib/types";
 import { useApiResource } from "@/lib/use-api-resource";
 
 export function AddToDatasetModal({
@@ -23,6 +25,7 @@ export function AddToDatasetModal({
   traceInput,
   traceOutput,
   runtimeInputSnapshotIds,
+  nodeResourceSelections,
   systemKey,
   onClose,
   onMembershipChanged,
@@ -32,6 +35,7 @@ export function AddToDatasetModal({
   traceInput: Record<string, unknown>;
   traceOutput: Record<string, unknown>;
   runtimeInputSnapshotIds?: Record<string, string>;
+  nodeResourceSelections?: Record<string, NodeResourceSelection>;
   systemKey: string;
   onClose: () => void;
   onMembershipChanged: () => Promise<void>;
@@ -106,7 +110,8 @@ export function AddToDatasetModal({
               <ul className="mt-2 grid gap-1 text-[10px]">
                 {targets.data.memberships.map((membership) => (
                   <li key={membership.dataset_item_id}>
-                    {membership.dataset_name} v{membership.dataset_version} ·{" "}
+                    {membership.dataset_name}; version:{" "}
+                    {membership.dataset_version}; status:{" "}
                     {membership.dataset_version_status}
                   </li>
                 ))}
@@ -137,7 +142,11 @@ export function AddToDatasetModal({
                   {target.dataset_name} v{target.dataset_version}
                   {target.reason === "already_in_version"
                     ? " · Already included"
-                    : ""}
+                    : target.reason === "trace_not_replayable"
+                      ? " · Rerun with live capture enabled"
+                      : target.reason === "trace_not_complete"
+                        ? " · Trace not complete"
+                        : ""}
                 </option>
               ))}
             </Select>
@@ -180,6 +189,21 @@ export function AddToDatasetModal({
               <RuntimeSnapshotRefs
                 systemKey={systemKey}
                 bindings={runtimeInputSnapshotIds}
+              />
+            </section>
+          ) : null}
+          {Object.keys(nodeResourceSelections ?? {}).length ? (
+            <section className="border border-[var(--border)] bg-[var(--surface-muted)] p-3">
+              <p className="text-[10px] font-semibold text-[var(--text-muted)]">
+                Saved inputs
+              </p>
+              <p className="mt-1 mb-3 text-[10px] leading-5 text-[var(--text-muted)]">
+                Promotion preserves these exact saved outputs for replay and
+                auditing. They stay separate from editable business input.
+              </p>
+              <SavedInputRefs
+                systemKey={systemKey}
+                selections={nodeResourceSelections}
               />
             </section>
           ) : null}

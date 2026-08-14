@@ -56,7 +56,7 @@ def test_portfolio_system_runs_with_sanitized_trace(client, session_factory) -> 
 
 def test_portfolio_query_uses_only_safe_supplied_candidates(client, session_factory) -> None:
     session = session_factory()
-    graph, prompt, _ = ensure_portfolio_query_seed_data(session)
+    graph, prompt, dataset = ensure_portfolio_query_seed_data(session)
     system = session.get(AgentSystemRecord, graph.agent_system_id)
 
     response = client.post(
@@ -67,6 +67,13 @@ def test_portfolio_query_uses_only_safe_supplied_candidates(client, session_fact
             "prompt_version_id": prompt.id,
             "model_id": "mock/portfolio-analyst",
             "input": deepcopy(PORTFOLIO_QUERY_INPUT_TEMPLATE),
+            "node_resource_selections": {
+                "get_indexed_portfolio": {
+                    "mode": "current",
+                    "identity": "synthetic-indexed-portfolio-v2",
+                }
+            },
+            "capture_node_outputs": True,
         },
     )
 
@@ -94,7 +101,13 @@ def test_portfolio_query_uses_only_safe_supplied_candidates(client, session_fact
     assert runtime_snapshot.payload["contracts"]
     assert market_span.runtime_input_snapshot_id == runtime_snapshot_id
     assert payload["output"]["market_data"]["runtime_input_snapshot"]["id"] == runtime_snapshot_id
-    assert payload["request_input"]["snapshot_id"] == "synthetic-indexed-portfolio-v2"
+    assert payload["node_resource_selections"] == {
+        "get_indexed_portfolio": {
+            "mode": "locked",
+            "snapshot_id": "synthetic-indexed-portfolio-v2",
+        }
+    }
+    assert "snapshot_id" not in payload["request_input"]
     assert "snapshot" not in payload["request_input"]
     assert '"market_context"' not in persisted
     assert "NVDA_SYNTH_CALL_160" not in persisted
@@ -103,15 +116,136 @@ def test_portfolio_query_uses_only_safe_supplied_candidates(client, session_fact
     assert '"cost_basis"' not in persisted
     assert '"market_value"' not in persisted
 
+    draft = (
+        session.query(DatasetVersionRecord)
+        .filter_by(dataset_id=dataset.dataset_id, status=DatasetStatus.DRAFT)
+        .order_by(DatasetVersionRecord.version.desc())
+        .first()
+    )
+    assert draft is not None
+    copied = client.put(
+        f"/api/dataset-versions/{draft.id}/trace-items/{payload['id']}",
+        json={"expected": {"status": "candidates"}},
+    )
+    assert copied.status_code == 201
+    assert copied.json()["runtime_input_snapshot_ids"] == {
+        "load_portfolio_market_data": runtime_snapshot_id
+    }
+    assert copied.json()["node_resource_selections"] == payload["node_resource_selections"]
+
+
+def test_portfolio_query_live_observation_requires_capture_before_dataset_copy(
+    client,
+    session_factory,
+) -> None:
+    session = session_factory()
+    graph, prompt, final_version = ensure_portfolio_query_seed_data(session)
+    system = session.get(AgentSystemRecord, graph.agent_system_id)
+    draft = (
+        session.query(DatasetVersionRecord)
+        .filter_by(dataset_id=final_version.dataset_id, status=DatasetStatus.DRAFT)
+        .order_by(DatasetVersionRecord.version.desc())
+        .first()
+    )
+    assert draft is not None
+
+    response = client.post(
+        "/api/traces/run",
+        json={
+            "agent_system_id": system.id,
+            "agent_system_version_id": graph.id,
+            "prompt_version_id": prompt.id,
+            "model_id": "mock/portfolio-analyst",
+            "input": deepcopy(PORTFOLIO_QUERY_INPUT_TEMPLATE),
+            "node_resource_selections": {
+                "get_indexed_portfolio": {
+                    "mode": "current",
+                    "identity": "synthetic-indexed-portfolio-v2",
+                }
+            },
+        },
+    )
+
+    assert response.status_code == 201
+    payload = response.json()
+    assert payload["capture_node_outputs"] is False
+    assert "load_portfolio_market_data" not in payload["runtime_input_snapshot_ids"]
+    assert payload["node_resource_selections"] == {
+        "get_indexed_portfolio": {
+            "mode": "locked",
+            "snapshot_id": "synthetic-indexed-portfolio-v2",
+        }
+    }
+    market_span = next(
+        span for span in payload["spans"] if span["node_id"] == "load_portfolio_market_data"
+    )
+    assert market_span["node_snapshot_id"] is None
+    assert market_span["snapshot_resolution_mode"] == "live"
+    assert market_span["snapshot_metadata"]["captured"] is False
+    assert market_span["snapshot_metadata"]["observation_status"] == "ready"
+
+    targets = client.get(f"/api/traces/{payload['id']}/dataset-targets")
+    target = next(
+        item for item in targets.json()["targets"] if item["dataset_version_id"] == draft.id
+    )
+    assert target["eligible"] is False
+    assert target["reason"] == "trace_not_replayable"
+    copied = client.put(
+        f"/api/dataset-versions/{draft.id}/trace-items/{payload['id']}",
+        json={"expected": {"status": "candidates"}},
+    )
+    assert copied.status_code == 409
+    assert "capture_node_outputs" in copied.json()["detail"]
+
+    generic_input = deepcopy(PORTFOLIO_QUERY_INPUT_TEMPLATE)
+    generic_input["question"] = "How many positions are in this portfolio?"
+    generic = client.post(
+        "/api/traces/run",
+        json={
+            "agent_system_id": system.id,
+            "agent_system_version_id": graph.id,
+            "prompt_version_id": prompt.id,
+            "model_id": "mock/portfolio-analyst",
+            "input": generic_input,
+            "node_resource_selections": {
+                "get_indexed_portfolio": {
+                    "mode": "current",
+                    "identity": "synthetic-indexed-portfolio-v2",
+                }
+            },
+        },
+    )
+    generic_payload = generic.json()
+    generic_market_span = next(
+        span for span in generic_payload["spans"] if span["node_id"] == "load_portfolio_market_data"
+    )
+    assert generic_market_span["snapshot_metadata"]["observation_status"] == "not_required"
+    generic_copy = client.put(
+        f"/api/dataset-versions/{draft.id}/trace-items/{generic_payload['id']}",
+        json={"expected": {"status": "answered"}},
+    )
+    assert generic_copy.status_code == 201
+
 
 def test_portfolio_query_evaluation_replays_pinned_observation(client, session_factory) -> None:
     session = session_factory()
     graph, prompt, dataset = ensure_portfolio_query_seed_data(session)
+    clone = client.post(
+        f"/api/datasets/{dataset.dataset_id}/versions",
+        json={"clone_from_version_id": dataset.id},
+    )
+    assert clone.status_code == 201
+    assert all(
+        item["node_resource_selections"]["get_indexed_portfolio"]["mode"] == "locked"
+        for item in clone.json()["items"]
+    )
+    finalized = client.post(f"/api/dataset-versions/{clone.json()['id']}/finalize")
+    assert finalized.status_code == 200
 
     response = client.post(
         "/api/eval-runs",
         json={
-            "dataset_version_id": dataset.id,
+            "dataset_version_id": finalized.json()["id"],
             "agent_system_version_id": graph.id,
             "prompt_version_id": prompt.id,
             "model_ids": ["mock/portfolio-analyst"],

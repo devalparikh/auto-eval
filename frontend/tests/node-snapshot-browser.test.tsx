@@ -2,10 +2,7 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { useState } from "react";
 import { afterEach, describe, expect, it } from "vitest";
 import { NodeSnapshotBrowser } from "@/features/systems/node-snapshot-browser";
-import type {
-  NodeSnapshotDetail,
-  NodeSnapshotSummary,
-} from "@/lib/types";
+import type { NodeSnapshotDetail, NodeSnapshotSummary } from "@/lib/types";
 
 const usage = {
   trace_id: "trace-query-12345678",
@@ -33,6 +30,7 @@ const marketSnapshot = {
   node_label: "Load portfolio market data",
   node_kind: "external_input" as const,
   output_key: "options_chain",
+  resource_identity: null,
   snapshot_kind: "external_observation" as const,
   schema_version: 1,
   label: "Synthetic options chain",
@@ -58,6 +56,7 @@ const portfolioSnapshot = {
   node_label: "Persist portfolio state",
   node_kind: "deterministic" as const,
   output_key: "portfolio_state",
+  resource_identity: "main_synthetic_portfolio",
   snapshot_kind: "state" as const,
   label: "Synthetic current portfolio",
   capture_mode: "computed" as const,
@@ -113,12 +112,16 @@ describe("NodeSnapshotBrowser", () => {
     expect(screen.getByText("Persist portfolio state")).toBeVisible();
     expect(screen.getByText("consumed · replayed")).toBeVisible();
     expect(screen.getByText("42ms")).toBeVisible();
-    expect(screen.getByRole("link", { name: /consumed · replayed/ })).toHaveAttribute(
+    expect(
+      screen.getByRole("link", { name: /consumed · replayed/ }),
+    ).toHaveAttribute(
       "href",
       "/systems/portfolio-query/traces/trace-query-12345678",
     );
 
-    fireEvent.click(screen.getByRole("button", { name: /Persist portfolio state/ }));
+    fireEvent.click(
+      screen.getByRole("button", { name: /Persist portfolio state/ }),
+    );
     expect(
       screen.getByRole("heading", { name: "Synthetic current portfolio" }),
     ).toBeVisible();

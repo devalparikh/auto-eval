@@ -28,20 +28,24 @@ const definition = {
 describe("RuntimeInputNotice", () => {
   afterEach(cleanup);
 
-  it("distinguishes direct refreshes from saved business input", () => {
+  it("distinguishes direct refreshes from optional or required capture", () => {
     render(<RuntimeInputNotice definition={definition} context="run" />);
     expect(screen.getByText("Direct run external inputs")).toBeVisible();
     expect(
-      screen.getByText(/never capture runtime observations/),
+      screen.getByText(/only become immutable observation artifacts/),
     ).toBeVisible();
-    expect(screen.getByText(/options_chain · run refresh/)).toBeVisible();
-    expect(screen.getByText(/conditional/)).toBeVisible();
+    expect(
+      screen.getByText(/source: options_chain; run: refresh/),
+    ).toBeVisible();
+    expect(screen.getByText(/optional/)).toBeVisible();
   });
 
   it("explains dataset-locked observations for evaluation", () => {
     render(<RuntimeInputNotice definition={definition} context="evaluation" />);
-    expect(screen.getByText("Evaluation observation bindings")).toBeVisible();
+    expect(screen.getByText("Saved evaluation observations")).toBeVisible();
     expect(screen.getByText(/dataset example supplies locked/)).toBeVisible();
-    expect(screen.getByText(/options_chain · evaluation locked/)).toBeVisible();
+    expect(
+      screen.getByText(/source: options_chain; evaluation: locked/),
+    ).toBeVisible();
   });
 });

@@ -13,8 +13,8 @@ import type { AgentSystemSummary, Catalog, Trace } from "@/lib/types";
 vi.mock("@/lib/api", () => ({
   api: {
     agentVersion: vi.fn(),
+    nodeSnapshots: vi.fn(),
     runTrace: vi.fn(),
-    createInputSample: vi.fn(),
   },
 }));
 
@@ -100,28 +100,54 @@ const portfolioSnapshots = [
   {
     id: "snapshot-1",
     agent_system_id: portfolioProduct.id,
+    agent_system_key: portfolioProduct.key,
+    product_key: "portfolio-analyst",
+    flow_key: "index",
+    flow_name: "Index portfolio",
     source_trace_id: null,
+    node_id: "persist_portfolio_snapshot",
+    node_label: "Persist immutable portfolio snapshot",
+    node_kind: "deterministic" as const,
+    output_key: "portfolio_state",
+    resource_identity: "main_synthetic_portfolio",
+    snapshot_kind: "state" as const,
     schema_version: 1,
     label: "Older synthetic portfolio",
-    as_of: "2026-08-09T12:00:00Z",
-    source_kind: "synthetic",
+    observed_at: "2026-08-09T12:00:00Z",
+    captured_at: "2026-08-09T12:00:00Z",
+    source: "synthetic",
+    provider: null,
+    capture_mode: "seeded" as const,
     is_synthetic: true,
     content_hash: "a".repeat(64),
-    position_count: 3,
-    created_at: "2026-08-09T12:00:00Z",
+    usage_count: 0,
+    latest_usage: null,
   },
   {
     id: "snapshot-2",
     agent_system_id: portfolioProduct.id,
+    agent_system_key: portfolioProduct.key,
+    product_key: "portfolio-analyst",
+    flow_key: "index",
+    flow_name: "Index portfolio",
     source_trace_id: null,
+    node_id: "persist_portfolio_snapshot",
+    node_label: "Persist immutable portfolio snapshot",
+    node_kind: "deterministic" as const,
+    output_key: "portfolio_state",
+    resource_identity: "main_synthetic_portfolio",
+    snapshot_kind: "state" as const,
     schema_version: 1,
     label: "Current synthetic portfolio",
-    as_of: "2026-08-10T12:00:00Z",
-    source_kind: "synthetic",
+    observed_at: "2026-08-10T12:00:00Z",
+    captured_at: "2026-08-10T12:00:00Z",
+    source: "synthetic",
+    provider: null,
+    capture_mode: "seeded" as const,
     is_synthetic: true,
     content_hash: "b".repeat(64),
-    position_count: 4,
-    created_at: "2026-08-10T12:00:00Z",
+    usage_count: 0,
+    latest_usage: null,
   },
 ];
 
@@ -175,10 +201,68 @@ const legacyGraph = {
   },
 };
 
+const portfolioQueryGraph = {
+  ...legacyGraph,
+  agent_system_id: portfolioQuerySystem.id,
+  definition: {
+    entry_point: "get_indexed_portfolio",
+    output_node: "answer",
+    nodes: [
+      {
+        id: "get_indexed_portfolio",
+        label: "Get indexed portfolio",
+        kind: "deterministic" as const,
+        handler: "get_indexed_portfolio",
+        task: null,
+        resource_policy: {
+          product_key: "portfolio-analyst",
+          resource_key: "indexed_portfolio",
+          producer_system_key: "portfolio-analyst",
+          producer_node_id: "persist_portfolio_snapshot",
+          producer_output_key: "portfolio_state",
+          producer_snapshot_kind: "state" as const,
+          schema_version: 1,
+          runtime_mode: "current" as const,
+          evaluation_mode: "locked" as const,
+          required: true,
+        },
+      },
+      {
+        id: "load_options",
+        label: "Load current options",
+        kind: "deterministic" as const,
+        handler: "load_options",
+        task: null,
+        runtime_input_policy: {
+          source: "options_chain",
+          schema_version: 1,
+          required: false,
+          runtime_mode: "refresh" as const,
+          evaluation_mode: "locked" as const,
+        },
+        snapshot_policy: {
+          output_key: "options_chain",
+          snapshot_kind: "external_observation" as const,
+          schema_version: 1,
+          binding_mode: "produce_or_consume" as const,
+          reveal_policy_key: "external_observation",
+          required: false,
+        },
+      },
+      legacyGraph.definition.nodes[0],
+    ],
+    edges: [
+      { source: "get_indexed_portfolio", target: "load_options" },
+      { source: "load_options", target: "answer" },
+    ],
+  },
+};
+
 describe("RunWorkbench", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(api.agentVersion).mockResolvedValue(legacyGraph);
+    vi.mocked(api.nodeSnapshots).mockResolvedValue([]);
   });
 
   afterEach(() => {
@@ -209,6 +293,8 @@ describe("RunWorkbench", () => {
         agent_system_id: "system-1",
         agent_system_version_id: "graph-2",
         prompt_version_id: "prompt-3",
+        node_resource_selections: {},
+        capture_node_outputs: false,
       }),
     );
     expect(
@@ -238,23 +324,21 @@ describe("RunWorkbench", () => {
     expect(api.runTrace).not.toHaveBeenCalled();
   });
 
-  it("resolves a selected portfolio snapshot by ID while keeping advanced input editable", async () => {
+  it("binds a current identity or exact snapshot without changing business input", async () => {
+    vi.mocked(api.agentVersion).mockResolvedValueOnce(portfolioQueryGraph);
+    vi.mocked(api.nodeSnapshots).mockResolvedValue(portfolioSnapshots);
     vi.mocked(api.runTrace).mockResolvedValueOnce({
       ...completedTrace,
       agent_system_id: portfolioQuerySystem.id,
       agent_system_key: portfolioQuerySystem.key,
       agent_system_name: portfolioQuerySystem.name,
-      request_input: {
-        snapshot_id: "snapshot-2",
-        question: "Which call fits?",
-      },
+      request_input: { question: "Which call fits?" },
     });
     render(
       <RunWorkbench
         catalog={portfolioQueryCatalog}
         system={portfolioQuerySystem}
         systemKey={portfolioQuerySystem.key}
-        portfolioSnapshots={portfolioSnapshots}
       />,
     );
 
@@ -263,16 +347,36 @@ describe("RunWorkbench", () => {
         screen.getByRole("button", { name: "Run inference" }),
       ).toBeEnabled(),
     );
-
-    expect(
-      screen.getByRole("heading", {
-        name: "Portfolio Analyst · Query portfolio",
+    expect(api.nodeSnapshots).toHaveBeenCalledWith({
+      productKey: "portfolio-analyst",
+      agentSystemKey: "portfolio-analyst",
+      nodeId: "persist_portfolio_snapshot",
+      outputKey: "portfolio_state",
+      schemaVersion: 1,
+      snapshotKind: "state",
+      latestPerIdentity: true,
+      limit: 500,
+    });
+    await waitFor(() =>
+      expect(api.nodeSnapshots).toHaveBeenCalledWith({
+        productKey: "portfolio-analyst",
+        agentSystemKey: "portfolio-analyst",
+        nodeId: "persist_portfolio_snapshot",
+        outputKey: "portfolio_state",
+        schemaVersion: 1,
+        snapshotKind: "state",
+        resourceIdentity: "main_synthetic_portfolio",
+        limit: 500,
       }),
-    ).toBeVisible();
-    expect(screen.getByLabelText("Indexed snapshot")).toHaveValue("snapshot-2");
-    expect(
-      screen.getByText(/referenced by ID and resolved server-side/i),
-    ).toBeVisible();
+    );
+    const resource = screen.getByLabelText("Saved input version");
+    expect(resource).toHaveValue("current:main_synthetic_portfolio");
+    expect(screen.getByText("saved input: latest")).toBeVisible();
+    const capture = screen.getByRole("checkbox", {
+      name: /Capture refreshed external outputs/,
+    });
+    expect(capture).not.toBeChecked();
+
     const advancedInput = screen.getByLabelText("Advanced query input (JSON)");
     expect((advancedInput as HTMLTextAreaElement).value).not.toContain(
       "snapshot_id",
@@ -280,15 +384,22 @@ describe("RunWorkbench", () => {
     expect((advancedInput as HTMLTextAreaElement).value).not.toContain(
       "market_context",
     );
+    expect(
+      screen.getByRole("option", {
+        name: /Exact version: Current synthetic portfolio/,
+      }),
+    ).toHaveValue("locked:snapshot-2");
+    fireEvent.change(resource, { target: { value: "locked:snapshot-2" } });
+    expect(await screen.findByText("saved input: exact version")).toBeVisible();
     fireEvent.change(advancedInput, {
       target: {
         value: JSON.stringify({
           question: "Which call fits?",
-          market_context: { contracts: [] },
           policy: { min_dte: 21 },
         }),
       },
     });
+    fireEvent.click(capture);
     fireEvent.click(screen.getByRole("button", { name: "Run inference" }));
 
     await waitFor(() =>
@@ -296,31 +407,37 @@ describe("RunWorkbench", () => {
         expect.objectContaining({
           agent_system_id: portfolioQuerySystem.id,
           input: {
-            snapshot_id: "snapshot-2",
             question: "Which call fits?",
             policy: { min_dte: 21 },
           },
+          node_resource_selections: {
+            get_indexed_portfolio: {
+              mode: "locked",
+              snapshot_id: "snapshot-2",
+            },
+          },
+          capture_node_outputs: true,
         }),
       ),
     );
   });
 
-  it("disables portfolio queries when no indexed snapshots exist", () => {
+  it("disables a graph when its required resource has no snapshots", async () => {
+    vi.mocked(api.agentVersion).mockResolvedValueOnce(portfolioQueryGraph);
     render(
       <RunWorkbench
         catalog={portfolioQueryCatalog}
         system={portfolioQuerySystem}
         systemKey={portfolioQuerySystem.key}
-        portfolioSnapshots={[]}
       />,
     );
 
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Create or seed the required indexed_portfolio saved input",
+    );
     expect(
       screen.getByRole("button", { name: "Run inference" }),
     ).toBeDisabled();
-    expect(screen.getByRole("alert")).toHaveTextContent(
-      "Seed or index a portfolio snapshot",
-    );
   });
 
   it("pins one prompt version per graph prompt key", async () => {
@@ -375,9 +492,9 @@ describe("RunWorkbench", () => {
     );
 
     expect(
-      await screen.findByLabelText("Prompt · research-agent-prompt"),
+      await screen.findByLabelText("Prompt: research-agent-prompt"),
     ).toHaveValue("prompt-3");
-    expect(screen.getByLabelText("Prompt · review-prompt")).toHaveValue(
+    expect(screen.getByLabelText("Prompt: review-prompt")).toHaveValue(
       "prompt-8",
     );
     fireEvent.click(screen.getByRole("button", { name: "Run inference" }));
@@ -393,91 +510,5 @@ describe("RunWorkbench", () => {
         }),
       ),
     );
-  });
-
-  it("saves an opted-in input only after the trace is recorded", async () => {
-    vi.mocked(api.runTrace).mockResolvedValueOnce(completedTrace);
-    vi.mocked(api.createInputSample).mockResolvedValueOnce({
-      id: "sample-1",
-      agent_system_id: system.id,
-      source_trace_id: completedTrace.id,
-      input: { question: "Summarize the change." },
-      created_at: "2026-08-10T12:00:02Z",
-    });
-    render(
-      <RunWorkbench catalog={catalog} system={system} systemKey={system.key} />,
-    );
-    await waitFor(() =>
-      expect(
-        screen.getByRole("button", { name: "Run inference" }),
-      ).toBeEnabled(),
-    );
-    fireEvent.change(screen.getByLabelText("Request input (JSON)"), {
-      target: { value: '{"question":"Summarize the change."}' },
-    });
-    fireEvent.click(
-      screen.getByRole("checkbox", { name: /Save input as sample/ }),
-    );
-    fireEvent.click(screen.getByRole("button", { name: "Run inference" }));
-
-    expect(await screen.findByText(/Input saved as sample/)).toBeVisible();
-    expect(api.createInputSample).toHaveBeenCalledWith(system.id, {
-      input: { question: "Summarize the change." },
-      source_trace_id: completedTrace.id,
-    });
-    expect(vi.mocked(api.runTrace).mock.invocationCallOrder[0]).toBeLessThan(
-      vi.mocked(api.createInputSample).mock.invocationCallOrder[0] ?? 0,
-    );
-  });
-
-  it("keeps the recorded trace visible when sample saving fails", async () => {
-    vi.mocked(api.runTrace).mockResolvedValueOnce(completedTrace);
-    vi.mocked(api.createInputSample).mockRejectedValueOnce(
-      new Error("Sample storage unavailable"),
-    );
-    render(
-      <RunWorkbench catalog={catalog} system={system} systemKey={system.key} />,
-    );
-    await waitFor(() =>
-      expect(
-        screen.getByRole("button", { name: "Run inference" }),
-      ).toBeEnabled(),
-    );
-    fireEvent.click(
-      screen.getByRole("checkbox", { name: /Save input as sample/ }),
-    );
-    fireEvent.click(screen.getByRole("button", { name: "Run inference" }));
-
-    expect(
-      await screen.findByText(/Trace recorded, but the input sample/),
-    ).toHaveTextContent("Sample storage unavailable");
-    expect(
-      screen.getByRole("link", { name: "Inspect full trace" }),
-    ).toBeVisible();
-  });
-
-  it("does not try to save a sample for a failed trace", async () => {
-    vi.mocked(api.runTrace).mockResolvedValueOnce({
-      ...completedTrace,
-      status: "failed",
-      error: "Provider unavailable",
-      output: null,
-    });
-    render(
-      <RunWorkbench catalog={catalog} system={system} systemKey={system.key} />,
-    );
-    await waitFor(() =>
-      expect(
-        screen.getByRole("button", { name: "Run inference" }),
-      ).toBeEnabled(),
-    );
-    fireEvent.click(
-      screen.getByRole("checkbox", { name: /Save input as sample/ }),
-    );
-    fireEvent.click(screen.getByRole("button", { name: "Run inference" }));
-
-    expect(await screen.findByText(/Input sample skipped/)).toBeVisible();
-    expect(api.createInputSample).not.toHaveBeenCalled();
-    expect(screen.getByText("Provider unavailable")).toBeVisible();
   });
 });

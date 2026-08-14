@@ -15,6 +15,7 @@ def create_portfolio_snapshot(
     owner: AgentSystemRecord,
     *,
     snapshot_id: str,
+    resource_identity: str | None = None,
     label: str,
     as_of: str,
     source_kind: str,
@@ -23,6 +24,9 @@ def create_portfolio_snapshot(
     source_trace_id: str | None = None,
 ) -> PortfolioSnapshotRecord:
     normalized = deepcopy(document)
+    normalized_identity = (resource_identity or snapshot_id).strip()
+    if not normalized_identity:
+        raise ValueError("Portfolio resource identity cannot be empty")
     normalized["schema_version"] = int(normalized.get("schema_version", 1))
     normalized["as_of"] = as_of
     normalized["is_synthetic"] = is_synthetic
@@ -33,7 +37,11 @@ def create_portfolio_snapshot(
 
     existing = session.get(PortfolioSnapshotRecord, snapshot_id)
     if existing is not None:
-        if existing.agent_system_id != owner.id or existing.content_hash != content_hash:
+        if (
+            existing.agent_system_id != owner.id
+            or existing.resource_identity != normalized_identity
+            or existing.content_hash != content_hash
+        ):
             raise ValueError(
                 f"Portfolio snapshot ID already exists with different content: {snapshot_id}"
             )
@@ -41,10 +49,19 @@ def create_portfolio_snapshot(
         session.commit()
         return existing
 
+    duplicate_content = (
+        session.query(PortfolioSnapshotRecord)
+        .filter_by(agent_system_id=owner.id, content_hash=content_hash)
+        .first()
+    )
+    if duplicate_content is not None and duplicate_content.resource_identity != normalized_identity:
+        raise ValueError("Identical portfolio content cannot be reused across identities")
+
     record = PortfolioSnapshotRecord(
         id=snapshot_id,
         agent_system_id=owner.id,
         source_trace_id=source_trace_id,
+        resource_identity=normalized_identity,
         schema_version=normalized["schema_version"],
         label=label,
         as_of=as_of,
@@ -99,6 +116,7 @@ def portfolio_snapshot_summary(record: PortfolioSnapshotRecord) -> PortfolioSnap
         id=record.id,
         agent_system_id=record.agent_system_id,
         source_trace_id=record.source_trace_id,
+        resource_identity=record.resource_identity,
         schema_version=record.schema_version,
         label=record.label,
         as_of=record.as_of,
@@ -148,6 +166,7 @@ def _catalog_portfolio_snapshot(
         node_id="persist_portfolio_snapshot",
         node_kind="deterministic",
         output_key="portfolio_state",
+        resource_identity=record.resource_identity,
         snapshot_kind="state",
         schema_version=record.schema_version,
         label=record.label,
@@ -167,6 +186,7 @@ def _catalog_portfolio_snapshot(
         node_metadata={
             "position_count": _position_count(record.document),
             "output_contract": "indexed_portfolio_state",
+            "resource_identity": record.resource_identity,
         },
         reveal_policy_key="portfolio_state",
         storage_adapter="portfolio_snapshot",

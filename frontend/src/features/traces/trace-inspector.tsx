@@ -62,12 +62,31 @@ export function TraceInspector({
       </InspectorSection>
       {span.node_snapshot_id || span.runtime_input_snapshot_id ? (
         <NodeSnapshotUse span={span} systemKey={systemKey} />
-      ) : span.node_kind === "deterministic" || span.node_kind === "external_input" ? (
+      ) : span.node_kind === "deterministic" ||
+        span.node_kind === "external_input" ? (
         <InspectorSection label="Data resolution">
-          <p className="text-[10px] leading-5 text-[var(--text-muted)]">
-            Executed for this trace. No immutable node-output snapshot was attached to
-            this step.
+          <p className="text-[10px] font-semibold text-[var(--text-muted)]">
+            {span.snapshot_resolution_mode === "live"
+              ? "Live data: not saved"
+              : span.snapshot_resolution_mode
+                ? `${resolutionLabel(span.snapshot_resolution_mode, span.snapshot_role ?? "used")}: not saved`
+                : "Executed: no saved output"}
           </p>
+          <p className="mt-1 text-[10px] leading-5 text-[var(--text-muted)]">
+            This step ran for the trace, but no immutable node-output snapshot
+            was attached. Resolution metadata remains part of the span.
+          </p>
+          {span.snapshot_metadata &&
+          Object.keys(span.snapshot_metadata).length ? (
+            <details className="mt-2 border border-[var(--border)] px-3 py-2">
+              <summary className="cursor-pointer text-[9px] font-medium text-[var(--text-muted)]">
+                Resolution metadata
+              </summary>
+              <div className="mt-2">
+                <JsonBlock value={span.snapshot_metadata} />
+              </div>
+            </details>
+          ) : null}
         </InspectorSection>
       ) : null}
       {span.system_prompt ? (
@@ -102,7 +121,8 @@ function NodeSnapshotUse({
   span: TraceSpan;
   systemKey: string;
 }) {
-  const snapshotId = span.node_snapshot_id ?? span.runtime_input_snapshot_id ?? "";
+  const snapshotId =
+    span.node_snapshot_id ?? span.runtime_input_snapshot_id ?? "";
   const detail = useApiResource(
     () =>
       snapshotId
@@ -110,9 +130,11 @@ function NodeSnapshotUse({
         : Promise.reject(new Error("No node snapshot selected")),
     [snapshotId],
   );
-  const mode = span.snapshot_resolution_mode ??
+  const mode =
+    span.snapshot_resolution_mode ??
     (span.runtime_input_snapshot_id ? "replayed" : "computed");
-  const role = span.snapshot_role ?? (mode === "replayed" ? "consumed" : "produced");
+  const role =
+    span.snapshot_role ?? (mode === "replayed" ? "consumed" : "produced");
   const label = resolutionLabel(mode, role);
 
   return (
@@ -120,7 +142,10 @@ function NodeSnapshotUse({
       <div className="border border-[var(--border)]">
         <div className="flex items-start justify-between gap-3 border-b border-[var(--border)] px-3 py-3">
           <span className="flex min-w-0 items-start gap-2">
-            <DatabaseIcon size={13} className="mt-0.5 shrink-0 text-[var(--accent)]" />
+            <DatabaseIcon
+              size={13}
+              className="mt-0.5 shrink-0 text-[var(--accent)]"
+            />
             <span className="min-w-0">
               <span className="block text-[10px] font-semibold">{label}</span>
               <span className="mono mt-1 block truncate text-[8px] text-[var(--text-faint)]">
@@ -139,15 +164,30 @@ function NodeSnapshotUse({
         <dl className="grid grid-cols-2 text-[9px]">
           <SnapshotFact label="Role" value={role} />
           <SnapshotFact label="Mode" value={mode} />
-          <SnapshotFact label="Step latency" value={formatDuration(span.latency_ms)} />
+          <SnapshotFact
+            label="Step latency"
+            value={formatDuration(span.latency_ms)}
+          />
           <SnapshotFact label="Step status" value={span.status} />
           {detail.data ? (
             <>
-              <SnapshotFact label="Observed" value={formatDate(detail.data.observed_at)} />
-              <SnapshotFact label="Captured" value={formatDate(detail.data.captured_at)} />
+              <SnapshotFact
+                label="Observed"
+                value={formatDate(detail.data.observed_at)}
+              />
+              <SnapshotFact
+                label="Captured"
+                value={formatDate(detail.data.captured_at)}
+              />
               <SnapshotFact label="Source" value={detail.data.source} />
-              <SnapshotFact label="Provider" value={detail.data.provider ?? "local"} />
-              <SnapshotFact label="Schema" value={`v${detail.data.schema_version}`} />
+              <SnapshotFact
+                label="Provider"
+                value={detail.data.provider ?? "local"}
+              />
+              <SnapshotFact
+                label="Schema"
+                value={`v${detail.data.schema_version}`}
+              />
               <SnapshotFact
                 label="Data class"
                 value={detail.data.is_synthetic ? "synthetic" : "real"}
@@ -184,7 +224,9 @@ function SnapshotFact({ label, value }: { label: string; value: string }) {
   return (
     <div className="min-w-0 border-r border-b border-[var(--border)] px-3 py-2 last:border-r-0">
       <dt className="text-[8px] text-[var(--text-faint)]">{label}</dt>
-      <dd className="mono mt-1 truncate text-[9px] text-[var(--text-muted)]">{value}</dd>
+      <dd className="mono mt-1 truncate text-[9px] text-[var(--text-muted)]">
+        {value}
+      </dd>
     </div>
   );
 }
