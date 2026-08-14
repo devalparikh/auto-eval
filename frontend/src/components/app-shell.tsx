@@ -7,9 +7,9 @@ import {
   SunIcon,
 } from "@phosphor-icons/react";
 import Link from "next/link";
+import { motion, useReducedMotion } from "motion/react";
 import { usePathname } from "next/navigation";
 import {
-  useEffect,
   useState,
   useSyncExternalStore,
   type MouseEvent,
@@ -31,17 +31,12 @@ export function AppShell({
   const systemKey = systemKeyFromPath(pathname);
   const navItems = scopedNavItems(systemKey);
   const [theme, setTheme] = useState(initialTheme);
-  const [showInitialEntry, setShowInitialEntry] = useState(true);
+  const reduceMotion = useReducedMotion();
   const soundEnabled = useSyncExternalStore(
     subscribeToSoundPreference,
     readSoundPreference,
     () => true,
   );
-
-  useEffect(() => {
-    const timer = window.setTimeout(() => setShowInitialEntry(false), 520);
-    return () => window.clearTimeout(timer);
-  }, []);
 
   function toggleSound() {
     const next = !soundEnabled;
@@ -143,14 +138,20 @@ export function AppShell({
         </div>
       </header>
       <main id="main-content" className="route-frame">
-        <div
+        <motion.div
           key={pathname}
-          className={`route-content ${
-            showInitialEntry ? "route-content-initial" : "route-content-change"
-          }`}
+          className="route-content"
+          initial={
+            pathname !== "/" && !reduceMotion ? { opacity: 0.45 } : false
+          }
+          animate={{ opacity: 1 }}
+          transition={{
+            duration: reduceMotion ? 0 : 0.15,
+            ease: [0.4, 1, 0.6, 1],
+          }}
         >
           {children}
-        </div>
+        </motion.div>
       </main>
     </div>
   );

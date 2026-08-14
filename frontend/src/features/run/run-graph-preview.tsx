@@ -7,18 +7,14 @@ import {
   WaveformIcon,
 } from "@phosphor-icons/react";
 import {
-  Background,
-  BackgroundVariant,
-  Controls,
   Handle,
-  MarkerType,
   Position,
-  ReactFlow,
   type Edge,
   type Node,
   type NodeProps,
 } from "@xyflow/react";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo } from "react";
+import { GraphCanvas } from "@/components/graph-canvas";
 import { graphLevels } from "@/features/traces/graph-layout";
 import type {
   GraphDefinition,
@@ -40,18 +36,17 @@ type RunPreviewNodeData = {
   entry: boolean;
   output: boolean;
   targets: string[];
-  direction: "forward" | "reverse";
 };
 
 const nodeTypes = { runPreviewNode: RunPreviewNode };
 const nodeWidth = 204;
 const nodeHeight = 112;
-const stageGap = 48;
-const parallelNodeGap = 58;
+const stageSpacing = 236;
+const parallelNodeSpacing = 160;
 const previewFitOptions = {
   padding: 0.16,
-  minZoom: 0.16,
-  maxZoom: 0.96,
+  minZoom: 0.12,
+  maxZoom: 0.86,
 };
 
 export function classifyRunNode(
@@ -80,42 +75,12 @@ export function buildRunGraphPreview(
   definition: GraphDefinition,
   resourceSelections: Record<string, NodeResourceSelection>,
   captureNodeOutputs: boolean,
-  levelsPerRow = 4,
 ): { nodes: Node<RunPreviewNodeData>[]; edges: Edge[] } {
   const levels = graphLevels(definition.nodes, definition.edges);
   const levelCounts = new Map<number, number>();
-  const nodesPerLevel = new Map<number, number>();
-  definition.nodes.forEach((node) => {
-    const level = levels.get(node.id) ?? 0;
-    nodesPerLevel.set(level, (nodesPerLevel.get(level) ?? 0) + 1);
-  });
-  const maximumLevel = Math.max(0, ...levels.values());
-  const rowCount = Math.ceil((maximumLevel + 1) / levelsPerRow);
-  const rowOffsets: number[] = [];
-  let nextRowOffset = 0;
-  for (let row = 0; row < rowCount; row += 1) {
-    rowOffsets.push(nextRowOffset);
-    const firstLevel = row * levelsPerRow;
-    const largestStage = Math.max(
-      1,
-      ...Array.from({ length: levelsPerRow }, (_, offset) =>
-        Math.min(firstLevel + offset, maximumLevel),
-      ).map((level) => nodesPerLevel.get(level) ?? 0),
-    );
-    nextRowOffset +=
-      largestStage * nodeHeight +
-      Math.max(0, largestStage - 1) * parallelNodeGap +
-      stageGap;
-  }
   const nodes = definition.nodes.map((definitionNode) => {
     const level = levels.get(definitionNode.id) ?? 0;
     const index = levelCounts.get(level) ?? 0;
-    const row = Math.floor(level / levelsPerRow);
-    const stageIndex = level % levelsPerRow;
-    const direction: RunPreviewNodeData["direction"] =
-      row % 2 === 0 ? "forward" : "reverse";
-    const column =
-      direction === "forward" ? stageIndex : levelsPerRow - stageIndex - 1;
     const targets = definition.edges
       .filter((edge) => edge.source === definitionNode.id)
       .map((edge) => edge.target);
@@ -124,8 +89,8 @@ export function buildRunGraphPreview(
       id: definitionNode.id,
       type: "runPreviewNode",
       position: {
-        x: column * (nodeWidth + stageGap),
-        y: (rowOffsets[row] ?? 0) + index * (nodeHeight + parallelNodeGap),
+        x: level * stageSpacing,
+        y: index * parallelNodeSpacing,
       },
       initialWidth: nodeWidth,
       initialHeight: nodeHeight,
@@ -145,7 +110,6 @@ export function buildRunGraphPreview(
         entry: definitionNode.id === definition.entry_point,
         output: definitionNode.id === definition.output_node,
         targets,
-        direction,
       },
     };
   });
@@ -154,12 +118,6 @@ export function buildRunGraphPreview(
     source: edge.source,
     target: edge.target,
     type: "smoothstep",
-    markerEnd: {
-      type: MarkerType.ArrowClosed,
-      color: "var(--border-strong)",
-      width: 12,
-      height: 12,
-    },
     style: { stroke: "var(--border-strong)", strokeWidth: 1.5 },
   }));
   return { nodes, edges };
@@ -174,58 +132,29 @@ export function RunGraphPreview({
   resourceSelections: Record<string, NodeResourceSelection>;
   captureNodeOutputs: boolean;
 }) {
-  const levelsPerRow = usePreviewLevelsPerRow();
   const { nodes, edges } = useMemo(
     () =>
-      buildRunGraphPreview(
-        definition,
-        resourceSelections,
-        captureNodeOutputs,
-        levelsPerRow,
-      ),
-    [captureNodeOutputs, definition, levelsPerRow, resourceSelections],
+      buildRunGraphPreview(definition, resourceSelections, captureNodeOutputs),
+    [captureNodeOutputs, definition, resourceSelections],
   );
   const maximumX = Math.max(0, ...nodes.map((node) => node.position.x));
   const maximumY = Math.max(0, ...nodes.map((node) => node.position.y));
 
   return (
-    <div className="h-[350px] min-w-0 w-full overflow-hidden border border-[var(--border)] bg-[var(--canvas)] md:h-[380px]">
-      <ReactFlow
-        key={levelsPerRow}
-        aria-label="Selected graph execution preview"
-        nodes={nodes}
-        edges={edges}
-        nodeTypes={nodeTypes}
-        nodesDraggable={false}
-        nodesConnectable={false}
-        elementsSelectable={false}
-        fitView
-        fitViewOptions={previewFitOptions}
-        minZoom={0.16}
-        maxZoom={1.4}
-        translateExtent={[
-          [-320, -260],
-          [maximumX + nodeWidth + 320, maximumY + nodeHeight + 260],
-        ]}
-        zoomOnScroll={false}
-        zoomOnDoubleClick={false}
-        preventScrolling={false}
-        proOptions={{ hideAttribution: true }}
-      >
-        <Background
-          variant={BackgroundVariant.Dots}
-          gap={22}
-          size={1}
-          color="var(--border-strong)"
-        />
-        <Controls
-          showInteractive={false}
-          fitViewOptions={previewFitOptions}
-          aria-label="Execution graph controls"
-          className="!overflow-hidden !rounded-[2px] !border-[var(--border-strong)] !bg-[var(--surface-raised)] !shadow-none"
-        />
-      </ReactFlow>
-    </div>
+    <GraphCanvas
+      ariaLabel="Selected graph execution preview"
+      className="h-[350px] border border-[var(--border)] md:h-[380px]"
+      nodes={nodes}
+      edges={edges}
+      nodeTypes={nodeTypes}
+      fitViewOptions={previewFitOptions}
+      minZoom={0.12}
+      maxZoom={1.4}
+      translateExtent={[
+        [-320, -260],
+        [maximumX + nodeWidth + 320, maximumY + nodeHeight + 260],
+      ]}
+    />
   );
 }
 
@@ -242,7 +171,7 @@ function RunPreviewNode({ data }: NodeProps<Node<RunPreviewNodeData>>) {
     <article className="relative min-h-[112px] w-[204px] border border-[var(--border-strong)] bg-[var(--surface-raised)] p-3 shadow-[0_14px_40px_rgba(0,0,0,0.2)]">
       <Handle
         type="target"
-        position={data.direction === "forward" ? Position.Left : Position.Right}
+        position={Position.Left}
         className="!size-1.5 !border-0 !bg-[var(--border-strong)]"
       />
       <div className="flex items-start gap-2">
@@ -282,32 +211,11 @@ function RunPreviewNode({ data }: NodeProps<Node<RunPreviewNodeData>>) {
       </div>
       <Handle
         type="source"
-        position={data.direction === "forward" ? Position.Right : Position.Left}
+        position={Position.Right}
         className="!size-1.5 !border-0 !bg-[var(--border-strong)]"
       />
     </article>
   );
-}
-
-function usePreviewLevelsPerRow() {
-  const [levelsPerRow, setLevelsPerRow] = useState(4);
-
-  useEffect(() => {
-    if (typeof window.matchMedia !== "function") return;
-    const mobile = window.matchMedia("(max-width: 600px)");
-    const tablet = window.matchMedia("(max-width: 1000px)");
-    const update = () =>
-      setLevelsPerRow(mobile.matches ? 2 : tablet.matches ? 3 : 4);
-    update();
-    mobile.addEventListener("change", update);
-    tablet.addEventListener("change", update);
-    return () => {
-      mobile.removeEventListener("change", update);
-      tablet.removeEventListener("change", update);
-    };
-  }, []);
-
-  return levelsPerRow;
 }
 
 function iconForClassification(classification: RunNodeClassification) {

@@ -95,10 +95,10 @@ describe("run graph classifications", () => {
     expect(graph.nodes[1]?.ariaLabel).toContain("LLM");
     expect(graph.nodes[1]?.ariaLabel).toContain("output node");
     expect(graph.edges[0]?.type).toBe("smoothstep");
-    expect(graph.edges[0]?.markerEnd).toBeTruthy();
+    expect(graph.edges[0]?.style).toMatchObject({ strokeWidth: 1.5 });
   });
 
-  it("wraps long execution paths into a directional stage grid", () => {
+  it("keeps long execution paths in one stable left-to-right sequence", () => {
     const nodes = Array.from({ length: 6 }, (_, index) => ({
       ...calculation,
       id: `stage-${index}`,
@@ -114,25 +114,15 @@ describe("run graph classifications", () => {
       })),
     } satisfies GraphDefinition;
 
-    const graph = buildRunGraphPreview(definition, {}, false, 3);
+    const graph = buildRunGraphPreview(definition, {}, false);
 
     expect(graph.nodes.map((node) => node.position)).toEqual([
       { x: 0, y: 0 },
-      { x: 252, y: 0 },
-      { x: 504, y: 0 },
-      { x: 504, y: 160 },
-      { x: 252, y: 160 },
-      { x: 0, y: 160 },
-    ]);
-    expect(graph.nodes.slice(0, 3).map((node) => node.data.direction)).toEqual([
-      "forward",
-      "forward",
-      "forward",
-    ]);
-    expect(graph.nodes.slice(3).map((node) => node.data.direction)).toEqual([
-      "reverse",
-      "reverse",
-      "reverse",
+      { x: 236, y: 0 },
+      { x: 472, y: 0 },
+      { x: 708, y: 0 },
+      { x: 944, y: 0 },
+      { x: 1180, y: 0 },
     ]);
   });
 });

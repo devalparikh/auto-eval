@@ -38,6 +38,8 @@ describe("trace graph layout", () => {
     const graph = buildTraceGraph(trace, "left");
     expect(graph.nodes.find((node) => node.id === "left")?.position).toEqual({ x: 278, y: 0 });
     expect(graph.nodes.find((node) => node.id === "right")?.position).toEqual({ x: 278, y: 150 });
+    expect(graph.nodes.find((node) => node.id === "left")?.initialWidth).toBe(208);
+    expect(graph.nodes.find((node) => node.id === "left")?.initialHeight).toBe(118);
     expect(graph.nodes.find((node) => node.id === "left")?.data).toMatchObject({
       latency: 12,
       cost: 0.01,

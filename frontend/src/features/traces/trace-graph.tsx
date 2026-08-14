@@ -6,17 +6,9 @@ import {
   DatabaseIcon,
   WaveformIcon,
 } from "@phosphor-icons/react";
-import {
-  Background,
-  BackgroundVariant,
-  Controls,
-  Handle,
-  Position,
-  ReactFlow,
-  type Node,
-  type NodeProps,
-} from "@xyflow/react";
+import { Handle, Position, type Node, type NodeProps } from "@xyflow/react";
 import { useMemo } from "react";
+import { GraphCanvas } from "@/components/graph-canvas";
 import {
   buildTraceGraph,
   type TraceNodeData,
@@ -25,6 +17,7 @@ import { formatCost, formatDuration } from "@/lib/format";
 import type { Trace } from "@/lib/types";
 
 const nodeTypes = { traceNode: TraceNode };
+const traceFitOptions = { padding: 0.24, minZoom: 0.16, maxZoom: 1 };
 
 export function TraceGraph({
   trace,
@@ -41,33 +34,18 @@ export function TraceGraph({
   );
 
   return (
-    <div className="h-[420px] w-full bg-[var(--canvas)] md:h-[520px]">
-      <ReactFlow
-        nodes={nodes}
-        edges={edges}
-        nodeTypes={nodeTypes}
-        nodesDraggable={false}
-        nodesConnectable={false}
-        elementsSelectable
-        fitView
-        fitViewOptions={{ padding: 0.24 }}
-        minZoom={0.55}
-        maxZoom={1.4}
-        onNodeClick={(_, node) => onSelect(node.id)}
-        proOptions={{ hideAttribution: true }}
-      >
-        <Background
-          variant={BackgroundVariant.Dots}
-          gap={22}
-          size={1}
-          color="var(--border-strong)"
-        />
-        <Controls
-          showInteractive={false}
-          className="!overflow-hidden !rounded-[2px] !border-[var(--border-strong)] !bg-[var(--surface-raised)] !shadow-none"
-        />
-      </ReactFlow>
-    </div>
+    <GraphCanvas
+      ariaLabel="Trace execution graph"
+      className="h-[420px] md:h-[520px]"
+      nodes={nodes}
+      edges={edges}
+      nodeTypes={nodeTypes}
+      fitViewOptions={traceFitOptions}
+      minZoom={0.16}
+      maxZoom={1.4}
+      elementsSelectable
+      onNodeClick={(_, node) => onSelect(node.id)}
+    />
   );
 }
 
