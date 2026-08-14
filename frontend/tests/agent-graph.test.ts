@@ -101,10 +101,12 @@ describe("agent graph", () => {
     } satisfies GraphDefinition;
 
     const graph = buildAgentGraph(resourceDefinition);
-    expect(graph.nodes[0]?.ariaLabel).toContain("resource indexed_portfolio");
-    expect(graph.nodes[0]?.ariaLabel).toContain("run current");
     expect(graph.nodes[0]?.ariaLabel).toContain(
-      "producer portfolio-analyst persist_portfolio_snapshot",
+      "saved input indexed_portfolio",
+    );
+    expect(graph.nodes[0]?.ariaLabel).toContain("run latest");
+    expect(graph.nodes[0]?.ariaLabel).toContain(
+      "source portfolio-analyst persist_portfolio_snapshot",
     );
   });
 });

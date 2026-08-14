@@ -56,7 +56,7 @@ describe("TraceInspector", () => {
         systemKey="portfolio-query"
       />,
     );
-    expect(screen.getByText("Live data · not captured")).toBeVisible();
+    expect(screen.getByText("Live data: not saved")).toBeVisible();
     expect(screen.getByText("Resolution metadata")).toBeVisible();
   });
 });

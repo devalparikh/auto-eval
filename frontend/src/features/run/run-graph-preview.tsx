@@ -23,11 +23,11 @@ import type {
 } from "@/lib/types";
 
 export type RunNodeClassification =
-  | "deterministic calculation"
-  | "deterministic current resource"
-  | "deterministic live external"
-  | "snapshot replay"
-  | "LLM";
+  | "calculation"
+  | "saved input: latest"
+  | "live external input"
+  | "saved input: exact version"
+  | "model call";
 
 type RunPreviewNodeData = {
   definition: GraphNodeDefinition;
@@ -53,22 +53,22 @@ export function classifyRunNode(
   node: GraphNodeDefinition,
   resourceSelection?: NodeResourceSelection,
 ): RunNodeClassification {
-  if (node.kind === "llm") return "LLM";
+  if (node.kind === "llm") return "model call";
   if (node.resource_policy) {
     const mode = resourceSelection?.mode ?? node.resource_policy.runtime_mode;
     return mode === "locked"
-      ? "snapshot replay"
-      : "deterministic current resource";
+      ? "saved input: exact version"
+      : "saved input: latest";
   }
   if (node.runtime_input_policy) {
     return node.runtime_input_policy.runtime_mode === "locked"
-      ? "snapshot replay"
-      : "deterministic live external";
+      ? "saved input: exact version"
+      : "live external input";
   }
   if (node.snapshot_policy?.binding_mode === "consume") {
-    return "snapshot replay";
+    return "saved input: exact version";
   }
-  return "deterministic calculation";
+  return "calculation";
 }
 
 export function buildRunGraphPreview(
@@ -191,10 +191,10 @@ function RunPreviewNode({ data }: NodeProps<Node<RunPreviewNodeData>>) {
         {data.entry ? <PreviewTag>entry</PreviewTag> : null}
         {data.output ? <PreviewTag>output</PreviewTag> : null}
         {data.selection?.mode === "current" ? (
-          <PreviewTag>current · {data.selection.identity}</PreviewTag>
+          <PreviewTag>Latest: {data.selection.identity}</PreviewTag>
         ) : null}
         {data.selection?.mode === "locked" ? (
-          <PreviewTag>locked · exact snapshot</PreviewTag>
+          <PreviewTag>Exact saved version</PreviewTag>
         ) : null}
         {data.definition.runtime_input_policy?.runtime_mode === "refresh" ? (
           <PreviewTag>run refresh</PreviewTag>
@@ -202,11 +202,13 @@ function RunPreviewNode({ data }: NodeProps<Node<RunPreviewNodeData>>) {
         {requiredCapture ? <PreviewTag>required capture</PreviewTag> : null}
         {optionalRefresh ? (
           <PreviewTag>
-            {data.captureNodeOutputs ? "capture on" : "live · not captured"}
+            {data.captureNodeOutputs
+              ? "Save refreshed output"
+              : "Live output: not saved"}
           </PreviewTag>
         ) : null}
         {data.targets.length ? (
-          <PreviewTag>to · {data.targets.join(", ")}</PreviewTag>
+          <PreviewTag>Next: {data.targets.join(", ")}</PreviewTag>
         ) : null}
       </div>
       <Handle
@@ -220,14 +222,14 @@ function RunPreviewNode({ data }: NodeProps<Node<RunPreviewNodeData>>) {
 
 function iconForClassification(classification: RunNodeClassification) {
   const properties = { size: 14, weight: "bold" as const, "aria-hidden": true };
-  if (classification === "LLM") return <WaveformIcon {...properties} />;
+  if (classification === "model call") return <WaveformIcon {...properties} />;
   if (
-    classification === "snapshot replay" ||
-    classification === "deterministic current resource"
+    classification === "saved input: exact version" ||
+    classification === "saved input: latest"
   ) {
     return <DatabaseIcon {...properties} />;
   }
-  if (classification === "deterministic live external") {
+  if (classification === "live external input") {
     return <CloudArrowDownIcon {...properties} />;
   }
   return <BracketsCurlyIcon {...properties} />;

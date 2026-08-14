@@ -91,7 +91,7 @@ function TraceNode({ data }: NodeProps<Node<TraceNodeData>>) {
             {runtimePolicy
               ? `external input · ${runtimePolicy.source}`
               : resourcePolicy
-                ? `resource · ${resourcePolicy.resource_key}`
+                ? `saved input: ${resourcePolicy.resource_key}`
                 : data.definition.kind}
           </p>
         </div>
@@ -126,10 +126,10 @@ function TraceNode({ data }: NodeProps<Node<TraceNodeData>>) {
       {resourcePolicy ? (
         <div className="mono mt-2 flex flex-wrap gap-1 text-[8px] text-[var(--accent)]">
           <span className="bg-[var(--accent-soft)] px-1.5 py-1">
-            resource · {resourcePolicy.resource_key}
+            saved input: {resourcePolicy.resource_key}
           </span>
           <span className="bg-[var(--accent-soft)] px-1.5 py-1">
-            run {resourcePolicy.runtime_mode}
+            run {resourcePolicy.runtime_mode === "current" ? "latest" : "exact"}
           </span>
         </div>
       ) : null}

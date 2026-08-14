@@ -1,8 +1,8 @@
 "use client";
 
-import { ArrowRightIcon, DatabaseIcon, PlayIcon } from "@phosphor-icons/react";
+import { ArrowRightIcon, PlayIcon } from "@phosphor-icons/react";
 import Link from "next/link";
-import { useMemo, useState, type FormEvent } from "react";
+import { useState, type FormEvent } from "react";
 import { JsonViewer } from "@/components/json-viewer";
 import { PageHeader } from "@/components/page-header";
 import { Select } from "@/components/select";
@@ -20,11 +20,8 @@ import {
   PORTFOLIO_QUERY_SYSTEM_KEY,
 } from "@/features/run/run-options";
 import { RunGraphPreview } from "@/features/run/run-graph-preview";
-import {
-  defaultResourceChoice,
-  resourceChoicesForNode,
-  type ResourceChoice,
-} from "@/features/run/run-resource-options";
+import { RunSavedInputs } from "@/features/run/run-saved-inputs";
+import { useRunSavedInputs } from "@/features/run/use-run-saved-inputs";
 import {
   promptForGraphKey,
   promptKeysForGraph,
@@ -34,13 +31,7 @@ import { systemPath } from "@/features/systems/system-path";
 import { api } from "@/lib/api";
 import { formatCost, formatDate, formatDuration, shortId } from "@/lib/format";
 import { playPreferredUiSound } from "@/lib/sound";
-import type {
-  AgentSystemSummary,
-  Catalog,
-  GraphNodeDefinition,
-  NodeResourceSelection,
-  Trace,
-} from "@/lib/types";
+import type { AgentSystemSummary, Catalog, Trace } from "@/lib/types";
 import { useApiResource } from "@/lib/use-api-resource";
 
 export function RunScreen({ systemKey }: { systemKey: string }) {
@@ -115,14 +106,8 @@ export function RunWorkbench({
     graphs[0]?.id ?? "",
   );
   const [selectedModelId, setSelectedModelId] = useState(models[0]?.id ?? "");
-  const [resourceChoiceTokens, setResourceChoiceTokens] = useState<
-    Record<string, string>
-  >({});
-  const [resourceIdentities, setResourceIdentities] = useState<
-    Record<string, string>
-  >({});
-  const [captureNodeOutputs, setCaptureNodeOutputs] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [captureNodeOutputs, setCaptureNodeOutputs] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [trace, setTrace] = useState<Trace | null>(null);
   const graphDetail = useApiResource(
@@ -133,146 +118,11 @@ export function RunWorkbench({
     [selectedGraphVersionId],
   );
   const graphDefinition = graphDetail.data?.definition ?? null;
-  const resourceNodes = useMemo(
-    () => graphDefinition?.nodes.filter((node) => node.resource_policy) ?? [],
-    [graphDefinition],
-  );
+  const savedInputs = useRunSavedInputs(graphDefinition);
   const hasRefreshNodes =
     graphDefinition?.nodes.some(
       (node) => node.runtime_input_policy?.runtime_mode === "refresh",
     ) ?? false;
-  const resourcePolicySignature = JSON.stringify(
-    resourceNodes.map((node) => ({ id: node.id, ...node.resource_policy })),
-  );
-  const currentResourceSnapshots = useApiResource(
-    async () =>
-      Object.fromEntries(
-        await Promise.all(
-          resourceNodes.map(async (node) => {
-            const policy = node.resource_policy;
-            if (!policy) return [node.id, []] as const;
-            const snapshots = await api.nodeSnapshots({
-              productKey: policy.product_key,
-              agentSystemKey: policy.producer_system_key,
-              nodeId: policy.producer_node_id,
-              outputKey: policy.producer_output_key,
-              schemaVersion: policy.schema_version,
-              snapshotKind: policy.producer_snapshot_kind,
-              latestPerIdentity: true,
-              limit: 500,
-            });
-            return [node.id, snapshots] as const;
-          }),
-        ),
-      ),
-    [resourcePolicySignature],
-  );
-  const currentResourceChoicesByNode = useMemo(
-    () =>
-      Object.fromEntries(
-        resourceNodes.map((node) => [
-          node.id,
-          resourceChoicesForNode(
-            node,
-            currentResourceSnapshots.data?.[node.id] ?? [],
-            [],
-          ),
-        ]),
-      ) as Record<string, ResourceChoice[]>,
-    [currentResourceSnapshots.data, resourceNodes],
-  );
-  const selectedResourceIdentities = useMemo(
-    () =>
-      Object.fromEntries(
-        resourceNodes.flatMap((node) => {
-          const currentChoices = currentResourceChoicesByNode[node.id] ?? [];
-          const requestedIdentity = resourceIdentities[node.id];
-          const selected = currentChoices.find(
-            (choice) =>
-              choice.selection.mode === "current" &&
-              choice.selection.identity === requestedIdentity,
-          );
-          const fallback = currentChoices.find(
-            (choice) => choice.selection.mode === "current",
-          );
-          const choice = selected ?? fallback;
-          return choice?.selection.mode === "current"
-            ? [[node.id, choice.selection.identity]]
-            : [];
-        }),
-      ) as Record<string, string>,
-    [currentResourceChoicesByNode, resourceIdentities, resourceNodes],
-  );
-  const resourceIdentitySignature = JSON.stringify(selectedResourceIdentities);
-  const lockedResourceSnapshots = useApiResource(
-    async () =>
-      Object.fromEntries(
-        await Promise.all(
-          resourceNodes.map(async (node) => {
-            const policy = node.resource_policy;
-            const identity = selectedResourceIdentities[node.id];
-            if (!policy || !identity) return [node.id, []] as const;
-            const snapshots = await api.nodeSnapshots({
-              productKey: policy.product_key,
-              agentSystemKey: policy.producer_system_key,
-              nodeId: policy.producer_node_id,
-              outputKey: policy.producer_output_key,
-              schemaVersion: policy.schema_version,
-              snapshotKind: policy.producer_snapshot_kind,
-              resourceIdentity: identity,
-              limit: 500,
-            });
-            return [node.id, snapshots] as const;
-          }),
-        ),
-      ),
-    [resourcePolicySignature, resourceIdentitySignature],
-  );
-  const resourceChoicesByNode = useMemo(
-    () =>
-      Object.fromEntries(
-        resourceNodes.map((node) => [
-          node.id,
-          resourceChoicesForNode(
-            node,
-            currentResourceSnapshots.data?.[node.id] ?? [],
-            lockedResourceSnapshots.data?.[node.id] ?? [],
-          ),
-        ]),
-      ) as Record<string, ResourceChoice[]>,
-    [
-      currentResourceSnapshots.data,
-      lockedResourceSnapshots.data,
-      resourceNodes,
-    ],
-  );
-  const effectiveResourceChoiceTokens = useMemo(
-    () =>
-      Object.fromEntries(
-        resourceNodes.map((node) => {
-          const choices = resourceChoicesByNode[node.id] ?? [];
-          const current = resourceChoiceTokens[node.id];
-          const selected = choices.some((choice) => choice.token === current)
-            ? current
-            : (defaultResourceChoice(node, choices)?.token ?? "");
-          return [node.id, selected];
-        }),
-      ),
-    [resourceChoiceTokens, resourceChoicesByNode, resourceNodes],
-  );
-  const resourceSelections = useMemo(
-    () =>
-      Object.fromEntries(
-        resourceNodes.flatMap((node) => {
-          const choice = resourceChoicesByNode[node.id]?.find(
-            (candidate) =>
-              candidate.token === effectiveResourceChoiceTokens[node.id],
-          );
-          return choice ? [[node.id, choice.selection]] : [];
-        }),
-      ) as Record<string, NodeResourceSelection>,
-    [effectiveResourceChoiceTokens, resourceChoicesByNode, resourceNodes],
-  );
   const promptKeys = promptKeysForGraph(graphDetail.data?.definition ?? null);
   const promptFamilies = promptKeys.map((key) => ({
     key,
@@ -287,23 +137,11 @@ export function RunWorkbench({
     graphs.length > 0 &&
     models.length > 0 &&
     (usesKeyedPrompts ? missingPromptKeys.length === 0 : prompts.length > 0);
-  const missingRequiredResources = resourceNodes.filter(
-    (node) => node.resource_policy?.required && !resourceSelections[node.id],
-  );
-  const resourceLoading =
-    currentResourceSnapshots.loading || lockedResourceSnapshots.loading;
-  const resourceError =
-    currentResourceSnapshots.error ?? lockedResourceSnapshots.error;
-  const resourcesReady =
-    resourceNodes.length === 0 ||
-    (!resourceLoading &&
-      !resourceError &&
-      missingRequiredResources.length === 0);
   const runnable =
     hasExecutionInputs &&
     !graphDetail.loading &&
     !graphDetail.error &&
-    resourcesReady;
+    savedInputs.ready;
   const selectedModel = models.find((model) => model.id === selectedModelId);
   const product = catalog.agent_systems.find(
     (candidate) => candidate.key === system.product_key,
@@ -343,7 +181,7 @@ export function RunWorkbench({
         agent_system_version_id: selectedGraphVersionId,
         prompt_version_id: legacyPromptVersionId,
         ...(usesKeyedPrompts ? { prompt_version_ids: promptVersionIds } : {}),
-        node_resource_selections: resourceSelections,
+        node_resource_selections: savedInputs.selections,
         capture_node_outputs: captureNodeOutputs,
       });
       setTrace(completedTrace);
@@ -372,8 +210,8 @@ export function RunWorkbench({
           <div className="border-b border-[var(--border)] px-4 py-3">
             <h2 className="text-[12px] font-semibold">Execution plan</h2>
             <p className="mt-1 text-[10px] text-[var(--text-muted)]">
-              Versions and data bindings are explicit. Business input stays
-              separate from graph-owned resources and observations.
+              Versions and saved inputs are explicit. Business input stays
+              separate from reusable node outputs and live observations.
             </p>
           </div>
           <div className="grid gap-5 p-4 md:p-5">
@@ -400,7 +238,7 @@ export function RunWorkbench({
               {usesKeyedPrompts ? (
                 promptFamilies.map(({ key, prompt }) => (
                   <div className="field" key={key}>
-                    <label htmlFor={`run-prompt-${key}`}>Prompt · {key}</label>
+                    <label htmlFor={`run-prompt-${key}`}>Prompt: {key}</label>
                     <Select
                       id={`run-prompt-${key}`}
                       name={`promptVersion:${key}`}
@@ -469,8 +307,8 @@ export function RunWorkbench({
                     Execution graph
                   </h3>
                   <p className="mt-1 text-[10px] text-[var(--text-muted)]">
-                    Node classes reflect this direct run and its selected data
-                    bindings. Drag to pan or use the controls to zoom.
+                    Node classes reflect this direct run and its selected saved
+                    inputs. Drag to pan or use the controls to zoom.
                   </p>
                 </div>
                 {graphDetail.data ? (
@@ -485,70 +323,20 @@ export function RunWorkbench({
               ) : graphDefinition ? (
                 <RunGraphPreview
                   definition={graphDefinition}
-                  resourceSelections={resourceSelections}
+                  resourceSelections={savedInputs.selections}
                   captureNodeOutputs={captureNodeOutputs}
                 />
               ) : null}
             </section>
 
-            {resourceNodes.length ? (
-              <section
-                className="border-t border-[var(--border)] pt-5"
-                aria-labelledby="run-resource-bindings-title"
-              >
-                <div className="mb-3">
-                  <h3
-                    id="run-resource-bindings-title"
-                    className="text-[11px] font-semibold"
-                  >
-                    Graph resources
-                  </h3>
-                  <p className="mt-1 text-[10px] leading-5 text-[var(--text-muted)]">
-                    Current resolves the newest indexed version for one stable
-                    identity at run start. Locked references one exact immutable
-                    snapshot; its menu shows up to 500 newest versions for the
-                    selected identity. Stored resource content is never
-                    resubmitted as business input.
-                  </p>
-                </div>
-                {resourceLoading ? (
-                  <LoadingState rows={2} />
-                ) : (
-                  <div className="grid gap-3">
-                    {resourceNodes.map((node) => (
-                      <ResourceBindingField
-                        key={node.id}
-                        node={node}
-                        choices={resourceChoicesByNode[node.id] ?? []}
-                        selectedToken={
-                          effectiveResourceChoiceTokens[node.id] ?? ""
-                        }
-                        submitting={submitting}
-                        onSelect={(token) => {
-                          const choice = resourceChoicesByNode[node.id]?.find(
-                            (candidate) => candidate.token === token,
-                          );
-                          const identity =
-                            choice?.selection.mode === "current"
-                              ? choice.selection.identity
-                              : choice?.snapshot?.resource_identity;
-                          setResourceChoiceTokens((current) => ({
-                            ...current,
-                            [node.id]: token,
-                          }));
-                          if (identity) {
-                            setResourceIdentities((current) => ({
-                              ...current,
-                              [node.id]: identity,
-                            }));
-                          }
-                        }}
-                      />
-                    ))}
-                  </div>
-                )}
-              </section>
-            ) : null}
+            <RunSavedInputs
+              nodes={savedInputs.savedInputNodes}
+              choices={savedInputs.choices}
+              selectedTokens={savedInputs.selectedChoiceTokens}
+              loading={savedInputs.loading}
+              submitting={submitting}
+              onSelect={savedInputs.select}
+            />
 
             <RuntimeInputNotice definition={graphDefinition} context="run" />
 
@@ -598,7 +386,7 @@ export function RunWorkbench({
                 className="text-[10px] text-[var(--text-faint)]"
               >
                 {isPortfolioQuery
-                  ? "Question and policy remain editable. Indexed portfolio state is resolved through the graph resource binding above; registered external observations refresh at runtime."
+                  ? "Question and policy remain editable. The saved portfolio input is selected above; registered external observations refresh at runtime."
                   : "Initialized from this system's registered input template."}
               </p>
             </div>
@@ -620,26 +408,26 @@ export function RunWorkbench({
               >
                 The selected graph could not be loaded: {graphDetail.error}
               </p>
-            ) : resourceNodes.length && resourceError ? (
+            ) : savedInputs.savedInputNodes.length && savedInputs.error ? (
               <p
                 id="run-error"
                 role="alert"
                 className="text-[11px] text-[var(--danger)]"
               >
-                Graph resources could not be loaded: {resourceError}
+                Saved inputs could not be loaded: {savedInputs.error}
               </p>
-            ) : missingRequiredResources.length ? (
+            ) : savedInputs.missingRequiredNodes.length ? (
               <p
                 id="run-error"
                 role="alert"
                 className="text-[11px] text-[var(--danger)]"
               >
-                Index or seed the required{" "}
-                {missingRequiredResources
+                Create or seed the required{" "}
+                {savedInputs.missingRequiredNodes
                   .map((node) => node.resource_policy?.resource_key)
                   .filter(Boolean)
                   .join(", ")}{" "}
-                resource before running this graph.
+                saved input before running this graph.
               </p>
             ) : error ? (
               <p
@@ -729,9 +517,10 @@ function RunResult({ trace, systemKey }: { trace: Trace; systemKey: string }) {
         <p className="mono text-[9px] uppercase tracking-[0.1em] text-[var(--text-faint)]">
           Execution
         </p>
-        <p className="mono mt-2 text-[10px] text-[var(--text-muted)]">
-          {shortId(trace.id)} · {trace.model_id}
-        </p>
+        <div className="mono mt-2 grid gap-1 text-[10px] text-[var(--text-muted)]">
+          <p>Trace: {shortId(trace.id)}</p>
+          <p>Model: {trace.model_id}</p>
+        </div>
         {trace.error ? (
           <p
             role="alert"
@@ -756,90 +545,6 @@ function RunResult({ trace, systemKey }: { trace: Trace; systemKey: string }) {
           Inspect full trace
           <ArrowRightIcon size={14} />
         </Link>
-      </div>
-    </div>
-  );
-}
-
-function ResourceBindingField({
-  node,
-  choices,
-  selectedToken,
-  submitting,
-  onSelect,
-}: {
-  node: GraphNodeDefinition;
-  choices: ResourceChoice[];
-  selectedToken: string;
-  submitting: boolean;
-  onSelect: (token: string) => void;
-}) {
-  const policy = node.resource_policy;
-  const selected = choices.find((choice) => choice.token === selectedToken);
-  if (!policy) return null;
-  const currentChoices = choices.filter(
-    (choice) => choice.selection.mode === "current",
-  );
-  const lockedChoices = choices.filter(
-    (choice) => choice.selection.mode === "locked",
-  );
-  return (
-    <div className="grid gap-3 border border-[var(--border)] p-3 md:grid-cols-[minmax(200px,0.38fr)_minmax(0,1fr)]">
-      <div className="flex items-start gap-2">
-        <DatabaseIcon
-          size={14}
-          className="mt-0.5 shrink-0 text-[var(--accent)]"
-          aria-hidden="true"
-        />
-        <div className="min-w-0">
-          <p className="text-[10px] font-semibold">{node.label}</p>
-          <p className="mono mt-1 break-all text-[8px] leading-4 text-[var(--text-faint)]">
-            {node.id} · {policy.resource_key} · schema v{policy.schema_version}
-          </p>
-        </div>
-      </div>
-      <div className="field">
-        <label htmlFor={`run-resource-${node.id}`}>Resource version</label>
-        <Select
-          id={`run-resource-${node.id}`}
-          value={selectedToken}
-          disabled={submitting || choices.length === 0}
-          required={policy.required}
-          onChange={(event) => onSelect(event.target.value)}
-        >
-          {choices.length === 0 ? (
-            <option value="">No compatible resource snapshots</option>
-          ) : null}
-          {currentChoices.length ? (
-            <optgroup label="Current resource identity">
-              {currentChoices.map((choice) => (
-                <option key={choice.token} value={choice.token}>
-                  {choice.label}
-                </option>
-              ))}
-            </optgroup>
-          ) : null}
-          {lockedChoices.length ? (
-            <optgroup label="Exact locked snapshot">
-              {lockedChoices.map((choice) => (
-                <option key={choice.token} value={choice.token}>
-                  {choice.label}
-                </option>
-              ))}
-            </optgroup>
-          ) : null}
-        </Select>
-        <p className="text-[9px] leading-4 text-[var(--text-muted)]">
-          {selected?.description ??
-            "No compatible producer snapshot exists for this graph contract."}
-        </p>
-        {selected?.snapshot ? (
-          <p className="mono text-[8px] text-[var(--text-faint)]">
-            {selected.snapshot.is_synthetic ? "synthetic" : "real"} ·{" "}
-            {shortId(selected.snapshot.id)} ·{" "}
-            {selected.snapshot.content_hash.slice(0, 10)}
-          </p>
-        ) : null}
       </div>
     </div>
   );

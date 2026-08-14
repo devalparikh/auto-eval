@@ -369,9 +369,9 @@ describe("RunWorkbench", () => {
         limit: 500,
       }),
     );
-    const resource = screen.getByLabelText("Resource version");
+    const resource = screen.getByLabelText("Saved input version");
     expect(resource).toHaveValue("current:main_synthetic_portfolio");
-    expect(screen.getByText("deterministic current resource")).toBeVisible();
+    expect(screen.getByText("saved input: latest")).toBeVisible();
     const capture = screen.getByRole("checkbox", {
       name: /Capture refreshed external outputs/,
     });
@@ -385,10 +385,12 @@ describe("RunWorkbench", () => {
       "market_context",
     );
     expect(
-      screen.getByRole("option", { name: /Locked · Current synthetic portfolio/ }),
+      screen.getByRole("option", {
+        name: /Exact version: Current synthetic portfolio/,
+      }),
     ).toHaveValue("locked:snapshot-2");
     fireEvent.change(resource, { target: { value: "locked:snapshot-2" } });
-    expect(await screen.findByText("snapshot replay")).toBeVisible();
+    expect(await screen.findByText("saved input: exact version")).toBeVisible();
     fireEvent.change(advancedInput, {
       target: {
         value: JSON.stringify({
@@ -431,7 +433,7 @@ describe("RunWorkbench", () => {
     );
 
     expect(await screen.findByRole("alert")).toHaveTextContent(
-      "Index or seed the required indexed_portfolio resource",
+      "Create or seed the required indexed_portfolio saved input",
     );
     expect(
       screen.getByRole("button", { name: "Run inference" }),
@@ -490,9 +492,9 @@ describe("RunWorkbench", () => {
     );
 
     expect(
-      await screen.findByLabelText("Prompt · research-agent-prompt"),
+      await screen.findByLabelText("Prompt: research-agent-prompt"),
     ).toHaveValue("prompt-3");
-    expect(screen.getByLabelText("Prompt · review-prompt")).toHaveValue(
+    expect(screen.getByLabelText("Prompt: review-prompt")).toHaveValue(
       "prompt-8",
     );
     fireEvent.click(screen.getByRole("button", { name: "Run inference" }));

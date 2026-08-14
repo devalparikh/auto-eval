@@ -87,7 +87,7 @@ export function DatasetsScreen({ systemKey }: { systemKey: string }) {
     <>
       <PageHeader
         title={`${system?.name ?? "Agent system"} datasets`}
-        description="Review business inputs plus locked observations and graph resources, then freeze an immutable evaluation dataset."
+        description="Review business inputs, exact observations, and saved inputs, then freeze an immutable evaluation dataset."
         action={
           <button
             className="app-button secondary"
@@ -209,7 +209,7 @@ export function DatasetsScreen({ systemKey }: { systemKey: string }) {
                 {Object.keys(item.node_resource_selections ?? {}).length ? (
                   <p className="mono mt-1 truncate text-[9px] text-[var(--accent)]">
                     {Object.keys(item.node_resource_selections ?? {}).length}{" "}
-                    locked graph resource
+                    exact saved input
                     {Object.keys(item.node_resource_selections ?? {}).length ===
                     1
                       ? ""

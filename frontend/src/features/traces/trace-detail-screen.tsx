@@ -7,7 +7,7 @@ import { PageHeader } from "@/components/page-header";
 import { ErrorState, LoadingState } from "@/components/states";
 import { StatusBadge } from "@/components/status-badge";
 import { AddToDatasetModal } from "@/features/traces/add-to-dataset-modal";
-import { ResourceSnapshotRefs } from "@/features/systems/resource-snapshot-refs";
+import { SavedInputRefs } from "@/features/systems/saved-input-refs";
 import { systemPath } from "@/features/systems/system-path";
 import { TraceGraph } from "@/features/traces/trace-graph";
 import { TraceInspector } from "@/features/traces/trace-inspector";
@@ -115,15 +115,15 @@ export function TraceDetailScreen({
         {Object.keys(currentTrace.node_resource_selections ?? {}).length ? (
           <div className="min-w-0 md:col-span-2">
             <p className="mono text-[9px] uppercase tracking-[0.08em] text-[var(--text-faint)]">
-              Canonical resource bindings
+              Saved inputs used
             </p>
             <p className="mt-1 mb-2 text-[10px] text-[var(--text-muted)]">
-              Current selections are resolved to exact locked snapshots before
+              Latest selections are resolved to exact saved versions before
               execution so this trace can be audited and replayed.
             </p>
-            <ResourceSnapshotRefs
+            <SavedInputRefs
               systemKey={systemKey}
-              bindings={currentTrace.node_resource_selections}
+              selections={currentTrace.node_resource_selections}
             />
           </div>
         ) : null}
@@ -134,7 +134,7 @@ export function TraceDetailScreen({
               ? currentTrace.dataset_memberships
                   .map(
                     (membership) =>
-                      `${membership.dataset_name} v${membership.dataset_version} · ${membership.dataset_version_status}`,
+                      `${membership.dataset_name}; version: ${membership.dataset_version}; status: ${membership.dataset_version_status}`,
                   )
                   .join("  /  ")
               : "Not used as a dataset source"

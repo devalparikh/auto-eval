@@ -49,21 +49,21 @@ describe("run graph classifications", () => {
       prompt_key: "explain-answer",
     } satisfies GraphNodeDefinition;
 
-    expect(classifyRunNode(calculation)).toBe("deterministic calculation");
+    expect(classifyRunNode(calculation)).toBe("calculation");
     expect(
       classifyRunNode(resourceNode, {
         mode: "current",
         identity: "main_portfolio",
       }),
-    ).toBe("deterministic current resource");
-    expect(classifyRunNode(externalNode)).toBe("deterministic live external");
+    ).toBe("saved input: latest");
+    expect(classifyRunNode(externalNode)).toBe("live external input");
     expect(
       classifyRunNode(resourceNode, {
         mode: "locked",
         snapshot_id: "snapshot-1",
       }),
-    ).toBe("snapshot replay");
-    expect(classifyRunNode(llmNode)).toBe("LLM");
+    ).toBe("saved input: exact version");
+    expect(classifyRunNode(llmNode)).toBe("model call");
   });
 
   it("builds a bounded left-to-right graph with accessible node semantics", () => {
@@ -92,7 +92,7 @@ describe("run graph classifications", () => {
     expect(graph.nodes[1]?.position.x).toBeGreaterThan(0);
     expect(graph.nodes[0]?.ariaLabel).toContain("entry point");
     expect(graph.nodes[0]?.ariaLabel).toContain("continues to explain");
-    expect(graph.nodes[1]?.ariaLabel).toContain("LLM");
+    expect(graph.nodes[1]?.ariaLabel).toContain("model call");
     expect(graph.nodes[1]?.ariaLabel).toContain("output node");
     expect(graph.edges[0]?.type).toBe("smoothstep");
     expect(graph.edges[0]?.style).toMatchObject({ strokeWidth: 1.5 });

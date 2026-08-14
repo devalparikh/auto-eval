@@ -76,11 +76,11 @@
     {
       "id": "frontend.systems.run.runtime-inputs",
       "kind": "component",
-      "label": "Run graph and node data controls",
-      "description": "Previews the selected graph version and configures current, live, or locked data modes for deterministic nodes.",
+      "label": "Run graph and saved input controls",
+      "description": "Previews the selected graph version and chooses latest or exact saved outputs for deterministic nodes.",
       "parent_id": "frontend.systems.run",
       "paths": ["frontend/src/features/run/**", "frontend/src/features/systems/agent-graph.tsx", "frontend/src/features/systems/runtime-input-*.tsx"],
-      "responsibilities": ["Preview graph execution semantics", "Select node resource modes", "Control optional live-output capture"]
+      "responsibilities": ["Preview graph execution semantics", "Select saved node outputs", "Control optional live-output capture"]
     },
     {
       "id": "frontend.evaluations",
@@ -246,11 +246,11 @@
     {
       "id": "backend.agent-runtime.runtime-inputs.snapshot-store",
       "kind": "component",
-      "label": "Node snapshot catalog",
-      "description": "Immutable catalog for state, external observation, and other deterministic node outputs with shared and node-specific metadata.",
+      "label": "Node resource and snapshot catalog",
+      "description": "Resolves current or locked node resources and catalogs immutable deterministic outputs with shared and node-specific metadata.",
       "parent_id": "backend.agent-runtime.runtime-inputs",
-      "paths": ["backend/src/autoeval_api/services/node_snapshots.py", "backend/src/autoeval_api/services/snapshot_catalog.py", "backend/src/autoeval_api/services/runtime_input_snapshots.py"],
-      "responsibilities": ["Validate immutable snapshot contracts", "Index node outputs", "Return safe artifact detail"]
+      "paths": ["backend/src/autoeval_api/services/node_resources.py", "backend/src/autoeval_api/services/node_snapshots.py", "backend/src/autoeval_api/services/snapshot_catalog.py", "backend/src/autoeval_api/services/runtime_input_snapshots.py"],
+      "responsibilities": ["Validate immutable snapshot contracts", "Resolve current or locked node resources", "Index node outputs", "Return safe artifact detail"]
     },
     {
       "id": "backend.evaluation",

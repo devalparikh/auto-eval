@@ -12,7 +12,7 @@ import {
   groundTruthFromRecord,
 } from "@/features/datasets/ground-truth";
 import { systemPath } from "@/features/systems/system-path";
-import { ResourceSnapshotRefs } from "@/features/systems/resource-snapshot-refs";
+import { SavedInputRefs } from "@/features/systems/saved-input-refs";
 import { RuntimeSnapshotRefs } from "@/features/systems/runtime-snapshot-refs";
 import { api } from "@/lib/api";
 import { textPreview } from "@/lib/format";
@@ -110,7 +110,8 @@ export function AddToDatasetModal({
               <ul className="mt-2 grid gap-1 text-[10px]">
                 {targets.data.memberships.map((membership) => (
                   <li key={membership.dataset_item_id}>
-                    {membership.dataset_name} v{membership.dataset_version} ·{" "}
+                    {membership.dataset_name}; version:{" "}
+                    {membership.dataset_version}; status:{" "}
                     {membership.dataset_version_status}
                   </li>
                 ))}
@@ -145,7 +146,7 @@ export function AddToDatasetModal({
                       ? " · Rerun with live capture enabled"
                       : target.reason === "trace_not_complete"
                         ? " · Trace not complete"
-                    : ""}
+                        : ""}
                 </option>
               ))}
             </Select>
@@ -194,15 +195,15 @@ export function AddToDatasetModal({
           {Object.keys(nodeResourceSelections ?? {}).length ? (
             <section className="border border-[var(--border)] bg-[var(--surface-muted)] p-3">
               <p className="text-[10px] font-semibold text-[var(--text-muted)]">
-                Locked graph resources
+                Saved inputs
               </p>
               <p className="mt-1 mb-3 text-[10px] leading-5 text-[var(--text-muted)]">
-                Promotion preserves these canonical resource snapshots as
-                evaluation provenance, separate from editable business input.
+                Promotion preserves these exact saved outputs for replay and
+                auditing. They stay separate from editable business input.
               </p>
-              <ResourceSnapshotRefs
+              <SavedInputRefs
                 systemKey={systemKey}
-                bindings={nodeResourceSelections}
+                selections={nodeResourceSelections}
               />
             </section>
           ) : null}

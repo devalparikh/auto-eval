@@ -16,6 +16,7 @@ from autoeval_api.models import (
     NodeOutputSnapshotRecord,
     PortfolioSnapshotRecord,
     RunStatus,
+    RuntimeInputSnapshotRecord,
     TraceRecord,
     TraceSpanRecord,
     utc_now,
@@ -200,3 +201,43 @@ def test_locked_node_resource_enforces_the_full_producer_contract(session_factor
             clone_from_version_id=dataset.id,
         )
     session.rollback()
+
+
+def test_runtime_input_backed_resource_uses_authoritative_adapter(session_factory) -> None:
+    session = session_factory()
+    _graph, _prompt, dataset = ensure_query_seed_data(session)
+    item = session.query(DatasetItemRecord).filter_by(dataset_version_id=dataset.id).first()
+    assert item is not None
+    snapshot_id = item.runtime_input_snapshot_ids["load_portfolio_market_data"]
+    policy = {
+        "product_key": "portfolio-analyst",
+        "resource_key": "recorded_options",
+        "producer_system_key": "portfolio-query",
+        "producer_node_id": "load_portfolio_market_data",
+        "producer_output_key": "options_chain",
+        "producer_snapshot_kind": "external_observation",
+        "schema_version": 1,
+        "runtime_mode": "locked",
+        "evaluation_mode": "locked",
+        "required": True,
+    }
+    selection = {"mode": "locked", "snapshot_id": snapshot_id}
+
+    resolved = resolve_node_resource(
+        session,
+        consumer_system_key="portfolio-query",
+        policy_value=policy,
+        selection_value=selection,
+    )
+    assert resolved.snapshot_id == snapshot_id
+
+    domain = session.get(RuntimeInputSnapshotRecord, snapshot_id)
+    assert domain is not None
+    set_committed_value(domain, "payload", {**deepcopy(domain.payload), "status": "tampered"})
+    with pytest.raises(ValueError, match="content-hash"):
+        resolve_node_resource(
+            session,
+            consumer_system_key="portfolio-query",
+            policy_value=policy,
+            selection_value=selection,
+        )

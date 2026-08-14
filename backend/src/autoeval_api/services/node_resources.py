@@ -62,7 +62,11 @@ def resolve_node_resource(
             raise ValueError(f"Locked node resource not found: {selection.snapshot_id}")
         _validate_locked_record(record, producer, policy)
 
-    content = _resolve_content(session, record, policy)
+    content = _resolve_stored_content(
+        session,
+        record,
+        owner_system_key=policy.producer_system_key,
+    )
     return ResolvedNodeResource(
         snapshot_id=record.id,
         resource_identity=record.resource_identity,
@@ -148,25 +152,6 @@ def _validate_locked_record(
         raise ValueError("Locked node resource schema version does not match graph policy")
 
 
-def _resolve_content(
-    session: Session,
-    record: NodeOutputSnapshotRecord,
-    policy: NodeResourcePolicy,
-) -> dict[str, Any]:
-    if record.storage_adapter == "portfolio_snapshot":
-        domain_record, document = resolve_portfolio_snapshot(
-            session,
-            record.id,
-            owner_system_key=policy.producer_system_key,
-        )
-        if domain_record.content_hash != record.content_hash:
-            raise ValueError("Locked node resource content hash does not match catalog")
-        return document
-    if not isinstance(record.content, dict):
-        raise ValueError("Node resource content must be an object")
-    return deepcopy(record.content)
-
-
 def _validate_snapshot_integrity(
     session: Session,
     record: NodeOutputSnapshotRecord,
@@ -174,27 +159,41 @@ def _validate_snapshot_integrity(
 ) -> None:
     if producer is None:
         raise ValueError("Node resource producer system not found")
+    _resolve_stored_content(session, record, owner_system_key=producer.key)
+
+
+def _resolve_stored_content(
+    session: Session,
+    record: NodeOutputSnapshotRecord,
+    *,
+    owner_system_key: str,
+) -> dict[str, Any]:
     if record.storage_adapter == "portfolio_snapshot":
         domain_record, document = resolve_portfolio_snapshot(
             session,
             record.id,
-            owner_system_key=producer.key,
+            owner_system_key=owner_system_key,
         )
-        if domain_record.content_hash != record.content_hash or document != {
+        expected_document = {
             "id": domain_record.id,
             "content_hash": domain_record.content_hash,
             **record.content,
-        }:
+        }
+        if domain_record.content_hash != record.content_hash or document != expected_document:
             raise ValueError("Portfolio node resource does not match its catalog record")
-        return
+        return document
     if record.storage_adapter == "runtime_input_snapshot":
         domain_record, payload = resolve_runtime_input_snapshot(
             session,
             record.id,
-            owner_system_key=producer.key,
+            owner_system_key=owner_system_key,
             source_key=record.output_key,
             node_id=record.node_id,
             schema_version=record.schema_version,
         )
         if domain_record.content_hash != record.content_hash or payload != record.content:
             raise ValueError("Runtime-input node resource does not match its catalog record")
+        return payload
+    if not isinstance(record.content, dict):
+        raise ValueError("Node resource content must be an object")
+    return deepcopy(record.content)

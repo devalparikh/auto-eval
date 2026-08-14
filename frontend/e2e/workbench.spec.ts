@@ -299,7 +299,7 @@ test("run a trace and review it into a draft dataset", async ({ page }) => {
   await page.getByRole("button", { name: "Done" }).click();
   await page.reload();
   await expect(
-    page.getByText(/Incident triage ground truth v\d+ · draft/),
+    page.getByText(/Incident triage ground truth; version: \d+; status: draft/),
   ).toBeVisible();
 });
 
@@ -307,11 +307,11 @@ test("runs Q&A against a server-resolved synthetic portfolio snapshot", async ({
   page,
 }) => {
   await page.goto(`${portfolioQueryRoot}/run`);
-  const resource = page.getByLabel("Resource version");
+  const resource = page.getByLabel("Saved input version");
   await expect(resource).toBeVisible();
   await resource.selectOption("current:synthetic-indexed-portfolio-v2");
   await expect(resource).toHaveValue("current:synthetic-indexed-portfolio-v2");
-  await expect(page.getByText("deterministic current resource")).toBeVisible();
+  await expect(page.getByText("saved input: latest")).toBeVisible();
   await expect(
     page.getByRole("checkbox", {
       name: /Capture refreshed external outputs/,

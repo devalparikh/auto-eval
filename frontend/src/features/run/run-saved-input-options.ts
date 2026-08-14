@@ -4,7 +4,7 @@ import type {
   NodeSnapshotSummary,
 } from "@/lib/types";
 
-export type ResourceChoice = {
+export type SavedInputChoice = {
   token: string;
   label: string;
   description: string;
@@ -12,7 +12,7 @@ export type ResourceChoice = {
   snapshot: NodeSnapshotSummary | null;
 };
 
-export function snapshotsForResourceNode(
+export function snapshotsForSavedInputNode(
   node: GraphNodeDefinition,
   snapshots: NodeSnapshotSummary[],
 ): NodeSnapshotSummary[] {
@@ -36,44 +36,44 @@ export function snapshotsForResourceNode(
     );
 }
 
-export function resourceChoicesForNode(
+export function savedInputChoicesForNode(
   node: GraphNodeDefinition,
-  currentSnapshots: NodeSnapshotSummary[],
-  lockedSnapshots: NodeSnapshotSummary[] = currentSnapshots,
-): ResourceChoice[] {
-  const current = snapshotsForResourceNode(node, currentSnapshots);
-  const locked = snapshotsForResourceNode(node, lockedSnapshots);
+  latestSnapshots: NodeSnapshotSummary[],
+  exactSnapshots: NodeSnapshotSummary[] = latestSnapshots,
+): SavedInputChoice[] {
+  const latest = snapshotsForSavedInputNode(node, latestSnapshots);
+  const exact = snapshotsForSavedInputNode(node, exactSnapshots);
   const identities = [
     ...new Set(
-      current
+      latest
         .map((snapshot) => snapshot.resource_identity)
         .filter((identity): identity is string => Boolean(identity)),
     ),
   ];
-  const currentChoices = identities.map((identity) => ({
+  const latestChoices = identities.map((identity) => ({
     token: `current:${identity}`,
-    label: `Current · ${humanizeIdentity(identity)}`,
-    description: "Newest indexed version for this identity at run start",
+    label: `Latest: ${humanizeIdentity(identity)}`,
+    description: "Uses the newest saved version available when the run starts",
     selection: { mode: "current", identity } as const,
     snapshot:
-      current.find((snapshot) => snapshot.resource_identity === identity) ??
+      latest.find((snapshot) => snapshot.resource_identity === identity) ??
       null,
   }));
-  const lockedChoices = locked.map((snapshot) => ({
+  const exactChoices = exact.map((snapshot) => ({
     token: `locked:${snapshot.id}`,
-    label: `Locked · ${snapshot.label}`,
-    description: `Exact snapshot · ${new Date(snapshot.observed_at).toLocaleString()}`,
+    label: `Exact version: ${snapshot.label}`,
+    description: `Observed: ${new Date(snapshot.observed_at).toLocaleString()}`,
     selection: { mode: "locked", snapshot_id: snapshot.id } as const,
     snapshot,
   }));
 
-  return [...currentChoices, ...lockedChoices];
+  return [...latestChoices, ...exactChoices];
 }
 
-export function defaultResourceChoice(
+export function defaultSavedInputChoice(
   node: GraphNodeDefinition,
-  choices: ResourceChoice[],
-): ResourceChoice | null {
+  choices: SavedInputChoice[],
+): SavedInputChoice | null {
   const requestedMode = node.resource_policy?.runtime_mode ?? "current";
   return (
     choices.find((choice) => choice.selection.mode === requestedMode) ??

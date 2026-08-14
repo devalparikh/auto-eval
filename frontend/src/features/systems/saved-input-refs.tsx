@@ -4,14 +4,14 @@ import { systemPath } from "@/features/systems/system-path";
 import { shortId } from "@/lib/format";
 import type { NodeResourceSelection } from "@/lib/types";
 
-export function ResourceSnapshotRefs({
+export function SavedInputRefs({
   systemKey,
-  bindings,
+  selections,
 }: {
   systemKey: string;
-  bindings: Record<string, NodeResourceSelection> | undefined;
+  selections: Record<string, NodeResourceSelection> | undefined;
 }) {
-  const entries = Object.entries(bindings ?? {});
+  const entries = Object.entries(selections ?? {});
   if (entries.length === 0) return null;
   return (
     <div className="grid gap-2">
@@ -23,20 +23,20 @@ export function ResourceSnapshotRefs({
           <span className="mono min-w-0 truncate text-[var(--text-muted)]">
             {nodeId} →{" "}
             {selection.mode === "locked"
-              ? shortId(selection.snapshot_id)
-              : `current · ${selection.identity}`}
+              ? `Exact: ${shortId(selection.snapshot_id)}`
+              : `Latest: ${selection.identity}`}
           </span>
           {selection.mode === "locked" ? (
             <Link
               href={`${systemPath(systemKey, "artifacts")}?snapshot=${encodeURIComponent(selection.snapshot_id)}`}
               className="flex shrink-0 items-center gap-1 text-[var(--accent)] hover:underline"
             >
-              Open resource
+              Open saved input
               <ArrowSquareOutIcon size={11} />
             </Link>
           ) : (
             <span className="shrink-0 text-[9px] text-[var(--text-faint)]">
-              resolves at run start
+              uses latest at run start
             </span>
           )}
         </div>

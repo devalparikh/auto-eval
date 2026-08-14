@@ -1,5 +1,11 @@
+from copy import deepcopy
+
 import pytest
 
+from autoeval_api.agent_systems.portfolio_query.definition import PORTFOLIO_QUERY_GRAPH
+from autoeval_api.agent_systems.portfolio_query.seed import (
+    ensure_seed_data as ensure_query_seed_data,
+)
 from autoeval_api.models import AgentSystemRecord, AgentSystemVersionRecord, PromptRecord
 from autoeval_api.seed import INCIDENT_GRAPH
 from autoeval_api.services.versioning import (
@@ -44,3 +50,42 @@ def test_legacy_default_prompt_remains_the_primary_system_prompt(session_factory
     prompt = session.get(PromptRecord, version.prompt_id)
 
     assert prompt.key == "incident-triage-system"
+
+
+@pytest.mark.parametrize(
+    ("policy_patch", "error"),
+    (
+        (
+            {"product_key": "incident-triage"},
+            "Resource consumer portfolio-query does not belong to incident-triage",
+        ),
+        (
+            {"producer_system_key": "incident-triage"},
+            "Resource producer and consumer must belong to the same product",
+        ),
+        (
+            {"producer_node_id": "normalize_portfolio"},
+            "Resource producer node has no snapshot contract: normalize_portfolio",
+        ),
+        (
+            {"producer_output_key": "wrong_output"},
+            "Resource producer snapshot contract does not match: persist_portfolio_snapshot",
+        ),
+    ),
+)
+def test_graph_resource_policy_must_match_registered_producer_contract(
+    session_factory,
+    policy_patch,
+    error,
+) -> None:
+    session = session_factory()
+    ensure_query_seed_data(session)
+    system = session.query(AgentSystemRecord).filter_by(key="portfolio-query").one()
+    definition = deepcopy(PORTFOLIO_QUERY_GRAPH)
+    resource_node = next(
+        node for node in definition["nodes"] if node["id"] == "get_indexed_portfolio"
+    )
+    resource_node["resource_policy"].update(policy_patch)
+
+    with pytest.raises(ValueError, match=error):
+        create_agent_version(session, system, definition)

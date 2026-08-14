@@ -67,10 +67,10 @@ export function TraceInspector({
         <InspectorSection label="Data resolution">
           <p className="text-[10px] font-semibold text-[var(--text-muted)]">
             {span.snapshot_resolution_mode === "live"
-              ? "Live data · not captured"
+              ? "Live data: not saved"
               : span.snapshot_resolution_mode
-                ? `${resolutionLabel(span.snapshot_resolution_mode, span.snapshot_role ?? "used")} · not captured`
-                : "Executed · not captured"}
+                ? `${resolutionLabel(span.snapshot_resolution_mode, span.snapshot_role ?? "used")}: not saved`
+                : "Executed: no saved output"}
           </p>
           <p className="mt-1 text-[10px] leading-5 text-[var(--text-muted)]">
             This step ran for the trace, but no immutable node-output snapshot

@@ -61,14 +61,16 @@ export function buildAgentGraph(definition: GraphDefinition): {
         runtimePolicy && !runtimePolicy.required ? "conditional" : null,
         snapshotPolicy ? `snapshot output ${snapshotPolicy.output_key}` : null,
         snapshotPolicy ? `snapshot ${snapshotPolicy.binding_mode}` : null,
-        resourcePolicy ? `resource ${resourcePolicy.resource_key}` : null,
-        resourcePolicy ? `run ${resourcePolicy.runtime_mode}` : null,
+        resourcePolicy ? `saved input ${resourcePolicy.resource_key}` : null,
+        resourcePolicy
+          ? `run ${resourcePolicy.runtime_mode === "current" ? "latest" : "exact"}`
+          : null,
         resourcePolicy
           ? `snapshot kind ${resourcePolicy.producer_snapshot_kind}`
           : null,
-        resourcePolicy ? `evaluation ${resourcePolicy.evaluation_mode}` : null,
+        resourcePolicy ? "evaluation exact" : null,
         resourcePolicy
-          ? `producer ${resourcePolicy.producer_system_key} ${resourcePolicy.producer_node_id}`
+          ? `source ${resourcePolicy.producer_system_key} ${resourcePolicy.producer_node_id}`
           : null,
         node.prompt_key ? `prompt ${node.prompt_key}` : null,
         entry ? "entry point" : null,
@@ -178,7 +180,7 @@ function AgentNode({ data }: NodeProps<Node<AgentNodeData>>) {
             {runtimePolicy
               ? `external input · ${runtimePolicy.source}`
               : resourcePolicy
-                ? `resource · ${resourcePolicy.resource_key}`
+                ? `saved input: ${resourcePolicy.resource_key}`
                 : `${data.definition.kind} · ${data.definition.handler}`}
           </p>
         </div>
@@ -206,18 +208,26 @@ function AgentNode({ data }: NodeProps<Node<AgentNodeData>>) {
             <NodeTag>snapshot · {snapshotPolicy.output_key}</NodeTag>
             <NodeTag>{snapshotPolicy.binding_mode}</NodeTag>
             <NodeTag>
-              {snapshotPolicy.snapshot_kind.replaceAll("_", " ")}
+              {String(snapshotPolicy.snapshot_kind ?? "unknown").replaceAll(
+                "_",
+                " ",
+              )}
             </NodeTag>
           </>
         ) : null}
         {resourcePolicy ? (
           <>
-            <NodeTag>resource · {resourcePolicy.resource_key}</NodeTag>
-            <NodeTag>run {resourcePolicy.runtime_mode}</NodeTag>
-            <NodeTag>eval {resourcePolicy.evaluation_mode}</NodeTag>
-            <NodeTag>producer · {resourcePolicy.producer_system_key}</NodeTag>
+            <NodeTag>saved input: {resourcePolicy.resource_key}</NodeTag>
             <NodeTag>
-              {resourcePolicy.producer_snapshot_kind.replaceAll("_", " ")}
+              run{" "}
+              {resourcePolicy.runtime_mode === "current" ? "latest" : "exact"}
+            </NodeTag>
+            <NodeTag>evaluation exact</NodeTag>
+            <NodeTag>source: {resourcePolicy.producer_system_key}</NodeTag>
+            <NodeTag>
+              {String(
+                resourcePolicy.producer_snapshot_kind ?? "unknown",
+              ).replaceAll("_", " ")}
             </NodeTag>
             <NodeTag>schema v{resourcePolicy.schema_version}</NodeTag>
             {!resourcePolicy.required ? <NodeTag>optional</NodeTag> : null}
