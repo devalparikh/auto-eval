@@ -1,5 +1,9 @@
 # Code readability & composability review
 
+> **Short on time?** Read [code-review-tldr.md](code-review-tldr.md) — a
+> one-page, plain-language version with a do-now/do-later split. This document
+> is the full evidence.
+
 Reviewed 2026-08-14 against the goals: easy to understand, easy to modify, explicit
 ownership, strong separation of responsibility, testable without excessive mocking,
 appropriately abstracted, resilient around async state and failures — optimized for
