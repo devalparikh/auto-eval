@@ -5,6 +5,7 @@ from typing import Any
 from sqlalchemy import update
 from sqlalchemy.orm import Session
 
+from autoeval_api.graph.definition import NodeResourceSelection, parse_graph_definition
 from autoeval_api.graph.runner import AgentGraphRunner, RunSelection, TraceContext
 from autoeval_api.models import (
     AgentSystemRecord,
@@ -79,12 +80,8 @@ class EvaluationService:
             raise ValueError("Dataset, graph, and prompt must belong to the same agent system")
         if prompt_versions is None:
             prompt_versions = resolve_graph_prompt_versions(session, graph_version)
-        expected_prompt_keys = {
-            node["prompt_key"]
-            for node in graph_version.definition.get("nodes", [])
-            if node.get("kind") == "llm" and node.get("prompt_key")
-        }
-        if set(prompt_versions) != expected_prompt_keys:
+        definition = parse_graph_definition(graph_version.definition)
+        if set(prompt_versions) != definition.prompt_keys():
             raise ValueError("Every graph prompt key must resolve to exactly one prompt version")
         for prompt_key, version in prompt_versions.items():
             selected_prompt = session.get(PromptRecord, version.prompt_id)
@@ -236,30 +233,25 @@ class EvaluationService:
         graph_version: AgentSystemVersionRecord,
         item: DatasetItemRecord,
     ) -> None:
+        definition = parse_graph_definition(graph_version.definition)
         locked_nodes = {
-            node["id"]
-            for node in graph_version.definition.get("nodes", [])
-            if isinstance(node.get("runtime_input_policy"), dict)
-            and node["runtime_input_policy"].get("evaluation_mode") == "locked"
-            and node["runtime_input_policy"].get("required", True)
+            node.id
+            for node in definition.nodes
+            if node.runtime_input_policy is not None
+            and node.runtime_input_policy.evaluation_mode == "locked"
+            and node.runtime_input_policy.required
         }
         missing = sorted(locked_nodes - set(item.runtime_input_snapshot_ids or {}))
         if not missing:
             return
         # Compatibility only for finalized Portfolio Query versions that predate
         # runtime-input artifacts and stored this one observation inline.
-        legacy_node = next(
-            (
-                node
-                for node in graph_version.definition.get("nodes", [])
-                if node.get("id") == "load_portfolio_market_data"
-            ),
-            None,
-        )
+        legacy_node = definition.node("load_portfolio_market_data")
         if (
             set(missing) == {"load_portfolio_market_data"}
-            and isinstance(legacy_node, dict)
-            and legacy_node.get("runtime_input_policy", {}).get("source") == "options_chain"
+            and legacy_node is not None
+            and legacy_node.runtime_input_policy is not None
+            and legacy_node.runtime_input_policy.source == "options_chain"
             and isinstance(item.input.get("market_context"), dict)
         ):
             return
@@ -275,12 +267,13 @@ class EvaluationService:
         item: DatasetItemRecord,
     ) -> None:
         policies = {
-            node["id"]: node["resource_policy"]
-            for node in graph_version.definition.get("nodes", [])
-            if isinstance(node.get("resource_policy"), dict)
-            and node["resource_policy"].get("evaluation_mode") == "locked"
+            node_id: policy
+            for node_id, policy in parse_graph_definition(graph_version.definition)
+            .resource_policies()
+            .items()
+            if policy.evaluation_mode == "locked"
         }
-        required = {node_id for node_id, policy in policies.items() if policy.get("required", True)}
+        required = {node_id for node_id, policy in policies.items() if policy.required}
         selected = item.node_resource_selections or {}
         unknown = sorted(set(selected) - set(policies))
         if unknown:
@@ -309,8 +302,8 @@ class EvaluationService:
                 resolve_node_resource(
                     session,
                     consumer_system_key=system.key,
-                    policy_value=policies[node_id],
-                    selection_value=selection,
+                    policy=policies[node_id],
+                    selection=NodeResourceSelection.model_validate(selection),
                 )
             except ValueError as error:
                 raise RuntimeError(

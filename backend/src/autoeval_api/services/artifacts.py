@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from sqlalchemy.orm import Session
 
+from autoeval_api.graph.definition import parse_graph_definition
 from autoeval_api.models import (
     AgentSystemRecord,
     AgentSystemVersionRecord,
@@ -154,10 +155,10 @@ def _node_prompt_bindings(
     graph_version: AgentSystemVersionRecord,
 ) -> list[NodePromptArtifactBinding]:
     bindings: list[NodePromptArtifactBinding] = []
-    for node in graph_version.definition.get("nodes", []):
-        if node.get("kind") != "llm":
+    for node in parse_graph_definition(graph_version.definition).nodes:
+        if node.kind != "llm":
             continue
-        prompt_key = node.get("prompt_key")
+        prompt_key = node.prompt_key
         versions: list[PromptVersionRecord] = []
         if prompt_key:
             prompt = (
@@ -174,7 +175,7 @@ def _node_prompt_bindings(
                 )
         bindings.append(
             NodePromptArtifactBinding(
-                node_id=node["id"],
+                node_id=node.id,
                 prompt_key=prompt_key,
                 uses_legacy_default=prompt_key is None,
                 current_prompt_version_id=versions[0].id if versions else None,

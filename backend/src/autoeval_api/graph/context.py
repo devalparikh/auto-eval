@@ -3,6 +3,7 @@ from typing import Any
 
 from sqlalchemy.orm import Session
 
+from autoeval_api.graph.definition import RuntimeInputMode
 from autoeval_api.graph.runtime_inputs import (
     ResolvedRuntimeInput,
     RuntimeInputCapabilityRegistry,
@@ -37,7 +38,7 @@ class GraphRuntimeContext:
     runtime_inputs: RuntimeInputCapabilityRegistry = field(
         default_factory=RuntimeInputCapabilityRegistry
     )
-    runtime_input_modes: dict[str, tuple[str, str, int]] = field(default_factory=dict)
+    runtime_input_modes: dict[str, RuntimeInputMode] = field(default_factory=dict)
     runtime_input_snapshots: dict[str, RuntimeInputSnapshotBinding] = field(default_factory=dict)
     runtime_input_snapshot_ids: dict[str, str] = field(default_factory=dict)
     node_snapshots: dict[str, NodeSnapshotExecutionBinding] = field(default_factory=dict)
@@ -50,15 +51,14 @@ class GraphRuntimeContext:
         configured = self.runtime_input_modes.get(node_id)
         if configured is None:
             raise ValueError(f"Node has no runtime-input policy: {node_id}")
-        configured_source, mode, schema_version = configured
-        if configured_source != source:
+        if configured.source != source:
             raise ValueError(
-                f"Node runtime-input source mismatch: expected {configured_source}, got {source}"
+                f"Node runtime-input source mismatch: expected {configured.source}, got {source}"
             )
         return ResolvedRuntimeInput(
             source,
-            mode,
-            schema_version,
+            configured.mode,
+            configured.schema_version,
             self.runtime_inputs.get(source),
         )
 
@@ -70,7 +70,7 @@ class GraphRuntimeContext:
         self.runtime_input_snapshots[node_id] = binding
         self.runtime_input_snapshot_ids[node_id] = binding.id
         configured = self.runtime_input_modes.get(node_id)
-        locked = configured is not None and configured[1] == "locked"
+        locked = configured is not None and configured.mode == "locked"
         self.bind_node_snapshot(
             node_id,
             binding.id,
@@ -163,10 +163,10 @@ class GraphRuntimeContext:
         if (
             binding is not None
             and configured is not None
-            and binding.schema_version != configured[2]
+            and binding.schema_version != configured.schema_version
         ):
             raise ValueError(
                 "Runtime-input snapshot schema mismatch: "
-                f"expected {configured[2]}, got {binding.schema_version}"
+                f"expected {configured.schema_version}, got {binding.schema_version}"
             )
         return binding

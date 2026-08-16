@@ -5,6 +5,7 @@ import pytest
 
 from autoeval_api.config import Settings
 from autoeval_api.graph.context import GraphRuntimeContext
+from autoeval_api.graph.definition import AgentNodeDefinition
 from autoeval_api.graph.registry import NodeHandlerRegistry
 from autoeval_api.graph.runner import AgentGraphRunner, RunSelection, TraceContext
 from autoeval_api.graph.runtime_inputs import RuntimeInputCapabilityRegistry
@@ -211,16 +212,21 @@ async def test_failed_runtime_input_span_retains_prebound_snapshot_id(session_fa
 def test_required_node_snapshot_policy_fails_when_handler_does_not_bind(session_factory) -> None:
     session = session_factory()
     context = GraphRuntimeContext(session, "incident-triage")
-    node = {
-        "id": "persist_result",
-        "snapshot_policy": {
-            "output_key": "normalized_result",
-            "snapshot_kind": "node_output",
-            "schema_version": 1,
-            "binding_mode": "produce",
-            "required": True,
-        },
-    }
+    node = AgentNodeDefinition.model_validate(
+        {
+            "id": "persist_result",
+            "label": "Persist result",
+            "kind": "deterministic",
+            "handler": "persist_result",
+            "snapshot_policy": {
+                "output_key": "normalized_result",
+                "snapshot_kind": "node_output",
+                "schema_version": 1,
+                "binding_mode": "produce",
+                "required": True,
+            },
+        }
+    )
 
     with pytest.raises(RuntimeError, match="did not bind"):
         AgentGraphRunner._validate_node_snapshot_policy(context, node)

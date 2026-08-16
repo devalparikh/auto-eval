@@ -2,6 +2,7 @@ from collections.abc import Awaitable, Callable
 from typing import Any
 
 from autoeval_api.graph.context import GraphRuntimeContext
+from autoeval_api.graph.definition import AgentGraphDefinition
 from autoeval_api.inference.base import InferenceResponse
 
 DeterministicResult = dict[str, Any] | Awaitable[dict[str, Any]]
@@ -57,13 +58,13 @@ class NodeHandlerRegistry:
         return handler
 
     def validate_definition(
-        self, definition: dict[str, Any], system_key: str | None = None
+        self, definition: AgentGraphDefinition, system_key: str | None = None
     ) -> None:
-        for node in definition["nodes"]:
-            if node["kind"] == "deterministic":
-                self.deterministic(node["handler"], system_key)
+        for node in definition.nodes:
+            if node.kind == "deterministic":
+                self.deterministic(node.handler, system_key)
             else:
-                self.llm_output(node["handler"], system_key)
+                self.llm_output(node.handler, system_key)
 
     def scoped(self, system_key: str) -> "ScopedNodeHandlerRegistry":
         return ScopedNodeHandlerRegistry(self, system_key)
