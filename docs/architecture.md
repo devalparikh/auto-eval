@@ -127,6 +127,8 @@ frontend/src/
 
 Keep domain behavior in its feature directory. Promote a component to `components/` only after it is genuinely shared. `lib/api.ts` and `lib/types.ts` are the frontend boundary for backend contract changes.
 
+`lib/api-schema.ts` is generated from the backend's OpenAPI document by `make api-types` and is never edited by hand; `lib/api-contract.ts` holds type-level assertions that keep `lib/types.ts` honest against it.
+
 ## Selection and output behavior
 
 - A request or evaluation may omit graph and prompt version IDs. Resolution is always scoped to the selected system; omitting the system retains Incident Triage as the compatibility default.

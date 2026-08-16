@@ -1,0 +1,5036 @@
+{
+  "components": {
+    "schemas": {
+      "AddTraceToDatasetRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "expected": {
+            "additionalProperties": true,
+            "title": "Expected",
+            "type": "object"
+          }
+        },
+        "required": [
+          "expected"
+        ],
+        "title": "AddTraceToDatasetRequest",
+        "type": "object"
+      },
+      "AgentEdgeDefinition": {
+        "additionalProperties": false,
+        "properties": {
+          "source": {
+            "title": "Source",
+            "type": "string"
+          },
+          "target": {
+            "title": "Target",
+            "type": "string"
+          }
+        },
+        "required": [
+          "source",
+          "target"
+        ],
+        "title": "AgentEdgeDefinition",
+        "type": "object"
+      },
+      "AgentGraphDefinition": {
+        "additionalProperties": false,
+        "properties": {
+          "edges": {
+            "items": {
+              "$ref": "#/components/schemas/AgentEdgeDefinition"
+            },
+            "maxItems": 200,
+            "title": "Edges",
+            "type": "array"
+          },
+          "entry_point": {
+            "title": "Entry Point",
+            "type": "string"
+          },
+          "nodes": {
+            "items": {
+              "$ref": "#/components/schemas/AgentNodeDefinition"
+            },
+            "maxItems": 80,
+            "minItems": 1,
+            "title": "Nodes",
+            "type": "array"
+          },
+          "output_node": {
+            "title": "Output Node",
+            "type": "string"
+          }
+        },
+        "required": [
+          "entry_point",
+          "output_node",
+          "nodes",
+          "edges"
+        ],
+        "title": "AgentGraphDefinition",
+        "type": "object"
+      },
+      "AgentNodeDefinition": {
+        "additionalProperties": false,
+        "properties": {
+          "handler": {
+            "pattern": "^[a-z][a-z0-9_]{1,80}$",
+            "title": "Handler",
+            "type": "string"
+          },
+          "id": {
+            "pattern": "^[a-z][a-z0-9_]{1,80}$",
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "deterministic",
+              "llm"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "label": {
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Label",
+            "type": "string"
+          },
+          "prompt_key": {
+            "anyOf": [
+              {
+                "pattern": "^[a-z][a-z0-9-]{1,119}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Prompt Key"
+          },
+          "resource_policy": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/NodeResourcePolicy"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "response_schema": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Response Schema"
+          },
+          "runtime_input_policy": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RuntimeInputPolicy"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "snapshot_policy": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/NodeSnapshotPolicy"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "task": {
+            "anyOf": [
+              {
+                "maxLength": 240,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Task"
+          }
+        },
+        "required": [
+          "id",
+          "label",
+          "kind",
+          "handler"
+        ],
+        "title": "AgentNodeDefinition",
+        "type": "object"
+      },
+      "AgentSystemSummary": {
+        "properties": {
+          "dataset_editor": {
+            "default": "json",
+            "title": "Dataset Editor",
+            "type": "string"
+          },
+          "default_model_ids": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Default Model Ids",
+            "type": "array"
+          },
+          "description": {
+            "title": "Description",
+            "type": "string"
+          },
+          "flow_key": {
+            "title": "Flow Key",
+            "type": "string"
+          },
+          "flow_name": {
+            "title": "Flow Name",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "input_template": {
+            "additionalProperties": true,
+            "default": {},
+            "title": "Input Template",
+            "type": "object"
+          },
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "primary_metric": {
+            "default": "accuracy",
+            "title": "Primary Metric",
+            "type": "string"
+          },
+          "product_key": {
+            "title": "Product Key",
+            "type": "string"
+          },
+          "versions": {
+            "items": {
+              "$ref": "#/components/schemas/VersionSummary"
+            },
+            "title": "Versions",
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "key",
+          "product_key",
+          "flow_key",
+          "flow_name",
+          "name",
+          "description",
+          "versions"
+        ],
+        "title": "AgentSystemSummary",
+        "type": "object"
+      },
+      "AgentVersionDetail": {
+        "properties": {
+          "agent_system_id": {
+            "title": "Agent System Id",
+            "type": "string"
+          },
+          "content_hash": {
+            "title": "Content Hash",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "definition": {
+            "additionalProperties": true,
+            "title": "Definition",
+            "type": "object"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "agent_system_id",
+          "version",
+          "definition",
+          "content_hash",
+          "created_at"
+        ],
+        "title": "AgentVersionDetail",
+        "type": "object"
+      },
+      "ArtifactCatalogResponse": {
+        "properties": {
+          "agent_system_id": {
+            "title": "Agent System Id",
+            "type": "string"
+          },
+          "agent_system_key": {
+            "title": "Agent System Key",
+            "type": "string"
+          },
+          "agent_system_name": {
+            "title": "Agent System Name",
+            "type": "string"
+          },
+          "artifacts": {
+            "items": {
+              "$ref": "#/components/schemas/ArtifactSummary"
+            },
+            "title": "Artifacts",
+            "type": "array"
+          }
+        },
+        "required": [
+          "agent_system_id",
+          "agent_system_key",
+          "agent_system_name",
+          "artifacts"
+        ],
+        "title": "ArtifactCatalogResponse",
+        "type": "object"
+      },
+      "ArtifactDetail": {
+        "properties": {
+          "agent_system_id": {
+            "title": "Agent System Id",
+            "type": "string"
+          },
+          "content": {
+            "title": "Content"
+          },
+          "content_available": {
+            "default": true,
+            "title": "Content Available",
+            "type": "boolean"
+          },
+          "content_hash": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Content Hash"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/ArtifactKind"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "node_prompt_bindings": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/NodePromptArtifactBinding"
+            },
+            "title": "Node Prompt Bindings",
+            "type": "array"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status"
+          },
+          "version": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Version"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "agent_system_id",
+          "key",
+          "name",
+          "created_at",
+          "content"
+        ],
+        "title": "ArtifactDetail",
+        "type": "object"
+      },
+      "ArtifactKind": {
+        "enum": [
+          "graph",
+          "prompt",
+          "dataset",
+          "node_snapshot",
+          "portfolio_snapshot",
+          "runtime_input"
+        ],
+        "title": "ArtifactKind",
+        "type": "string"
+      },
+      "ArtifactSummary": {
+        "properties": {
+          "agent_system_id": {
+            "title": "Agent System Id",
+            "type": "string"
+          },
+          "content_available": {
+            "default": true,
+            "title": "Content Available",
+            "type": "boolean"
+          },
+          "content_hash": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Content Hash"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/ArtifactKind"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status"
+          },
+          "version": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Version"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "agent_system_id",
+          "key",
+          "name",
+          "created_at"
+        ],
+        "title": "ArtifactSummary",
+        "type": "object"
+      },
+      "CatalogResponse": {
+        "properties": {
+          "agent_systems": {
+            "items": {
+              "$ref": "#/components/schemas/AgentSystemSummary"
+            },
+            "title": "Agent Systems",
+            "type": "array"
+          },
+          "datasets": {
+            "items": {
+              "$ref": "#/components/schemas/DatasetSummary"
+            },
+            "title": "Datasets",
+            "type": "array"
+          },
+          "models": {
+            "items": {
+              "$ref": "#/components/schemas/ModelOption"
+            },
+            "title": "Models",
+            "type": "array"
+          },
+          "prompts": {
+            "items": {
+              "$ref": "#/components/schemas/PromptSummary"
+            },
+            "title": "Prompts",
+            "type": "array"
+          }
+        },
+        "required": [
+          "agent_systems",
+          "prompts",
+          "datasets",
+          "models"
+        ],
+        "title": "CatalogResponse",
+        "type": "object"
+      },
+      "CodebaseEdge": {
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "contains",
+              "imports",
+              "depends_on",
+              "calls",
+              "produces",
+              "consumes"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Label"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          },
+          "status": {
+            "default": "unchanged",
+            "enum": [
+              "unchanged",
+              "added",
+              "modified",
+              "removed",
+              "renamed"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "target": {
+            "title": "Target",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "source",
+          "target",
+          "kind"
+        ],
+        "title": "CodebaseEdge",
+        "type": "object"
+      },
+      "CodebaseGraphResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "comparison": {
+            "$ref": "#/components/schemas/ComparisonInfo"
+          },
+          "edges": {
+            "items": {
+              "$ref": "#/components/schemas/CodebaseEdge"
+            },
+            "title": "Edges",
+            "type": "array"
+          },
+          "mode": {
+            "default": "files",
+            "enum": [
+              "files",
+              "logic"
+            ],
+            "title": "Mode",
+            "type": "string"
+          },
+          "model_path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model Path"
+          },
+          "nodes": {
+            "items": {
+              "$ref": "#/components/schemas/CodebaseNode"
+            },
+            "title": "Nodes",
+            "type": "array"
+          },
+          "repository": {
+            "$ref": "#/components/schemas/RepositoryInfo"
+          },
+          "summary": {
+            "$ref": "#/components/schemas/CodebaseSummary"
+          }
+        },
+        "required": [
+          "repository",
+          "comparison",
+          "summary",
+          "nodes",
+          "edges"
+        ],
+        "title": "CodebaseGraphResponse",
+        "type": "object"
+      },
+      "CodebaseNode": {
+        "additionalProperties": false,
+        "properties": {
+          "additions": {
+            "default": 0,
+            "title": "Additions",
+            "type": "integer"
+          },
+          "before_path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Before Path"
+          },
+          "deletions": {
+            "default": 0,
+            "title": "Deletions",
+            "type": "integer"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "detail_level": {
+            "title": "Detail Level",
+            "type": "integer"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "area",
+              "module",
+              "file",
+              "symbol",
+              "system",
+              "domain",
+              "capability",
+              "component"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "language": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Language"
+          },
+          "line": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Line"
+          },
+          "lines": {
+            "default": 0,
+            "title": "Lines",
+            "type": "integer"
+          },
+          "parent_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parent Id"
+          },
+          "path": {
+            "title": "Path",
+            "type": "string"
+          },
+          "responsibilities": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Responsibilities",
+            "type": "array"
+          },
+          "source_paths": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Source Paths",
+            "type": "array"
+          },
+          "status": {
+            "default": "unchanged",
+            "enum": [
+              "unchanged",
+              "added",
+              "modified",
+              "removed",
+              "renamed"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "symbol_kind": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Symbol Kind"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "label",
+          "path",
+          "parent_id",
+          "detail_level"
+        ],
+        "title": "CodebaseNode",
+        "type": "object"
+      },
+      "CodebaseRevisionsResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "commits": {
+            "items": {
+              "$ref": "#/components/schemas/CommitSummary"
+            },
+            "title": "Commits",
+            "type": "array"
+          },
+          "pull_requests_available": {
+            "title": "Pull Requests Available",
+            "type": "boolean"
+          },
+          "repository": {
+            "$ref": "#/components/schemas/RepositoryInfo"
+          }
+        },
+        "required": [
+          "repository",
+          "commits",
+          "pull_requests_available"
+        ],
+        "title": "CodebaseRevisionsResponse",
+        "type": "object"
+      },
+      "CodebaseSummary": {
+        "additionalProperties": false,
+        "properties": {
+          "additions": {
+            "title": "Additions",
+            "type": "integer"
+          },
+          "areas": {
+            "title": "Areas",
+            "type": "integer"
+          },
+          "changed_files": {
+            "title": "Changed Files",
+            "type": "integer"
+          },
+          "deletions": {
+            "title": "Deletions",
+            "type": "integer"
+          },
+          "files": {
+            "title": "Files",
+            "type": "integer"
+          },
+          "modules": {
+            "title": "Modules",
+            "type": "integer"
+          },
+          "symbols": {
+            "title": "Symbols",
+            "type": "integer"
+          },
+          "truncated": {
+            "title": "Truncated",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "areas",
+          "modules",
+          "files",
+          "symbols",
+          "changed_files",
+          "additions",
+          "deletions",
+          "truncated"
+        ],
+        "title": "CodebaseSummary",
+        "type": "object"
+      },
+      "CommitSummary": {
+        "additionalProperties": false,
+        "properties": {
+          "author": {
+            "title": "Author",
+            "type": "string"
+          },
+          "authored_at": {
+            "title": "Authored At",
+            "type": "string"
+          },
+          "oid": {
+            "title": "Oid",
+            "type": "string"
+          },
+          "short_oid": {
+            "title": "Short Oid",
+            "type": "string"
+          },
+          "subject": {
+            "title": "Subject",
+            "type": "string"
+          }
+        },
+        "required": [
+          "oid",
+          "short_oid",
+          "subject",
+          "author",
+          "authored_at"
+        ],
+        "title": "CommitSummary",
+        "type": "object"
+      },
+      "ComparisonInfo": {
+        "additionalProperties": false,
+        "properties": {
+          "base_ref": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Base Ref"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "source": {
+            "enum": [
+              "current",
+              "working",
+              "staged",
+              "commit",
+              "pr"
+            ],
+            "title": "Source",
+            "type": "string"
+          },
+          "target_ref": {
+            "title": "Target Ref",
+            "type": "string"
+          }
+        },
+        "required": [
+          "source",
+          "label",
+          "base_ref",
+          "target_ref"
+        ],
+        "title": "ComparisonInfo",
+        "type": "object"
+      },
+      "CreateAgentVersionRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "definition": {
+            "$ref": "#/components/schemas/AgentGraphDefinition"
+          }
+        },
+        "required": [
+          "definition"
+        ],
+        "title": "CreateAgentVersionRequest",
+        "type": "object"
+      },
+      "CreateDatasetVersionRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "clone_from_version_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Clone From Version Id"
+          }
+        },
+        "title": "CreateDatasetVersionRequest",
+        "type": "object"
+      },
+      "CreateEvalRunRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "agent_system_version_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Agent System Version Id"
+          },
+          "dataset_version_id": {
+            "title": "Dataset Version Id",
+            "type": "string"
+          },
+          "model_ids": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 12,
+            "minItems": 1,
+            "title": "Model Ids",
+            "type": "array"
+          },
+          "prompt_version_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Prompt Version Id"
+          },
+          "prompt_version_ids": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "maxProperties": 80,
+            "title": "Prompt Version Ids",
+            "type": "object"
+          },
+          "run_in_background": {
+            "default": true,
+            "title": "Run In Background",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "dataset_version_id",
+          "model_ids"
+        ],
+        "title": "CreateEvalRunRequest",
+        "type": "object"
+      },
+      "CreatePromptVersionRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "content": {
+            "maxLength": 100000,
+            "minLength": 1,
+            "title": "Content",
+            "type": "string"
+          }
+        },
+        "required": [
+          "content"
+        ],
+        "title": "CreatePromptVersionRequest",
+        "type": "object"
+      },
+      "DatasetItemInput": {
+        "additionalProperties": false,
+        "properties": {
+          "expected": {
+            "additionalProperties": true,
+            "title": "Expected",
+            "type": "object"
+          },
+          "input": {
+            "additionalProperties": true,
+            "title": "Input",
+            "type": "object"
+          },
+          "node_resource_selections": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/NodeResourceSelection-Input"
+            },
+            "maxProperties": 80,
+            "title": "Node Resource Selections",
+            "type": "object"
+          },
+          "runtime_input_snapshot_ids": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "maxProperties": 80,
+            "title": "Runtime Input Snapshot Ids",
+            "type": "object"
+          }
+        },
+        "required": [
+          "input",
+          "expected"
+        ],
+        "title": "DatasetItemInput",
+        "type": "object"
+      },
+      "DatasetItemResponse": {
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "dataset_version_id": {
+            "title": "Dataset Version Id",
+            "type": "string"
+          },
+          "expected": {
+            "additionalProperties": true,
+            "title": "Expected",
+            "type": "object"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "input": {
+            "additionalProperties": true,
+            "title": "Input",
+            "type": "object"
+          },
+          "node_resource_selections": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/NodeResourceSelection-Output"
+            },
+            "default": {},
+            "title": "Node Resource Selections",
+            "type": "object"
+          },
+          "runtime_input_snapshot_ids": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "default": {},
+            "title": "Runtime Input Snapshot Ids",
+            "type": "object"
+          },
+          "source_trace_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Trace Id"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "dataset_version_id",
+          "input",
+          "expected",
+          "source_trace_id",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "DatasetItemResponse",
+        "type": "object"
+      },
+      "DatasetMembershipResponse": {
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "dataset_id": {
+            "title": "Dataset Id",
+            "type": "string"
+          },
+          "dataset_item_id": {
+            "title": "Dataset Item Id",
+            "type": "string"
+          },
+          "dataset_key": {
+            "title": "Dataset Key",
+            "type": "string"
+          },
+          "dataset_name": {
+            "title": "Dataset Name",
+            "type": "string"
+          },
+          "dataset_version": {
+            "title": "Dataset Version",
+            "type": "integer"
+          },
+          "dataset_version_id": {
+            "title": "Dataset Version Id",
+            "type": "string"
+          },
+          "dataset_version_status": {
+            "title": "Dataset Version Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "dataset_id",
+          "dataset_key",
+          "dataset_name",
+          "dataset_version_id",
+          "dataset_version",
+          "dataset_version_status",
+          "dataset_item_id",
+          "created_at"
+        ],
+        "title": "DatasetMembershipResponse",
+        "type": "object"
+      },
+      "DatasetSummary": {
+        "properties": {
+          "agent_system_id": {
+            "title": "Agent System Id",
+            "type": "string"
+          },
+          "description": {
+            "title": "Description",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "versions": {
+            "items": {
+              "$ref": "#/components/schemas/DatasetVersionSummary"
+            },
+            "title": "Versions",
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "agent_system_id",
+          "key",
+          "name",
+          "description",
+          "versions"
+        ],
+        "title": "DatasetSummary",
+        "type": "object"
+      },
+      "DatasetTargetResponse": {
+        "properties": {
+          "dataset_id": {
+            "title": "Dataset Id",
+            "type": "string"
+          },
+          "dataset_key": {
+            "title": "Dataset Key",
+            "type": "string"
+          },
+          "dataset_name": {
+            "title": "Dataset Name",
+            "type": "string"
+          },
+          "dataset_version": {
+            "title": "Dataset Version",
+            "type": "integer"
+          },
+          "dataset_version_id": {
+            "title": "Dataset Version Id",
+            "type": "string"
+          },
+          "eligible": {
+            "title": "Eligible",
+            "type": "boolean"
+          },
+          "existing_item_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Existing Item Id"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "warnings": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Warnings",
+            "type": "array"
+          }
+        },
+        "required": [
+          "dataset_id",
+          "dataset_key",
+          "dataset_name",
+          "dataset_version_id",
+          "dataset_version",
+          "eligible"
+        ],
+        "title": "DatasetTargetResponse",
+        "type": "object"
+      },
+      "DatasetVersionDetail": {
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "dataset_id": {
+            "title": "Dataset Id",
+            "type": "string"
+          },
+          "finalized_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finalized At"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "item_count": {
+            "title": "Item Count",
+            "type": "integer"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/DatasetItemResponse"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "version",
+          "status",
+          "item_count",
+          "created_at",
+          "finalized_at",
+          "dataset_id",
+          "items"
+        ],
+        "title": "DatasetVersionDetail",
+        "type": "object"
+      },
+      "DatasetVersionSummary": {
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "finalized_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finalized At"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "item_count": {
+            "title": "Item Count",
+            "type": "integer"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "version",
+          "status",
+          "item_count",
+          "created_at",
+          "finalized_at"
+        ],
+        "title": "DatasetVersionSummary",
+        "type": "object"
+      },
+      "EvalItemResultResponse": {
+        "properties": {
+          "actual": {
+            "additionalProperties": true,
+            "title": "Actual",
+            "type": "object"
+          },
+          "dataset_item_id": {
+            "title": "Dataset Item Id",
+            "type": "string"
+          },
+          "expected": {
+            "additionalProperties": true,
+            "title": "Expected",
+            "type": "object"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "model_id": {
+            "title": "Model Id",
+            "type": "string"
+          },
+          "scores": {
+            "additionalProperties": true,
+            "title": "Scores",
+            "type": "object"
+          },
+          "trace_id": {
+            "title": "Trace Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "dataset_item_id",
+          "model_id",
+          "trace_id",
+          "expected",
+          "actual",
+          "scores"
+        ],
+        "title": "EvalItemResultResponse",
+        "type": "object"
+      },
+      "EvalModelResultResponse": {
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "eval_run_id": {
+            "title": "Eval Run Id",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "metrics": {
+            "additionalProperties": true,
+            "title": "Metrics",
+            "type": "object"
+          },
+          "model_id": {
+            "title": "Model Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "eval_run_id",
+          "model_id",
+          "metrics",
+          "created_at"
+        ],
+        "title": "EvalModelResultResponse",
+        "type": "object"
+      },
+      "EvalRunResponse": {
+        "properties": {
+          "agent_system_version_id": {
+            "title": "Agent System Version Id",
+            "type": "string"
+          },
+          "completed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Completed At"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "dataset_version_id": {
+            "title": "Dataset Version Id",
+            "type": "string"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "item_results": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/EvalItemResultResponse"
+            },
+            "title": "Item Results",
+            "type": "array"
+          },
+          "model_ids": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Model Ids",
+            "type": "array"
+          },
+          "prompt_version_id": {
+            "title": "Prompt Version Id",
+            "type": "string"
+          },
+          "prompt_version_ids": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "default": {},
+            "title": "Prompt Version Ids",
+            "type": "object"
+          },
+          "results": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/EvalModelResultResponse"
+            },
+            "title": "Results",
+            "type": "array"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "status",
+          "dataset_version_id",
+          "agent_system_version_id",
+          "prompt_version_id",
+          "model_ids",
+          "error",
+          "created_at",
+          "completed_at"
+        ],
+        "title": "EvalRunResponse",
+        "type": "object"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "title": "Detail",
+            "type": "array"
+          }
+        },
+        "title": "HTTPValidationError",
+        "type": "object"
+      },
+      "ModelOption": {
+        "properties": {
+          "available": {
+            "title": "Available",
+            "type": "boolean"
+          },
+          "blocked_agent_system_keys": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Blocked Agent System Keys",
+            "type": "array"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "notice": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notice"
+          },
+          "provider": {
+            "title": "Provider",
+            "type": "string"
+          },
+          "supports": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Supports",
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "provider",
+          "label",
+          "supports",
+          "available"
+        ],
+        "title": "ModelOption",
+        "type": "object"
+      },
+      "NodePromptArtifactBinding": {
+        "properties": {
+          "available_versions": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/VersionSummary"
+            },
+            "title": "Available Versions",
+            "type": "array"
+          },
+          "current_prompt_version_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Current Prompt Version Id"
+          },
+          "node_id": {
+            "title": "Node Id",
+            "type": "string"
+          },
+          "prompt_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Prompt Key"
+          },
+          "uses_legacy_default": {
+            "title": "Uses Legacy Default",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "node_id",
+          "prompt_key",
+          "uses_legacy_default"
+        ],
+        "title": "NodePromptArtifactBinding",
+        "type": "object"
+      },
+      "NodeResourcePolicy": {
+        "additionalProperties": false,
+        "description": "Server-owned producer contract for a consumer node's persisted resource.",
+        "properties": {
+          "evaluation_mode": {
+            "const": "locked",
+            "default": "locked",
+            "title": "Evaluation Mode",
+            "type": "string"
+          },
+          "producer_node_id": {
+            "pattern": "^[a-z][a-z0-9_]{1,80}$",
+            "title": "Producer Node Id",
+            "type": "string"
+          },
+          "producer_output_key": {
+            "pattern": "^[a-z][a-z0-9_]{1,80}$",
+            "title": "Producer Output Key",
+            "type": "string"
+          },
+          "producer_snapshot_kind": {
+            "enum": [
+              "state",
+              "external_observation",
+              "node_output"
+            ],
+            "title": "Producer Snapshot Kind",
+            "type": "string"
+          },
+          "producer_system_key": {
+            "pattern": "^[a-z][a-z0-9-]{1,119}$",
+            "title": "Producer System Key",
+            "type": "string"
+          },
+          "product_key": {
+            "pattern": "^[a-z][a-z0-9-]{1,119}$",
+            "title": "Product Key",
+            "type": "string"
+          },
+          "required": {
+            "default": true,
+            "title": "Required",
+            "type": "boolean"
+          },
+          "resource_key": {
+            "pattern": "^[a-z][a-z0-9_]{1,80}$",
+            "title": "Resource Key",
+            "type": "string"
+          },
+          "runtime_mode": {
+            "default": "current",
+            "enum": [
+              "current",
+              "locked"
+            ],
+            "title": "Runtime Mode",
+            "type": "string"
+          },
+          "schema_version": {
+            "default": 1,
+            "minimum": 1.0,
+            "title": "Schema Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "product_key",
+          "resource_key",
+          "producer_system_key",
+          "producer_node_id",
+          "producer_output_key",
+          "producer_snapshot_kind"
+        ],
+        "title": "NodeResourcePolicy",
+        "type": "object"
+      },
+      "NodeResourceSelection-Input": {
+        "additionalProperties": false,
+        "properties": {
+          "identity": {
+            "anyOf": [
+              {
+                "maxLength": 120,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Identity"
+          },
+          "mode": {
+            "enum": [
+              "current",
+              "locked"
+            ],
+            "title": "Mode",
+            "type": "string"
+          },
+          "snapshot_id": {
+            "anyOf": [
+              {
+                "maxLength": 120,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Snapshot Id"
+          }
+        },
+        "required": [
+          "mode"
+        ],
+        "title": "NodeResourceSelection",
+        "type": "object"
+      },
+      "NodeResourceSelection-Output": {
+        "additionalProperties": {
+          "type": "string"
+        },
+        "type": "object"
+      },
+      "NodeSnapshotDetail": {
+        "properties": {
+          "agent_system_id": {
+            "title": "Agent System Id",
+            "type": "string"
+          },
+          "agent_system_key": {
+            "title": "Agent System Key",
+            "type": "string"
+          },
+          "capture_mode": {
+            "enum": [
+              "computed",
+              "live",
+              "replayed",
+              "seeded",
+              "imported"
+            ],
+            "title": "Capture Mode",
+            "type": "string"
+          },
+          "captured_at": {
+            "format": "date-time",
+            "title": "Captured At",
+            "type": "string"
+          },
+          "content": {
+            "additionalProperties": true,
+            "title": "Content",
+            "type": "object"
+          },
+          "content_available": {
+            "title": "Content Available",
+            "type": "boolean"
+          },
+          "content_hash": {
+            "title": "Content Hash",
+            "type": "string"
+          },
+          "flow_key": {
+            "title": "Flow Key",
+            "type": "string"
+          },
+          "flow_name": {
+            "title": "Flow Name",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "is_synthetic": {
+            "title": "Is Synthetic",
+            "type": "boolean"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "latest_usage": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/NodeSnapshotUsage"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "node_id": {
+            "title": "Node Id",
+            "type": "string"
+          },
+          "node_kind": {
+            "enum": [
+              "deterministic",
+              "external_input"
+            ],
+            "title": "Node Kind",
+            "type": "string"
+          },
+          "node_label": {
+            "title": "Node Label",
+            "type": "string"
+          },
+          "node_metadata": {
+            "additionalProperties": true,
+            "title": "Node Metadata",
+            "type": "object"
+          },
+          "observed_at": {
+            "format": "date-time",
+            "title": "Observed At",
+            "type": "string"
+          },
+          "output_key": {
+            "title": "Output Key",
+            "type": "string"
+          },
+          "product_key": {
+            "title": "Product Key",
+            "type": "string"
+          },
+          "provenance": {
+            "additionalProperties": true,
+            "title": "Provenance",
+            "type": "object"
+          },
+          "provider": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider"
+          },
+          "resource_identity": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resource Identity"
+          },
+          "schema_version": {
+            "title": "Schema Version",
+            "type": "integer"
+          },
+          "snapshot_kind": {
+            "enum": [
+              "state",
+              "external_observation",
+              "node_output"
+            ],
+            "title": "Snapshot Kind",
+            "type": "string"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          },
+          "usage_count": {
+            "default": 0,
+            "title": "Usage Count",
+            "type": "integer"
+          },
+          "usages": {
+            "items": {
+              "$ref": "#/components/schemas/NodeSnapshotUsage"
+            },
+            "title": "Usages",
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "agent_system_id",
+          "agent_system_key",
+          "product_key",
+          "flow_key",
+          "flow_name",
+          "node_id",
+          "node_label",
+          "node_kind",
+          "output_key",
+          "snapshot_kind",
+          "schema_version",
+          "label",
+          "observed_at",
+          "captured_at",
+          "source",
+          "capture_mode",
+          "is_synthetic",
+          "content_hash",
+          "content_available",
+          "content"
+        ],
+        "title": "NodeSnapshotDetail",
+        "type": "object"
+      },
+      "NodeSnapshotPolicy": {
+        "additionalProperties": false,
+        "properties": {
+          "binding_mode": {
+            "default": "produce",
+            "enum": [
+              "produce",
+              "consume",
+              "produce_or_consume"
+            ],
+            "title": "Binding Mode",
+            "type": "string"
+          },
+          "output_key": {
+            "pattern": "^[a-z][a-z0-9_]{1,80}$",
+            "title": "Output Key",
+            "type": "string"
+          },
+          "required": {
+            "default": true,
+            "title": "Required",
+            "type": "boolean"
+          },
+          "reveal_policy_key": {
+            "default": "generic",
+            "pattern": "^[a-z][a-z0-9_]{1,80}$",
+            "title": "Reveal Policy Key",
+            "type": "string"
+          },
+          "schema_version": {
+            "default": 1,
+            "minimum": 1.0,
+            "title": "Schema Version",
+            "type": "integer"
+          },
+          "snapshot_kind": {
+            "enum": [
+              "state",
+              "external_observation",
+              "node_output"
+            ],
+            "title": "Snapshot Kind",
+            "type": "string"
+          }
+        },
+        "required": [
+          "output_key",
+          "snapshot_kind"
+        ],
+        "title": "NodeSnapshotPolicy",
+        "type": "object"
+      },
+      "NodeSnapshotSummary": {
+        "properties": {
+          "agent_system_id": {
+            "title": "Agent System Id",
+            "type": "string"
+          },
+          "agent_system_key": {
+            "title": "Agent System Key",
+            "type": "string"
+          },
+          "capture_mode": {
+            "enum": [
+              "computed",
+              "live",
+              "replayed",
+              "seeded",
+              "imported"
+            ],
+            "title": "Capture Mode",
+            "type": "string"
+          },
+          "captured_at": {
+            "format": "date-time",
+            "title": "Captured At",
+            "type": "string"
+          },
+          "content_hash": {
+            "title": "Content Hash",
+            "type": "string"
+          },
+          "flow_key": {
+            "title": "Flow Key",
+            "type": "string"
+          },
+          "flow_name": {
+            "title": "Flow Name",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "is_synthetic": {
+            "title": "Is Synthetic",
+            "type": "boolean"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "latest_usage": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/NodeSnapshotUsage"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "node_id": {
+            "title": "Node Id",
+            "type": "string"
+          },
+          "node_kind": {
+            "enum": [
+              "deterministic",
+              "external_input"
+            ],
+            "title": "Node Kind",
+            "type": "string"
+          },
+          "node_label": {
+            "title": "Node Label",
+            "type": "string"
+          },
+          "observed_at": {
+            "format": "date-time",
+            "title": "Observed At",
+            "type": "string"
+          },
+          "output_key": {
+            "title": "Output Key",
+            "type": "string"
+          },
+          "product_key": {
+            "title": "Product Key",
+            "type": "string"
+          },
+          "provider": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider"
+          },
+          "resource_identity": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resource Identity"
+          },
+          "schema_version": {
+            "title": "Schema Version",
+            "type": "integer"
+          },
+          "snapshot_kind": {
+            "enum": [
+              "state",
+              "external_observation",
+              "node_output"
+            ],
+            "title": "Snapshot Kind",
+            "type": "string"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          },
+          "usage_count": {
+            "default": 0,
+            "title": "Usage Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "agent_system_id",
+          "agent_system_key",
+          "product_key",
+          "flow_key",
+          "flow_name",
+          "node_id",
+          "node_label",
+          "node_kind",
+          "output_key",
+          "snapshot_kind",
+          "schema_version",
+          "label",
+          "observed_at",
+          "captured_at",
+          "source",
+          "capture_mode",
+          "is_synthetic",
+          "content_hash"
+        ],
+        "title": "NodeSnapshotSummary",
+        "type": "object"
+      },
+      "NodeSnapshotUsage": {
+        "properties": {
+          "agent_system_key": {
+            "title": "Agent System Key",
+            "type": "string"
+          },
+          "completed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Completed At"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "latency_ms": {
+            "title": "Latency Ms",
+            "type": "number"
+          },
+          "metadata": {
+            "additionalProperties": true,
+            "title": "Metadata",
+            "type": "object"
+          },
+          "node_id": {
+            "title": "Node Id",
+            "type": "string"
+          },
+          "resolution_mode": {
+            "enum": [
+              "computed",
+              "live",
+              "replayed",
+              "resolved",
+              "seeded"
+            ],
+            "title": "Resolution Mode",
+            "type": "string"
+          },
+          "role": {
+            "enum": [
+              "produced",
+              "consumed"
+            ],
+            "title": "Role",
+            "type": "string"
+          },
+          "span_id": {
+            "title": "Span Id",
+            "type": "string"
+          },
+          "started_at": {
+            "format": "date-time",
+            "title": "Started At",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "trace_id": {
+            "title": "Trace Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "trace_id",
+          "agent_system_key",
+          "span_id",
+          "node_id",
+          "role",
+          "resolution_mode",
+          "status",
+          "latency_ms",
+          "started_at",
+          "completed_at"
+        ],
+        "title": "NodeSnapshotUsage",
+        "type": "object"
+      },
+      "PortfolioSnapshotDetail": {
+        "properties": {
+          "agent_system_id": {
+            "title": "Agent System Id",
+            "type": "string"
+          },
+          "as_of": {
+            "title": "As Of",
+            "type": "string"
+          },
+          "content": {
+            "additionalProperties": true,
+            "title": "Content",
+            "type": "object"
+          },
+          "content_available": {
+            "title": "Content Available",
+            "type": "boolean"
+          },
+          "content_hash": {
+            "title": "Content Hash",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "is_synthetic": {
+            "title": "Is Synthetic",
+            "type": "boolean"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "position_count": {
+            "title": "Position Count",
+            "type": "integer"
+          },
+          "resource_identity": {
+            "title": "Resource Identity",
+            "type": "string"
+          },
+          "schema_version": {
+            "title": "Schema Version",
+            "type": "integer"
+          },
+          "source_kind": {
+            "title": "Source Kind",
+            "type": "string"
+          },
+          "source_trace_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Trace Id"
+          }
+        },
+        "required": [
+          "id",
+          "agent_system_id",
+          "source_trace_id",
+          "resource_identity",
+          "schema_version",
+          "label",
+          "as_of",
+          "source_kind",
+          "is_synthetic",
+          "content_hash",
+          "position_count",
+          "created_at",
+          "content_available",
+          "content"
+        ],
+        "title": "PortfolioSnapshotDetail",
+        "type": "object"
+      },
+      "PortfolioSnapshotSummary": {
+        "properties": {
+          "agent_system_id": {
+            "title": "Agent System Id",
+            "type": "string"
+          },
+          "as_of": {
+            "title": "As Of",
+            "type": "string"
+          },
+          "content_hash": {
+            "title": "Content Hash",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "is_synthetic": {
+            "title": "Is Synthetic",
+            "type": "boolean"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "position_count": {
+            "title": "Position Count",
+            "type": "integer"
+          },
+          "resource_identity": {
+            "title": "Resource Identity",
+            "type": "string"
+          },
+          "schema_version": {
+            "title": "Schema Version",
+            "type": "integer"
+          },
+          "source_kind": {
+            "title": "Source Kind",
+            "type": "string"
+          },
+          "source_trace_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Trace Id"
+          }
+        },
+        "required": [
+          "id",
+          "agent_system_id",
+          "source_trace_id",
+          "resource_identity",
+          "schema_version",
+          "label",
+          "as_of",
+          "source_kind",
+          "is_synthetic",
+          "content_hash",
+          "position_count",
+          "created_at"
+        ],
+        "title": "PortfolioSnapshotSummary",
+        "type": "object"
+      },
+      "PromptSummary": {
+        "properties": {
+          "agent_system_id": {
+            "title": "Agent System Id",
+            "type": "string"
+          },
+          "description": {
+            "title": "Description",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "versions": {
+            "items": {
+              "$ref": "#/components/schemas/VersionSummary"
+            },
+            "title": "Versions",
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "agent_system_id",
+          "key",
+          "name",
+          "description",
+          "versions"
+        ],
+        "title": "PromptSummary",
+        "type": "object"
+      },
+      "PromptVersionDetail": {
+        "properties": {
+          "content": {
+            "title": "Content",
+            "type": "string"
+          },
+          "content_hash": {
+            "title": "Content Hash",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "prompt_id": {
+            "title": "Prompt Id",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "prompt_id",
+          "version",
+          "content",
+          "content_hash",
+          "created_at"
+        ],
+        "title": "PromptVersionDetail",
+        "type": "object"
+      },
+      "RepositoryInfo": {
+        "additionalProperties": false,
+        "properties": {
+          "branch": {
+            "title": "Branch",
+            "type": "string"
+          },
+          "dirty": {
+            "title": "Dirty",
+            "type": "boolean"
+          },
+          "head": {
+            "title": "Head",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "root": {
+            "title": "Root",
+            "type": "string"
+          },
+          "short_head": {
+            "title": "Short Head",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "root",
+          "branch",
+          "head",
+          "short_head",
+          "dirty"
+        ],
+        "title": "RepositoryInfo",
+        "type": "object"
+      },
+      "RunTraceRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "agent_system_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Agent System Id"
+          },
+          "agent_system_version_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Agent System Version Id"
+          },
+          "capture_node_outputs": {
+            "default": false,
+            "title": "Capture Node Outputs",
+            "type": "boolean"
+          },
+          "input": {
+            "additionalProperties": true,
+            "title": "Input",
+            "type": "object"
+          },
+          "model_id": {
+            "default": "mock/incident-specialist",
+            "title": "Model Id",
+            "type": "string"
+          },
+          "node_resource_selections": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/NodeResourceSelection-Input"
+            },
+            "maxProperties": 80,
+            "title": "Node Resource Selections",
+            "type": "object"
+          },
+          "prompt_version_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Prompt Version Id"
+          },
+          "prompt_version_ids": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "maxProperties": 80,
+            "title": "Prompt Version Ids",
+            "type": "object"
+          },
+          "runtime_input_snapshot_ids": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "maxProperties": 80,
+            "title": "Runtime Input Snapshot Ids",
+            "type": "object"
+          }
+        },
+        "required": [
+          "input"
+        ],
+        "title": "RunTraceRequest",
+        "type": "object"
+      },
+      "RuntimeInputPolicy": {
+        "additionalProperties": false,
+        "properties": {
+          "evaluation_mode": {
+            "default": "locked",
+            "enum": [
+              "locked",
+              "refresh"
+            ],
+            "title": "Evaluation Mode",
+            "type": "string"
+          },
+          "required": {
+            "default": true,
+            "title": "Required",
+            "type": "boolean"
+          },
+          "runtime_mode": {
+            "default": "refresh",
+            "enum": [
+              "locked",
+              "refresh"
+            ],
+            "title": "Runtime Mode",
+            "type": "string"
+          },
+          "schema_version": {
+            "default": 1,
+            "minimum": 1.0,
+            "title": "Schema Version",
+            "type": "integer"
+          },
+          "source": {
+            "pattern": "^[a-z][a-z0-9_]{1,80}$",
+            "title": "Source",
+            "type": "string"
+          }
+        },
+        "required": [
+          "source"
+        ],
+        "title": "RuntimeInputPolicy",
+        "type": "object"
+      },
+      "RuntimeInputSnapshotDetail": {
+        "properties": {
+          "agent_system_id": {
+            "title": "Agent System Id",
+            "type": "string"
+          },
+          "content": {
+            "additionalProperties": true,
+            "title": "Content",
+            "type": "object"
+          },
+          "content_available": {
+            "title": "Content Available",
+            "type": "boolean"
+          },
+          "content_hash": {
+            "title": "Content Hash",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "fetched_at": {
+            "format": "date-time",
+            "title": "Fetched At",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "is_synthetic": {
+            "title": "Is Synthetic",
+            "type": "boolean"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "node_id": {
+            "title": "Node Id",
+            "type": "string"
+          },
+          "observed_at": {
+            "format": "date-time",
+            "title": "Observed At",
+            "type": "string"
+          },
+          "provenance": {
+            "additionalProperties": true,
+            "title": "Provenance",
+            "type": "object"
+          },
+          "provider": {
+            "title": "Provider",
+            "type": "string"
+          },
+          "schema_version": {
+            "title": "Schema Version",
+            "type": "integer"
+          },
+          "source_key": {
+            "title": "Source Key",
+            "type": "string"
+          },
+          "source_kind": {
+            "title": "Source Kind",
+            "type": "string"
+          },
+          "source_trace_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Trace Id"
+          }
+        },
+        "required": [
+          "id",
+          "agent_system_id",
+          "source_trace_id",
+          "node_id",
+          "source_key",
+          "schema_version",
+          "label",
+          "observed_at",
+          "fetched_at",
+          "provider",
+          "source_kind",
+          "is_synthetic",
+          "content_hash",
+          "created_at",
+          "provenance",
+          "content_available",
+          "content"
+        ],
+        "title": "RuntimeInputSnapshotDetail",
+        "type": "object"
+      },
+      "RuntimeInputSnapshotSummary": {
+        "properties": {
+          "agent_system_id": {
+            "title": "Agent System Id",
+            "type": "string"
+          },
+          "content_hash": {
+            "title": "Content Hash",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "fetched_at": {
+            "format": "date-time",
+            "title": "Fetched At",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "is_synthetic": {
+            "title": "Is Synthetic",
+            "type": "boolean"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "node_id": {
+            "title": "Node Id",
+            "type": "string"
+          },
+          "observed_at": {
+            "format": "date-time",
+            "title": "Observed At",
+            "type": "string"
+          },
+          "provider": {
+            "title": "Provider",
+            "type": "string"
+          },
+          "schema_version": {
+            "title": "Schema Version",
+            "type": "integer"
+          },
+          "source_key": {
+            "title": "Source Key",
+            "type": "string"
+          },
+          "source_kind": {
+            "title": "Source Kind",
+            "type": "string"
+          },
+          "source_trace_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Trace Id"
+          }
+        },
+        "required": [
+          "id",
+          "agent_system_id",
+          "source_trace_id",
+          "node_id",
+          "source_key",
+          "schema_version",
+          "label",
+          "observed_at",
+          "fetched_at",
+          "provider",
+          "source_kind",
+          "is_synthetic",
+          "content_hash",
+          "created_at"
+        ],
+        "title": "RuntimeInputSnapshotSummary",
+        "type": "object"
+      },
+      "TraceDatasetTargetsResponse": {
+        "properties": {
+          "evaluation_actual": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Evaluation Actual"
+          },
+          "evaluation_expected": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Evaluation Expected"
+          },
+          "memberships": {
+            "items": {
+              "$ref": "#/components/schemas/DatasetMembershipResponse"
+            },
+            "title": "Memberships",
+            "type": "array"
+          },
+          "targets": {
+            "items": {
+              "$ref": "#/components/schemas/DatasetTargetResponse"
+            },
+            "title": "Targets",
+            "type": "array"
+          },
+          "trace_id": {
+            "title": "Trace Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "trace_id",
+          "memberships",
+          "targets"
+        ],
+        "title": "TraceDatasetTargetsResponse",
+        "type": "object"
+      },
+      "TraceResponse": {
+        "properties": {
+          "agent_system_id": {
+            "title": "Agent System Id",
+            "type": "string"
+          },
+          "agent_system_key": {
+            "title": "Agent System Key",
+            "type": "string"
+          },
+          "agent_system_name": {
+            "title": "Agent System Name",
+            "type": "string"
+          },
+          "agent_system_version_id": {
+            "title": "Agent System Version Id",
+            "type": "string"
+          },
+          "capture_node_outputs": {
+            "default": false,
+            "title": "Capture Node Outputs",
+            "type": "boolean"
+          },
+          "completed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Completed At"
+          },
+          "cost_usd": {
+            "title": "Cost Usd",
+            "type": "number"
+          },
+          "dataset_count": {
+            "default": 0,
+            "title": "Dataset Count",
+            "type": "integer"
+          },
+          "dataset_membership_count": {
+            "default": 0,
+            "title": "Dataset Membership Count",
+            "type": "integer"
+          },
+          "dataset_memberships": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/DatasetMembershipResponse"
+            },
+            "title": "Dataset Memberships",
+            "type": "array"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "evaluation_dataset_item_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Evaluation Dataset Item Id"
+          },
+          "evaluation_run_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Evaluation Run Id"
+          },
+          "graph_definition": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Graph Definition"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "input_tokens": {
+            "title": "Input Tokens",
+            "type": "integer"
+          },
+          "latency_ms": {
+            "title": "Latency Ms",
+            "type": "number"
+          },
+          "model_id": {
+            "title": "Model Id",
+            "type": "string"
+          },
+          "node_resource_selections": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/NodeResourceSelection-Output"
+            },
+            "default": {},
+            "title": "Node Resource Selections",
+            "type": "object"
+          },
+          "node_snapshot_ids": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "default": {},
+            "title": "Node Snapshot Ids",
+            "type": "object"
+          },
+          "origin_type": {
+            "title": "Origin Type",
+            "type": "string"
+          },
+          "output": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Output"
+          },
+          "output_tokens": {
+            "title": "Output Tokens",
+            "type": "integer"
+          },
+          "prompt_version_id": {
+            "title": "Prompt Version Id",
+            "type": "string"
+          },
+          "prompt_version_ids": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "default": {},
+            "title": "Prompt Version Ids",
+            "type": "object"
+          },
+          "request_input": {
+            "additionalProperties": true,
+            "title": "Request Input",
+            "type": "object"
+          },
+          "runtime_input_snapshot_ids": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "default": {},
+            "title": "Runtime Input Snapshot Ids",
+            "type": "object"
+          },
+          "spans": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/TraceSpanResponse"
+            },
+            "title": "Spans",
+            "type": "array"
+          },
+          "started_at": {
+            "format": "date-time",
+            "title": "Started At",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "status",
+          "agent_system_id",
+          "agent_system_key",
+          "agent_system_name",
+          "agent_system_version_id",
+          "prompt_version_id",
+          "origin_type",
+          "evaluation_run_id",
+          "evaluation_dataset_item_id",
+          "model_id",
+          "request_input",
+          "output",
+          "error",
+          "latency_ms",
+          "cost_usd",
+          "input_tokens",
+          "output_tokens",
+          "started_at",
+          "completed_at"
+        ],
+        "title": "TraceResponse",
+        "type": "object"
+      },
+      "TraceSpanResponse": {
+        "properties": {
+          "completed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Completed At"
+          },
+          "cost_usd": {
+            "title": "Cost Usd",
+            "type": "number"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "input": {
+            "additionalProperties": true,
+            "title": "Input",
+            "type": "object"
+          },
+          "input_tokens": {
+            "title": "Input Tokens",
+            "type": "integer"
+          },
+          "latency_ms": {
+            "title": "Latency Ms",
+            "type": "number"
+          },
+          "node_id": {
+            "title": "Node Id",
+            "type": "string"
+          },
+          "node_kind": {
+            "title": "Node Kind",
+            "type": "string"
+          },
+          "node_snapshot_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Node Snapshot Id"
+          },
+          "output": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Output"
+          },
+          "output_tokens": {
+            "title": "Output Tokens",
+            "type": "integer"
+          },
+          "prompt_version_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Prompt Version Id"
+          },
+          "runtime_input_snapshot_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Runtime Input Snapshot Id"
+          },
+          "sequence": {
+            "title": "Sequence",
+            "type": "integer"
+          },
+          "snapshot_metadata": {
+            "additionalProperties": true,
+            "title": "Snapshot Metadata",
+            "type": "object"
+          },
+          "snapshot_resolution_mode": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Snapshot Resolution Mode"
+          },
+          "snapshot_role": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Snapshot Role"
+          },
+          "started_at": {
+            "format": "date-time",
+            "title": "Started At",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "system_prompt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "System Prompt"
+          },
+          "trace_id": {
+            "title": "Trace Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "trace_id",
+          "node_id",
+          "node_kind",
+          "prompt_version_id",
+          "runtime_input_snapshot_id",
+          "sequence",
+          "status",
+          "system_prompt",
+          "input",
+          "output",
+          "error",
+          "latency_ms",
+          "cost_usd",
+          "input_tokens",
+          "output_tokens",
+          "started_at",
+          "completed_at"
+        ],
+        "title": "TraceSpanResponse",
+        "type": "object"
+      },
+      "UpdateDatasetItemRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "expected": {
+            "additionalProperties": true,
+            "title": "Expected",
+            "type": "object"
+          },
+          "input": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Input"
+          },
+          "node_resource_selections": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "$ref": "#/components/schemas/NodeResourceSelection-Input"
+                },
+                "maxProperties": 80,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Node Resource Selections"
+          },
+          "runtime_input_snapshot_ids": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "maxProperties": 80,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Runtime Input Snapshot Ids"
+          }
+        },
+        "required": [
+          "expected"
+        ],
+        "title": "UpdateDatasetItemRequest",
+        "type": "object"
+      },
+      "ValidationError": {
+        "properties": {
+          "ctx": {
+            "title": "Context",
+            "type": "object"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "title": "Location",
+            "type": "array"
+          },
+          "msg": {
+            "title": "Message",
+            "type": "string"
+          },
+          "type": {
+            "title": "Error Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError",
+        "type": "object"
+      },
+      "VersionSummary": {
+        "properties": {
+          "content_hash": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Content Hash"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "version",
+          "created_at"
+        ],
+        "title": "VersionSummary",
+        "type": "object"
+      }
+    }
+  },
+  "info": {
+    "title": "AutoEval API",
+    "version": "0.1.0"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/api/agent-system-versions/{version_id}": {
+      "get": {
+        "operationId": "agent_version_detail_api_agent_system_versions__version_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "version_id",
+            "required": true,
+            "schema": {
+              "title": "Version Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentVersionDetail"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Agent Version Detail"
+      }
+    },
+    "/api/agent-systems/{agent_system_id}/artifacts": {
+      "get": {
+        "operationId": "agent_system_artifacts_api_agent_systems__agent_system_id__artifacts_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "agent_system_id",
+            "required": true,
+            "schema": {
+              "title": "Agent System Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ArtifactCatalogResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Agent System Artifacts"
+      }
+    },
+    "/api/agent-systems/{agent_system_id}/runtime-input-snapshots": {
+      "get": {
+        "operationId": "runtime_input_snapshots_api_agent_systems__agent_system_id__runtime_input_snapshots_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "agent_system_id",
+            "required": true,
+            "schema": {
+              "title": "Agent System Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "source_key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Source Key"
+            }
+          },
+          {
+            "in": "query",
+            "name": "node_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Node Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "synthetic_only",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Synthetic Only",
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 100,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/RuntimeInputSnapshotSummary"
+                  },
+                  "title": "Response Runtime Input Snapshots Api Agent Systems  Agent System Id  Runtime Input Snapshots Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Runtime Input Snapshots"
+      }
+    },
+    "/api/agent-systems/{agent_system_id}/versions": {
+      "post": {
+        "operationId": "add_agent_version_api_agent_systems__agent_system_id__versions_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "agent_system_id",
+            "required": true,
+            "schema": {
+              "title": "Agent System Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateAgentVersionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentVersionDetail"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Add Agent Version"
+      }
+    },
+    "/api/artifacts/{artifact_kind}/{artifact_id}": {
+      "get": {
+        "operationId": "artifact_api_artifacts__artifact_kind___artifact_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "artifact_kind",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/ArtifactKind"
+            }
+          },
+          {
+            "in": "path",
+            "name": "artifact_id",
+            "required": true,
+            "schema": {
+              "title": "Artifact Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ArtifactDetail"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Artifact"
+      }
+    },
+    "/api/catalog": {
+      "get": {
+        "operationId": "catalog_api_catalog_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CatalogResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Catalog"
+      }
+    },
+    "/api/codebase/graph": {
+      "get": {
+        "operationId": "codebase_graph_api_codebase_graph_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "source",
+            "required": false,
+            "schema": {
+              "default": "working",
+              "enum": [
+                "current",
+                "working",
+                "staged",
+                "commit",
+                "pr"
+              ],
+              "title": "Source",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "mode",
+            "required": false,
+            "schema": {
+              "default": "files",
+              "enum": [
+                "files",
+                "logic"
+              ],
+              "title": "Mode",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "ref",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 240,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ref"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CodebaseGraphResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Codebase Graph"
+      }
+    },
+    "/api/codebase/revisions": {
+      "get": {
+        "operationId": "codebase_revisions_api_codebase_revisions_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CodebaseRevisionsResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Codebase Revisions"
+      }
+    },
+    "/api/dataset-items/{item_id}": {
+      "put": {
+        "operationId": "update_item_api_dataset_items__item_id__put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "item_id",
+            "required": true,
+            "schema": {
+              "title": "Item Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateDatasetItemRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DatasetItemResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Item"
+      }
+    },
+    "/api/dataset-versions/{version_id}": {
+      "get": {
+        "operationId": "get_version_detail_api_dataset_versions__version_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "version_id",
+            "required": true,
+            "schema": {
+              "title": "Version Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DatasetVersionDetail"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Version Detail"
+      }
+    },
+    "/api/dataset-versions/{version_id}/finalize": {
+      "post": {
+        "operationId": "finalize_version_api_dataset_versions__version_id__finalize_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "version_id",
+            "required": true,
+            "schema": {
+              "title": "Version Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DatasetVersionDetail"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Finalize Version"
+      }
+    },
+    "/api/dataset-versions/{version_id}/items": {
+      "post": {
+        "operationId": "add_item_api_dataset_versions__version_id__items_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "version_id",
+            "required": true,
+            "schema": {
+              "title": "Version Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DatasetItemInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DatasetItemResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Add Item"
+      }
+    },
+    "/api/dataset-versions/{version_id}/trace-items/{trace_id}": {
+      "put": {
+        "operationId": "add_item_from_trace_api_dataset_versions__version_id__trace_items__trace_id__put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "version_id",
+            "required": true,
+            "schema": {
+              "title": "Version Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "trace_id",
+            "required": true,
+            "schema": {
+              "title": "Trace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddTraceToDatasetRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DatasetItemResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Add Item From Trace"
+      }
+    },
+    "/api/datasets/{dataset_id}/versions": {
+      "post": {
+        "operationId": "add_dataset_version_api_datasets__dataset_id__versions_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "dataset_id",
+            "required": true,
+            "schema": {
+              "title": "Dataset Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateDatasetVersionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DatasetVersionDetail"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Add Dataset Version"
+      }
+    },
+    "/api/eval-runs": {
+      "get": {
+        "operationId": "eval_runs_api_eval_runs_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "dataset_version_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Dataset Version Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "agent_system_version_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Agent System Version Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "prompt_version_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Prompt Version Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/EvalRunResponse"
+                  },
+                  "title": "Response Eval Runs Api Eval Runs Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Eval Runs"
+      },
+      "post": {
+        "operationId": "create_eval_run_api_eval_runs_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateEvalRunRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EvalRunResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Eval Run"
+      }
+    },
+    "/api/eval-runs/{run_id}": {
+      "get": {
+        "operationId": "eval_run_detail_api_eval_runs__run_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "title": "Run Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EvalRunResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Eval Run Detail"
+      }
+    },
+    "/api/health": {
+      "get": {
+        "operationId": "health_api_health_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "title": "Response Health Api Health Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Health"
+      }
+    },
+    "/api/node-snapshots": {
+      "get": {
+        "operationId": "node_snapshots_api_node_snapshots_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "agent_system_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Agent System Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "agent_system_key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Agent System Key"
+            }
+          },
+          {
+            "in": "query",
+            "name": "product_key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Product Key"
+            }
+          },
+          {
+            "in": "query",
+            "name": "node_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Node Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "output_key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Output Key"
+            }
+          },
+          {
+            "in": "query",
+            "name": "schema_version",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Schema Version"
+            }
+          },
+          {
+            "in": "query",
+            "name": "snapshot_kind",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Snapshot Kind"
+            }
+          },
+          {
+            "in": "query",
+            "name": "resource_identity",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Resource Identity"
+            }
+          },
+          {
+            "in": "query",
+            "name": "latest_per_identity",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Latest Per Identity",
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 200,
+              "maximum": 500,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/NodeSnapshotSummary"
+                  },
+                  "title": "Response Node Snapshots Api Node Snapshots Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Node Snapshots"
+      }
+    },
+    "/api/node-snapshots/{snapshot_id}": {
+      "get": {
+        "operationId": "node_snapshot_api_node_snapshots__snapshot_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "snapshot_id",
+            "required": true,
+            "schema": {
+              "title": "Snapshot Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NodeSnapshotDetail"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Node Snapshot"
+      }
+    },
+    "/api/portfolio-snapshots": {
+      "get": {
+        "operationId": "portfolio_snapshots_api_portfolio_snapshots_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "agent_system_key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Agent System Key"
+            }
+          },
+          {
+            "in": "query",
+            "name": "synthetic_only",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Synthetic Only",
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 100,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/PortfolioSnapshotSummary"
+                  },
+                  "title": "Response Portfolio Snapshots Api Portfolio Snapshots Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Portfolio Snapshots"
+      }
+    },
+    "/api/portfolio-snapshots/{snapshot_id}": {
+      "get": {
+        "operationId": "portfolio_snapshot_api_portfolio_snapshots__snapshot_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "snapshot_id",
+            "required": true,
+            "schema": {
+              "title": "Snapshot Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PortfolioSnapshotDetail"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Portfolio Snapshot"
+      }
+    },
+    "/api/prompt-versions/{version_id}": {
+      "get": {
+        "operationId": "prompt_version_detail_api_prompt_versions__version_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "version_id",
+            "required": true,
+            "schema": {
+              "title": "Version Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PromptVersionDetail"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Prompt Version Detail"
+      }
+    },
+    "/api/prompts/{prompt_id}/versions": {
+      "post": {
+        "operationId": "add_prompt_version_api_prompts__prompt_id__versions_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "prompt_id",
+            "required": true,
+            "schema": {
+              "title": "Prompt Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreatePromptVersionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PromptVersionDetail"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Add Prompt Version"
+      }
+    },
+    "/api/runtime-input-snapshots/{snapshot_id}": {
+      "get": {
+        "operationId": "runtime_input_snapshot_api_runtime_input_snapshots__snapshot_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "snapshot_id",
+            "required": true,
+            "schema": {
+              "title": "Snapshot Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RuntimeInputSnapshotDetail"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Runtime Input Snapshot"
+      }
+    },
+    "/api/traces": {
+      "get": {
+        "operationId": "traces_api_traces_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "agent_system_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Agent System Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/TraceResponse"
+                  },
+                  "title": "Response Traces Api Traces Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Traces"
+      }
+    },
+    "/api/traces/run": {
+      "post": {
+        "operationId": "run_trace_api_traces_run_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RunTraceRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TraceResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Run Trace"
+      }
+    },
+    "/api/traces/{trace_id}": {
+      "get": {
+        "operationId": "trace_detail_api_traces__trace_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "trace_id",
+            "required": true,
+            "schema": {
+              "title": "Trace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TraceResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Trace Detail"
+      }
+    },
+    "/api/traces/{trace_id}/dataset-targets": {
+      "get": {
+        "operationId": "dataset_targets_api_traces__trace_id__dataset_targets_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "trace_id",
+            "required": true,
+            "schema": {
+              "title": "Trace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TraceDatasetTargetsResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Dataset Targets"
+      }
+    }
+  }
+}

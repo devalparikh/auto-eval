@@ -8,6 +8,7 @@
     "start": "next start",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
+    "generate:api-types": "../.venv/bin/python ../scripts/export_openapi.py && openapi-typescript openapi.json -o src/lib/api-schema.ts",
     "test": "vitest",
     "test:run": "vitest run",
     "test:e2e": "playwright test"
@@ -32,6 +33,7 @@
     "eslint": "^9.32.0",
     "eslint-config-next": "^16.1.0",
     "jsdom": "^26.1.0",
+    "openapi-typescript": "^7.13.0",
     "tailwindcss": "^4.1.11",
     "typescript": "^5.9.2",
     "vitest": "^3.2.4"

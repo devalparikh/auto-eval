@@ -81,7 +81,7 @@ export type PortfolioSnapshotSummary = {
 
 export type PortfolioSnapshotDetail = PortfolioSnapshotSummary & {
   content_available: boolean;
-  content: Record<string, unknown> | null;
+  content: Record<string, unknown>;
 };
 
 export type RuntimeInputSnapshotSummary = {
@@ -104,7 +104,7 @@ export type RuntimeInputSnapshotSummary = {
 export type RuntimeInputSnapshotDetail = RuntimeInputSnapshotSummary & {
   provenance: Record<string, unknown>;
   content_available: boolean;
-  content: Record<string, unknown> | null;
+  content: Record<string, unknown>;
 };
 
 export type NodeSnapshotUsage = {
@@ -153,7 +153,7 @@ export type NodeSnapshotDetail = NodeSnapshotSummary & {
   node_metadata: Record<string, unknown>;
   usages: NodeSnapshotUsage[];
   content_available: boolean;
-  content: Record<string, unknown> | null;
+  content: Record<string, unknown>;
 };
 
 export type RuntimeInputPolicy = {
