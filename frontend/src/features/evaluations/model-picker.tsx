@@ -58,7 +58,7 @@ export function ModelPicker({
                   {model.provider} · {model.supports.join(", ")}
                 </span>
                 {model.notice ? (
-                  <span className="mt-1 block text-[10px] leading-4 text-amber-700 dark:text-amber-300">
+                  <span className="mt-1 block text-[10px] leading-4 text-[var(--warning)]">
                     {model.notice}
                   </span>
                 ) : null}
