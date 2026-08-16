@@ -42,6 +42,8 @@ Which target for which change:
 - Backend: routes stay thin and delegate to `services/`; `app.py` is the single
   composition root. Coerce untrusted JSON with `autoeval_api/coerce.py` rather
   than adding another private `_number()`.
+- Parse a graph definition with `graph/definition.py::parse_graph_definition` and
+  pass the model down. Do not reach into the raw dict with `node["kind"]`.
 - Frontend: `lib/api-schema.ts` is generated (`make api-types`) and never edited
   by hand; `lib/api-contract.ts` keeps the hand-written `lib/types.ts` honest
   against it. Keep domain behavior in its feature directory and promote to

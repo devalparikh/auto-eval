@@ -63,13 +63,14 @@ autoeval_api/
     portfolio_query/        supplied-snapshot questions and covered-call screening
     seed.py                 built-in seed composition
   codebase/                 configured-root Git snapshots and semantic graph projection
-  graph/                    generic topology, node registry, runner
+  graph/                    parsed graph definition, generic topology, node registry, runner
   inference/                provider contract, adapters, registry
   market_data/              registered runtime capabilities and Tradier options adapter
   services/                 domain workflows, queries, serialization, scoring
   models.py                 persistence records
   migrations.py             additive upgrade path for the original SQLite schema
   schemas.py                public request and response contracts
+  coerce.py                 shared coercion for untrusted JSON-shaped values
 ```
 
 Routes validate HTTP input and translate domain errors. Services own domain queries and workflows. The graph runner owns orchestration and span capture. Agent-system packages own domain-specific definitions and behavior. `app.py` is the composition root for replacing those dependencies without teaching routes about concrete providers or handlers.
@@ -78,6 +79,7 @@ Routes validate HTTP input and translate domain errors. Services own domain quer
 
 - `inference/base.py` defines the provider contract. `InferenceProviderRegistry.register` adds an adapter without changing the runner. OpenRouter model capabilities live in the typed, deterministic `inference/model_catalog.py` rather than being fetched at process startup.
 - LLM span output records allowlisted inference metadata, including OpenRouter's returned resolved model ID and request ID, alongside requested model provenance on the parent trace.
+- `graph/definition.py` owns the graph blueprint. A stored or requested definition is parsed there once — at version creation and at the start of a run — and every layer below that boundary reads `node.kind` and `node.runtime_input_policy` off the model rather than re-deriving the JSON shape. `schemas.py` embeds the same models, so the request contract and the runtime cannot drift.
 - `graph/registry.py` registers deterministic and LLM-output handlers under `(system_key, handler_name)`. The runner resolves handlers through the selected system scope.
 - `services/scoring.py` composes metric suites contributed by system plugins. Evaluation orchestration asks the registry for a suite instead of importing a concrete system.
 - `agent_systems/registry.py::builtin_system_plugins` is the single built-in composition root. Each package exports `plugin.py` and keeps its definition, handlers, scoring, seed data, and trace projection local.
