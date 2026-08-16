@@ -9,6 +9,15 @@ from autoeval_api.agent_systems.portfolio_query.types import (
     PortfolioModelContext,
     PortfolioSnapshotReference,
 )
+from autoeval_api.coerce import (
+    dict_list,
+    integer,
+    number,
+    optional_integer,
+    optional_number,
+    round_amount,
+    string_list,
+)
 from autoeval_api.graph.context import GraphRuntimeContext
 from autoeval_api.graph.registry import NodeHandlerRegistry
 from autoeval_api.inference.base import InferenceResponse
@@ -153,7 +162,7 @@ def _locked_market_observation(
 ) -> tuple[dict[str, Any], list[dict[str, Any]]]:
     binding = context.runtime_input_snapshot(MARKET_DATA_NODE_ID, OPTIONS_CHAIN_SOURCE)
     if binding is not None:
-        contracts = _dict_list(binding.payload.get("contracts"))
+        contracts = dict_list(binding.payload.get("contracts"))
         if not contracts:
             return _market_data_error("locked", "snapshot_payload_invalid"), []
         provenance = binding.provenance
@@ -162,7 +171,7 @@ def _locked_market_observation(
             if isinstance(provenance.get("freshness"), dict)
             else {}
         )
-        age_seconds = _number(freshness.get("age_seconds"), -1)
+        age_seconds = number(freshness.get("age_seconds"), -1)
         max_age_seconds = query["policy"]["max_quote_age_hours"] * 3600
         freshness.update(
             {
@@ -200,11 +209,11 @@ def _locked_market_observation(
     if not isinstance(supplied, dict):
         return _market_data_error("locked", "locked_observation_missing"), []
     contracts = [
-        _normalize_locked_contract(item, supplied) for item in _dict_list(supplied.get("contracts"))
+        _normalize_locked_contract(item, supplied) for item in dict_list(supplied.get("contracts"))
     ]
     source = str(supplied.get("source", "")).strip()
     as_of = str(supplied.get("as_of", "")).strip()
-    quote_age_hours = _optional_number(supplied.get("quote_age_hours"))
+    quote_age_hours = optional_number(supplied.get("quote_age_hours"))
     if not source or not as_of or quote_age_hours is None or quote_age_hours < 0:
         return _market_data_error("locked", "locked_observation_invalid"), []
     if not contracts:
@@ -216,7 +225,7 @@ def _locked_market_observation(
         "status": "fresh" if age_seconds <= max_age_seconds else "stale",
         "age_seconds": round(age_seconds, 3),
         "max_age_seconds": round(max_age_seconds, 3),
-        "quote_delay_minutes": _integer(supplied.get("quote_delay_minutes")),
+        "quote_delay_minutes": integer(supplied.get("quote_delay_minutes")),
     }
     return (
         {
@@ -251,7 +260,7 @@ async def _refreshed_market_observation(
                 for position in positions
                 if isinstance(position, dict)
                 and position.get("covered_calls_allowed") is True
-                and _integer(position.get("shares")) > _integer(position.get("pledged_shares"))
+                and integer(position.get("shares")) > integer(position.get("pledged_shares"))
             }
         )
     )
@@ -408,7 +417,7 @@ def _market_data_error(mode: str, code: str) -> dict[str, Any]:
 
 def _locked_greeks_provenance(value: dict[str, Any]) -> dict[str, Any]:
     as_of = str(value.get("greeks_as_of", "")).strip() or None
-    age_hours = _optional_number(value.get("greeks_age_hours"))
+    age_hours = optional_number(value.get("greeks_age_hours"))
     return {
         "status": "available" if as_of else "unknown",
         "as_of": as_of,
@@ -426,9 +435,9 @@ def _normalize_locked_contract(
     normalized["event_data_known"] = value.get("event_data_known") is True
     normalized["quote_timestamp_available"] = True
     normalized["underlying_timestamp_available"] = True
-    normalized["greeks_age_hours"] = _number(
+    normalized["greeks_age_hours"] = number(
         observation.get("greeks_age_hours"),
-        _number(observation.get("quote_age_hours")),
+        number(observation.get("quote_age_hours")),
     )
     return normalized
 
@@ -446,12 +455,12 @@ def validate_portfolio_query(state: dict[str, Any]) -> dict[str, Any]:
         missing.append("snapshot.reference_invalid")
 
     freshness = market.get("freshness", {}) if isinstance(market, dict) else {}
-    quote_age = _number(freshness.get("age_seconds"), -3600) / 3600
+    quote_age = number(freshness.get("age_seconds"), -3600) / 3600
     market_data_fresh = freshness.get("status") == "fresh"
     if query.get("intent") == "covered_call" and market.get("status") != "ready":
         error_code = str(market.get("error_code", "observation_missing"))
         missing.append(f"market_data.{error_code}")
-    if query.get("intent") == "covered_call" and _integer(market.get("contract_count")) <= 0:
+    if query.get("intent") == "covered_call" and integer(market.get("contract_count")) <= 0:
         missing.append("market_data.contracts")
     return {
         "query_status": {
@@ -601,7 +610,7 @@ def build_portfolio_model_context(state: dict[str, Any]) -> dict[str, Any]:
             for item in analysis.get("candidates", [])
             if isinstance(item, dict)
         ],
-        "blocked_reasons": _string_list(analysis.get("blocked_reasons")),
+        "blocked_reasons": string_list(analysis.get("blocked_reasons")),
         "safety": _model_safety(analysis.get("safety")),
     }
     return {"portfolio_model_context": model_context}
@@ -620,10 +629,10 @@ def apply_portfolio_query_safety(state: dict[str, Any]) -> dict[str, Any]:
         },
         "answer": {
             "summary": str(answer.get("summary", "Computed analysis is available below.")),
-            "assumptions": _string_list(answer.get("assumptions")),
-            "risks": _string_list(answer.get("risks")),
-            "fact_ids": _string_list(answer.get("fact_ids")),
-            "candidate_ids": _string_list(answer.get("candidate_ids")),
+            "assumptions": string_list(answer.get("assumptions")),
+            "risks": string_list(answer.get("risks")),
+            "fact_ids": string_list(answer.get("fact_ids")),
+            "candidate_ids": string_list(answer.get("candidate_ids")),
         },
         "covered_call": {
             "status": analysis.get("status"),
@@ -660,8 +669,8 @@ def merge_portfolio_query_explanation(
         for item in model_context.get("candidates", [])
         if isinstance(item, dict) and item.get("candidate_id")
     }
-    fact_ids = _string_list(answer.get("fact_ids"))
-    candidate_ids = _string_list(answer.get("candidate_ids"))
+    fact_ids = string_list(answer.get("fact_ids"))
+    candidate_ids = string_list(answer.get("candidate_ids"))
     unknown_facts = sorted(set(fact_ids) - allowed_fact_ids)
     unknown_candidates = sorted(set(candidate_ids) - allowed_candidate_ids)
     if unknown_facts or unknown_candidates:
@@ -674,8 +683,8 @@ def merge_portfolio_query_explanation(
         "portfolio_query_explanation": {
             "answer": {
                 "summary": str(answer.get("summary", "")),
-                "assumptions": _string_list(answer.get("assumptions")),
-                "risks": _string_list(answer.get("risks")),
+                "assumptions": string_list(answer.get("assumptions")),
+                "risks": string_list(answer.get("risks")),
                 "fact_ids": fact_ids,
                 "candidate_ids": candidate_ids,
             }
@@ -695,24 +704,24 @@ def _covered_call_candidate(
     allowed_lots = [item for item in positions if bool(item.get("covered_calls_allowed"))]
     assignable_lots = [item for item in allowed_lots if bool(item.get("assignment_acceptable"))]
     eligible_lots = [item for item in assignable_lots if not bool(item.get("do_not_touch"))]
-    shares = sum(max(0, _integer(item.get("shares"))) for item in eligible_lots)
-    pledged = sum(max(0, _integer(item.get("pledged_shares"))) for item in eligible_lots)
-    multiplier = max(1, _integer(contract.get("multiplier"), 100))
+    shares = sum(max(0, integer(item.get("shares"))) for item in eligible_lots)
+    pledged = sum(max(0, integer(item.get("pledged_shares"))) for item in eligible_lots)
+    multiplier = max(1, integer(contract.get("multiplier"), 100))
     available_contracts = floor(max(0, shares - pledged) / multiplier)
-    bid = _number(contract.get("bid"))
-    ask = _number(contract.get("ask"))
+    bid = number(contract.get("bid"))
+    ask = number(contract.get("ask"))
     midpoint = (bid + ask) / 2 if bid + ask > 0 else 0
     spread_ratio = (ask - bid) / midpoint if midpoint > 0 else 1
-    underlying = _number(contract.get("underlying_price"))
-    strike = _number(contract.get("strike"))
+    underlying = number(contract.get("underlying_price"))
+    strike = number(contract.get("strike"))
     strike_upside = (strike - underlying) / underlying if underlying > 0 else -1
-    delta_value = _optional_number(contract.get("delta"))
+    delta_value = optional_number(contract.get("delta"))
     delta = abs(delta_value) if delta_value is not None else 0
-    open_interest = _optional_integer(contract.get("open_interest"))
+    open_interest = optional_integer(contract.get("open_interest"))
     event_data_known = contract.get("event_data_known") is True
-    greeks_age_hours = _optional_number(contract.get("greeks_age_hours"))
+    greeks_age_hours = optional_number(contract.get("greeks_age_hours"))
     min_exit_price = max(
-        (_number(item.get("min_exit_price")) for item in eligible_lots),
+        (number(item.get("min_exit_price")) for item in eligible_lots),
         default=0,
     )
     checks = {
@@ -723,7 +732,7 @@ def _covered_call_candidate(
         "assignment_acceptable": bool(assignable_lots),
         "not_do_not_touch": bool(eligible_lots),
         "fully_covered": available_contracts >= 1,
-        "dte_in_range": policy["min_dte"] <= _integer(contract.get("dte")) <= policy["max_dte"],
+        "dte_in_range": policy["min_dte"] <= integer(contract.get("dte")) <= policy["max_dte"],
         "delta_available": delta_value is not None,
         "greeks_fresh": delta_value is not None
         and greeks_age_hours is not None
@@ -757,24 +766,24 @@ def _covered_call_candidate(
             "symbol": str(contract.get("symbol", "")).upper(),
             "option_type": "call",
             "expiry": str(contract.get("expiry", "unknown")),
-            "dte": _integer(contract.get("dte")),
-            "strike": _round(strike),
-            "bid": _round(bid),
-            "ask": _round(ask),
-            "delta": _round(delta),
+            "dte": integer(contract.get("dte")),
+            "strike": round_amount(strike),
+            "bid": round_amount(bid),
+            "ask": round_amount(ask),
+            "delta": round_amount(delta),
             "contracts": contracts,
             "metrics": {
-                "gross_premium_usd": _round(bid * multiplier * contracts),
-                "premium_yield": _round(premium_yield),
-                "strike_upside": _round(strike_upside),
-                "downside_cushion": _round(premium_yield),
-                "effective_sale_price": _round(strike + bid),
-                "spread_ratio": _round(spread_ratio),
+                "gross_premium_usd": round_amount(bid * multiplier * contracts),
+                "premium_yield": round_amount(premium_yield),
+                "strike_upside": round_amount(strike_upside),
+                "downside_cushion": round_amount(premium_yield),
+                "effective_sale_price": round_amount(strike + bid),
+                "spread_ratio": round_amount(spread_ratio),
             },
             "assignment_impact": {
                 "shares_after_assignment": shares - multiplier * contracts,
-                "remaining_position_weight_estimate": _round(
-                    sum(_number(item.get("weight")) for item in eligible_lots)
+                "remaining_position_weight_estimate": round_amount(
+                    sum(number(item.get("weight")) for item in eligible_lots)
                     * max(0, shares - multiplier * contracts)
                     / shares
                 )
@@ -808,11 +817,11 @@ def _safety(status: dict[str, Any], candidates: list[dict[str, Any]]) -> dict[st
 def _portfolio_facts(
     positions: list[dict[str, Any]], *, include_position_facts: bool = False
 ) -> dict[str, Any]:
-    ordered = sorted(positions, key=lambda item: _number(item.get("weight")), reverse=True)
+    ordered = sorted(positions, key=lambda item: number(item.get("weight")), reverse=True)
     facts = {
         "position_count": len(positions),
         "largest_symbol": str(ordered[0].get("symbol")) if ordered else None,
-        "largest_weight": _round(_number(ordered[0].get("weight"))) if ordered else 0,
+        "largest_weight": round_amount(number(ordered[0].get("weight"))) if ordered else 0,
         "bucket_weights": _bucket_weights(positions),
     }
     if include_position_facts:
@@ -828,9 +837,9 @@ def _synthetic_position_fact(value: dict[str, Any], index: int) -> dict[str, Any
         "fact_id": f"position:{position_id}",
         "symbol": str(value.get("symbol", "")),
         "instrument_type": str(value.get("instrument_type", "unknown")),
-        "shares": max(0, _integer(value.get("shares"))),
-        "pledged_shares": max(0, _integer(value.get("pledged_shares"))),
-        "weight": _round(_number(value.get("weight"))),
+        "shares": max(0, integer(value.get("shares"))),
+        "pledged_shares": max(0, integer(value.get("pledged_shares"))),
+        "weight": round_amount(number(value.get("weight"))),
         "bucket": str(value.get("bucket", "unassigned")),
         "tags": [str(item) for item in value.get("tags", []) if isinstance(item, str)],
         "covered_calls_allowed": bool(value.get("covered_calls_allowed")),
@@ -843,8 +852,8 @@ def _bucket_weights(positions: list[dict[str, Any]]) -> dict[str, float]:
     weights: dict[str, float] = {}
     for position in positions:
         bucket = str(position.get("bucket", "unassigned"))
-        weights[bucket] = weights.get(bucket, 0) + _number(position.get("weight"))
-    return {key: _round(value) for key, value in sorted(weights.items())}
+        weights[bucket] = weights.get(bucket, 0) + number(position.get("weight"))
+    return {key: round_amount(value) for key, value in sorted(weights.items())}
 
 
 def _positions_by_symbol(
@@ -860,18 +869,18 @@ def _positions_by_symbol(
 
 def _normalized_policy(value: dict[str, Any]) -> dict[str, Any]:
     return {
-        "min_dte": _integer(value.get("min_dte"), 21),
-        "max_dte": _integer(value.get("max_dte"), 45),
-        "min_delta": _number(value.get("min_delta"), 0.15),
-        "max_delta": _number(value.get("max_delta"), 0.3),
-        "target_delta": _number(value.get("target_delta"), 0.2),
-        "min_open_interest": _integer(value.get("min_open_interest"), 500),
-        "max_bid_ask_spread_ratio": _number(value.get("max_bid_ask_spread_ratio"), 0.12),
-        "min_strike_upside": _number(value.get("min_strike_upside"), 0.05),
-        "max_quote_age_hours": _number(value.get("max_quote_age_hours"), 24),
-        "max_greeks_age_hours": _number(value.get("max_greeks_age_hours"), 4),
+        "min_dte": integer(value.get("min_dte"), 21),
+        "max_dte": integer(value.get("max_dte"), 45),
+        "min_delta": number(value.get("min_delta"), 0.15),
+        "max_delta": number(value.get("max_delta"), 0.3),
+        "target_delta": number(value.get("target_delta"), 0.2),
+        "min_open_interest": integer(value.get("min_open_interest"), 500),
+        "max_bid_ask_spread_ratio": number(value.get("max_bid_ask_spread_ratio"), 0.12),
+        "min_strike_upside": number(value.get("min_strike_upside"), 0.05),
+        "max_quote_age_hours": number(value.get("max_quote_age_hours"), 24),
+        "max_greeks_age_hours": number(value.get("max_greeks_age_hours"), 4),
         "earnings_blackout": bool(value.get("earnings_blackout", True)),
-        "max_contracts_per_symbol": max(1, _integer(value.get("max_contracts_per_symbol"), 1)),
+        "max_contracts_per_symbol": max(1, integer(value.get("max_contracts_per_symbol"), 1)),
     }
 
 
@@ -966,10 +975,10 @@ def _model_portfolio_facts(value: Any, *, is_synthetic: bool) -> dict[str, Any]:
     bucket_weights = value.get("bucket_weights", {})
     position_facts = value.get("position_facts", [])
     return {
-        "position_count": _integer(value.get("position_count")),
+        "position_count": integer(value.get("position_count")),
         "largest_symbol": str(value.get("largest_symbol", "")),
-        "largest_weight": _number(value.get("largest_weight")),
-        "bucket_weights": {str(key): _number(weight) for key, weight in bucket_weights.items()}
+        "largest_weight": number(value.get("largest_weight")),
+        "bucket_weights": {str(key): number(weight) for key, weight in bucket_weights.items()}
         if isinstance(bucket_weights, dict)
         else {},
         "position_facts": [
@@ -977,9 +986,9 @@ def _model_portfolio_facts(value: Any, *, is_synthetic: bool) -> dict[str, Any]:
                 "fact_id": str(item.get("fact_id", "")),
                 "symbol": str(item.get("symbol", "")),
                 "instrument_type": str(item.get("instrument_type", "unknown")),
-                "shares": max(0, _integer(item.get("shares"))),
-                "pledged_shares": max(0, _integer(item.get("pledged_shares"))),
-                "weight": _number(item.get("weight")),
+                "shares": max(0, integer(item.get("shares"))),
+                "pledged_shares": max(0, integer(item.get("pledged_shares"))),
+                "weight": number(item.get("weight")),
                 "bucket": str(item.get("bucket", "unassigned")),
                 "tags": [str(tag) for tag in item.get("tags", []) if isinstance(tag, str)],
                 "covered_calls_allowed": bool(item.get("covered_calls_allowed")),
@@ -1008,44 +1017,3 @@ def _model_safety(value: Any) -> dict[str, bool]:
 def _bounded_question(value: Any) -> str:
     normalized = " ".join(str(value or "").split())
     return normalized[:MODEL_QUESTION_MAX_CHARS]
-
-
-def _dict_list(value: Any) -> list[dict[str, Any]]:
-    return [item for item in value if isinstance(item, dict)] if isinstance(value, list) else []
-
-
-def _string_list(value: Any) -> list[str]:
-    return [str(item) for item in value] if isinstance(value, list) else []
-
-
-def _number(value: Any, default: float = 0) -> float:
-    try:
-        return float(value)
-    except (TypeError, ValueError):
-        return default
-
-
-def _optional_number(value: Any) -> float | None:
-    try:
-        parsed = float(value)
-    except (TypeError, ValueError):
-        return None
-    return parsed if parsed == parsed else None
-
-
-def _integer(value: Any, default: int = 0) -> int:
-    try:
-        return int(value)
-    except (TypeError, ValueError):
-        return default
-
-
-def _optional_integer(value: Any) -> int | None:
-    try:
-        return int(value)
-    except (TypeError, ValueError):
-        return None
-
-
-def _round(value: float) -> float:
-    return round(value, 6)
