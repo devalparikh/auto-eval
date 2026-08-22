@@ -29,7 +29,7 @@ export function ModelPicker({
           return (
             <label
               key={model.id}
-              className={`flex cursor-pointer items-center gap-3 rounded-[9px] border p-3 transition-colors ${
+              className={`flex cursor-pointer items-center gap-3 rounded-[9px] border p-3 transition-colors has-[:focus-visible]:outline-1 has-[:focus-visible]:outline-offset-[3px] has-[:focus-visible]:outline-[var(--focus)] ${
                 checked
                   ? "border-[var(--accent)] bg-[var(--accent-soft)]"
                   : "border-[var(--border)] bg-[var(--surface-raised)] hover:border-[var(--border-strong)]"
