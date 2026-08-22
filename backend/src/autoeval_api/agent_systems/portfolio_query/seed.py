@@ -25,6 +25,7 @@ from autoeval_api.agent_systems.portfolio_query.runtime_fixtures import (
     STALE_OPTIONS_PROVENANCE,
 )
 from autoeval_api.agent_systems.portfolio_query.scoring import DATASET_KEY
+from autoeval_api.graph.definition import AgentGraphDefinition
 from autoeval_api.graph.runner import AgentGraphRunner, RunSelection
 from autoeval_api.models import (
     AgentSystemRecord,
@@ -39,7 +40,6 @@ from autoeval_api.models import (
     TraceRecord,
     utc_now,
 )
-from autoeval_api.schemas import AgentGraphDefinition
 from autoeval_api.services.datasets import create_dataset_version
 from autoeval_api.services.evaluations import EvaluationService
 from autoeval_api.services.runtime_input_snapshots import create_runtime_input_snapshot

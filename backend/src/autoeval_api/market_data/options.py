@@ -7,6 +7,7 @@ from typing import Any, Protocol
 
 import httpx
 
+from autoeval_api.coerce import optional_integer, optional_number
 from autoeval_api.config import Settings
 from autoeval_api.graph.runtime_inputs import RuntimeInputCapabilityRegistry
 
@@ -374,11 +375,11 @@ def _underlying_quote(body: dict[str, Any], symbol: str) -> dict[str, Any]:
 
 
 def _underlying_price(quote: dict[str, Any]) -> float:
-    last = _optional_number(quote.get("last"))
+    last = optional_number(quote.get("last"))
     if last is not None and last > 0:
         return last
-    bid = _optional_number(quote.get("bid"))
-    ask = _optional_number(quote.get("ask"))
+    bid = optional_number(quote.get("bid"))
+    ask = optional_number(quote.get("ask"))
     if bid is not None and ask is not None and bid > 0 and ask >= bid:
         return (bid + ask) / 2
     return 0
@@ -431,19 +432,19 @@ def _tradier_contract(
         "option_type": str(option.get("option_type", "")).lower(),
         "expiry": expiration.isoformat(),
         "dte": (expiration - today).days,
-        "strike": _optional_number(option.get("strike")),
+        "strike": optional_number(option.get("strike")),
         "underlying_price": underlying_price,
-        "bid": _optional_number(option.get("bid")),
-        "ask": _optional_number(option.get("ask")),
-        "delta": _optional_number(greeks.get("delta")) if greeks_as_of is not None else None,
-        "open_interest": _optional_integer(option.get("open_interest")),
+        "bid": optional_number(option.get("bid")),
+        "ask": optional_number(option.get("ask")),
+        "delta": optional_number(greeks.get("delta")) if greeks_as_of is not None else None,
+        "open_interest": optional_integer(option.get("open_interest")),
         "earnings_before_expiry": None,
         "event_data_known": False,
         "quote_timestamp_available": quote_as_of is not None,
         "underlying_timestamp_available": underlying_quote_as_of is not None,
         "quote_as_of": quote_as_of.isoformat() if quote_as_of is not None else None,
         "greeks_as_of": greeks_as_of.isoformat() if greeks_as_of is not None else None,
-        "multiplier": _optional_integer(option.get("contract_size")) or 100,
+        "multiplier": optional_integer(option.get("contract_size")) or 100,
     }
 
 
@@ -482,19 +483,4 @@ def _parse_date(value: Any) -> date | None:
     try:
         return date.fromisoformat(str(value))
     except ValueError:
-        return None
-
-
-def _optional_number(value: Any) -> float | None:
-    try:
-        parsed = float(value)
-    except (TypeError, ValueError):
-        return None
-    return parsed if parsed == parsed else None
-
-
-def _optional_integer(value: Any) -> int | None:
-    try:
-        return int(value)
-    except (TypeError, ValueError):
         return None

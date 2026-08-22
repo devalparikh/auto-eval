@@ -1,6 +1,8 @@
 from copy import deepcopy
 from typing import Any
 
+from autoeval_api.coerce import string_list
+
 SENSITIVE_KEYS = {
     "account_id",
     "account_name",
@@ -62,7 +64,7 @@ def project_inference_payload(payload: dict[str, Any]) -> dict[str, Any]:
                 "is_synthetic": is_synthetic,
             },
             "market_data": _market_data(model_context.get("market_data")),
-            "blocked_reasons": _string_list(model_context.get("blocked_reasons")),
+            "blocked_reasons": string_list(model_context.get("blocked_reasons")),
             "portfolio_facts": _portfolio_facts(
                 model_context.get("portfolio_facts"), is_synthetic=is_synthetic
             ),
@@ -210,10 +212,6 @@ def _market_data(value: Any) -> dict[str, Any]:
             if isinstance(runtime_snapshot, dict) and runtime_snapshot.get(key) is not None
         },
     }
-
-
-def _string_list(value: Any) -> list[str]:
-    return [str(item) for item in value] if isinstance(value, list) else []
 
 
 def _is_final_output(payload: dict[str, Any]) -> bool:

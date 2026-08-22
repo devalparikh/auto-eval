@@ -31,6 +31,11 @@ from autoeval_api.agent_systems.portfolio_query.trace_policy import (
     project_payload,
 )
 from autoeval_api.graph.context import GraphRuntimeContext, NodeResourceExecutionBinding
+from autoeval_api.graph.definition import (
+    NodeResourcePolicy,
+    NodeResourceSelection,
+    RuntimeInputMode,
+)
 from autoeval_api.graph.runtime_inputs import RuntimeInputCapabilityRegistry
 from autoeval_api.inference.base import InferenceResponse
 from autoeval_api.models import AgentSystemRecord, DatasetItemRecord
@@ -64,7 +69,9 @@ def analysis_for(
         session,
         "portfolio-query",
         runtime_inputs=runtime_inputs,
-        runtime_input_modes={"load_portfolio_market_data": ("options_chain", "locked", 1)},
+        runtime_input_modes={
+            "load_portfolio_market_data": RuntimeInputMode("options_chain", "locked", 1)
+        },
     )
     if portfolio_snapshot_id is None:
         item = next(
@@ -85,8 +92,10 @@ def analysis_for(
     resolved_resource = resolve_node_resource(
         session,
         consumer_system_key="portfolio-query",
-        policy_value=resource_policy,
-        selection_value={"mode": "locked", "snapshot_id": portfolio_snapshot_id},
+        policy=NodeResourcePolicy.model_validate(resource_policy),
+        selection=NodeResourceSelection.model_validate(
+            {"mode": "locked", "snapshot_id": portfolio_snapshot_id}
+        ),
     )
     context.bind_node_resource(
         "get_indexed_portfolio",

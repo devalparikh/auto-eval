@@ -49,7 +49,7 @@ make e2e
 make verify
 ```
 
-`make check` is the practical edit loop: backend lint, format checks, and tests plus frontend lint, type checks, and unit tests. `make verify` adds the production frontend build and Playwright end-to-end suite.
+`make check` is the practical edit loop: an API-contract drift check, backend lint, format checks, and tests plus frontend lint, type checks, and unit tests. After changing a response schema, run `make api-types` to regenerate the frontend's OpenAPI types. `make verify` adds the production frontend build and Playwright end-to-end suite.
 
 Run `make seed` to ensure the built-in flows, immutable synthetic portfolio snapshots, and demo results exist without starting the servers.
 

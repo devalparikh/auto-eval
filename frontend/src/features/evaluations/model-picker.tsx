@@ -29,7 +29,7 @@ export function ModelPicker({
           return (
             <label
               key={model.id}
-              className={`flex cursor-pointer items-center gap-3 rounded-[9px] border p-3 transition-colors ${
+              className={`flex cursor-pointer items-center gap-3 rounded-[9px] border p-3 transition-colors has-[:focus-visible]:outline-1 has-[:focus-visible]:outline-offset-[3px] has-[:focus-visible]:outline-[var(--focus)] ${
                 checked
                   ? "border-[var(--accent)] bg-[var(--accent-soft)]"
                   : "border-[var(--border)] bg-[var(--surface-raised)] hover:border-[var(--border-strong)]"
@@ -58,7 +58,7 @@ export function ModelPicker({
                   {model.provider} · {model.supports.join(", ")}
                 </span>
                 {model.notice ? (
-                  <span className="mt-1 block text-[10px] leading-4 text-amber-700 dark:text-amber-300">
+                  <span className="mt-1 block text-[10px] leading-4 text-[var(--warning)]">
                     {model.notice}
                   </span>
                 ) : null}

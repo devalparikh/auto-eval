@@ -10,6 +10,7 @@ from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from autoeval_api.agent_systems.registry import system_spec
+from autoeval_api.graph.definition import parse_graph_definition
 from autoeval_api.models import (
     AgentSystemRecord,
     AgentSystemVersionRecord,
@@ -159,10 +160,8 @@ def _node_labels(
             .all()
         )
         for version in versions:
-            for node in version.definition.get("nodes", []):
-                node_id = str(node.get("id", ""))
-                if node_id:
-                    labels.setdefault((owner.id, node_id), str(node.get("label") or node_id))
+            for node in parse_graph_definition(version.definition).nodes:
+                labels.setdefault((owner.id, node.id), node.label or node.id)
     return labels
 
 

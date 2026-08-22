@@ -1,8 +1,8 @@
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 
-from sqlalchemy import Engine, inspect, text
+from sqlalchemy import Connection, Engine, inspect, text
 
-MIGRATION_VERSION = 9
+Migration = Callable[[Connection], None]
 
 
 def apply_migrations(engine: Engine) -> None:
@@ -21,33 +21,14 @@ def apply_migrations(engine: Engine) -> None:
         applied = {
             row[0] for row in connection.execute(text("SELECT version FROM schema_migrations"))
         }
-        if 1 not in applied:
-            _apply_version_one(connection)
-            connection.execute(text("INSERT INTO schema_migrations (version) VALUES (1)"))
-        if 2 not in applied:
-            _apply_version_two(connection)
-            connection.execute(text("INSERT INTO schema_migrations (version) VALUES (2)"))
-        if 3 not in applied:
-            _apply_version_three(connection)
-            connection.execute(text("INSERT INTO schema_migrations (version) VALUES (3)"))
-        if 4 not in applied:
-            _apply_version_four(connection)
-            connection.execute(text("INSERT INTO schema_migrations (version) VALUES (4)"))
-        if 5 not in applied:
-            _apply_version_five(connection)
-            connection.execute(text("INSERT INTO schema_migrations (version) VALUES (5)"))
-        if 6 not in applied:
-            _apply_version_six(connection)
-            connection.execute(text("INSERT INTO schema_migrations (version) VALUES (6)"))
-        if 7 not in applied:
-            _apply_version_seven(connection)
-            connection.execute(text("INSERT INTO schema_migrations (version) VALUES (7)"))
-        if 8 not in applied:
-            _apply_version_eight(connection)
-            connection.execute(text("INSERT INTO schema_migrations (version) VALUES (8)"))
-        if 9 not in applied:
-            _apply_version_nine(connection)
-            connection.execute(text("INSERT INTO schema_migrations (version) VALUES (9)"))
+        for version, migrate in enumerate(MIGRATIONS, start=1):
+            if version in applied:
+                continue
+            migrate(connection)
+            connection.execute(
+                text("INSERT INTO schema_migrations (version) VALUES (:version)"),
+                {"version": version},
+            )
         _create_integrity_triggers(connection)
 
 
@@ -935,3 +916,21 @@ def _create_integrity_triggers(connection) -> None:
     )
     for statement in statements:
         connection.execute(text(statement))
+
+
+# Ordered by version: index 0 is version 1, and a version is recorded as applied
+# only after its function returns. Append new migrations; never reorder or edit
+# one that has shipped.
+MIGRATIONS: tuple[Migration, ...] = (
+    _apply_version_one,
+    _apply_version_two,
+    _apply_version_three,
+    _apply_version_four,
+    _apply_version_five,
+    _apply_version_six,
+    _apply_version_seven,
+    _apply_version_eight,
+    _apply_version_nine,
+)
+
+MIGRATION_VERSION = len(MIGRATIONS)

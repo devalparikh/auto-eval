@@ -1,13 +1,14 @@
 from collections import defaultdict, deque
-from typing import Any
+
+from autoeval_api.graph.definition import AgentGraphDefinition
 
 
-def topological_sequence(definition: dict[str, Any]) -> dict[str, int]:
-    incoming = {node["id"]: 0 for node in definition["nodes"]}
+def topological_sequence(definition: AgentGraphDefinition) -> dict[str, int]:
+    incoming = {node.id: 0 for node in definition.nodes}
     outgoing: dict[str, list[str]] = defaultdict(list)
-    for edge in definition["edges"]:
-        incoming[edge["target"]] += 1
-        outgoing[edge["source"]].append(edge["target"])
+    for edge in definition.edges:
+        incoming[edge.target] += 1
+        outgoing[edge.source].append(edge.target)
 
     queue = deque(node_id for node_id, count in incoming.items() if count == 0)
     order: dict[str, int] = {}
@@ -24,6 +25,6 @@ def topological_sequence(definition: dict[str, Any]) -> dict[str, int]:
     return order
 
 
-def sink_node_ids(definition: dict[str, Any]) -> list[str]:
-    source_ids = {edge["source"] for edge in definition["edges"]}
-    return [node["id"] for node in definition["nodes"] if node["id"] not in source_ids]
+def sink_node_ids(definition: AgentGraphDefinition) -> list[str]:
+    source_ids = {edge.source for edge in definition.edges}
+    return [node.id for node in definition.nodes if node.id not in source_ids]

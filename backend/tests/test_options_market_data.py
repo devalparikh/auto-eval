@@ -5,13 +5,12 @@ import pytest
 
 from autoeval_api.agent_systems.portfolio_query.definition import PORTFOLIO_QUERY_GRAPH
 from autoeval_api.config import Settings
-from autoeval_api.graph.runner import AgentGraphRunner
+from autoeval_api.graph.definition import RuntimeInputMode, parse_graph_definition
 from autoeval_api.market_data.options import (
     OptionsChainRequest,
     OptionsMarketDataError,
     TradierOptionsChainProvider,
 )
-from autoeval_api.models import TraceOrigin
 
 
 def _request() -> OptionsChainRequest:
@@ -25,15 +24,17 @@ def _request() -> OptionsChainRequest:
 
 
 def test_portfolio_market_data_policy_refreshes_runtime_and_locks_evaluations() -> None:
-    runtime_modes = AgentGraphRunner._runtime_input_modes(
-        PORTFOLIO_QUERY_GRAPH, TraceOrigin.RUNTIME
-    )
-    evaluation_modes = AgentGraphRunner._runtime_input_modes(
-        PORTFOLIO_QUERY_GRAPH, TraceOrigin.EVALUATION
-    )
+    definition = parse_graph_definition(PORTFOLIO_QUERY_GRAPH)
 
-    assert runtime_modes["load_portfolio_market_data"] == ("options_chain", "refresh", 1)
-    assert evaluation_modes["load_portfolio_market_data"] == ("options_chain", "locked", 1)
+    runtime_modes = definition.runtime_input_modes(evaluation=False)
+    evaluation_modes = definition.runtime_input_modes(evaluation=True)
+
+    assert runtime_modes["load_portfolio_market_data"] == RuntimeInputMode(
+        "options_chain", "refresh", 1
+    )
+    assert evaluation_modes["load_portfolio_market_data"] == RuntimeInputMode(
+        "options_chain", "locked", 1
+    )
 
 
 @pytest.mark.asyncio

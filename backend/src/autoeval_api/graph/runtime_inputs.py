@@ -1,6 +1,8 @@
 from dataclasses import dataclass
 from typing import Any
 
+from autoeval_api.graph.definition import AgentGraphDefinition
+
 
 @dataclass(frozen=True)
 class ResolvedRuntimeInput:
@@ -41,8 +43,7 @@ class RuntimeInputCapabilityRegistry:
             raise ValueError(f"Unknown runtime-input capability: {source}")
         return capability
 
-    def validate_definition(self, definition: dict[str, Any]) -> None:
-        for node in definition.get("nodes", []):
-            policy = node.get("runtime_input_policy")
-            if isinstance(policy, dict):
-                self.get(str(policy.get("source", "")))
+    def validate_definition(self, definition: AgentGraphDefinition) -> None:
+        for node in definition.nodes:
+            if node.runtime_input_policy is not None:
+                self.get(node.runtime_input_policy.source)

@@ -10,6 +10,7 @@ from autoeval_api.agent_systems.portfolio_analyst.seed import (
 from autoeval_api.agent_systems.portfolio_query.seed import (
     ensure_seed_data as ensure_query_seed_data,
 )
+from autoeval_api.graph.definition import NodeResourcePolicy, NodeResourceSelection
 from autoeval_api.models import (
     DatasetItemRecord,
     DatasetRecord,
@@ -150,8 +151,8 @@ def test_locked_node_resource_enforces_the_full_producer_contract(session_factor
     resolved = resolve_node_resource(
         session,
         consumer_system_key="portfolio-query",
-        policy_value=policy,
-        selection_value=selection,
+        policy=NodeResourcePolicy.model_validate(policy),
+        selection=NodeResourceSelection.model_validate(selection),
     )
     assert resolved.snapshot_id == selection["snapshot_id"]
 
@@ -169,8 +170,8 @@ def test_locked_node_resource_enforces_the_full_producer_contract(session_factor
             resolve_node_resource(
                 session,
                 consumer_system_key="portfolio-query",
-                policy_value=invalid_policy,
-                selection_value=selection,
+                policy=NodeResourcePolicy.model_validate(invalid_policy),
+                selection=NodeResourceSelection.model_validate(selection),
             )
 
     domain = session.get(PortfolioSnapshotRecord, selection["snapshot_id"])
@@ -180,8 +181,8 @@ def test_locked_node_resource_enforces_the_full_producer_contract(session_factor
         resolve_node_resource(
             session,
             consumer_system_key="portfolio-query",
-            policy_value=policy,
-            selection_value=selection,
+            policy=NodeResourcePolicy.model_validate(policy),
+            selection=NodeResourceSelection.model_validate(selection),
         )
     session.rollback()
 
@@ -226,8 +227,8 @@ def test_runtime_input_backed_resource_uses_authoritative_adapter(session_factor
     resolved = resolve_node_resource(
         session,
         consumer_system_key="portfolio-query",
-        policy_value=policy,
-        selection_value=selection,
+        policy=NodeResourcePolicy.model_validate(policy),
+        selection=NodeResourceSelection.model_validate(selection),
     )
     assert resolved.snapshot_id == snapshot_id
 
@@ -238,6 +239,6 @@ def test_runtime_input_backed_resource_uses_authoritative_adapter(session_factor
         resolve_node_resource(
             session,
             consumer_system_key="portfolio-query",
-            policy_value=policy,
-            selection_value=selection,
+            policy=NodeResourcePolicy.model_validate(policy),
+            selection=NodeResourceSelection.model_validate(selection),
         )
