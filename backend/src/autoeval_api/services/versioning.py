@@ -7,19 +7,17 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from autoeval_api.agent_systems.registry import system_spec
+from autoeval_api.graph.definition import (
+    AgentGraphDefinition,
+    parse_graph_definition,
+)
 from autoeval_api.models import (
     AgentSystemRecord,
     AgentSystemVersionRecord,
     PromptRecord,
     PromptVersionRecord,
 )
-from autoeval_api.schemas import (
-    AgentGraphDefinition,
-    AgentSystemSummary,
-    NodeResourcePolicy,
-    PromptSummary,
-    VersionSummary,
-)
+from autoeval_api.schemas import AgentSystemSummary, PromptSummary, VersionSummary
 
 
 def hash_json(value: dict[str, Any]) -> str:
@@ -36,16 +34,12 @@ def create_agent_version(
     agent_system: AgentSystemRecord,
     definition: AgentGraphDefinition | dict[str, Any],
 ) -> AgentSystemVersionRecord:
-    if isinstance(definition, AgentGraphDefinition):
-        definition.validate_references()
-        payload = definition.model_dump(mode="json")
-    else:
-        parsed = AgentGraphDefinition.model_validate(definition)
-        parsed.validate_references()
-        payload = parsed.model_dump(mode="json")
+    parsed = parse_graph_definition(definition)
+    parsed.validate_references()
+    payload = parsed.model_dump(mode="json")
 
-    _validate_graph_prompt_keys(session, agent_system, payload)
-    _validate_graph_resource_policies(session, agent_system, payload)
+    _validate_graph_prompt_keys(session, agent_system, parsed)
+    _validate_graph_resource_policies(session, agent_system, parsed)
 
     content_hash = hash_json(payload)
     duplicate = (
@@ -114,14 +108,10 @@ def create_prompt_version(
 def _validate_graph_resource_policies(
     session: Session,
     consumer: AgentSystemRecord,
-    definition: dict[str, Any],
+    definition: AgentGraphDefinition,
 ) -> None:
     consumer_product = system_spec(consumer.key).product_key or consumer.key
-    for node in definition.get("nodes", []):
-        value = node.get("resource_policy")
-        if not isinstance(value, dict):
-            continue
-        policy = NodeResourcePolicy.model_validate(value)
+    for policy in definition.resource_policies().values():
         if consumer_product != policy.product_key:
             raise ValueError(
                 f"Resource consumer {consumer.key} does not belong to {policy.product_key}"
@@ -140,29 +130,21 @@ def _validate_graph_resource_policies(
             .order_by(AgentSystemVersionRecord.version.desc())
             .first()
         )
-        producer_node = next(
-            (
-                candidate
-                for candidate in (
-                    producer_version.definition.get("nodes", []) if producer_version else []
-                )
-                if candidate.get("id") == policy.producer_node_id
-            ),
-            None,
+        producer_node = (
+            parse_graph_definition(producer_version.definition).node(policy.producer_node_id)
+            if producer_version is not None
+            else None
         )
-        snapshot_policy = (
-            producer_node.get("snapshot_policy") if isinstance(producer_node, dict) else None
-        )
-        if not isinstance(snapshot_policy, dict):
+        snapshot_policy = producer_node.snapshot_policy if producer_node is not None else None
+        if snapshot_policy is None:
             raise ValueError(
                 f"Resource producer node has no snapshot contract: {policy.producer_node_id}"
             )
         if (
-            snapshot_policy.get("output_key") != policy.producer_output_key
-            or snapshot_policy.get("snapshot_kind") != policy.producer_snapshot_kind
-            or int(snapshot_policy.get("schema_version", 1)) != policy.schema_version
-            or snapshot_policy.get("binding_mode", "produce")
-            not in {"produce", "produce_or_consume"}
+            snapshot_policy.output_key != policy.producer_output_key
+            or snapshot_policy.snapshot_kind != policy.producer_snapshot_kind
+            or snapshot_policy.schema_version != policy.schema_version
+            or snapshot_policy.binding_mode not in {"produce", "produce_or_consume"}
         ):
             raise ValueError(
                 f"Resource producer snapshot contract does not match: {policy.producer_node_id}"
@@ -229,13 +211,7 @@ def resolve_graph_prompt_versions(
     requested_version_ids: dict[str, str] | None = None,
 ) -> dict[str, PromptVersionRecord]:
     requested = requested_version_ids or {}
-    prompt_keys = list(
-        dict.fromkeys(
-            node["prompt_key"]
-            for node in graph_version.definition.get("nodes", [])
-            if node.get("kind") == "llm" and node.get("prompt_key")
-        )
-    )
+    prompt_keys = sorted(parse_graph_definition(graph_version.definition).prompt_keys())
     unknown_keys = sorted(set(requested) - set(prompt_keys))
     if unknown_keys:
         raise ValueError(
@@ -322,13 +298,9 @@ def _version_summary(
 def _validate_graph_prompt_keys(
     session: Session,
     agent_system: AgentSystemRecord,
-    definition: dict[str, Any],
+    definition: AgentGraphDefinition,
 ) -> None:
-    prompt_keys = {
-        node["prompt_key"]
-        for node in definition.get("nodes", [])
-        if node.get("prompt_key") is not None
-    }
+    prompt_keys = {node.prompt_key for node in definition.nodes if node.prompt_key is not None}
     if not prompt_keys:
         return
     prompts = session.query(PromptRecord).filter(PromptRecord.key.in_(prompt_keys)).all()

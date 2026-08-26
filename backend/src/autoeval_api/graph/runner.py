@@ -11,6 +11,12 @@ from langgraph.runtime import Runtime
 from sqlalchemy.orm import Session
 
 from autoeval_api.graph.context import GraphRuntimeContext, NodeResourceExecutionBinding
+from autoeval_api.graph.definition import (
+    AgentGraphDefinition,
+    AgentNodeDefinition,
+    NodeResourceSelection,
+    parse_graph_definition,
+)
 from autoeval_api.graph.registry import NodeHandlerRegistry, default_node_handler_registry
 from autoeval_api.graph.runtime_inputs import RuntimeInputCapabilityRegistry
 from autoeval_api.graph.topology import sink_node_ids, topological_sequence
@@ -27,7 +33,6 @@ from autoeval_api.models import (
     TraceSpanRecord,
     utc_now,
 )
-from autoeval_api.schemas import NodeResourceSelection
 from autoeval_api.services.node_resources import resolve_node_resource
 from autoeval_api.services.runtime_input_snapshots import (
     resolve_runtime_input_snapshot,
@@ -81,7 +86,7 @@ class AgentGraphRunner:
                 {key: version.id for key, version in selection.prompt_versions.items()},
             ),
         )
-        definition = selection.graph_version.definition
+        definition = parse_graph_definition(selection.graph_version.definition)
         self.node_registry.validate_definition(definition, selection.agent_system_key)
         self.runtime_input_registry.validate_definition(definition)
         trace_origin_context = trace_context or TraceContext()
@@ -108,9 +113,8 @@ class AgentGraphRunner:
         started = perf_counter()
         runtime_context: GraphRuntimeContext | None = None
         try:
-            runtime_input_modes = self._runtime_input_modes(
-                definition,
-                trace_origin_context.origin_type,
+            runtime_input_modes = definition.runtime_input_modes(
+                evaluation=trace_origin_context.origin_type == TraceOrigin.EVALUATION,
             )
             runtime_context = GraphRuntimeContext(
                 session,
@@ -130,7 +134,7 @@ class AgentGraphRunner:
                 node_resource_selections or {},
                 trace_origin_context.origin_type,
             )
-            graph = self._compile_graph(session, trace, selection)
+            graph = self._compile_graph(session, trace, selection, definition)
             state = await graph.ainvoke(
                 {"input": request_input, "data": {}},
                 context=runtime_context,
@@ -157,21 +161,25 @@ class AgentGraphRunner:
             session.refresh(trace)
         return trace
 
-    def _compile_graph(self, session: Session, trace: TraceRecord, selection: RunSelection):
-        definition = selection.graph_version.definition
+    def _compile_graph(
+        self,
+        session: Session,
+        trace: TraceRecord,
+        selection: RunSelection,
+        definition: AgentGraphDefinition,
+    ):
         sequence = topological_sequence(definition)
         builder = StateGraph(AgentState, context_schema=GraphRuntimeContext)
 
-        for node in definition["nodes"]:
-            node_sequence = sequence[node["id"]]
+        for node in definition.nodes:
             builder.add_node(
-                node["id"],
-                self._traced_node(session, trace, selection, node, node_sequence),
+                node.id,
+                self._traced_node(session, trace, selection, node, sequence[node.id]),
             )
 
-        builder.set_entry_point(definition["entry_point"])
-        for edge in definition["edges"]:
-            builder.add_edge(edge["source"], edge["target"])
+        builder.set_entry_point(definition.entry_point)
+        for edge in definition.edges:
+            builder.add_edge(edge.source, edge.target)
         for node_id in sink_node_ids(definition):
             builder.add_edge(node_id, END)
         return builder.compile()
@@ -181,7 +189,7 @@ class AgentGraphRunner:
         session: Session,
         trace: TraceRecord,
         selection: RunSelection,
-        node: dict[str, Any],
+        node: AgentNodeDefinition,
         sequence: int,
     ) -> Callable[[AgentState], Awaitable[dict[str, Any]]]:
         async def invoke(
@@ -190,22 +198,20 @@ class AgentGraphRunner:
         ) -> dict[str, Any]:
             snapshot = self._domain_state(state)
             prompt_version = (
-                self._node_prompt_version(selection, node) if node["kind"] == "llm" else None
+                self._node_prompt_version(selection, node) if node.kind == "llm" else None
             )
             system_prompt = prompt_version.content if prompt_version is not None else None
-            node_snapshot = runtime.context.node_snapshots.get(node["id"])
+            node_snapshot = runtime.context.node_snapshots.get(node.id)
             span = TraceSpanRecord(
                 trace_id=trace.id,
-                node_id=node["id"],
-                node_kind=node["kind"],
+                node_id=node.id,
+                node_kind=node.kind,
                 prompt_version_id=prompt_version.id if prompt_version is not None else None,
                 sequence=sequence,
                 status=RunStatus.RUNNING,
                 system_prompt=system_prompt,
                 input=project_trace_payload(selection.agent_system_key, snapshot),
-                runtime_input_snapshot_id=runtime.context.runtime_input_snapshot_ids.get(
-                    node["id"]
-                ),
+                runtime_input_snapshot_id=runtime.context.runtime_input_snapshot_ids.get(node.id),
                 node_snapshot_id=node_snapshot.id if node_snapshot is not None else None,
                 snapshot_role=node_snapshot.role if node_snapshot is not None else None,
                 snapshot_resolution_mode=(
@@ -220,9 +226,9 @@ class AgentGraphRunner:
             started = perf_counter()
 
             try:
-                if node["kind"] == "deterministic":
+                if node.kind == "deterministic":
                     output = self.node_registry.deterministic(
-                        node["handler"], selection.agent_system_key
+                        node.handler, selection.agent_system_key
                     )(snapshot, runtime.context)
                     if isawaitable(output):
                         output = await output
@@ -236,7 +242,7 @@ class AgentGraphRunner:
                         prompt_version,
                     )
                     output = self.node_registry.llm_output(
-                        node["handler"], selection.agent_system_key
+                        node.handler, selection.agent_system_key
                     )(snapshot, inference)
                 span.output = self._span_output(selection.agent_system_key, output, inference)
                 span.status = RunStatus.COMPLETE
@@ -248,9 +254,9 @@ class AgentGraphRunner:
                 raise
             finally:
                 span.runtime_input_snapshot_id = runtime.context.runtime_input_snapshot_ids.get(
-                    node["id"]
+                    node.id
                 )
-                node_snapshot = runtime.context.node_snapshots.get(node["id"])
+                node_snapshot = runtime.context.node_snapshots.get(node.id)
                 span.node_snapshot_id = node_snapshot.id if node_snapshot is not None else None
                 span.snapshot_role = node_snapshot.role if node_snapshot is not None else None
                 span.snapshot_resolution_mode = (
@@ -267,25 +273,6 @@ class AgentGraphRunner:
         return invoke
 
     @staticmethod
-    def _runtime_input_modes(
-        definition: dict[str, Any], origin_type: str
-    ) -> dict[str, tuple[str, str, int]]:
-        modes: dict[str, tuple[str, str, int]] = {}
-        for node in definition.get("nodes", []):
-            policy = node.get("runtime_input_policy")
-            if not isinstance(policy, dict):
-                continue
-            mode_key = (
-                "evaluation_mode" if origin_type == TraceOrigin.EVALUATION else "runtime_mode"
-            )
-            modes[node["id"]] = (
-                policy["source"],
-                policy[mode_key],
-                int(policy.get("schema_version", 1)),
-            )
-        return modes
-
-    @staticmethod
     def _bind_locked_runtime_input_snapshots(
         context: GraphRuntimeContext,
         selected_ids: dict[str, str],
@@ -297,16 +284,16 @@ class AgentGraphRunner:
                 + ", ".join(unknown_nodes)
             )
         for node_id, snapshot_id in selected_ids.items():
-            source_key, mode, schema_version = context.runtime_input_modes[node_id]
-            if mode != "locked":
+            configured = context.runtime_input_modes[node_id]
+            if configured.mode != "locked":
                 raise ValueError(f"Runtime-input snapshot cannot bind refresh-mode node: {node_id}")
             record, _payload = resolve_runtime_input_snapshot(
                 context.session,
                 snapshot_id,
                 owner_system_key=context.agent_system_key,
-                source_key=source_key,
+                source_key=configured.source,
                 node_id=node_id,
-                schema_version=schema_version,
+                schema_version=configured.schema_version,
             )
             context.bind_runtime_input_snapshot(
                 node_id,
@@ -316,15 +303,11 @@ class AgentGraphRunner:
     @staticmethod
     def _bind_node_resource_selections(
         context: GraphRuntimeContext,
-        definition: dict[str, Any],
+        definition: AgentGraphDefinition,
         selected_values: dict[str, NodeResourceSelection | dict[str, Any]],
         origin_type: str,
     ) -> None:
-        policies = {
-            node["id"]: node["resource_policy"]
-            for node in definition.get("nodes", [])
-            if isinstance(node.get("resource_policy"), dict)
-        }
+        policies = definition.resource_policies()
         unknown_nodes = sorted(set(selected_values) - set(policies))
         if unknown_nodes:
             raise ValueError(
@@ -333,7 +316,7 @@ class AgentGraphRunner:
         missing = sorted(
             node_id
             for node_id, policy in policies.items()
-            if policy.get("required", True) and node_id not in selected_values
+            if policy.required and node_id not in selected_values
         )
         if missing:
             raise ValueError("Required node resource selections are missing: " + ", ".join(missing))
@@ -347,8 +330,8 @@ class AgentGraphRunner:
             resolved = resolve_node_resource(
                 context.session,
                 consumer_system_key=context.agent_system_key,
-                policy_value=policy,
-                selection_value=selection,
+                policy=policy,
+                selection=selection,
             )
             context.bind_node_resource(
                 node_id,
@@ -364,34 +347,31 @@ class AgentGraphRunner:
     @staticmethod
     def _validate_node_snapshot_policy(
         context: GraphRuntimeContext,
-        node: dict[str, Any],
+        node: AgentNodeDefinition,
     ) -> None:
-        policy = node.get("snapshot_policy")
-        if not isinstance(policy, dict):
+        policy = node.snapshot_policy
+        if policy is None:
             return
-        binding = context.node_snapshots.get(node["id"])
+        binding = context.node_snapshots.get(node.id)
         if binding is None or binding.id is None:
-            if policy.get("required", True):
+            if policy.required:
                 raise RuntimeError(
-                    f"Snapshot-enabled node did not bind an output snapshot: {node['id']}"
+                    f"Snapshot-enabled node did not bind an output snapshot: {node.id}"
                 )
             return
-        binding_mode = policy.get("binding_mode", "produce")
-        if binding_mode == "produce" and binding.role != "produced":
-            raise RuntimeError(f"Snapshot node must produce its binding: {node['id']}")
-        if binding_mode == "consume" and binding.role != "consumed":
-            raise RuntimeError(f"Snapshot node must consume its binding: {node['id']}")
-        output_key = binding.metadata.get("output_key")
-        if output_key != policy.get("output_key"):
-            raise RuntimeError(f"Snapshot output key does not match graph policy: {node['id']}")
-        schema_version = binding.metadata.get("schema_version")
-        if schema_version != policy.get("schema_version", 1):
-            raise RuntimeError(f"Snapshot schema version does not match graph policy: {node['id']}")
+        if policy.binding_mode == "produce" and binding.role != "produced":
+            raise RuntimeError(f"Snapshot node must produce its binding: {node.id}")
+        if policy.binding_mode == "consume" and binding.role != "consumed":
+            raise RuntimeError(f"Snapshot node must consume its binding: {node.id}")
+        if binding.metadata.get("output_key") != policy.output_key:
+            raise RuntimeError(f"Snapshot output key does not match graph policy: {node.id}")
+        if binding.metadata.get("schema_version") != policy.schema_version:
+            raise RuntimeError(f"Snapshot schema version does not match graph policy: {node.id}")
 
     async def _run_inference(
         self,
         selection: RunSelection,
-        node: dict[str, Any],
+        node: AgentNodeDefinition,
         state: dict[str, Any],
         prompt_version: PromptVersionRecord,
     ) -> InferenceResponse:
@@ -402,9 +382,9 @@ class AgentGraphRunner:
             InferenceRequest(
                 model_id=selection.model_id,
                 system_prompt=prompt_version.content,
-                task=node.get("task") or node["handler"],
+                task=node.task or node.handler,
                 state=project_inference_payload(selection.agent_system_key, state),
-                response_schema=node.get("response_schema"),
+                response_schema=node.response_schema,
                 agent_system_key=selection.agent_system_key,
                 modalities=modalities if isinstance(modalities, list) else [],
             )
@@ -413,9 +393,9 @@ class AgentGraphRunner:
     @staticmethod
     def _node_prompt_version(
         selection: RunSelection,
-        node: dict[str, Any],
+        node: AgentNodeDefinition,
     ) -> PromptVersionRecord:
-        prompt_key = node.get("prompt_key")
+        prompt_key = node.prompt_key
         if not prompt_key:
             return selection.prompt_version
         prompt_version = selection.prompt_versions.get(prompt_key)

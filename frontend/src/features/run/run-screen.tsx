@@ -287,7 +287,7 @@ export function RunWorkbench({
                   ))}
                 </Select>
                 {selectedModel?.notice ? (
-                  <p className="mt-1 text-[10px] leading-4 text-amber-700 dark:text-amber-300">
+                  <p className="mt-1 text-[10px] leading-4 text-[var(--warning)]">
                     {selectedModel.notice}
                   </p>
                 ) : null}

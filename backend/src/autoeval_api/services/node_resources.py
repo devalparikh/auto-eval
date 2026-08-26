@@ -5,8 +5,8 @@ from typing import Any
 from sqlalchemy.orm import Session
 
 from autoeval_api.agent_systems.registry import system_spec
+from autoeval_api.graph.definition import NodeResourcePolicy, NodeResourceSelection
 from autoeval_api.models import AgentSystemRecord, NodeOutputSnapshotRecord
-from autoeval_api.schemas import NodeResourcePolicy, NodeResourceSelection
 from autoeval_api.services.portfolio_snapshots import resolve_portfolio_snapshot
 from autoeval_api.services.runtime_input_snapshots import resolve_runtime_input_snapshot
 
@@ -23,11 +23,9 @@ def resolve_node_resource(
     session: Session,
     *,
     consumer_system_key: str,
-    policy_value: dict[str, Any],
-    selection_value: NodeResourceSelection | dict[str, Any],
+    policy: NodeResourcePolicy,
+    selection: NodeResourceSelection,
 ) -> ResolvedNodeResource:
-    policy = NodeResourcePolicy.model_validate(policy_value)
-    selection = NodeResourceSelection.model_validate(selection_value)
     _validate_product_scope(consumer_system_key, policy)
     producer = (
         session.query(AgentSystemRecord).filter_by(key=policy.producer_system_key).one_or_none()

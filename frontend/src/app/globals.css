@@ -921,6 +921,13 @@ textarea:focus-visible {
   outline-offset: 3px;
 }
 
+/* A visually hidden control clips its own outline, so the card that stands in
+   for it carries the focus ring instead. */
+label:has(input.sr-only:focus-visible) {
+  outline: 1px solid var(--focus);
+  outline-offset: 3px;
+}
+
 ::selection {
   background: var(--accent);
   color: var(--selection-ink);

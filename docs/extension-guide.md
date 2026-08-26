@@ -51,7 +51,7 @@ Schema changes must update both `models.py` for fresh databases and `migrations.
 
 Add a directory under `frontend/src/features/<domain>/` and keep its screen, forms, local state, hooks, tables, and charts together. Route files under `frontend/src/app/` should only render the feature entry component. Reuse the shell, modal, loading/error/empty states, and status badge from `frontend/src/components/`.
 
-When the API changes, update `frontend/src/lib/types.ts` and `frontend/src/lib/api.ts` first. Put pure domain projections near the owning feature, as `features/catalog/catalog-options.ts` and `features/results/result-rows.ts` do. Do not add a global helper until more than one feature owns the same behavior.
+When the API changes, run `make api-types` to regenerate `frontend/openapi.json` and `frontend/src/lib/api-schema.ts` from the backend, then update `frontend/src/lib/types.ts` and `frontend/src/lib/api.ts`. `frontend/src/lib/api-contract.ts` compares the two: a renamed, removed, or retyped field fails `npm run typecheck`, and a stale generated schema fails `make check`. The hand-written types stay the ones features import — they may narrow a backend `str` to a literal union and omit fields the UI never reads, but nothing else. Put pure domain projections near the owning feature, as `features/catalog/catalog-options.ts` and `features/results/result-rows.ts` do. Do not add a global helper until more than one feature owns the same behavior.
 
 ## Reuse the codebase map
 
