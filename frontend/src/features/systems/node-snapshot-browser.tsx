@@ -11,10 +11,7 @@ import { JsonViewer } from "@/components/json-viewer";
 import { ErrorState, LoadingState } from "@/components/states";
 import { systemPath } from "@/features/systems/system-path";
 import { formatDate, formatDuration, shortId } from "@/lib/format";
-import type {
-  NodeSnapshotDetail,
-  NodeSnapshotSummary,
-} from "@/lib/types";
+import type { NodeSnapshotDetail, NodeSnapshotSummary } from "@/lib/types";
 
 type InspectorView = "overview" | "metadata" | "content";
 
@@ -41,14 +38,13 @@ export function NodeSnapshotBrowser({
   const [view, setView] = useState<InspectorView>("overview");
   const groups = useMemo(() => groupSnapshots(snapshots), [snapshots]);
   const selectedSummary =
-    snapshots.find((snapshot) => snapshot.id === selectedSnapshotId) ?? snapshots[0];
-  const selectedNodeKey = groups.some(
-    (group) => group.key === requestedNodeKey,
-  )
+    snapshots.find((snapshot) => snapshot.id === selectedSnapshotId) ??
+    snapshots[0];
+  const selectedNodeKey = groups.some((group) => group.key === requestedNodeKey)
     ? requestedNodeKey
     : selectedSummary
       ? nodeKey(selectedSummary)
-      : groups[0]?.key ?? "";
+      : (groups[0]?.key ?? "");
   const selectedGroup = groups.find((group) => group.key === selectedNodeKey);
 
   if (error) return <ErrorState message={error} retry={retry} />;
@@ -58,8 +54,8 @@ export function NodeSnapshotBrowser({
       <div className="border border-[var(--border)] bg-[var(--surface)] p-7">
         <p className="text-[12px] font-semibold">No node snapshots recorded</p>
         <p className="mt-1 max-w-[58ch] text-[10px] leading-5 text-[var(--text-muted)]">
-          Snapshot-enabled deterministic and external-input nodes will appear here after
-          they produce or capture an immutable output.
+          Snapshot-enabled deterministic and external-input nodes will appear
+          here after they produce or capture an immutable output.
         </p>
       </div>
     );
@@ -71,8 +67,8 @@ export function NodeSnapshotBrowser({
         <div>
           <h2 className="text-[13px] font-semibold">Node snapshots</h2>
           <p className="mt-1 max-w-[68ch] text-[10px] leading-5 text-[var(--text-muted)]">
-            Immutable outputs grouped by producing node. Execution latency and replay
-            metadata stay attached to each trace usage.
+            Immutable outputs grouped by producing node. Execution latency and
+            replay metadata stay attached to each trace usage.
           </p>
         </div>
         <span className="mono text-[9px] text-[var(--text-faint)]">
@@ -137,7 +133,9 @@ export function NodeSnapshotBrowser({
                 className="block w-full border-b border-[var(--border)] px-4 py-3 text-left hover:bg-[var(--surface-muted)] aria-pressed:bg-[var(--accent-soft)]"
               >
                 <span className="flex items-center justify-between gap-3">
-                  <span className="truncate text-[10px] font-medium">{snapshot.label}</span>
+                  <span className="truncate text-[10px] font-medium">
+                    {snapshot.label}
+                  </span>
                   <span className="mono shrink-0 text-[8px] text-[var(--text-faint)]">
                     v{snapshot.schema_version}
                   </span>
@@ -188,7 +186,10 @@ function SnapshotInspector({
   return (
     <div>
       <div className="flex items-start gap-3 border-b border-[var(--border)] px-5 py-4">
-        <DatabaseIcon size={15} className="mt-0.5 shrink-0 text-[var(--accent)]" />
+        <DatabaseIcon
+          size={15}
+          className="mt-0.5 shrink-0 text-[var(--accent)]"
+        />
         <div className="min-w-0">
           <h3 className="truncate text-[12px] font-semibold">{detail.label}</h3>
           <p className="mono mt-1 truncate text-[8px] text-[var(--text-faint)]">
@@ -197,7 +198,10 @@ function SnapshotInspector({
         </div>
       </div>
       <div className="version-view-toolbar mx-4 mt-4">
-        <div className="version-view-switch" aria-label="Snapshot inspector view">
+        <div
+          className="version-view-switch"
+          aria-label="Snapshot inspector view"
+        >
           {(["overview", "metadata", "content"] as const).map((item) => (
             <button
               key={item}
@@ -219,15 +223,21 @@ function SnapshotInspector({
             <Fact label="Captured" value={formatDate(detail.captured_at)} />
             <Fact label="Capture mode" value={detail.capture_mode} />
             <Fact label="Source" value={detail.source} />
-            <Fact label="Provider" value={detail.provider ?? "local deterministic"} />
+            <Fact
+              label="Provider"
+              value={detail.provider ?? "local deterministic"}
+            />
             <Fact label="Schema" value={`v${detail.schema_version}`} />
             <Fact label="Flow" value={detail.flow_name} />
-            <Fact label="Data class" value={detail.is_synthetic ? "synthetic" : "real"} />
+            <Fact
+              label="Data class"
+              value={detail.is_synthetic ? "synthetic" : "real"}
+            />
             <Fact label="Hash" value={detail.content_hash.slice(0, 12)} mono />
           </dl>
 
           <section>
-            <h4 className="text-[9px] font-semibold uppercase tracking-[0.1em] text-[var(--text-faint)]">
+            <h4 className="text-[9px] font-semibold lowercase tracking-[0.1em] text-[var(--text-faint)]">
               Execution uses
             </h4>
             <div className="mt-2 border border-[var(--border)]">
@@ -268,9 +278,15 @@ function SnapshotInspector({
       ) : view === "metadata" ? (
         <div className="grid gap-4 p-4">
           <JsonViewer label="Shared provenance" value={detail.provenance} />
-          <JsonViewer label="Node-specific metadata" value={detail.node_metadata} />
+          <JsonViewer
+            label="Node-specific metadata"
+            value={detail.node_metadata}
+          />
           {detail.usages[0] ? (
-            <JsonViewer label="Latest execution metadata" value={detail.usages[0].metadata} />
+            <JsonViewer
+              label="Latest execution metadata"
+              value={detail.usages[0].metadata}
+            />
           ) : null}
         </div>
       ) : detail.content_available && detail.content ? (
@@ -289,7 +305,7 @@ function SnapshotInspector({
 
 function RailLabel({ children }: { children: string }) {
   return (
-    <p className="border-b border-[var(--border)] px-4 py-2.5 text-[8px] font-semibold uppercase tracking-[0.12em] text-[var(--text-faint)]">
+    <p className="border-b border-[var(--border)] px-4 py-2.5 text-[8px] font-semibold lowercase tracking-[0.12em] text-[var(--text-faint)]">
       {children}
     </p>
   );
@@ -307,7 +323,9 @@ function Fact({
   return (
     <div className="min-w-0 border-r border-b border-[var(--border)] px-3 py-2.5">
       <dt className="text-[8px] text-[var(--text-faint)]">{label}</dt>
-      <dd className={`mt-1 truncate font-medium ${mono ? "mono" : ""}`}>{value}</dd>
+      <dd className={`mt-1 truncate font-medium ${mono ? "mono" : ""}`}>
+        {value}
+      </dd>
     </div>
   );
 }

@@ -244,7 +244,7 @@ export function VersionEditor({
           open={expanded}
           size="fullscreen"
           title="Agent graph structure"
-          description="Pan and zoom the selected immutable graph version."
+          description="Pan and zoom the selected graph."
           onClose={() => setExpanded(false)}
         >
           <AgentGraph definition={graphDefinition} fullscreen />

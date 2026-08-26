@@ -13,7 +13,6 @@ from autoeval_api.api.middleware import RequestGuardMiddleware, SecurityHeadersM
 from autoeval_api.api.routes import (
     artifacts,
     catalog,
-    codebase,
     datasets,
     evaluations,
     node_snapshots,
@@ -22,7 +21,6 @@ from autoeval_api.api.routes import (
     traces,
     versions,
 )
-from autoeval_api.codebase.service import CodebaseGraphService
 from autoeval_api.config import Settings, get_settings
 from autoeval_api.db import SessionLocal, create_schema
 from autoeval_api.graph.registry import NodeHandlerRegistry, default_node_handler_registry
@@ -46,7 +44,6 @@ def create_application(
     scoring_registry: ScoringRegistry | None = None,
     runner: AgentGraphRunner | None = None,
     evaluation_service: EvaluationService | None = None,
-    codebase_service: CodebaseGraphService | None = None,
 ) -> FastAPI:
     settings = settings or get_settings()
     if provider_registry is None:
@@ -62,12 +59,6 @@ def create_application(
     )
     evaluation_service = evaluation_service or EvaluationService(
         session_factory, runner, scoring_registry
-    )
-    codebase_service = codebase_service or CodebaseGraphService(
-        settings.resolved_codebase_root,
-        max_files=settings.codebase_max_files,
-        max_file_bytes=settings.codebase_max_file_bytes,
-        max_symbols=settings.codebase_max_symbols,
     )
 
     @asynccontextmanager
@@ -94,7 +85,6 @@ def create_application(
     app.state.runner = runner
     app.state.provider_registry = provider_registry
     app.state.evaluation_service = evaluation_service
-    app.state.codebase_service = codebase_service
     app.state.session_factory = session_factory
 
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=settings.allowed_hosts)
@@ -109,7 +99,6 @@ def create_application(
     app.add_middleware(SecurityHeadersMiddleware)
 
     app.include_router(catalog.router)
-    app.include_router(codebase.router)
     app.include_router(artifacts.router)
     app.include_router(node_snapshots.router)
     app.include_router(portfolio_snapshots.router)

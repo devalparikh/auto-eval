@@ -62,7 +62,6 @@ autoeval_api/
     portfolio_analyst/      synthetic portfolio analyst and deterministic math
     portfolio_query/        supplied-snapshot questions and covered-call screening
     seed.py                 built-in seed composition
-  codebase/                 configured-root Git snapshots and semantic graph projection
   graph/                    parsed graph definition, generic topology, node registry, runner
   inference/                provider contract, adapters, registry
   market_data/              registered runtime capabilities and Tradier options adapter
@@ -91,24 +90,6 @@ There is currently no `DatasetImporter`, `ArtifactStore`, or `EvaluationDispatch
 
 `AgentSystemSpec` is deliberately code-level. It supplies default models, an input template, editor identity, and the primary metric without trying to turn every agent UX into a database-driven form builder. Unknown registered systems receive generic JSON fallbacks.
 
-## Codebase map boundary
-
-The codebase map is intentionally independent of agent-system persistence. `CodebaseGraphService` reads a single configured Git repository and constructs exact before/after snapshots. A file adapter derives areas, modules, files, symbols, and imports. A separate logic adapter validates `.codemap/logic.json` and projects changed files onto agent-maintained systems, domains, capabilities, components, and explicit architectural relations. Both return the same transport-neutral graph contract.
-
-The viewer is deterministic and never invokes a coding agent. Architectural judgment stays versioned in the inspected repository. `$maintain-codebase-logic` teaches a coding agent to create or refresh the manifest from runtime flows, product behavior, source ownership, tests, and docs. When a historical snapshot lacks a manifest, the current worktree model is used as a projection lens for that Git diff.
-
-Comparison sources have explicit meanings:
-
-- `current`: working-tree structure with no change overlay
-- `working`: `HEAD` to the tracked and untracked working tree
-- `staged`: `HEAD` to the Git index
-- `commit`: first parent to the selected commit
-- `pr`: merge base to PR head, resolved through GitHub CLI and local Git objects
-
-The frontend reveals four levels but renders only the branch under the current focus. When a threshold is crossed, it anchors the closest node under the pointer or viewport center, recalculates a scoped layout, and animates the viewport so that node retains its screen coordinate. Hysteresis prevents threshold flicker; newly revealed children use a short opacity and blur transition.
-
-The browser can select a mode and comparison but cannot select a filesystem path. `AUTOEVAL_CODEBASE_ROOT` is resolved on the server at startup, symlinks that leave the root are skipped, Git subprocesses use argument arrays without a shell, and commit/PR selectors are validated. This keeps the current local-only boundary reusable when the map becomes its own app.
-
 ## Frontend ownership
 
 ```text
@@ -123,7 +104,6 @@ frontend/src/
     run/                one-off pinned inference and latest trace result
     results/            tables, row projection, and cost/accuracy chart
     systems/            graph and prompt version editors
-    codebase/           semantic zoom, Git comparison controls, map, and inspector
   lib/                 API client, DTOs, formatting, shared data hook, CSP
 ```
 

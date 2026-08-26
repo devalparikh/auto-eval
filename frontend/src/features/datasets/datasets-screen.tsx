@@ -87,7 +87,7 @@ export function DatasetsScreen({ systemKey }: { systemKey: string }) {
     <>
       <PageHeader
         title={`${system?.name ?? "Agent system"} datasets`}
-        description="Review business inputs, exact observations, and saved inputs, then freeze an immutable evaluation dataset."
+        description="Build and finalize the examples used in evaluations."
         action={
           <button
             className="app-button secondary"

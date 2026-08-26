@@ -41,10 +41,7 @@ export function RunScreen({ systemKey }: { systemKey: string }) {
   if (catalog.loading) {
     return (
       <>
-        <PageHeader
-          title="Run inference"
-          description="Loading the available graph, prompt, and model versions."
-        />
+        <PageHeader title="Run inference" />
         <LoadingState rows={9} />
       </>
     );
@@ -52,10 +49,7 @@ export function RunScreen({ systemKey }: { systemKey: string }) {
   if (catalog.error) {
     return (
       <>
-        <PageHeader
-          title="Run inference"
-          description="Configure an agent request."
-        />
+        <PageHeader title="Run inference" />
         <ErrorState message={catalog.error} retry={catalog.reload} />
       </>
     );
@@ -63,10 +57,7 @@ export function RunScreen({ systemKey }: { systemKey: string }) {
   if (!catalog.data || !system) {
     return (
       <>
-        <PageHeader
-          title="Run inference"
-          description="Configure an agent request."
-        />
+        <PageHeader title="Run inference" />
         <ErrorState message="Agent system not found" />
       </>
     );
@@ -118,6 +109,11 @@ export function RunWorkbench({
     [selectedGraphVersionId],
   );
   const graphDefinition = graphDetail.data?.definition ?? null;
+  const selectedGraphVersion = graphs.find(
+    (version) => version.id === selectedGraphVersionId,
+  );
+  const graphVersionIsCurrent = graphDetail.data?.id === selectedGraphVersionId;
+  const graphVersionIsChanging = graphDetail.loading || !graphVersionIsCurrent;
   const savedInputs = useRunSavedInputs(graphDefinition);
   const hasRefreshNodes =
     graphDefinition?.nodes.some(
@@ -139,6 +135,7 @@ export function RunWorkbench({
     (usesKeyedPrompts ? missingPromptKeys.length === 0 : prompts.length > 0);
   const runnable =
     hasExecutionInputs &&
+    graphVersionIsCurrent &&
     !graphDetail.loading &&
     !graphDetail.error &&
     savedInputs.ready;
@@ -199,7 +196,7 @@ export function RunWorkbench({
     <>
       <PageHeader
         title={pageTitle}
-        description="Configure one pinned execution, inspect how every graph node will resolve, then run it as a normal persisted trace."
+        description="Choose a graph, prompt, and model, then run the request."
       />
       <section className="grid gap-4 p-4 md:p-7">
         <form
@@ -209,10 +206,6 @@ export function RunWorkbench({
         >
           <div className="border-b border-[var(--border)] px-4 py-3">
             <h2 className="text-[12px] font-semibold">Execution plan</h2>
-            <p className="mt-1 text-[10px] text-[var(--text-muted)]">
-              Versions and saved inputs are explicit. Business input stays
-              separate from reusable node outputs and live observations.
-            </p>
           </div>
           <div className="grid gap-5 p-4 md:p-5">
             <div className="grid gap-4 md:grid-cols-3">
@@ -311,22 +304,53 @@ export function RunWorkbench({
                     inputs. Drag to pan or use the controls to zoom.
                   </p>
                 </div>
-                {graphDetail.data ? (
+                {selectedGraphVersion ? (
                   <span className="mono shrink-0 text-[9px] text-[var(--text-faint)]">
-                    v{graphDetail.data.version} ·{" "}
-                    {graphDefinition?.nodes.length ?? 0} nodes
+                    v{selectedGraphVersion.version}
+                    {graphVersionIsChanging
+                      ? graphDetail.error
+                        ? " · unavailable"
+                        : " · loading"
+                      : ` · ${graphDefinition?.nodes.length ?? 0} nodes`}
                   </span>
                 ) : null}
               </div>
-              {graphDetail.loading ? (
-                <LoadingState rows={3} />
-              ) : graphDefinition ? (
-                <RunGraphPreview
-                  definition={graphDefinition}
-                  resourceSelections={savedInputs.selections}
-                  captureNodeOutputs={captureNodeOutputs}
-                />
-              ) : null}
+              <div
+                className="relative min-h-[350px] md:min-h-[380px]"
+                aria-busy={graphVersionIsChanging}
+              >
+                {graphDefinition ? (
+                  <div
+                    className={
+                      graphVersionIsChanging
+                        ? "opacity-45 transition-opacity motion-reduce:transition-none"
+                        : "opacity-100 transition-opacity motion-reduce:transition-none"
+                    }
+                  >
+                    <RunGraphPreview
+                      definition={graphDefinition}
+                      resourceSelections={savedInputs.selections}
+                      captureNodeOutputs={captureNodeOutputs}
+                    />
+                  </div>
+                ) : (
+                  <div className="h-[350px] border border-[var(--border)] md:h-[380px]">
+                    <LoadingState rows={3} />
+                  </div>
+                )}
+                {graphVersionIsChanging && graphDefinition ? (
+                  <div className="pointer-events-none absolute inset-0 grid place-items-center">
+                    <p
+                      className="border border-[var(--border-strong)] bg-[var(--surface-raised)] px-3 py-2 text-[10px] font-medium text-[var(--text-muted)] shadow-sm"
+                      role="status"
+                    >
+                      {graphDetail.error
+                        ? `Graph v${selectedGraphVersion?.version ?? ""} could not be loaded.`
+                        : `Loading graph v${selectedGraphVersion?.version ?? ""}…`}
+                    </p>
+                  </div>
+                ) : null}
+              </div>
             </section>
 
             <RunSavedInputs
@@ -514,8 +538,8 @@ function RunResult({ trace, systemKey }: { trace: Trace; systemKey: string }) {
         />
       </dl>
       <div className="border-b border-[var(--border)] p-4">
-        <p className="mono text-[9px] uppercase tracking-[0.1em] text-[var(--text-faint)]">
-          Execution
+        <p className="mono text-[9px] tracking-[0.1em] text-[var(--text-faint)]">
+          execution
         </p>
         <div className="mono mt-2 grid gap-1 text-[10px] text-[var(--text-muted)]">
           <p>Trace: {shortId(trace.id)}</p>

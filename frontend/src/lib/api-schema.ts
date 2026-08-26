@@ -106,40 +106,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/codebase/graph": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Codebase Graph */
-        get: operations["codebase_graph_api_codebase_graph_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/codebase/revisions": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Codebase Revisions */
-        get: operations["codebase_revisions_api_codebase_revisions_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/dataset-items/{item_id}": {
         parameters: {
             query?: never;
@@ -685,153 +651,6 @@ export interface components {
             models: components["schemas"]["ModelOption"][];
             /** Prompts */
             prompts: components["schemas"]["PromptSummary"][];
-        };
-        /** CodebaseEdge */
-        CodebaseEdge: {
-            /** Id */
-            id: string;
-            /**
-             * Kind
-             * @enum {string}
-             */
-            kind: "contains" | "imports" | "depends_on" | "calls" | "produces" | "consumes";
-            /** Label */
-            label?: string | null;
-            /** Source */
-            source: string;
-            /**
-             * Status
-             * @default unchanged
-             * @enum {string}
-             */
-            status: "unchanged" | "added" | "modified" | "removed" | "renamed";
-            /** Target */
-            target: string;
-        };
-        /** CodebaseGraphResponse */
-        CodebaseGraphResponse: {
-            comparison: components["schemas"]["ComparisonInfo"];
-            /** Edges */
-            edges: components["schemas"]["CodebaseEdge"][];
-            /**
-             * Mode
-             * @default files
-             * @enum {string}
-             */
-            mode: "files" | "logic";
-            /** Model Path */
-            model_path?: string | null;
-            /** Nodes */
-            nodes: components["schemas"]["CodebaseNode"][];
-            repository: components["schemas"]["RepositoryInfo"];
-            summary: components["schemas"]["CodebaseSummary"];
-        };
-        /** CodebaseNode */
-        CodebaseNode: {
-            /**
-             * Additions
-             * @default 0
-             */
-            additions: number;
-            /** Before Path */
-            before_path?: string | null;
-            /**
-             * Deletions
-             * @default 0
-             */
-            deletions: number;
-            /** Description */
-            description?: string | null;
-            /** Detail Level */
-            detail_level: number;
-            /** Id */
-            id: string;
-            /**
-             * Kind
-             * @enum {string}
-             */
-            kind: "area" | "module" | "file" | "symbol" | "system" | "domain" | "capability" | "component";
-            /** Label */
-            label: string;
-            /** Language */
-            language?: string | null;
-            /** Line */
-            line?: number | null;
-            /**
-             * Lines
-             * @default 0
-             */
-            lines: number;
-            /** Parent Id */
-            parent_id: string | null;
-            /** Path */
-            path: string;
-            /** Responsibilities */
-            responsibilities?: string[];
-            /** Source Paths */
-            source_paths?: string[];
-            /**
-             * Status
-             * @default unchanged
-             * @enum {string}
-             */
-            status: "unchanged" | "added" | "modified" | "removed" | "renamed";
-            /** Symbol Kind */
-            symbol_kind?: string | null;
-        };
-        /** CodebaseRevisionsResponse */
-        CodebaseRevisionsResponse: {
-            /** Commits */
-            commits: components["schemas"]["CommitSummary"][];
-            /** Pull Requests Available */
-            pull_requests_available: boolean;
-            repository: components["schemas"]["RepositoryInfo"];
-        };
-        /** CodebaseSummary */
-        CodebaseSummary: {
-            /** Additions */
-            additions: number;
-            /** Areas */
-            areas: number;
-            /** Changed Files */
-            changed_files: number;
-            /** Deletions */
-            deletions: number;
-            /** Files */
-            files: number;
-            /** Modules */
-            modules: number;
-            /** Symbols */
-            symbols: number;
-            /** Truncated */
-            truncated: boolean;
-        };
-        /** CommitSummary */
-        CommitSummary: {
-            /** Author */
-            author: string;
-            /** Authored At */
-            authored_at: string;
-            /** Oid */
-            oid: string;
-            /** Short Oid */
-            short_oid: string;
-            /** Subject */
-            subject: string;
-        };
-        /** ComparisonInfo */
-        ComparisonInfo: {
-            /** Base Ref */
-            base_ref: string | null;
-            /** Label */
-            label: string;
-            /**
-             * Source
-             * @enum {string}
-             */
-            source: "current" | "working" | "staged" | "commit" | "pr";
-            /** Target Ref */
-            target_ref: string;
         };
         /** CreateAgentVersionRequest */
         CreateAgentVersionRequest: {
@@ -1525,21 +1344,6 @@ export interface components {
             /** Version */
             version: number;
         };
-        /** RepositoryInfo */
-        RepositoryInfo: {
-            /** Branch */
-            branch: string;
-            /** Dirty */
-            dirty: boolean;
-            /** Head */
-            head: string;
-            /** Name */
-            name: string;
-            /** Root */
-            root: string;
-            /** Short Head */
-            short_head: string;
-        };
         /** RunTraceRequest */
         RunTraceRequest: {
             /** Agent System Id */
@@ -2108,59 +1912,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CatalogResponse"];
-                };
-            };
-        };
-    };
-    codebase_graph_api_codebase_graph_get: {
-        parameters: {
-            query?: {
-                source?: "current" | "working" | "staged" | "commit" | "pr";
-                mode?: "files" | "logic";
-                ref?: string | null;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["CodebaseGraphResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    codebase_revisions_api_codebase_revisions_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["CodebaseRevisionsResponse"];
                 };
             };
         };

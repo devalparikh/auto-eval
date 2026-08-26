@@ -5,24 +5,19 @@ import { DottedText } from "@/components/dotted-text";
 
 const workflow = [
   {
-    title: "Trace",
-    description: "Record every node, input, output, token, and failure.",
+    title: "Capture the run",
+    description:
+      "Open the trace to see which node failed, what it received, and what it returned.",
   },
   {
-    title: "Review",
-    description: "Inspect the graph and turn useful runs into examples.",
+    title: "Save the evidence",
+    description:
+      "Turn a useful run into a versioned dataset with the exact inputs still attached.",
   },
   {
-    title: "Freeze",
-    description: "Finalize an immutable ground-truth dataset version.",
-  },
-  {
-    title: "Evaluate",
-    description: "Run the same versions and examples across models.",
-  },
-  {
-    title: "Compare",
-    description: "Read quality, cost, and latency from one result set.",
+    title: "Compare the change",
+    description:
+      "Run the same dataset against a new graph or model. Compare quality, cost, and latency.",
   },
 ];
 
@@ -31,7 +26,6 @@ export default function HomePage() {
     <div className="landing">
       <section className="landing-hero" aria-labelledby="landing-title">
         <div className="landing-copy">
-          <p className="landing-kicker">Local agent workbench / 001</p>
           <h1 id="landing-title" className="landing-title">
             See where your agent{" "}
             <em>
@@ -48,46 +42,31 @@ export default function HomePage() {
               <span aria-hidden="true">→</span>
             </Link>
             <Link
-              href="/systems/incident-triage/evaluations"
+              href="/systems/incident-triage/run"
               className="landing-text-link"
               data-sound="navigate"
             >
-              Run an evaluation <span aria-hidden="true">→</span>
+              Try the sample run <span aria-hidden="true">→</span>
             </Link>
           </div>
-          <ul className="landing-facts" aria-label="Workspace facts">
-            <li>loopback only</li>
-            <li>mock models included</li>
-            <li>immutable versions</li>
-          </ul>
         </div>
         <LandingArtwork />
       </section>
 
       <section className="landing-loop" aria-labelledby="loop-title">
         <div className="landing-loop-copy">
-          <p className="landing-kicker">The operating loop</p>
-          <h2 id="loop-title">Evidence in. Better agents out.</h2>
-          <p>
-            The seeded incident-triage system is already wired through the full
-            workflow. No API key is required.
-          </p>
+          <h2 id="loop-title">From one failed run to a measured fix.</h2>
+          <p>The sample incident-triage system works without an API key.</p>
         </div>
-        <ol className="workflow-rail">
-          {workflow.map((step, index) => (
+        <ol className="workflow-stack">
+          {workflow.map((step) => (
             <li key={step.title} className="workflow-step">
-              <span className="workflow-index">0{index + 1}</span>
               <h3>{step.title}</h3>
               <p>{step.description}</p>
             </li>
           ))}
         </ol>
       </section>
-
-      <footer className="landing-close">
-        <span>AutoEval / local single-user workspace</span>
-        <span>Trace → dataset → evaluation → result</span>
-      </footer>
     </div>
   );
 }
@@ -103,14 +82,6 @@ function LandingArtwork() {
         preload
         sizes="(max-width: 780px) 100vw, 56vw"
       />
-      <figcaption className="landing-art-caption">
-        <span>System inspection / 001</span>
-        <span>failure isolated</span>
-      </figcaption>
-      <div className="landing-art-meta" aria-hidden="true">
-        <span>:: :: ·· :: · ::: ·· ::</span>
-        <span>precision / trace / repair</span>
-      </div>
     </figure>
   );
 }

@@ -1,10 +1,6 @@
 import type {
   AgentVersionDetail,
   Catalog,
-  CodebaseGraph,
-  CodebaseMode,
-  CodebaseRevisions,
-  CodebaseSource,
   DatasetItem,
   DatasetVersionDetail,
   EvalRun,
@@ -54,12 +50,6 @@ export async function apiRequest<T>(
 
 export const api = {
   catalog: () => apiRequest<Catalog>("/catalog"),
-  codebaseRevisions: () => apiRequest<CodebaseRevisions>("/codebase/revisions"),
-  codebaseGraph: (mode: CodebaseMode, source: CodebaseSource, ref?: string) => {
-    const params = new URLSearchParams({ mode, source });
-    if (ref) params.set("ref", ref);
-    return apiRequest<CodebaseGraph>(`/codebase/graph?${params.toString()}`);
-  },
   portfolioSnapshots: (agentSystemKey?: string, syntheticOnly = false) => {
     const params = new URLSearchParams();
     if (agentSystemKey) params.set("agent_system_key", agentSystemKey);

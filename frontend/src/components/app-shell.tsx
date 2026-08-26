@@ -188,13 +188,7 @@ function scopedNavItems(systemKey: string | null) {
     index: "00",
     exact: true,
   };
-  const codebase = {
-    href: "/codebase",
-    label: "Code map",
-    index: "08",
-    exact: false,
-  };
-  if (!systemKey) return [workspace, codebase];
+  if (!systemKey) return [workspace];
   const root = `/systems/${encodeURIComponent(systemKey)}`;
   return [
     workspace,
@@ -215,6 +209,5 @@ function scopedNavItems(systemKey: string | null) {
       index: "07",
       exact: false,
     },
-    codebase,
   ];
 }

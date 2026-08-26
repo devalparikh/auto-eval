@@ -60,7 +60,7 @@ export function EditDatasetItemModal({
     <Modal
       open={Boolean(item)}
       title="Review ground truth"
-      description="Update only draft labels. Business input, exact observations, and saved inputs remain unchanged."
+      description="Edit draft labels. Saved inputs and observations stay unchanged."
       onClose={onClose}
     >
       <form onSubmit={submit} className="grid gap-4 p-5">

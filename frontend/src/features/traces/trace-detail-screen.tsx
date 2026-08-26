@@ -33,7 +33,7 @@ export function TraceDetailScreen({
   if (trace.loading) {
     return (
       <>
-        <PageHeader title="Trace" description="Loading execution details..." />
+        <PageHeader title="Trace" />
         <LoadingState rows={9} />
       </>
     );
@@ -41,7 +41,7 @@ export function TraceDetailScreen({
   if (trace.error || !trace.data) {
     return (
       <>
-        <PageHeader title="Trace" description="Execution details" />
+        <PageHeader title="Trace" />
         <ErrorState
           message={trace.error ?? "Trace not found"}
           retry={trace.reload}
@@ -114,12 +114,11 @@ export function TraceDetailScreen({
         />
         {Object.keys(currentTrace.node_resource_selections ?? {}).length ? (
           <div className="min-w-0 md:col-span-2">
-            <p className="mono text-[9px] uppercase tracking-[0.08em] text-[var(--text-faint)]">
+            <p className="mono text-[9px] lowercase tracking-[0.08em] text-[var(--text-faint)]">
               Saved inputs used
             </p>
             <p className="mt-1 mb-2 text-[10px] text-[var(--text-muted)]">
-              Latest selections are resolved to exact saved versions before
-              execution so this trace can be audited and replayed.
+              This trace stores the exact saved versions used at runtime.
             </p>
             <SavedInputRefs
               systemKey={systemKey}
@@ -177,7 +176,7 @@ export function TraceDetailScreen({
 function ProvenanceBlock({ label, value }: { label: string; value: string }) {
   return (
     <div className="min-w-0">
-      <p className="mono text-[9px] uppercase tracking-[0.08em] text-[var(--text-faint)]">
+      <p className="mono text-[9px] lowercase tracking-[0.08em] text-[var(--text-faint)]">
         {label}
       </p>
       <p

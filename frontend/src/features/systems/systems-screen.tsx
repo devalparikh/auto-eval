@@ -116,10 +116,7 @@ export function SystemsScreen({
 
   return (
     <>
-      <PageHeader
-        title={`${system?.name ?? "Agent system"} artifacts`}
-        description="Inspect immutable graph structure, prompt source, and node-owned snapshots."
-      />
+      <PageHeader title={`${system?.name ?? "Agent system"} artifacts`} />
       {catalog.loading ? <LoadingState rows={8} /> : null}
       {catalog.error ? (
         <ErrorState message={catalog.error} retry={catalog.reload} />
@@ -131,7 +128,7 @@ export function SystemsScreen({
             className="h-fit overflow-hidden border border-[var(--border)] bg-[var(--surface)]"
           >
             <div className="border-b border-[var(--border)] px-4 py-3">
-              <p className="mono text-[9px] uppercase tracking-[0.12em] text-[var(--text-faint)]">
+              <p className="mono text-[9px] lowercase tracking-[0.12em] text-[var(--text-faint)]">
                 Artifact family
               </p>
             </div>

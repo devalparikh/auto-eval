@@ -22,13 +22,6 @@ import type {
   AgentSystemSummary,
   AgentVersionDetail,
   Catalog,
-  CodebaseCommit,
-  CodebaseComparison,
-  CodebaseEdge,
-  CodebaseGraph,
-  CodebaseNode,
-  CodebaseRepository,
-  CodebaseRevisions,
   DatasetItem,
   DatasetMembership,
   DatasetSummary,
@@ -222,27 +215,3 @@ export type EvalItemResultMatches = Assert<
   Matches<EvalItemResult, Schemas["EvalItemResultResponse"]>
 >;
 export type EvalRunMatches = Assert<Matches<EvalRun, Schemas["EvalRunResponse"]>>;
-
-// --- Codebase graph ----------------------------------------------------------
-
-export type CodebaseRepositoryMatches = Assert<
-  Matches<CodebaseRepository, Schemas["RepositoryInfo"]>
->;
-export type CodebaseComparisonMatches = Assert<
-  Matches<CodebaseComparison, Schemas["ComparisonInfo"]>
->;
-export type CodebaseNodeMatches = Assert<
-  Matches<CodebaseNode, Schemas["CodebaseNode"]>
->;
-export type CodebaseEdgeMatches = Assert<
-  Matches<CodebaseEdge, Schemas["CodebaseEdge"]>
->;
-export type CodebaseGraphMatches = Assert<
-  Matches<CodebaseGraph, Schemas["CodebaseGraphResponse"]>
->;
-export type CodebaseCommitMatches = Assert<
-  Matches<CodebaseCommit, Schemas["CommitSummary"]>
->;
-export type CodebaseRevisionsMatches = Assert<
-  Matches<CodebaseRevisions, Schemas["CodebaseRevisionsResponse"]>
->;

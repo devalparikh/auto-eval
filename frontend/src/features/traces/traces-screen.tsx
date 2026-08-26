@@ -28,7 +28,7 @@ export function TracesScreen({ systemKey }: { systemKey: string }) {
     <>
       <PageHeader
         title={`${system?.name ?? "Agent system"} traces`}
-        description="Inspect runtime and evaluation executions. Add traces to datasets for future evaluation and analysis"
+        description="Inspect runs and add useful traces to a dataset."
         action={
           <Link className="app-button" href={systemPath(systemKey, "run")}>
             <PlayIcon size={15} weight="fill" />
@@ -80,8 +80,8 @@ export function TracesScreen({ systemKey }: { systemKey: string }) {
                 <div className="flex items-center gap-2">
                   <StatusBadge status={trace.status} />
                   {trace.origin_type === "evaluation" ? (
-                    <span className="mono text-[8px] uppercase text-[var(--text-faint)]">
-                      Eval
+                    <span className="mono text-[8px] lowercase text-[var(--text-faint)]">
+                      eval
                     </span>
                   ) : null}
                 </div>

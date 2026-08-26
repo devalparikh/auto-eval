@@ -104,15 +104,12 @@ export function EvaluationsScreen({ systemKey }: { systemKey: string }) {
     <>
       <PageHeader
         title={`Evaluate ${system?.name ?? "agent system"}`}
-        description="Pin every artifact and compare models against the same dataset-locked external observations."
+        description="Run the same dataset and saved inputs across models."
       />
       <section className="grid gap-5 p-4 md:p-7 xl:grid-cols-[minmax(0,720px)_minmax(280px,1fr)]">
         <div className="overflow-hidden rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface)]">
           <div className="border-b border-[var(--border)] px-5 py-4">
             <h2 className="text-[14px] font-semibold">Evaluation inputs</h2>
-            <p className="mt-1 text-[11px] text-[var(--text-muted)]">
-              Latest versions are selected by default. Final datasets only.
-            </p>
           </div>
           {catalog.loading ? (
             <LoadingState rows={6} />

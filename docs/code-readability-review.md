@@ -327,9 +327,8 @@ transfer:
    "never open the live DB read-write") rather than generic advice. AutoEval's
    README "Important boundaries" section is close, but there is **no root
    `CLAUDE.md`/`AGENTS.md`** — only the auto-generated one in `frontend/`.
-   Distill the boundaries (immutability rules, "code map reads only
-   `AUTOEVAL_CODEBASE_ROOT`", "provider keys never in `NEXT_PUBLIC_*`",
-   `make check` as the edit loop) into a short root file so agents and new
+   Distill the boundaries (immutability rules, "provider keys never in
+   `NEXT_PUBLIC_*`", `make check` as the edit loop) into a short root file so agents and new
    engineers get them in-context without reading four docs.
 3. **Layer ownership stated in one sentence each.** Their AGENTS.md describes
    each layer's single responsibility ("server: websocket orchestration,
@@ -393,8 +392,7 @@ root cause of most of the duplication below.
 - **Accessibility fundamentals are real, not decorative.** Global
   `:focus-visible` outlines (`globals.css:915-922`), a working skip link
   (`globals.css:952`, `app-shell.tsx:69-71`), `aria-current="page"` nav with
-  animated underline, `aria-pressed` toggles, `aria-live` summaries
-  (`src/features/codebase/codebase-screen.tsx:110`), and rich generated
+  animated underline, `aria-pressed` toggles, and rich generated
   `ariaLabel`s on graph nodes (`src/features/systems/agent-graph.tsx:52-80`).
 - **Motion discipline.** A global `prefers-reduced-motion` kill switch
   (`globals.css:1997-2006`) plus per-component `useReducedMotion` — including
@@ -491,23 +489,6 @@ has-[:focus-visible]:outline-[var(--focus)]
 has-[:focus-visible]:outline-offset-2` (or the CSS equivalent) to the label.
 
 ### 5.4 Medium-priority findings
-
-**M1. Two parallel styling systems, and `globals.css` is a 2,237-line monolith
-of feature CSS.**
-The codebase feature is styled entirely with global classes
-(`globals.css:59-829`, ~770 lines), as are the landing page (`:1752-1988`),
-datasets overview (`:1598-1644`), and version-editor/json-viewer
-(`:1412-1596`) — while traces/results/evaluations/run use Tailwind utilities.
-Concrete casualties: `.codebase-page-header` (`globals.css:65-89`) duplicates
-`.page-header` (`:1175-1209`) nearly rule-for-rule, and
-`src/features/codebase/codebase-screen.tsx:74-94` hand-rolls the header markup
-instead of using `PageHeader` (`src/components/page-header.tsx`). Global class
-names also leak coupling: `.codebase-inspector-list .data-row`
-(`globals.css:676-719`) restyles a utility class owned by other screens.
-*Fix:* pick one lane per layer — tokens/reset/app-shell in `globals.css`;
-feature styles either co-located CSS modules (the `dotted-text.module.css`
-pattern already proves this works here) or Tailwind utilities. Merge
-`.codebase-page-header` into `PageHeader` (it already accepts `action`).
 
 **M2. Graph node cards are forked implementations.**
 `TraceNode` (`src/features/traces/trace-graph.tsx:52-156`) and `AgentNode`
@@ -625,12 +606,12 @@ text-[var(--text-muted)] border-[var(--border)]`) into first-class utilities
 `amber` escape hatch. On top of that, grow `src/components/` by exactly the
 primitives the screens keep re-deriving: `Card`/`CardHeader`, a column-driven
 `DataList` (header + rows + loading/error/empty branching from one
-definition), `NodeTag`/`GraphNodeShell` for the two React Flow node renderers,
-and fold the codebase header into `PageHeader`.
+definition), `NodeTag`/`GraphNodeShell` for the React Flow node renderers,
+and fold repeated page headers into `PageHeader`.
 
 For the CSS layer itself: shrink `globals.css` to tokens + `@theme` bridge +
 reset + app-shell/scrollbar/skeleton/status utilities (~400 lines), and
-relocate feature CSS (codebase map, landing, dataset overview, json-viewer,
+relocate feature CSS (landing, dataset overview, json-viewer,
 version editor) into co-located CSS modules next to their components — the
 `dotted-text.module.css` file already demonstrates the house pattern,
 including its exemplary `forced-colors` and `@supports` handling. Keep the

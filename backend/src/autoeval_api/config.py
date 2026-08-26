@@ -35,10 +35,6 @@ class Settings(BaseSettings):
     market_data_max_response_bytes: int = Field(default=5_000_000, ge=100_000, le=20_000_000)
     max_request_bytes: int = 2_000_000
     enforce_loopback_clients: bool = True
-    codebase_root: Path | None = None
-    codebase_max_files: int = Field(default=600, ge=25, le=5_000)
-    codebase_max_file_bytes: int = Field(default=256_000, ge=16_000, le=2_000_000)
-    codebase_max_symbols: int = Field(default=1_600, ge=100, le=20_000)
 
     @field_validator("web_origins", "allowed_hosts", mode="before")
     @classmethod
@@ -57,12 +53,6 @@ class Settings(BaseSettings):
         if not self.database_url.startswith(prefix):
             return None
         return Path(self.database_url.removeprefix(prefix)).resolve()
-
-    @property
-    def resolved_codebase_root(self) -> Path:
-        if self.codebase_root is not None:
-            return self.codebase_root.expanduser().resolve()
-        return Path(__file__).resolve().parents[3]
 
 
 @lru_cache

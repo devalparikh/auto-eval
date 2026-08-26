@@ -1,4 +1,0 @@
-interface:
-  display_name: "Maintain Codebase Logic"
-  short_description: "Maintain the agent-owned architecture map"
-  default_prompt: "Use $maintain-codebase-logic to create or refresh the logical architecture map for this repository."

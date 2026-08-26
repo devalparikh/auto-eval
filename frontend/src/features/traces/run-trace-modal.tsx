@@ -43,8 +43,12 @@ export function RunTraceModal({
   const system = systemByKey(catalog, systemKey);
   const allModels = availableModels(catalog);
   const models = [
-    ...allModels.filter((model) => system?.default_model_ids.includes(model.id)),
-    ...allModels.filter((model) => !system?.default_model_ids.includes(model.id)),
+    ...allModels.filter((model) =>
+      system?.default_model_ids.includes(model.id),
+    ),
+    ...allModels.filter(
+      (model) => !system?.default_model_ids.includes(model.id),
+    ),
   ];
   const graphs = graphVersions(catalog, systemKey);
   const prompts = promptVersions(catalog, systemKey);
@@ -72,7 +76,7 @@ export function RunTraceModal({
     <Modal
       open={open}
       title="Run an agent request"
-      description={`Run ${system?.name ?? "this system"} with pinned graph and prompt versions.`}
+      description={`Run ${system?.name ?? "this system"} with the selected graph and prompt versions.`}
       onClose={onClose}
     >
       {loading ? (
@@ -87,7 +91,11 @@ export function RunTraceModal({
               name="input"
               className="app-textarea mono min-h-[240px] text-[10px]"
               required
-              defaultValue={JSON.stringify(system?.input_template ?? {}, null, 2)}
+              defaultValue={JSON.stringify(
+                system?.input_template ?? {},
+                null,
+                2,
+              )}
             />
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
@@ -125,7 +133,9 @@ export function RunTraceModal({
             </div>
           </div>
           {error || parseError ? (
-            <p className="text-[12px] text-[var(--danger)]">{error ?? parseError}</p>
+            <p className="text-[12px] text-[var(--danger)]">
+              {error ?? parseError}
+            </p>
           ) : null}
           <div className="flex justify-end gap-2 border-t border-[var(--border)] pt-4">
             <button

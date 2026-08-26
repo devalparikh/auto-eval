@@ -21,10 +21,7 @@ export function SystemBrowserScreen() {
   );
   return (
     <>
-      <PageHeader
-        title="Agent systems"
-        description="Each system owns its versions, prompts, traces, datasets, evaluations, and results."
-      />
+      <PageHeader title="Agent systems" />
       <section className="grid gap-4 p-4 md:grid-cols-2 md:p-7">
         {catalog.loading ? <LoadingState rows={8} /> : null}
         {catalog.error ? (
@@ -93,8 +90,8 @@ export function SystemBrowserScreen() {
                 </div>
               </div>
               <p className="mono mt-6 text-[9px] text-[var(--text-faint)]">
-                {graphVersionCount} graph versions · {promptCount ?? 0} prompts ·{" "}
-                {datasetCount ?? 0} datasets
+                {graphVersionCount} graph versions · {promptCount ?? 0} prompts
+                · {datasetCount ?? 0} datasets
               </p>
             </article>
           );

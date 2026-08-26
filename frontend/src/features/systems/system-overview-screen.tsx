@@ -70,7 +70,7 @@ export function SystemOverviewScreen({ systemKey }: { systemKey: string }) {
           ))}
         </div>
         <aside className="border border-[var(--border)] bg-[var(--surface)] p-5">
-          <p className="mono text-[9px] uppercase tracking-[0.12em] text-[var(--text-faint)]">
+          <p className="mono text-[9px] lowercase tracking-[0.12em] text-[var(--text-faint)]">
             Workspace inventory
           </p>
           <dl className="mt-5 grid gap-4 text-[11px]">

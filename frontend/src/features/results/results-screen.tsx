@@ -44,7 +44,7 @@ export function ResultsScreen({ systemKey }: { systemKey: string }) {
     <>
       <PageHeader
         title={`${system?.name ?? "Agent system"} results`}
-        description="Compare quality, cost, and latency on the same finalized ground truth."
+        description="Compare model quality, cost, and latency on one dataset."
       />
       <section className="grid gap-4 p-4 md:p-7">
         <div className="grid gap-3 rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface)] p-4 md:grid-cols-3">

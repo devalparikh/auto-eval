@@ -190,42 +190,6 @@ test("keeps shell geometry stable across primary navigation", async ({
   await expect(page.locator(".route-content")).toHaveCSS("opacity", "1");
 });
 
-test("zooms through code structure and switches Git comparisons", async ({
-  page,
-}) => {
-  await page.goto("/codebase");
-  await expect(page.getByLabel(/Codebase graph at Areas detail/)).toBeVisible();
-  await expect(page.locator(".codebase-summary")).toContainText(
-    "Local changes",
-  );
-
-  await page.getByRole("button", { name: "Zoom In" }).click();
-  await page.waitForTimeout(500);
-  await page.getByRole("button", { name: "Zoom In" }).click();
-  await expect(page.locator(".codebase-map-level")).toContainText("Modules");
-
-  await page.getByRole("button", { name: "Logic", exact: true }).click();
-  await expect(page.locator(".codebase-summary")).toContainText(
-    "agent-maintained",
-  );
-  await expect(
-    page.getByLabel(/Codebase graph at Systems detail/),
-  ).toBeVisible();
-  await page.getByRole("button", { name: "Files", exact: true }).click();
-
-  await page.getByRole("button", { name: "Staged", exact: true }).click();
-  await expect(page.locator(".codebase-summary")).toContainText(
-    "Staged changes",
-  );
-
-  await page.getByRole("button", { name: "Commit", exact: true }).click();
-  await expect(
-    page.getByRole("combobox", { name: "Commit revision" }),
-  ).toBeVisible();
-  await page.getByRole("button", { name: "Compare", exact: true }).click();
-  await expect(page.locator(".codebase-summary")).toContainText("Commit");
-});
-
 test("uses stable geometry and layered feedback for row hover", async ({
   page,
 }) => {

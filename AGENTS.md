@@ -12,8 +12,6 @@ adding an agent system, node handler, provider, or frontend feature.
 - **Only finalized dataset versions can start evaluations.**
 - **Provider keys stay in the backend environment.** Nothing secret goes in a
   `NEXT_PUBLIC_*` value — those ship to the browser.
-- **The code map reads only `AUTOEVAL_CODEBASE_ROOT`.** Never resolve it from a
-  request-supplied path.
 - **Live market data fails closed.** Stale, missing, or incomplete observations
   reject the candidate rather than assuming a benign default.
 - **Schema changes need both `models.py` (fresh databases) and a new migration

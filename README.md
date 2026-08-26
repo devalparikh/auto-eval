@@ -16,7 +16,6 @@ AutoEval is a local-first workspace for building, tracing, versioning, and evalu
 - Deterministic portfolio allocation, concentration, bucket, liquidity, and scenario analysis
 - Immutable server-owned portfolio snapshots plus covered-call screening over locked fixtures or refreshed option data
 - A dedicated system run page that persists every execution as a trace
-- A focus-preserving codebase map with file and agent-maintained logic modes plus Git diff overlays
 - In-place schema migrations and SQLite foreign-key enforcement
 - FastAPI unit and integration tests plus frontend unit and Playwright test harnesses
 
@@ -53,34 +52,12 @@ make verify
 
 Run `make seed` to ensure the built-in flows, immutable synthetic portfolio snapshots, and demo results exist without starting the servers.
 
-## Code map
-
-Open [http://localhost:3000/codebase](http://localhost:3000/codebase) to explore the configured repository. **Files** mode derives areas, modules, files, symbols, and imports from code. **Logic** mode reads the versioned `.codemap/logic.json` model maintained by `$maintain-codebase-logic` and shows systems, domains, capabilities, components, and architectural relationships.
-
-Zoom expands only the branch under the pointer or viewport focus. The focal node stays in place while children ease from blur to full detail. Either mode can overlay:
-
-- the full working tree against `HEAD`, including untracked files
-- the staged index against `HEAD`
-- one commit against its first parent
-- a GitHub pull request from its merge base to head, when `gh` is installed and the commits exist locally
-
-The backend reads one server-configured repository root. It never accepts a browser-supplied filesystem path. AutoEval maps itself by default; point the same local app at another checkout with an absolute path:
-
-```bash
-AUTOEVAL_CODEBASE_ROOT=/absolute/path/to/repository make dev
-```
-
-Large repositories can tune `AUTOEVAL_CODEBASE_MAX_FILES`, `AUTOEVAL_CODEBASE_MAX_FILE_BYTES`, and `AUTOEVAL_CODEBASE_MAX_SYMBOLS`. Generated folders, dependency trees, lockfiles, caches, and oversized files are excluded from the map.
-
-The viewer never invokes an agent. A coding agent owns architectural judgment by updating `.codemap/logic.json`; the deterministic viewer validates that manifest and calculates local, staged, commit, and PR impact from Git snapshots. Historical snapshots without a manifest use the current model as a projection lens.
-
 ## Project map
 
 ```text
 backend/src/autoeval_api/
   api/            Route groups, request dependencies, middleware
   agent_systems/  Built-in agent definitions, handlers, scoring, seed data
-  codebase/       Git snapshots plus file and maintained-logic graph projection
   graph/          Generic LangGraph topology, registries, trace-aware runner
   inference/      Provider contract, adapters, and provider registry
   services/       Queries and workflows for each product domain
@@ -110,7 +87,6 @@ See [the architecture](docs/architecture.md), [multi-system and provenance desig
 - Versions are immutable. Create a new version instead of editing a final record.
 - Only finalized dataset versions can start evaluations.
 - Provider keys stay in the backend environment and are never exposed through `NEXT_PUBLIC_*` values.
-- The code map reads only `AUTOEVAL_CODEBASE_ROOT`; do not replace it with a request-supplied path.
 - The CLI provider is off by default, uses fixed commands without a shell, and has timeout and output limits.
 - Evaluation work runs in-process. There is no durable queue, worker recovery, or multi-instance coordination yet.
 

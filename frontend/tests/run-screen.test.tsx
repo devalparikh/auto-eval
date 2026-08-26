@@ -324,6 +324,72 @@ describe("RunWorkbench", () => {
     expect(api.runTrace).not.toHaveBeenCalled();
   });
 
+  it("keeps the graph preview mounted while a new version loads", async () => {
+    const olderGraph = {
+      ...legacyGraph,
+      id: "graph-1",
+      version: 1,
+      content_hash: "older-graph-hash",
+    };
+    const versionedSystem = {
+      ...system,
+      versions: [
+        ...system.versions,
+        { id: "graph-1", version: 1, created_at: "2026-08-09T12:00:00Z" },
+      ],
+    } satisfies AgentSystemSummary;
+    const versionedCatalog = {
+      ...catalog,
+      agent_systems: [versionedSystem],
+    } satisfies Catalog;
+    let resolveOlderGraph: ((graph: typeof olderGraph) => void) | undefined;
+    const olderGraphRequest = new Promise<typeof olderGraph>((resolve) => {
+      resolveOlderGraph = resolve;
+    });
+    vi.mocked(api.agentVersion).mockImplementation((versionId) =>
+      versionId === olderGraph.id
+        ? olderGraphRequest
+        : Promise.resolve(legacyGraph),
+    );
+
+    render(
+      <RunWorkbench
+        catalog={versionedCatalog}
+        system={versionedSystem}
+        systemKey={versionedSystem.key}
+      />,
+    );
+
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: "Run inference" }),
+      ).toBeEnabled(),
+    );
+    const preview = screen.getByLabelText("Selected graph execution preview");
+
+    fireEvent.change(screen.getByLabelText("Graph version"), {
+      target: { value: olderGraph.id },
+    });
+
+    expect(
+      screen.getByRole("button", { name: "Run inference" }),
+    ).toBeDisabled();
+    expect(screen.getByLabelText("Selected graph execution preview")).toBe(
+      preview,
+    );
+    expect(await screen.findByText("Loading graph v1…")).toBeVisible();
+
+    resolveOlderGraph?.(olderGraph);
+
+    await waitFor(() =>
+      expect(screen.queryByText("Loading graph v1…")).not.toBeInTheDocument(),
+    );
+    expect(screen.getByLabelText("Selected graph execution preview")).toBe(
+      preview,
+    );
+    expect(screen.getByRole("button", { name: "Run inference" })).toBeEnabled();
+  });
+
   it("binds a current identity or exact snapshot without changing business input", async () => {
     vi.mocked(api.agentVersion).mockResolvedValueOnce(portfolioQueryGraph);
     vi.mocked(api.nodeSnapshots).mockResolvedValue(portfolioSnapshots);
