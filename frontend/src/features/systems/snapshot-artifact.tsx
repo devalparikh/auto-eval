@@ -36,7 +36,7 @@ export function SnapshotArtifact({
         <div>
           <h2 className="text-[13px] font-semibold">Portfolio state</h2>
           <p className="mt-1 text-[10px] text-[var(--text-muted)]">
-            Immutable portfolio content produced by the Index flow.
+            Portfolio contents saved by the Index flow.
           </p>
         </div>
         <Select
@@ -64,8 +64,8 @@ export function SnapshotArtifact({
             value={String(summary.position_count)}
           />
           <SnapshotMeta
-            label="Source"
-            value={`${summary.source_kind}${summary.is_synthetic ? " · synthetic" : ""}`}
+            label="Data"
+            value={summary.is_synthetic ? "Sample data" : "Real data"}
           />
           <SnapshotMeta
             label="Hash"
@@ -92,7 +92,7 @@ export function SnapshotArtifact({
               Content
             </button>
           </div>
-          <span>Stored content is read-only and resolved by snapshot ID.</span>
+          <span>Read-only</span>
         </div>
         {loading ? (
           <LoadingState rows={7} />
@@ -100,7 +100,7 @@ export function SnapshotArtifact({
           <ErrorState message={error} retry={retry} />
         ) : !detail ? (
           <p className="p-5 text-[11px] text-[var(--text-muted)]">
-            Index a portfolio to create the first immutable snapshot.
+            Index a portfolio to create the first snapshot.
           </p>
         ) : view === "info" ? (
           <dl className="grid gap-4 border border-[var(--border)] bg-[var(--surface-muted)] p-4 text-[11px] md:grid-cols-2">
@@ -114,8 +114,8 @@ export function SnapshotArtifact({
               value={formatDate(detail.created_at)}
             />
             <SnapshotFact
-              label="Source trace"
-              value={detail.source_trace_id ?? "Seeded / external index"}
+              label="From run"
+              value={detail.source_trace_id ?? "Not from a run"}
               mono={Boolean(detail.source_trace_id)}
             />
           </dl>
@@ -125,8 +125,7 @@ export function SnapshotArtifact({
           <div className="border border-[var(--border)] bg-[var(--surface-muted)] p-5">
             <p className="text-[11px] font-medium">Content is not available</p>
             <p className="mt-1 text-[10px] leading-5 text-[var(--text-muted)]">
-              This snapshot exposes metadata only under the current local reveal
-              policy.
+              This snapshot shows details only, not its saved content.
             </p>
           </div>
         )}

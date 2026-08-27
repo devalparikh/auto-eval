@@ -147,7 +147,7 @@ export function DatasetsScreen({ systemKey }: { systemKey: string }) {
               <span>
                 {selectedVersion?.status === "draft"
                   ? `${selectedVersion.item_count} examples · Finalizing locks this version.`
-                  : "Immutable and ready for evaluation."}
+                  : "Locked. Every example uses the exact snapshot pinned to it."}
               </span>
             </div>
             {selectedVersion?.status === "draft" ? (
@@ -177,7 +177,7 @@ export function DatasetsScreen({ systemKey }: { systemKey: string }) {
           {!detail.loading && detail.data?.items.length === 0 ? (
             <EmptyState
               title="No examples in this draft"
-              message="Open a trace and promote it after confirming expected output."
+              message="Open a trace and add it here once you have checked the expected output."
             />
           ) : null}
           {detail.data?.items.map((item) => (
@@ -199,7 +199,7 @@ export function DatasetsScreen({ systemKey }: { systemKey: string }) {
                 {Object.keys(item.runtime_input_snapshot_ids ?? {}).length ? (
                   <p className="mono mt-1 truncate text-[9px] text-[var(--accent)]">
                     {Object.keys(item.runtime_input_snapshot_ids ?? {}).length}{" "}
-                    locked observation
+                    live data snapshot
                     {Object.keys(item.runtime_input_snapshot_ids ?? {})
                       .length === 1
                       ? ""
@@ -209,7 +209,7 @@ export function DatasetsScreen({ systemKey }: { systemKey: string }) {
                 {Object.keys(item.node_resource_selections ?? {}).length ? (
                   <p className="mono mt-1 truncate text-[9px] text-[var(--accent)]">
                     {Object.keys(item.node_resource_selections ?? {}).length}{" "}
-                    exact saved input
+                    saved data snapshot
                     {Object.keys(item.node_resource_selections ?? {}).length ===
                     1
                       ? ""

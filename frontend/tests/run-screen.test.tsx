@@ -437,9 +437,9 @@ describe("RunWorkbench", () => {
     );
     const resource = screen.getByLabelText("Saved input version");
     expect(resource).toHaveValue("current:main_synthetic_portfolio");
-    expect(screen.getByText("saved input: latest")).toBeVisible();
+    expect(screen.getByText("Uses the newest saved version.")).toBeVisible();
     const capture = screen.getByRole("checkbox", {
-      name: /Capture refreshed external outputs/,
+      name: /Keep a copy of live data/,
     });
     expect(capture).not.toBeChecked();
 
@@ -456,7 +456,9 @@ describe("RunWorkbench", () => {
       }),
     ).toHaveValue("locked:snapshot-2");
     fireEvent.change(resource, { target: { value: "locked:snapshot-2" } });
-    expect(await screen.findByText("saved input: exact version")).toBeVisible();
+    expect(
+      await screen.findByText("Uses one exact saved version."),
+    ).toBeVisible();
     fireEvent.change(advancedInput, {
       target: {
         value: JSON.stringify({
@@ -499,7 +501,7 @@ describe("RunWorkbench", () => {
     );
 
     expect(await screen.findByRole("alert")).toHaveTextContent(
-      "Create or seed the required indexed_portfolio saved input",
+      "This graph needs a saved indexed_portfolio input",
     );
     expect(
       screen.getByRole("button", { name: "Run inference" }),

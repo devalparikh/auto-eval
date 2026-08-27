@@ -29,6 +29,9 @@ export function TraceDetailScreen({
   const activeNodeId = selectedNodeId ?? trace.data?.spans[0]?.node_id ?? null;
   const activeSpan =
     trace.data?.spans.find((span) => span.node_id === activeNodeId) ?? null;
+  const definition = trace.data?.graph_definition ?? null;
+  const activeNode =
+    definition?.nodes.find((node) => node.id === activeNodeId) ?? null;
 
   if (trace.loading) {
     return (
@@ -98,18 +101,18 @@ export function TraceDetailScreen({
             value={currentTrace.model_id.split("/").slice(-1)[0]}
           />
           <Metric
-            label="Optional capture"
-            value={currentTrace.capture_node_outputs ? "on" : "off"}
+            label="Node outputs"
+            value={currentTrace.capture_node_outputs ? "saved" : "not saved"}
           />
         </div>
       </section>
       <section className="grid gap-3 border-b border-[var(--border)] bg-[var(--surface)] px-4 py-3 md:grid-cols-2 md:px-7">
         <ProvenanceBlock
-          label="Execution origin"
+          label="Started by"
           value={
             currentTrace.origin_type === "evaluation"
               ? `Evaluation ${shortId(currentTrace.evaluation_run_id ?? "unknown")}`
-              : "Direct runtime request"
+              : "A direct request"
           }
         />
         {Object.keys(currentTrace.node_resource_selections ?? {}).length ? (
@@ -117,26 +120,25 @@ export function TraceDetailScreen({
             <p className="mono text-[9px] lowercase tracking-[0.08em] text-[var(--text-faint)]">
               Saved inputs used
             </p>
-            <p className="mt-1 mb-2 text-[10px] text-[var(--text-muted)]">
-              This trace stores the exact saved versions used at runtime.
-            </p>
-            <SavedInputRefs
-              systemKey={systemKey}
-              selections={currentTrace.node_resource_selections}
-            />
+            <div className="mt-1.5">
+              <SavedInputRefs
+                systemKey={systemKey}
+                selections={currentTrace.node_resource_selections}
+              />
+            </div>
           </div>
         ) : null}
         <ProvenanceBlock
-          label="Used as a dataset source"
+          label="In datasets"
           value={
             currentTrace.dataset_memberships.length
               ? currentTrace.dataset_memberships
                   .map(
                     (membership) =>
-                      `${membership.dataset_name}; version: ${membership.dataset_version}; status: ${membership.dataset_version_status}`,
+                      `${membership.dataset_name} v${membership.dataset_version} (${membership.dataset_version_status})`,
                   )
-                  .join("  /  ")
-              : "Not used as a dataset source"
+                  .join(", ")
+              : "Not in a dataset"
           }
         />
       </section>
@@ -154,7 +156,17 @@ export function TraceDetailScreen({
             onSelect={setSelectedNodeId}
           />
         </section>
-        <TraceInspector span={activeSpan} systemKey={systemKey} />
+        <TraceInspector
+          span={activeSpan}
+          node={activeNode}
+          entry={
+            Boolean(activeNodeId) && definition?.entry_point === activeNodeId
+          }
+          output={
+            Boolean(activeNodeId) && definition?.output_node === activeNodeId
+          }
+          systemKey={systemKey}
+        />
       </div>
       <AddToDatasetModal
         open={datasetModalOpen}

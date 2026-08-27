@@ -28,24 +28,25 @@ const definition = {
 describe("RuntimeInputNotice", () => {
   afterEach(cleanup);
 
-  it("distinguishes direct refreshes from optional or required capture", () => {
+  it("says a run fetches new data, and which nodes are optional", () => {
     render(<RuntimeInputNotice definition={definition} context="run" />);
-    expect(screen.getByText("Direct run external inputs")).toBeVisible();
+    expect(screen.getByText("Live data in this run")).toBeVisible();
     expect(
-      screen.getByText(/only become immutable observation artifacts/),
+      screen.getByText(/fetch data from outside the app/),
     ).toBeVisible();
     expect(
-      screen.getByText(/source: options_chain; run: refresh/),
+      screen.getByText(/Fetch options chain — Fetches new data. Optional./),
     ).toBeVisible();
-    expect(screen.getByText(/optional/)).toBeVisible();
   });
 
-  it("explains dataset-locked observations for evaluation", () => {
+  it("says every evaluation example uses its pinned snapshot", () => {
     render(<RuntimeInputNotice definition={definition} context="evaluation" />);
-    expect(screen.getByText("Saved evaluation observations")).toBeVisible();
-    expect(screen.getByText(/dataset example supplies locked/)).toBeVisible();
+    expect(screen.getByText("Live data in evaluations")).toBeVisible();
     expect(
-      screen.getByText(/source: options_chain; evaluation: locked/),
+      screen.getByText(/exact snapshot pinned to it, so scores stay comparable/),
+    ).toBeVisible();
+    expect(
+      screen.getByText(/Uses the snapshot pinned to each example./),
     ).toBeVisible();
   });
 });

@@ -1,46 +1,25 @@
 "use client";
 
-import {
-  BracketsCurlyIcon,
-  CloudArrowDownIcon,
-  DatabaseIcon,
-  WaveformIcon,
-} from "@phosphor-icons/react";
-import {
-  Handle,
-  Position,
-  type Edge,
-  type Node,
-  type NodeProps,
-} from "@xyflow/react";
-import { useMemo } from "react";
+import type { Edge, Node, NodeProps } from "@xyflow/react";
+import { useMemo, useState } from "react";
 import { GraphCanvas } from "@/components/graph-canvas";
-import { graphLevels } from "@/features/traces/graph-layout";
-import type {
-  GraphDefinition,
-  GraphNodeDefinition,
-  NodeResourceSelection,
-} from "@/lib/types";
-
-export type RunNodeClassification =
-  | "calculation"
-  | "saved input: latest"
-  | "live external input"
-  | "saved input: exact version"
-  | "model call";
+import { GraphLegend, GraphNodeCard } from "@/features/graph/graph-node-card";
+import { graphLevels } from "@/features/graph/layout";
+import {
+  GraphNodeDetails,
+  GraphNodeDetailsEmpty,
+} from "@/features/graph/node-details";
+import { graphNodeView, type GraphNodeView } from "@/features/graph/node-view";
+import type { GraphDefinition, NodeResourceSelection } from "@/lib/types";
 
 type RunPreviewNodeData = {
-  definition: GraphNodeDefinition;
-  selection?: NodeResourceSelection;
-  captureNodeOutputs: boolean;
-  entry: boolean;
-  output: boolean;
-  targets: string[];
+  view: GraphNodeView;
+  selected: boolean;
 };
 
 const nodeTypes = { runPreviewNode: RunPreviewNode };
 const nodeWidth = 204;
-const nodeHeight = 112;
+const nodeHeight = 96;
 const stageSpacing = 236;
 const parallelNodeSpacing = 160;
 const previewFitOptions = {
@@ -49,32 +28,10 @@ const previewFitOptions = {
   maxZoom: 0.86,
 };
 
-export function classifyRunNode(
-  node: GraphNodeDefinition,
-  resourceSelection?: NodeResourceSelection,
-): RunNodeClassification {
-  if (node.kind === "llm") return "model call";
-  if (node.resource_policy) {
-    const mode = resourceSelection?.mode ?? node.resource_policy.runtime_mode;
-    return mode === "locked"
-      ? "saved input: exact version"
-      : "saved input: latest";
-  }
-  if (node.runtime_input_policy) {
-    return node.runtime_input_policy.runtime_mode === "locked"
-      ? "saved input: exact version"
-      : "live external input";
-  }
-  if (node.snapshot_policy?.binding_mode === "consume") {
-    return "saved input: exact version";
-  }
-  return "calculation";
-}
-
 export function buildRunGraphPreview(
   definition: GraphDefinition,
   resourceSelections: Record<string, NodeResourceSelection>,
-  captureNodeOutputs: boolean,
+  selectedNodeId?: string | null,
 ): { nodes: Node<RunPreviewNodeData>[]; edges: Edge[] } {
   const levels = graphLevels(definition.nodes, definition.edges);
   const levelCounts = new Map<number, number>();
@@ -85,6 +42,12 @@ export function buildRunGraphPreview(
       .filter((edge) => edge.source === definitionNode.id)
       .map((edge) => edge.target);
     levelCounts.set(level, index + 1);
+    const view = graphNodeView(definitionNode, {
+      entry: definitionNode.id === definition.entry_point,
+      output: definitionNode.id === definition.output_node,
+      selection: resourceSelections[definitionNode.id],
+      nextNodeIds: targets,
+    });
     return {
       id: definitionNode.id,
       type: "runPreviewNode",
@@ -94,23 +57,8 @@ export function buildRunGraphPreview(
       },
       initialWidth: nodeWidth,
       initialHeight: nodeHeight,
-      ariaLabel: [
-        definitionNode.label,
-        classifyRunNode(definitionNode, resourceSelections[definitionNode.id]),
-        definitionNode.id === definition.entry_point ? "entry point" : null,
-        definitionNode.id === definition.output_node ? "output node" : null,
-        targets.length ? `continues to ${targets.join(", ")}` : null,
-      ]
-        .filter(Boolean)
-        .join(", "),
-      data: {
-        definition: definitionNode,
-        selection: resourceSelections[definitionNode.id],
-        captureNodeOutputs,
-        entry: definitionNode.id === definition.entry_point,
-        output: definitionNode.id === definition.output_node,
-        targets,
-      },
+      ariaLabel: view.ariaLabel,
+      data: { view, selected: definitionNode.id === selectedNodeId },
     };
   });
   const edges = definition.edges.map((edge) => ({
@@ -132,113 +80,71 @@ export function RunGraphPreview({
   resourceSelections: Record<string, NodeResourceSelection>;
   captureNodeOutputs: boolean;
 }) {
+  const [selectedNodeId, setSelectedNodeId] = useState(definition.entry_point);
+  const [shownEntryPoint, setShownEntryPoint] = useState(definition.entry_point);
+
+  // A different graph means a different set of nodes: fall back to its entry
+  // point rather than keeping a selection that no longer exists.
+  if (shownEntryPoint !== definition.entry_point) {
+    setShownEntryPoint(definition.entry_point);
+    setSelectedNodeId(definition.entry_point);
+  }
+
   const { nodes, edges } = useMemo(
-    () =>
-      buildRunGraphPreview(definition, resourceSelections, captureNodeOutputs),
-    [captureNodeOutputs, definition, resourceSelections],
+    () => buildRunGraphPreview(definition, resourceSelections, selectedNodeId),
+    [definition, resourceSelections, selectedNodeId],
   );
   const maximumX = Math.max(0, ...nodes.map((node) => node.position.x));
   const maximumY = Math.max(0, ...nodes.map((node) => node.position.y));
+  const selectedView =
+    nodes.find((node) => node.id === selectedNodeId)?.data.view ?? null;
+  const snapshotPolicy = selectedView?.definition.snapshot_policy;
+  const keepsOptionalCopy = Boolean(
+    snapshotPolicy &&
+      snapshotPolicy.binding_mode !== "consume" &&
+      !snapshotPolicy.required,
+  );
 
   return (
-    <GraphCanvas
-      ariaLabel="Selected graph execution preview"
-      className="h-[350px] border border-[var(--border)] md:h-[380px]"
-      nodes={nodes}
-      edges={edges}
-      nodeTypes={nodeTypes}
-      fitViewOptions={previewFitOptions}
-      minZoom={0.12}
-      maxZoom={1.4}
-      translateExtent={[
-        [-320, -260],
-        [maximumX + nodeWidth + 320, maximumY + nodeHeight + 260],
-      ]}
-    />
+    <div className="grid min-w-0 gap-2">
+      <GraphLegend types={nodes.map((node) => node.data.view.type)} />
+      <GraphCanvas
+        ariaLabel="Selected graph execution preview"
+        className="h-[350px] border border-[var(--border)] md:h-[380px]"
+        nodes={nodes}
+        edges={edges}
+        nodeTypes={nodeTypes}
+        fitViewOptions={previewFitOptions}
+        minZoom={0.12}
+        maxZoom={1.4}
+        elementsSelectable
+        onNodeClick={(_, node) => setSelectedNodeId(node.id)}
+        translateExtent={[
+          [-320, -260],
+          [maximumX + nodeWidth + 320, maximumY + nodeHeight + 260],
+        ]}
+      />
+      <div className="min-w-0 border border-[var(--border)]">
+        {selectedView ? (
+          <GraphNodeDetails view={selectedView}>
+            {keepsOptionalCopy ? (
+              <p className="px-4 py-3 text-[10px] leading-5 text-[var(--text-muted)]">
+                {captureNodeOutputs
+                  ? "This run keeps a copy of this node's output."
+                  : "This run does not keep a copy of this node's output."}
+              </p>
+            ) : null}
+          </GraphNodeDetails>
+        ) : (
+          <GraphNodeDetailsEmpty />
+        )}
+      </div>
+    </div>
   );
 }
 
 function RunPreviewNode({ data }: NodeProps<Node<RunPreviewNodeData>>) {
-  const classification = classifyRunNode(data.definition, data.selection);
-  const requiredCapture =
-    data.definition.snapshot_policy?.required &&
-    data.definition.snapshot_policy.binding_mode === "produce";
-  const optionalRefresh =
-    data.definition.runtime_input_policy?.runtime_mode === "refresh" &&
-    data.definition.snapshot_policy?.binding_mode !== "consume" &&
-    !data.definition.snapshot_policy?.required;
   return (
-    <article className="relative min-h-[112px] w-[204px] border border-[var(--border-strong)] bg-[var(--surface-raised)] p-3 shadow-[0_14px_40px_rgba(0,0,0,0.2)]">
-      <Handle
-        type="target"
-        position={Position.Left}
-        className="!size-1.5 !border-0 !bg-[var(--border-strong)]"
-      />
-      <div className="flex items-start gap-2">
-        <span className="grid size-7 shrink-0 place-items-center border border-[var(--border)] bg-[var(--surface-muted)] text-[var(--accent)]">
-          {iconForClassification(classification)}
-        </span>
-        <span className="min-w-0 flex-1">
-          <span className="block truncate text-[11px] font-semibold">
-            {data.definition.label}
-          </span>
-          <span className="mono mt-1 block text-[8px] leading-4 text-[var(--text-muted)]">
-            {classification}
-          </span>
-        </span>
-      </div>
-      <div className="mt-2 flex flex-wrap gap-1 border-t border-[var(--border)] pt-2">
-        {data.entry ? <PreviewTag>entry</PreviewTag> : null}
-        {data.output ? <PreviewTag>output</PreviewTag> : null}
-        {data.selection?.mode === "current" ? (
-          <PreviewTag>Latest: {data.selection.identity}</PreviewTag>
-        ) : null}
-        {data.selection?.mode === "locked" ? (
-          <PreviewTag>Exact saved version</PreviewTag>
-        ) : null}
-        {data.definition.runtime_input_policy?.runtime_mode === "refresh" ? (
-          <PreviewTag>run refresh</PreviewTag>
-        ) : null}
-        {requiredCapture ? <PreviewTag>required capture</PreviewTag> : null}
-        {optionalRefresh ? (
-          <PreviewTag>
-            {data.captureNodeOutputs
-              ? "Save refreshed output"
-              : "Live output: not saved"}
-          </PreviewTag>
-        ) : null}
-        {data.targets.length ? (
-          <PreviewTag>Next: {data.targets.join(", ")}</PreviewTag>
-        ) : null}
-      </div>
-      <Handle
-        type="source"
-        position={Position.Right}
-        className="!size-1.5 !border-0 !bg-[var(--border-strong)]"
-      />
-    </article>
-  );
-}
-
-function iconForClassification(classification: RunNodeClassification) {
-  const properties = { size: 14, weight: "bold" as const, "aria-hidden": true };
-  if (classification === "model call") return <WaveformIcon {...properties} />;
-  if (
-    classification === "saved input: exact version" ||
-    classification === "saved input: latest"
-  ) {
-    return <DatabaseIcon {...properties} />;
-  }
-  if (classification === "live external input") {
-    return <CloudArrowDownIcon {...properties} />;
-  }
-  return <BracketsCurlyIcon {...properties} />;
-}
-
-function PreviewTag({ children }: { children: React.ReactNode }) {
-  return (
-    <span className="mono bg-[var(--accent-soft)] px-1.5 py-1 text-[8px] text-[var(--accent)]">
-      {children}
-    </span>
+    <GraphNodeCard view={data.view} selected={data.selected} width={nodeWidth} />
   );
 }

@@ -1,8 +1,6 @@
 import { describe, expect, it } from "vitest";
-import {
-  buildRunGraphPreview,
-  classifyRunNode,
-} from "@/features/run/run-graph-preview";
+import { graphNodeType, graphNodeView } from "@/features/graph/node-view";
+import { buildRunGraphPreview } from "@/features/run/run-graph-preview";
 import type { GraphDefinition, GraphNodeDefinition } from "@/lib/types";
 
 const calculation = {
@@ -13,8 +11,8 @@ const calculation = {
   task: null,
 } satisfies GraphNodeDefinition;
 
-describe("run graph classifications", () => {
-  it("distinguishes calculations, current resources, live external data, replay, and LLM work", () => {
+describe("run graph node types", () => {
+  it("names every run node with the shared graph vocabulary", () => {
     const resourceNode = {
       ...calculation,
       id: "get_indexed_portfolio",
@@ -49,21 +47,22 @@ describe("run graph classifications", () => {
       prompt_key: "explain-answer",
     } satisfies GraphNodeDefinition;
 
-    expect(classifyRunNode(calculation)).toBe("calculation");
-    expect(
-      classifyRunNode(resourceNode, {
-        mode: "current",
-        identity: "main_portfolio",
-      }),
-    ).toBe("saved input: latest");
-    expect(classifyRunNode(externalNode)).toBe("live external input");
-    expect(
-      classifyRunNode(resourceNode, {
-        mode: "locked",
-        snapshot_id: "snapshot-1",
-      }),
-    ).toBe("saved input: exact version");
-    expect(classifyRunNode(llmNode)).toBe("model call");
+    expect(graphNodeType(calculation)).toBe("logic");
+    expect(graphNodeType(llmNode)).toBe("model");
+    expect(graphNodeType(externalNode)).toBe("live");
+    expect(graphNodeType(resourceNode)).toBe("saved");
+
+    const latest = graphNodeView(resourceNode, {
+      selection: { mode: "current", identity: "main_portfolio" },
+    });
+    const exact = graphNodeView(resourceNode, {
+      selection: { mode: "locked", snapshot_id: "snapshot-1" },
+    });
+
+    expect(latest.type).toBe("saved");
+    expect(exact.type).toBe("saved");
+    expect(latest.dataFlow.onRun).toBe("Uses the newest saved version.");
+    expect(exact.dataFlow.onRun).toBe("Uses one exact saved version.");
   });
 
   it("builds a bounded left-to-right graph with accessible node semantics", () => {
@@ -84,16 +83,19 @@ describe("run graph classifications", () => {
       edges: [{ source: "calculate", target: "explain" }],
     } satisfies GraphDefinition;
 
-    const graph = buildRunGraphPreview(definition, {}, false);
+    const graph = buildRunGraphPreview(definition, {}, "calculate");
 
     expect(graph.nodes[0]?.position).toEqual({ x: 0, y: 0 });
     expect(graph.nodes[0]?.initialWidth).toBe(204);
-    expect(graph.nodes[0]?.initialHeight).toBe(112);
+    expect(graph.nodes[0]?.initialHeight).toBe(96);
     expect(graph.nodes[1]?.position.x).toBeGreaterThan(0);
-    expect(graph.nodes[0]?.ariaLabel).toContain("entry point");
-    expect(graph.nodes[0]?.ariaLabel).toContain("continues to explain");
-    expect(graph.nodes[1]?.ariaLabel).toContain("model call");
-    expect(graph.nodes[1]?.ariaLabel).toContain("output node");
+    expect(graph.nodes[0]?.data.selected).toBe(true);
+    expect(graph.nodes[1]?.data.selected).toBe(false);
+    expect(graph.nodes[0]?.data.view.type).toBe("logic");
+    expect(graph.nodes[0]?.ariaLabel).toContain("Start");
+    expect(graph.nodes[0]?.ariaLabel).toContain("then explain");
+    expect(graph.nodes[1]?.data.view.type).toBe("model");
+    expect(graph.nodes[1]?.ariaLabel).toContain("Result");
     expect(graph.edges[0]?.type).toBe("smoothstep");
     expect(graph.edges[0]?.style).toMatchObject({ strokeWidth: 1.5 });
   });
@@ -114,7 +116,7 @@ describe("run graph classifications", () => {
       })),
     } satisfies GraphDefinition;
 
-    const graph = buildRunGraphPreview(definition, {}, false);
+    const graph = buildRunGraphPreview(definition, {});
 
     expect(graph.nodes.map((node) => node.position)).toEqual([
       { x: 0, y: 0 },

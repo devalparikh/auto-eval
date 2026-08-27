@@ -104,16 +104,16 @@ function Harness() {
 describe("NodeSnapshotBrowser", () => {
   afterEach(cleanup);
 
-  it("groups an open-ended snapshot catalog by deterministic node", () => {
+  it("groups snapshots by the node that saved them", () => {
     render(<Harness />);
 
-    expect(screen.getByText("Deterministic nodes")).toBeVisible();
+    expect(screen.getByText("Nodes")).toBeVisible();
     expect(screen.getByText("Load portfolio market data")).toBeVisible();
     expect(screen.getByText("Persist portfolio state")).toBeVisible();
-    expect(screen.getByText("consumed · replayed")).toBeVisible();
+    expect(screen.getByText("Reused by this run")).toBeVisible();
     expect(screen.getByText("42ms")).toBeVisible();
     expect(
-      screen.getByRole("link", { name: /consumed · replayed/ }),
+      screen.getByRole("link", { name: /Reused by this run/ }),
     ).toHaveAttribute(
       "href",
       "/systems/portfolio-query/traces/trace-query-12345678",
@@ -125,6 +125,6 @@ describe("NodeSnapshotBrowser", () => {
     expect(
       screen.getByRole("heading", { name: "Synthetic current portfolio" }),
     ).toBeVisible();
-    expect(screen.getAllByText("computed").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Saved by a run").length).toBeGreaterThan(0);
   });
 });

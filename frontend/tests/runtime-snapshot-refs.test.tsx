@@ -6,7 +6,7 @@ import { SavedInputRefs } from "@/features/systems/saved-input-refs";
 describe("RuntimeSnapshotRefs", () => {
   afterEach(cleanup);
 
-  it("deep-links a node binding to the generic snapshot artifact", () => {
+  it("deep-links a node to the snapshot it used", () => {
     render(
       <RuntimeSnapshotRefs
         systemKey="portfolio-query"
@@ -38,7 +38,7 @@ describe("SavedInputRefs", () => {
     );
     expect(screen.getByText(/get_indexed_portfolio/)).toBeVisible();
     expect(
-      screen.getByRole("link", { name: /Open saved input/ }),
+      screen.getByRole("link", { name: /Open snapshot/ }),
     ).toHaveAttribute(
       "href",
       "/systems/portfolio-query/artifacts?snapshot=portfolio-snapshot-12345678",

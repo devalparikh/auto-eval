@@ -41,6 +41,14 @@
   --json-string: #a9c8ae;
   --json-number: #d9a974;
   --json-literal: #b4a8d2;
+  --node-model: #b3a4d4;
+  --node-model-soft: #221d2e;
+  --node-live: #7fb6c6;
+  --node-live-soft: #14232a;
+  --node-saved: #c99468;
+  --node-saved-soft: #2e2118;
+  --node-logic: #9e9891;
+  --node-logic-soft: #1c1b18;
   --radius: 4px;
   --page-gutter: clamp(1rem, 2.6vw, 2rem);
   --font-body:
@@ -94,6 +102,14 @@
   --json-string: #2f6a49;
   --json-number: #8c551c;
   --json-literal: #67528d;
+  --node-model: #59459d;
+  --node-model-soft: #e7e2f4;
+  --node-live: #1d6473;
+  --node-live-soft: #dbedf1;
+  --node-saved: #8b4f2c;
+  --node-saved-soft: #eedfd2;
+  --node-logic: #625d56;
+  --node-logic-soft: #ebe6de;
 }
 
 * {

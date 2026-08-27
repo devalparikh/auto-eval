@@ -11,7 +11,11 @@ import { JsonViewer } from "@/components/json-viewer";
 import { ErrorState, LoadingState } from "@/components/states";
 import { systemPath } from "@/features/systems/system-path";
 import { formatDate, formatDuration, shortId } from "@/lib/format";
-import type { NodeSnapshotDetail, NodeSnapshotSummary } from "@/lib/types";
+import type {
+  NodeSnapshotDetail,
+  NodeSnapshotSummary,
+  NodeSnapshotUsage,
+} from "@/lib/types";
 
 type InspectorView = "overview" | "metadata" | "content";
 
@@ -52,10 +56,9 @@ export function NodeSnapshotBrowser({
   if (snapshots.length === 0) {
     return (
       <div className="border border-[var(--border)] bg-[var(--surface)] p-7">
-        <p className="text-[12px] font-semibold">No node snapshots recorded</p>
+        <p className="text-[12px] font-semibold">No snapshots yet</p>
         <p className="mt-1 max-w-[58ch] text-[10px] leading-5 text-[var(--text-muted)]">
-          Snapshot-enabled deterministic and external-input nodes will appear
-          here after they produce or capture an immutable output.
+          A snapshot appears here once a node saves its output.
         </p>
       </div>
     );
@@ -65,10 +68,9 @@ export function NodeSnapshotBrowser({
     <section className="overflow-hidden border border-[var(--border)] bg-[var(--surface)]">
       <header className="flex flex-wrap items-start justify-between gap-4 border-b border-[var(--border)] px-5 py-4">
         <div>
-          <h2 className="text-[13px] font-semibold">Node snapshots</h2>
+          <h2 className="text-[13px] font-semibold">Snapshots</h2>
           <p className="mt-1 max-w-[68ch] text-[10px] leading-5 text-[var(--text-muted)]">
-            Immutable outputs grouped by producing node. Execution latency and
-            replay metadata stay attached to each trace usage.
+            Saved copies of node output, grouped by the node that saved them.
           </p>
         </div>
         <span className="mono text-[9px] text-[var(--text-faint)]">
@@ -78,10 +80,10 @@ export function NodeSnapshotBrowser({
 
       <div className="grid min-h-[620px] lg:grid-cols-[230px_280px_minmax(0,1fr)]">
         <nav
-          aria-label="Snapshot-producing nodes"
+          aria-label="Nodes with snapshots"
           className="border-b border-[var(--border)] lg:border-r lg:border-b-0"
         >
-          <RailLabel>Deterministic nodes</RailLabel>
+          <RailLabel>Nodes</RailLabel>
           {groups.map((group) => {
             const active = group.key === selectedNodeKey;
             const Icon =
@@ -122,7 +124,7 @@ export function NodeSnapshotBrowser({
         </nav>
 
         <div className="border-b border-[var(--border)] lg:border-r lg:border-b-0">
-          <RailLabel>Captured outputs</RailLabel>
+          <RailLabel>Snapshots</RailLabel>
           <div className="max-h-[620px] overflow-y-auto">
             {(selectedGroup?.snapshots ?? []).map((snapshot) => (
               <button
@@ -144,11 +146,17 @@ export function NodeSnapshotBrowser({
                   {formatDate(snapshot.observed_at)}
                 </span>
                 <span className="mt-2 flex flex-wrap gap-x-2 gap-y-1 text-[8px] text-[var(--text-faint)]">
-                  <span>{snapshot.capture_mode}</span>
+                  <span>{captureLabel(snapshot.capture_mode)}</span>
                   <span>·</span>
-                  <span>{snapshot.is_synthetic ? "synthetic" : "real"}</span>
+                  <span>
+                    {snapshot.is_synthetic ? "Sample data" : "Real data"}
+                  </span>
                   <span>·</span>
-                  <span>{snapshot.usage_count} uses</span>
+                  <span>
+                    {snapshot.usage_count === 1
+                      ? "1 use"
+                      : `${snapshot.usage_count} uses`}
+                  </span>
                 </span>
               </button>
             ))}
@@ -213,32 +221,32 @@ function SnapshotInspector({
             </button>
           ))}
         </div>
-        <span>Read-only · {detail.snapshot_kind.replaceAll("_", " ")}</span>
+        <span>Read-only</span>
       </div>
 
       {view === "overview" ? (
         <div className="grid gap-5 p-4">
           <dl className="grid grid-cols-2 border border-[var(--border)] text-[10px] xl:grid-cols-3">
             <Fact label="Observed" value={formatDate(detail.observed_at)} />
-            <Fact label="Captured" value={formatDate(detail.captured_at)} />
-            <Fact label="Capture mode" value={detail.capture_mode} />
-            <Fact label="Source" value={detail.source} />
+            <Fact label="Saved" value={formatDate(detail.captured_at)} />
+            <Fact label="Origin" value={snapshotOrigin(detail)} />
             <Fact
-              label="Provider"
-              value={detail.provider ?? "local deterministic"}
+              label="How it was saved"
+              value={captureLabel(detail.capture_mode)}
             />
+            <Fact label="Source" value={detail.source} />
             <Fact label="Schema" value={`v${detail.schema_version}`} />
             <Fact label="Flow" value={detail.flow_name} />
             <Fact
-              label="Data class"
-              value={detail.is_synthetic ? "synthetic" : "real"}
+              label="Data"
+              value={detail.is_synthetic ? "Sample data" : "Real data"}
             />
             <Fact label="Hash" value={detail.content_hash.slice(0, 12)} mono />
           </dl>
 
           <section>
             <h4 className="text-[9px] font-semibold lowercase tracking-[0.1em] text-[var(--text-faint)]">
-              Execution uses
+              Where it was used
             </h4>
             <div className="mt-2 border border-[var(--border)]">
               {detail.usages.length ? (
@@ -253,7 +261,7 @@ function SnapshotInspector({
                   >
                     <span>
                       <span className="block text-[10px] font-medium">
-                        {usage.role} · {usage.resolution_mode}
+                        {usageLabel(usage)}
                       </span>
                       <span className="mono mt-1 block text-[8px] text-[var(--text-faint)]">
                         trace {shortId(usage.trace_id)}
@@ -269,7 +277,7 @@ function SnapshotInspector({
                 ))
               ) : (
                 <p className="px-3 py-4 text-[10px] text-[var(--text-muted)]">
-                  Seeded or imported snapshot with no recorded trace usage.
+                  No run has used this snapshot yet.
                 </p>
               )}
             </div>
@@ -277,14 +285,14 @@ function SnapshotInspector({
         </div>
       ) : view === "metadata" ? (
         <div className="grid gap-4 p-4">
-          <JsonViewer label="Shared provenance" value={detail.provenance} />
+          <JsonViewer label="Where it came from" value={detail.provenance} />
           <JsonViewer
-            label="Node-specific metadata"
+            label="Node details"
             value={detail.node_metadata}
           />
           {detail.usages[0] ? (
             <JsonViewer
-              label="Latest execution metadata"
+              label="Latest run details"
               value={detail.usages[0].metadata}
             />
           ) : null}
@@ -295,8 +303,7 @@ function SnapshotInspector({
         </div>
       ) : (
         <p className="p-5 text-[10px] leading-5 text-[var(--text-muted)]">
-          Snapshot content is hidden by the current reveal policy. Shared and
-          node-specific metadata remain available.
+          This snapshot shows details only, not its saved content.
         </p>
       )}
     </div>
@@ -328,6 +335,31 @@ function Fact({
       </dd>
     </div>
   );
+}
+
+function captureLabel(mode: NodeSnapshotSummary["capture_mode"]): string {
+  if (mode === "live") return "Fetched live";
+  if (mode === "computed") return "Saved by a run";
+  if (mode === "replayed") return "Reused by a run";
+  if (mode === "imported") return "Imported";
+  return "Sample data";
+}
+
+function snapshotOrigin(detail: NodeSnapshotDetail): string {
+  return detail.provider
+    ? `Fetched from ${detail.provider}`
+    : `Saved by ${detail.node_label}`;
+}
+
+function usageLabel(usage: NodeSnapshotUsage): string {
+  if (usage.role === "produced") {
+    return usage.resolution_mode === "live"
+      ? "Saved from live data by this run"
+      : "Saved by this run";
+  }
+  return usage.resolution_mode === "live"
+    ? "Read live by this run"
+    : "Reused by this run";
 }
 
 function nodeKey(snapshot: NodeSnapshotSummary) {
