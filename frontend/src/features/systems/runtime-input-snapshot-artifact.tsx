@@ -43,11 +43,10 @@ export function RuntimeInputSnapshotArtifact({
           className="mt-0.5 shrink-0 text-[var(--accent)]"
         />
         <div>
-          <h2 className="text-[13px] font-semibold">Runtime observations</h2>
+          <h2 className="text-[13px] font-semibold">Live data snapshots</h2>
           <p className="mt-1 text-[10px] leading-5 text-[var(--text-muted)]">
-            Immutable external inputs captured at graph nodes. Real records
-            expose safe shape metadata; synthetic records may expose normalized
-            content.
+            Data fetched from outside the app and saved. Real data shows its
+            shape only; sample data shows its full content.
           </p>
         </div>
       </div>
@@ -55,12 +54,9 @@ export function RuntimeInputSnapshotArtifact({
       {loading && snapshots.length === 0 ? <LoadingState rows={8} /> : null}
       {!loading && !error && snapshots.length === 0 ? (
         <div className="p-5">
-          <p className="text-[11px] font-medium">
-            No runtime observations recorded
-          </p>
+          <p className="text-[11px] font-medium">No live data saved yet</p>
           <p className="mt-1 max-w-[54ch] text-[10px] leading-5 text-[var(--text-muted)]">
-            Direct runs create an observation when an external-input node
-            refreshes successfully.
+            A snapshot is saved here each time a run fetches live data.
           </p>
         </div>
       ) : null}
@@ -68,7 +64,7 @@ export function RuntimeInputSnapshotArtifact({
         <div className="grid min-h-[520px] md:grid-cols-[250px_minmax(0,1fr)]">
           <div
             className="border-b border-[var(--border)] md:border-r md:border-b-0"
-            aria-label="Runtime observation records"
+            aria-label="Live data snapshots"
           >
             {snapshots.map((snapshot) => (
               <button
@@ -86,7 +82,7 @@ export function RuntimeInputSnapshotArtifact({
                 </span>
                 <span className="mt-2 flex items-center justify-between gap-2 text-[9px] text-[var(--text-faint)]">
                   <span>{formatDate(snapshot.observed_at)}</span>
-                  <span>{snapshot.is_synthetic ? "synthetic" : "real"}</span>
+                  <span>{snapshot.is_synthetic ? "Sample" : "Real"}</span>
                 </span>
               </button>
             ))}
@@ -110,7 +106,7 @@ export function RuntimeInputSnapshotArtifact({
                   <div className="version-view-toolbar">
                     <div
                       className="version-view-switch"
-                      aria-label="Runtime observation view"
+                      aria-label="Snapshot view"
                     >
                       <button
                         type="button"
@@ -127,7 +123,7 @@ export function RuntimeInputSnapshotArtifact({
                         Content
                       </button>
                     </div>
-                    <span>Captured content is read-only.</span>
+                    <span>Read-only</span>
                   </div>
                   {view === "info" ? (
                     <div className="grid gap-4">
@@ -141,8 +137,10 @@ export function RuntimeInputSnapshotArtifact({
                           value={formatDate(detail.fetched_at)}
                         />
                         <SnapshotFact
-                          label="Record kind"
-                          value={`${detail.source_kind} · ${detail.is_synthetic ? "synthetic" : "real"}`}
+                          label="Data"
+                          value={
+                            detail.is_synthetic ? "Sample data" : "Real data"
+                          }
                         />
                         <SnapshotFact
                           label="Schema version"
@@ -155,7 +153,7 @@ export function RuntimeInputSnapshotArtifact({
                         />
                         <div>
                           <dt className="text-[9px] text-[var(--text-faint)]">
-                            Source trace
+                            From run
                           </dt>
                           <dd className="mono mt-1 break-all">
                             {detail.source_trace_id ? (
@@ -169,13 +167,13 @@ export function RuntimeInputSnapshotArtifact({
                                 {shortId(detail.source_trace_id)}
                               </Link>
                             ) : (
-                              "Synthetic fixture / external import"
+                              "Not from a run"
                             )}
                           </dd>
                         </div>
                       </dl>
                       <JsonViewer
-                        label="Observation provenance"
+                        label="Where it came from"
                         value={detail.provenance}
                       />
                     </div>
@@ -183,8 +181,8 @@ export function RuntimeInputSnapshotArtifact({
                     <JsonViewer
                       label={
                         detail.is_synthetic
-                          ? "Synthetic observation content"
-                          : "Safe observation content"
+                          ? "Saved content"
+                          : "Saved content (shape only)"
                       }
                       value={detail.content}
                     />
@@ -194,8 +192,7 @@ export function RuntimeInputSnapshotArtifact({
                         Content is not available
                       </p>
                       <p className="mt-1 text-[10px] leading-5 text-[var(--text-muted)]">
-                        Provenance remains visible, but the current reveal
-                        policy does not expose this observation payload.
+                        This snapshot shows details only, not its saved content.
                       </p>
                     </div>
                   )}

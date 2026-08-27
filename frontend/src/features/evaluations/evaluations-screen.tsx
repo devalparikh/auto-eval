@@ -104,7 +104,7 @@ export function EvaluationsScreen({ systemKey }: { systemKey: string }) {
     <>
       <PageHeader
         title={`Evaluate ${system?.name ?? "agent system"}`}
-        description="Run the same dataset and saved inputs across models."
+        description="Run the same examples and the same saved data across models."
       />
       <section className="grid gap-5 p-4 md:p-7 xl:grid-cols-[minmax(0,720px)_minmax(280px,1fr)]">
         <div className="overflow-hidden rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface)]">
@@ -191,9 +191,9 @@ export function EvaluationsScreen({ systemKey }: { systemKey: string }) {
               {missingPromptKeys.length || graphDetail.error || error ? (
                 <p role="alert" className="text-[12px] text-[var(--danger)]">
                   {missingPromptKeys.length
-                    ? `The selected graph references missing prompt families: ${missingPromptKeys.join(", ")}.`
+                    ? `This graph needs prompts that do not exist yet: ${missingPromptKeys.join(", ")}.`
                     : graphDetail.error
-                      ? `The selected graph could not be loaded: ${graphDetail.error}`
+                      ? `This graph could not be loaded: ${graphDetail.error}`
                       : error}
                 </p>
               ) : null}

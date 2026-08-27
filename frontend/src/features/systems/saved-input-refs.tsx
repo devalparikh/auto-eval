@@ -23,20 +23,20 @@ export function SavedInputRefs({
           <span className="mono min-w-0 truncate text-[var(--text-muted)]">
             {nodeId} →{" "}
             {selection.mode === "locked"
-              ? `Exact: ${shortId(selection.snapshot_id)}`
-              : `Latest: ${selection.identity}`}
+              ? shortId(selection.snapshot_id)
+              : selection.identity}
           </span>
           {selection.mode === "locked" ? (
             <Link
               href={`${systemPath(systemKey, "artifacts")}?snapshot=${encodeURIComponent(selection.snapshot_id)}`}
               className="flex shrink-0 items-center gap-1 text-[var(--accent)] hover:underline"
             >
-              Open saved input
+              Open snapshot
               <ArrowSquareOutIcon size={11} />
             </Link>
           ) : (
             <span className="shrink-0 text-[9px] text-[var(--text-faint)]">
-              uses latest at run start
+              Uses the newest saved version.
             </span>
           )}
         </div>

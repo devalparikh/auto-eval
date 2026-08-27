@@ -23,7 +23,7 @@ const detail = {
 describe("SnapshotArtifact", () => {
   afterEach(cleanup);
 
-  it("separates immutable snapshot metadata from stored content", () => {
+  it("separates snapshot details from saved content", () => {
     render(
       <SnapshotArtifact
         snapshots={[detail]}
@@ -42,7 +42,7 @@ describe("SnapshotArtifact", () => {
     expect(screen.getByText('"ACME"')).toBeInTheDocument();
   });
 
-  it("explains when the reveal policy hides content", () => {
+  it("explains when the content is not shown", () => {
     render(
       <SnapshotArtifact
         snapshots={[detail]}
@@ -56,6 +56,6 @@ describe("SnapshotArtifact", () => {
     );
     fireEvent.click(screen.getByRole("button", { name: "Content" }));
     expect(screen.getByText("Content is not available")).toBeVisible();
-    expect(screen.getByText(/local reveal policy/)).toBeVisible();
+    expect(screen.getByText(/shows details only/)).toBeVisible();
   });
 });

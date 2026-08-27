@@ -149,3 +149,50 @@ Snapshot content/capture provenance is immutable. A separate trace-span usage re
 execution produced or consumed the artifact, whether it was live/replayed/resolved/computed, and its
 latency, status, cost, tokens, and node-specific execution metadata. This separation allows one
 artifact to be replayed by N evaluations without corrupting artifact history.
+
+## One snapshot, many origins
+
+`snapshot_kind` (`state`, `external_observation`, `node_output`) is a storage
+tag, not a product concept. A consumer is already pinned to its producer by
+`producer_system_key`, `producer_node_id`, `producer_output_key`, and
+`schema_version`; the kind adds no resolving power on top of that and exists as
+a cheap mismatch check in `versioning.py` and `node_resources.py`. It stays in
+the column and in the graph definition — stored graph versions are immutable and
+`GraphModel` forbids extra keys, so removing it would break every definition
+already on disk — but it is not a user-facing taxonomy. The UI presents one
+concept: a snapshot is a saved copy of a node's output. Where origin matters to
+a reader, show it as origin (produced by which system and node, or fetched from
+which provider) using `source`, `provider`, and `agent_system_key`.
+
+The same goes for `binding_mode`. `produce` / `consume` / `produce_or_consume`
+describe which side of the contract a node sits on; the UI says what the node
+does with data instead — reads a snapshot, saves one, or both.
+
+## Why snapshots version independently of graph versions
+
+A snapshot records a fact about the world (a portfolio as it stood, an options
+chain as it was quoted), not a property of the code that read it. Tying a
+snapshot to a graph version would force a re-capture on every prompt edit and
+would make yesterday's portfolio unreachable from today's graph.
+
+Evaluation determinism is preserved at the dataset boundary instead, not by
+coupling the two version lines:
+
+- `NodeResourcePolicy.evaluation_mode` is `Literal["locked"]` — an evaluation
+  cannot resolve "current".
+- `validate_dataset_node_resource_selections` rejects any dataset item whose
+  selection is not an exact `snapshot_id`.
+- `EvaluationService._require_locked_runtime_inputs` and
+  `_require_locked_node_resources` refuse to start an evaluation item that is
+  missing a locked snapshot for a node that needs one. The one exception is a
+  finalized Portfolio Query version predating runtime-input artifacts, whose
+  observation is inlined in the item's own `market_context` — still pinned to
+  the item, just stored a different way.
+- Dataset versions are immutable, and only finalized ones can start an
+  evaluation.
+
+So a `(graph version, prompt version, dataset version)` triple pins every input
+it depends on, and scores stay comparable across runs even though the portfolio
+that item points at is one of many. `runtime_mode: "current"` — resolving the
+newest snapshot for an identity — exists only on the interactive run path, where
+"use my latest portfolio" is the point.

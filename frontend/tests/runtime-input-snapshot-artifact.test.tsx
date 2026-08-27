@@ -26,7 +26,7 @@ const detail = {
 describe("RuntimeInputSnapshotArtifact", () => {
   afterEach(cleanup);
 
-  it("shows external-input provenance and safe captured content", () => {
+  it("shows where live data came from and its saved content", () => {
     render(
       <RuntimeInputSnapshotArtifact
         systemKey="portfolio-query"
@@ -40,21 +40,21 @@ describe("RuntimeInputSnapshotArtifact", () => {
       />,
     );
 
-    expect(screen.getByText("Runtime observations")).toBeVisible();
+    expect(screen.getByText("Live data snapshots")).toBeVisible();
     expect(screen.getAllByText("options_chain").length).toBeGreaterThan(0);
     expect(screen.getByText("synthetic-fixture")).toBeVisible();
-    expect(screen.getByText("external_api · synthetic")).toBeVisible();
+    expect(screen.getByText("Sample data")).toBeVisible();
     expect(screen.getByRole("link", { name: "trace-12" })).toHaveAttribute(
       "href",
       "/systems/portfolio-query/traces/trace-12345678",
     );
 
     fireEvent.click(screen.getByRole("button", { name: "Content" }));
-    expect(screen.getByText("Synthetic observation content")).toBeVisible();
+    expect(screen.getByText("Saved content")).toBeVisible();
     expect(screen.getByText('"ACME"')).toBeInTheDocument();
   });
 
-  it("labels real records and renders their safe shape projection", () => {
+  it("labels real data and renders its shape only", () => {
     render(
       <RuntimeInputSnapshotArtifact
         systemKey="portfolio-query"
@@ -71,9 +71,9 @@ describe("RuntimeInputSnapshotArtifact", () => {
         retry={vi.fn()}
       />,
     );
-    expect(screen.getByText("external_api · real")).toBeVisible();
+    expect(screen.getByText("Real data")).toBeVisible();
     fireEvent.click(screen.getByRole("button", { name: "Content" }));
-    expect(screen.getByText("Safe observation content")).toBeVisible();
+    expect(screen.getByText("Saved content (shape only)")).toBeVisible();
     expect(screen.getByText("contracts")).toBeInTheDocument();
   });
 });

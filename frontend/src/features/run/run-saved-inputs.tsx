@@ -31,9 +31,8 @@ export function RunSavedInputs({
           Saved inputs
         </h3>
         <p className="mt-1 text-[10px] leading-5 text-[var(--text-muted)]">
-          Latest uses the newest saved output for an identity when the run
-          starts. Exact version replays one immutable saved output. Saved
-          content stays separate from the business request.
+          Pick which saved output this run reads. Latest picks the newest one
+          when the run starts; an exact version replays that one every time.
         </p>
       </div>
       {loading ? (
@@ -91,7 +90,7 @@ function SavedInputField({
           <p className="mono mt-1 break-all text-[8px] leading-4 text-[var(--text-faint)]">
             Node: {node.id}
             <br />
-            Input key: {policy.resource_key}; schema: v{policy.schema_version}
+            Reads: {policy.resource_key}
           </p>
         </div>
       </div>
@@ -105,7 +104,7 @@ function SavedInputField({
           onChange={(event) => onSelect(event.target.value)}
         >
           {choices.length === 0 ? (
-            <option value="">No compatible saved inputs</option>
+            <option value="">Nothing saved yet</option>
           ) : null}
           {latestChoices.length ? (
             <optgroup label="Latest saved output">
@@ -127,14 +126,14 @@ function SavedInputField({
           ) : null}
         </Select>
         <p className="text-[9px] leading-4 text-[var(--text-muted)]">
-          {selected?.description ??
-            "No compatible saved output exists for this node."}
+          {selected?.description ?? "Nothing has been saved for this node yet."}
         </p>
         {selected?.snapshot ? (
-          <p className="mono text-[8px] text-[var(--text-faint)]">
-            {selected.snapshot.is_synthetic ? "synthetic" : "real"} ·{" "}
-            {shortId(selected.snapshot.id)} ·{" "}
-            {selected.snapshot.content_hash.slice(0, 10)}
+          <p className="mono flex flex-wrap gap-x-2 text-[8px] text-[var(--text-faint)]">
+            <span>
+              {selected.snapshot.is_synthetic ? "Example data" : "Real data"}
+            </span>
+            <span>{shortId(selected.snapshot.id)}</span>
           </p>
         ) : null}
       </div>

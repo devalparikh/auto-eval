@@ -99,7 +99,7 @@ export function SystemsScreen({
     {
       kind: "prompt" as const,
       label: "Prompts",
-      detail: `${prompts.length} families`,
+      detail: `${prompts.length} prompts`,
       icon: TextTIcon,
     },
     ...(hasNodeSnapshots
@@ -107,7 +107,7 @@ export function SystemsScreen({
           {
             kind: "snapshot" as const,
             label: "Snapshots",
-            detail: `${snapshots.data?.length ?? 0} records`,
+            detail: `${snapshots.data?.length ?? 0} snapshots`,
             icon: DatabaseIcon,
           },
         ]
@@ -124,12 +124,12 @@ export function SystemsScreen({
       {catalog.data && system ? (
         <section className="grid gap-4 p-4 md:p-7 xl:grid-cols-[220px_minmax(0,1fr)]">
           <nav
-            aria-label="Artifact families"
+            aria-label="What to view"
             className="h-fit overflow-hidden border border-[var(--border)] bg-[var(--surface)]"
           >
             <div className="border-b border-[var(--border)] px-4 py-3">
               <p className="mono text-[9px] lowercase tracking-[0.12em] text-[var(--text-faint)]">
-                Artifact family
+                Show
               </p>
             </div>
             {artifactKinds.map(({ kind, label, detail, icon: Icon }) => (
@@ -218,7 +218,7 @@ export function SystemsScreen({
                 }}
               />
             ) : activeKind === "prompt" ? (
-              <ErrorState message="This system has no prompt artifacts." />
+              <ErrorState message="This system has no prompts yet." />
             ) : (
               <NodeSnapshotBrowser
                 systemKey={systemKey}

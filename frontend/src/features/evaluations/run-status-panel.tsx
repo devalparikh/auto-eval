@@ -17,7 +17,7 @@ export function RunStatusPanel({
       <aside className="rounded-[var(--radius)] border border-dashed border-[var(--border-strong)] p-5">
         <h2 className="text-[13px] font-semibold">Run status</h2>
         <p className="mt-2 text-[11px] leading-5 text-[var(--text-muted)]">
-          Start an evaluation to see completion state and jump into the model comparison.
+          Start an evaluation to follow its progress and compare the models.
         </p>
       </aside>
     );

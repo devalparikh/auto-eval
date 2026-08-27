@@ -300,18 +300,20 @@ export function RunWorkbench({
                     Execution graph
                   </h3>
                   <p className="mt-1 text-[10px] text-[var(--text-muted)]">
-                    Node classes reflect this direct run and its selected saved
-                    inputs. Drag to pan or use the controls to zoom.
+                    Click a node to see what it does. Drag to pan, or use the
+                    controls to zoom.
                   </p>
                 </div>
                 {selectedGraphVersion ? (
-                  <span className="mono shrink-0 text-[9px] text-[var(--text-faint)]">
-                    v{selectedGraphVersion.version}
-                    {graphVersionIsChanging
-                      ? graphDetail.error
-                        ? " · unavailable"
-                        : " · loading"
-                      : ` · ${graphDefinition?.nodes.length ?? 0} nodes`}
+                  <span className="mono flex shrink-0 items-center gap-2 text-[9px] text-[var(--text-faint)]">
+                    <span>v{selectedGraphVersion.version}</span>
+                    <span>
+                      {graphVersionIsChanging
+                        ? graphDetail.error
+                          ? "unavailable"
+                          : "loading"
+                        : `${graphDefinition?.nodes.length ?? 0} nodes`}
+                    </span>
                   </span>
                 ) : null}
               </div>
@@ -377,13 +379,11 @@ export function RunWorkbench({
                 />
                 <span>
                   <span className="block text-[11px] font-medium">
-                    Capture refreshed external outputs
+                    Keep a copy of live data
                   </span>
                   <span className="mt-1 block text-[10px] leading-5 text-[var(--text-muted)]">
-                    Optional and off by default. Saves live/refreshed
-                    observations as immutable node snapshots. Required
-                    graph-produced artifacts are always captured by their graph
-                    contract and cannot be disabled here.
+                    Keep a copy of any live data this run fetches, so you can
+                    reuse it later.
                   </span>
                 </span>
               </label>
@@ -410,8 +410,8 @@ export function RunWorkbench({
                 className="text-[10px] text-[var(--text-faint)]"
               >
                 {isPortfolioQuery
-                  ? "Question and policy remain editable. The saved portfolio input is selected above; registered external observations refresh at runtime."
-                  : "Initialized from this system's registered input template."}
+                  ? "Edit the question and policy here. The portfolio comes from the saved input above, and live market data is fetched when the run starts."
+                  : "Prefilled from this system's example input."}
               </p>
             </div>
             {!hasExecutionInputs ? (
@@ -421,8 +421,8 @@ export function RunWorkbench({
                 className="text-[11px] text-[var(--danger)]"
               >
                 {missingPromptKeys.length
-                  ? `The selected graph references missing prompt families: ${missingPromptKeys.join(", ")}.`
-                  : "This system needs at least one graph, prompt, and available model before it can run."}
+                  ? `This graph still needs a prompt for ${missingPromptKeys.join(", ")}.`
+                  : "This system needs a graph, a prompt, and an available model before it can run."}
               </p>
             ) : graphDetail.error ? (
               <p
@@ -446,12 +446,12 @@ export function RunWorkbench({
                 role="alert"
                 className="text-[11px] text-[var(--danger)]"
               >
-                Create or seed the required{" "}
+                This graph needs a saved{" "}
                 {savedInputs.missingRequiredNodes
                   .map((node) => node.resource_policy?.resource_key)
                   .filter(Boolean)
                   .join(", ")}{" "}
-                saved input before running this graph.
+                input before it can run. Create one first.
               </p>
             ) : error ? (
               <p
@@ -503,8 +503,8 @@ export function RunWorkbench({
             <div className="p-5">
               <p className="text-[11px] font-medium">No run in this session</p>
               <p className="mt-1 max-w-[34ch] text-[10px] leading-5 text-[var(--text-muted)]">
-                Run the configured request to inspect output, timing, token
-                usage, and cost without leaving this page.
+                Run the request to see its output, timing, tokens, and cost
+                here.
               </p>
             </div>
           )}

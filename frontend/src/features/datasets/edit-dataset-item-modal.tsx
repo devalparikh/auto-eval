@@ -59,8 +59,8 @@ export function EditDatasetItemModal({
   return (
     <Modal
       open={Boolean(item)}
-      title="Review ground truth"
-      description="Edit draft labels. Saved inputs and observations stay unchanged."
+      title="Review expected output"
+      description="Edit the expected output. The saved inputs stay as they are."
       onClose={onClose}
     >
       <form onSubmit={submit} className="grid gap-4 p-5">
@@ -69,12 +69,10 @@ export function EditDatasetItemModal({
         </div>
         {Object.keys(item?.runtime_input_snapshot_ids ?? {}).length ? (
           <section className="border border-[var(--border)] bg-[var(--surface-muted)] p-3">
-            <h3 className="text-[10px] font-semibold">
-              Locked runtime observations
-            </h3>
+            <h3 className="text-[10px] font-semibold">Live data snapshots</h3>
             <p className="mt-1 mb-3 text-[10px] leading-5 text-[var(--text-muted)]">
-              Evaluation reuses these node-to-snapshot bindings. They are
-              provenance, not editable business input.
+              Every run reuses these exact snapshots instead of fetching new
+              data.
             </p>
             <RuntimeSnapshotRefs
               systemKey={systemKey}
@@ -84,10 +82,9 @@ export function EditDatasetItemModal({
         ) : null}
         {Object.keys(item?.node_resource_selections ?? {}).length ? (
           <section className="border border-[var(--border)] bg-[var(--surface-muted)] p-3">
-            <h3 className="text-[10px] font-semibold">Saved inputs</h3>
+            <h3 className="text-[10px] font-semibold">Saved data snapshots</h3>
             <p className="mt-1 mb-3 text-[10px] leading-5 text-[var(--text-muted)]">
-              Evaluation reuses these exact saved outputs. They are audit
-              details and cannot be edited as business input.
+              Every run reads these exact snapshots, so results stay comparable.
             </p>
             <SavedInputRefs
               systemKey={systemKey}
@@ -127,7 +124,7 @@ export function EditDatasetItemModal({
           </button>
           <button className="app-button" disabled={saving}>
             <CheckIcon size={14} />
-            {saving ? "Saving..." : "Save labels"}
+            {saving ? "Saving..." : "Save changes"}
           </button>
         </div>
       </form>

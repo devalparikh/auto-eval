@@ -23,26 +23,23 @@ export function RuntimeInputNotice({
       <div className="min-w-0">
         <p className="text-[11px] font-medium">
           {context === "run"
-            ? "Direct run external inputs"
-            : "Saved evaluation observations"}
+            ? "Live data in this run"
+            : "Live data in evaluations"}
         </p>
         <p className="mt-1 text-[10px] leading-5 text-[var(--text-muted)]">
           {context === "run"
-            ? "External observations refresh when these graph nodes execute. They are recorded in the trace, and only become immutable observation artifacts when capture is enabled or the graph contract requires it."
-            : "Each dataset example supplies locked observation references. Evaluations do not refresh them, so every model sees the same recorded external data."}
+            ? "These nodes fetch data from outside the app as the run happens."
+            : "Every example uses the exact snapshot pinned to it, so scores stay comparable across runs."}
         </p>
-        <div className="mono mt-2 grid gap-1 text-[9px] text-[var(--text-faint)]">
+        <div className="mt-2 grid gap-1 text-[9px] text-[var(--text-faint)]">
           {nodes.map((node) => {
             const policy = node.runtime_input_policy!;
             const mode =
               context === "run" ? policy.runtime_mode : policy.evaluation_mode;
             return (
               <span key={node.id}>
-                Node: {node.label}; source: {policy.source}; {context}: {mode}
-                {policy.schema_version
-                  ? `; schema: v${policy.schema_version}`
-                  : ""}
-                {!policy.required ? "; optional" : ""}
+                {node.label} — {modeLine(context, mode)}
+                {!policy.required ? " Optional." : ""}
               </span>
             );
           })}
@@ -50,4 +47,14 @@ export function RuntimeInputNotice({
       </div>
     </div>
   );
+}
+
+function modeLine(
+  context: "run" | "evaluation",
+  mode: "locked" | "refresh",
+): string {
+  if (mode === "refresh") return "Fetches new data.";
+  return context === "run"
+    ? "Reuses the last saved copy."
+    : "Uses the snapshot pinned to each example.";
 }

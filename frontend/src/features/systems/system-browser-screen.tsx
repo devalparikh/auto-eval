@@ -30,7 +30,7 @@ export function SystemBrowserScreen() {
         {!catalog.loading && catalog.data?.agent_systems.length === 0 ? (
           <EmptyState
             title="No agent systems"
-            message="Seed a built-in system or register one through the backend extension boundary."
+            message="Systems are set up in the backend. Once one exists, it appears here."
           />
         ) : null}
         {products.map((flows) => {

@@ -44,9 +44,7 @@ export function VersionEditor({
   associations?: Array<{ nodeId: string; label: string }>;
 }) {
   const [draft, setDraft] = useState(content);
-  const [graphView, setGraphView] = useState<"structure" | "source">(
-    "structure",
-  );
+  const [graphView, setGraphView] = useState<"graph" | "json">("graph");
   const [saving, setSaving] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -137,14 +135,22 @@ export function VersionEditor({
             <p className="text-[10px] font-medium">
               {associations.length
                 ? `Used by ${associations.length} node${associations.length === 1 ? "" : "s"} in the selected graph`
-                : "Not referenced by the selected graph version"}
+                : "Not used by the selected graph"}
             </p>
             {associations.length ? (
-              <p className="mono mt-1 text-[9px] text-[var(--text-muted)]">
-                {associations
-                  .map(({ label, nodeId }) => `${label} · ${nodeId}`)
-                  .join("  /  ")}
-              </p>
+              <ul className="mt-1.5 grid gap-1">
+                {associations.map(({ nodeId, label }) => (
+                  <li
+                    key={nodeId}
+                    className="flex items-baseline gap-2 text-[9px]"
+                  >
+                    <span className="text-[var(--text-muted)]">{label}</span>
+                    <span className="mono text-[var(--text-faint)]">
+                      {nodeId}
+                    </span>
+                  </li>
+                ))}
+              </ul>
             ) : null}
           </div>
         ) : null}
@@ -159,39 +165,32 @@ export function VersionEditor({
               >
                 <button
                   type="button"
-                  aria-pressed={graphView === "structure"}
+                  aria-pressed={graphView === "graph"}
                   disabled={!graphDefinition}
-                  onClick={() => setGraphView("structure")}
+                  onClick={() => setGraphView("graph")}
                 >
-                  Structure
+                  Graph
                 </button>
                 <button
                   type="button"
-                  aria-pressed={graphView === "source"}
-                  onClick={() => setGraphView("source")}
+                  aria-pressed={graphView === "json"}
+                  onClick={() => setGraphView("json")}
                 >
-                  Source
+                  JSON
                 </button>
               </div>
-              <div className="flex items-center gap-3">
-                <span>
-                  {graphView === "structure"
-                    ? "Inspect nodes, edges, and prompt associations."
-                    : "Edit the raw definition to create a new version."}
-                </span>
-                {graphView === "structure" && graphDefinition ? (
-                  <button
-                    type="button"
-                    className="app-button secondary"
-                    onClick={() => setExpanded(true)}
-                  >
-                    <ArrowsOutIcon size={13} />
-                    Expand graph
-                  </button>
-                ) : null}
-              </div>
+              {graphView === "graph" && graphDefinition ? (
+                <button
+                  type="button"
+                  className="app-button secondary"
+                  onClick={() => setExpanded(true)}
+                >
+                  <ArrowsOutIcon size={13} />
+                  Expand graph
+                </button>
+              ) : null}
             </div>
-            {graphView === "structure" && graphDefinition ? (
+            {graphView === "graph" && graphDefinition ? (
               <AgentGraph definition={graphDefinition} />
             ) : (
               <textarea
@@ -243,8 +242,7 @@ export function VersionEditor({
         <Modal
           open={expanded}
           size="fullscreen"
-          title="Agent graph structure"
-          description="Pan and zoom the selected graph."
+          title="Agent graph"
           onClose={() => setExpanded(false)}
         >
           <AgentGraph definition={graphDefinition} fullscreen />

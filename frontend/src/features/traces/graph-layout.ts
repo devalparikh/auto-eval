@@ -1,12 +1,14 @@
 import type { Edge, Node } from "@xyflow/react";
-import type { GraphNodeDefinition, Trace } from "@/lib/types";
+import { graphLevels } from "@/features/graph/layout";
+import { graphNodeView, type GraphNodeView } from "@/features/graph/node-view";
+import type { Trace } from "@/lib/types";
 
 export type TraceNodeData = {
-  definition: GraphNodeDefinition;
+  view: GraphNodeView;
+  selected: boolean;
   status: string;
   latency: number;
   cost: number;
-  selected: boolean;
   snapshotId: string | null;
   snapshotRole: "produced" | "consumed" | null;
   snapshotMode: string | null;
@@ -26,18 +28,23 @@ export function buildTraceGraph(
     const index = levelCounts.get(level) ?? 0;
     levelCounts.set(level, index + 1);
     const span = trace.spans.find((item) => item.node_id === node.id);
+    const view = graphNodeView(node, {
+      entry: node.id === definition.entry_point,
+      output: node.id === definition.output_node,
+    });
     return {
       id: node.id,
       type: "traceNode",
       position: { x: level * 278, y: index * 150 },
       initialWidth: 208,
       initialHeight: 118,
+      ariaLabel: view.ariaLabel,
       data: {
-        definition: node,
+        view,
+        selected: selectedNodeId === node.id,
         status: span?.status ?? "queued",
         latency: span?.latency_ms ?? 0,
         cost: span?.cost_usd ?? 0,
-        selected: selectedNodeId === node.id,
         snapshotId:
           span?.node_snapshot_id ?? span?.runtime_input_snapshot_id ?? null,
         snapshotRole: span?.snapshot_role ?? null,
@@ -54,33 +61,4 @@ export function buildTraceGraph(
     style: { stroke: "var(--border-strong)", strokeWidth: 1.5 },
   }));
   return { nodes, edges };
-}
-
-export function graphLevels(
-  nodes: GraphNodeDefinition[],
-  edges: Array<{ source: string; target: string }>,
-): Map<string, number> {
-  const incoming = new Map(nodes.map((node) => [node.id, 0]));
-  const outgoing = new Map(nodes.map((node) => [node.id, [] as string[]]));
-
-  edges.forEach((edge) => {
-    incoming.set(edge.target, (incoming.get(edge.target) ?? 0) + 1);
-    outgoing.get(edge.source)?.push(edge.target);
-  });
-
-  const queue = nodes.filter((node) => incoming.get(node.id) === 0).map((node) => node.id);
-  const levels = new Map(queue.map((id) => [id, 0]));
-
-  while (queue.length) {
-    const source = queue.shift();
-    if (!source) break;
-    for (const target of outgoing.get(source) ?? []) {
-      const nextLevel = (levels.get(source) ?? 0) + 1;
-      levels.set(target, Math.max(levels.get(target) ?? 0, nextLevel));
-      incoming.set(target, (incoming.get(target) ?? 1) - 1);
-      if (incoming.get(target) === 0) queue.push(target);
-    }
-  }
-
-  return levels;
 }

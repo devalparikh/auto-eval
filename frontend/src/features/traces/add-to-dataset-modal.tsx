@@ -180,11 +180,11 @@ export function AddToDatasetModal({
           {Object.keys(runtimeInputSnapshotIds ?? {}).length ? (
             <section className="border border-[var(--border)] bg-[var(--surface-muted)] p-3">
               <p className="text-[10px] font-semibold text-[var(--text-muted)]">
-                Locked runtime observations
+                Live data snapshots
               </p>
               <p className="mt-1 mb-3 text-[10px] leading-5 text-[var(--text-muted)]">
-                Promotion preserves these node-to-snapshot references. They are
-                not copied into the editable request input.
+                The example keeps these exact snapshots instead of fetching new
+                data.
               </p>
               <RuntimeSnapshotRefs
                 systemKey={systemKey}
@@ -195,11 +195,11 @@ export function AddToDatasetModal({
           {Object.keys(nodeResourceSelections ?? {}).length ? (
             <section className="border border-[var(--border)] bg-[var(--surface-muted)] p-3">
               <p className="text-[10px] font-semibold text-[var(--text-muted)]">
-                Saved inputs
+                Saved data snapshots
               </p>
               <p className="mt-1 mb-3 text-[10px] leading-5 text-[var(--text-muted)]">
-                Promotion preserves these exact saved outputs for replay and
-                auditing. They stay separate from editable business input.
+                The example reads these exact snapshots, so results stay
+                comparable.
               </p>
               <SavedInputRefs
                 systemKey={systemKey}

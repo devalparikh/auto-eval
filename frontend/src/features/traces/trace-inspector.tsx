@@ -7,19 +7,30 @@ import {
   DatabaseIcon,
 } from "@phosphor-icons/react";
 import Link from "next/link";
-import { useCallback, useState, type ReactNode } from "react";
+import { useCallback, useMemo, useState, type ReactNode } from "react";
 import { StatusBadge } from "@/components/status-badge";
+import {
+  GraphNodeDetails,
+  GraphNodeDetailsEmpty,
+} from "@/features/graph/node-details";
+import { graphNodeView } from "@/features/graph/node-view";
 import { systemPath } from "@/features/systems/system-path";
 import { api } from "@/lib/api";
 import { formatCost, formatDate, formatDuration, shortId } from "@/lib/format";
-import type { TraceSpan } from "@/lib/types";
+import type { GraphNodeDefinition, TraceSpan } from "@/lib/types";
 import { useApiResource } from "@/lib/use-api-resource";
 
 export function TraceInspector({
   span,
+  node,
+  entry = false,
+  output = false,
   systemKey,
 }: {
   span: TraceSpan | null;
+  node: GraphNodeDefinition | null;
+  entry?: boolean;
+  output?: boolean;
   systemKey: string;
 }) {
   const [copied, setCopied] = useState(false);
@@ -29,23 +40,24 @@ export function TraceInspector({
     setCopied(true);
     window.setTimeout(() => setCopied(false), 1200);
   }, [span]);
+  const view = useMemo(
+    () =>
+      span
+        ? graphNodeView(node ?? definitionFromSpan(span), { entry, output })
+        : null,
+    [entry, node, output, span],
+  );
 
-  if (!span) {
+  if (!span || !view) {
     return (
-      <div className="grid min-h-[360px] place-items-center text-[12px] text-[var(--text-muted)]">
-        Select a node
+      <div className="grid min-h-[360px] place-items-center bg-[var(--surface)]">
+        <GraphNodeDetailsEmpty message="Select a node to see what it did." />
       </div>
     );
   }
 
   return (
-    <aside className="min-w-0 bg-[var(--surface)]">
-      <div className="flex h-11 items-center justify-between border-b border-[var(--border)] px-4">
-        <h2 className="truncate text-[12px] font-semibold">
-          {span.node_id.replaceAll("_", " ")}
-        </h2>
-        <StatusBadge status={span.status} />
-      </div>
+    <GraphNodeDetails view={view} action={<StatusBadge status={span.status} />}>
       <div className="grid grid-cols-3 border-b border-[var(--border)]">
         <InspectorMetric
           label="Latency"
@@ -64,23 +76,15 @@ export function TraceInspector({
         <NodeSnapshotUse span={span} systemKey={systemKey} />
       ) : span.node_kind === "deterministic" ||
         span.node_kind === "external_input" ? (
-        <InspectorSection label="Data resolution">
+        <InspectorSection label="Snapshot">
           <p className="text-[10px] font-semibold text-[var(--text-muted)]">
-            {span.snapshot_resolution_mode === "live"
-              ? "Live data: not saved"
-              : span.snapshot_resolution_mode
-                ? `${resolutionLabel(span.snapshot_resolution_mode, span.snapshot_role ?? "used")}: not saved`
-                : "Executed: no saved output"}
-          </p>
-          <p className="mt-1 text-[10px] leading-5 text-[var(--text-muted)]">
-            This step ran for the trace, but no immutable node-output snapshot
-            was attached. Resolution metadata remains part of the span.
+            Nothing saved
           </p>
           {span.snapshot_metadata &&
           Object.keys(span.snapshot_metadata).length ? (
             <details className="mt-2 border border-[var(--border)] px-3 py-2">
               <summary className="cursor-pointer text-[9px] font-medium text-[var(--text-muted)]">
-                Resolution metadata
+                Details
               </summary>
               <div className="mt-2">
                 <JsonBlock value={span.snapshot_metadata} />
@@ -110,8 +114,19 @@ export function TraceInspector({
       >
         <JsonBlock value={span.output ?? {}} />
       </InspectorSection>
-    </aside>
+    </GraphNodeDetails>
   );
+}
+
+/** Stand-in node when a trace predates the graph definition it ran on. */
+function definitionFromSpan(span: TraceSpan): GraphNodeDefinition {
+  return {
+    id: span.node_id,
+    label: span.node_id.replaceAll("_", " "),
+    kind: span.node_kind === "llm" ? "llm" : "deterministic",
+    handler: span.node_id,
+    task: null,
+  };
 }
 
 function NodeSnapshotUse({
@@ -135,10 +150,9 @@ function NodeSnapshotUse({
     (span.runtime_input_snapshot_id ? "replayed" : "computed");
   const role =
     span.snapshot_role ?? (mode === "replayed" ? "consumed" : "produced");
-  const label = resolutionLabel(mode, role);
 
   return (
-    <InspectorSection label="Data resolution">
+    <InspectorSection label="Snapshot">
       <div className="border border-[var(--border)]">
         <div className="flex items-start justify-between gap-3 border-b border-[var(--border)] px-3 py-3">
           <span className="flex min-w-0 items-start gap-2">
@@ -147,9 +161,13 @@ function NodeSnapshotUse({
               className="mt-0.5 shrink-0 text-[var(--accent)]"
             />
             <span className="min-w-0">
-              <span className="block text-[10px] font-semibold">{label}</span>
+              <span className="block text-[10px] font-semibold">
+                {role === "consumed"
+                  ? "Used a saved copy"
+                  : "Saved a copy of this output"}
+              </span>
               <span className="mono mt-1 block truncate text-[8px] text-[var(--text-faint)]">
-                {span.node_id} → {shortId(snapshotId)}
+                {shortId(snapshotId)}
               </span>
             </span>
           </span>
@@ -161,54 +179,40 @@ function NodeSnapshotUse({
             <ArrowSquareOutIcon size={10} />
           </Link>
         </div>
-        <dl className="grid grid-cols-2 text-[9px]">
-          <SnapshotFact label="Role" value={role} />
-          <SnapshotFact label="Mode" value={mode} />
-          <SnapshotFact
-            label="Step latency"
-            value={formatDuration(span.latency_ms)}
-          />
-          <SnapshotFact label="Step status" value={span.status} />
-          {detail.data ? (
-            <>
-              <SnapshotFact
-                label="Observed"
-                value={formatDate(detail.data.observed_at)}
-              />
-              <SnapshotFact
-                label="Captured"
-                value={formatDate(detail.data.captured_at)}
-              />
-              <SnapshotFact label="Source" value={detail.data.source} />
-              <SnapshotFact
-                label="Provider"
-                value={detail.data.provider ?? "local"}
-              />
-              <SnapshotFact
-                label="Schema"
-                value={`v${detail.data.schema_version}`}
-              />
-              <SnapshotFact
-                label="Data class"
-                value={detail.data.is_synthetic ? "synthetic" : "real"}
-              />
-            </>
-          ) : null}
-        </dl>
+        {detail.data ? (
+          <dl className="grid grid-cols-3 text-[9px]">
+            <SnapshotFact
+              label="Saved"
+              value={formatDate(detail.data.captured_at)}
+            />
+            <SnapshotFact
+              label="From"
+              value={
+                detail.data.provider
+                  ? `${detail.data.source} via ${detail.data.provider}`
+                  : detail.data.source
+              }
+            />
+            <SnapshotFact
+              label="Data"
+              value={detail.data.is_synthetic ? "Synthetic" : "Real"}
+            />
+          </dl>
+        ) : null}
         {detail.loading ? (
           <p className="px-3 py-2 text-[9px] text-[var(--text-faint)]">
-            Loading snapshot metadata…
+            Loading snapshot…
           </p>
         ) : null}
         {detail.error ? (
           <p className="px-3 py-2 text-[9px] text-[var(--danger)]">
-            Snapshot metadata unavailable: {detail.error}
+            Snapshot details unavailable: {detail.error}
           </p>
         ) : null}
         {detail.data && Object.keys(detail.data.node_metadata).length ? (
           <details className="border-t border-[var(--border)] px-3 py-2">
             <summary className="cursor-pointer text-[9px] font-medium text-[var(--text-muted)]">
-              Node-specific metadata
+              Details
             </summary>
             <div className="mt-2">
               <JsonBlock value={detail.data.node_metadata} />
@@ -222,21 +226,16 @@ function NodeSnapshotUse({
 
 function SnapshotFact({ label, value }: { label: string; value: string }) {
   return (
-    <div className="min-w-0 border-r border-b border-[var(--border)] px-3 py-2 last:border-r-0">
+    <div className="min-w-0 border-r border-[var(--border)] px-3 py-2 last:border-r-0">
       <dt className="text-[8px] text-[var(--text-faint)]">{label}</dt>
-      <dd className="mono mt-1 truncate text-[9px] text-[var(--text-muted)]">
+      <dd
+        className="mono mt-1 truncate text-[9px] text-[var(--text-muted)]"
+        title={value}
+      >
         {value}
       </dd>
     </div>
   );
-}
-
-function resolutionLabel(mode: string, role: string): string {
-  if (mode === "live") return "Live data captured";
-  if (mode === "replayed") return "Snapshot replayed";
-  if (mode === "resolved") return "Indexed state resolved";
-  if (mode === "seeded") return "Seeded snapshot used";
-  return role === "consumed" ? "Snapshot consumed" : "Computed output captured";
 }
 
 function InspectorMetric({ label, value }: { label: string; value: string }) {

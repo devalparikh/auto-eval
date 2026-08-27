@@ -17,21 +17,16 @@ import { api } from "@/lib/api";
 import { useApiResource } from "@/lib/use-api-resource";
 
 const sections = [
-  ["run", "Run", "Execute one request with pinned versions", PlayIcon],
-  ["traces", "Traces", "Runtime and evaluation executions", PulseIcon],
+  ["run", "Run", "Send one request through the graph", PlayIcon],
+  ["traces", "Traces", "Every run, step by step", PulseIcon],
+  ["datasets", "Datasets", "Saved examples to evaluate against", DatabaseIcon],
   [
-    "datasets",
-    "Datasets",
-    "Reviewed examples and immutable versions",
-    DatabaseIcon,
+    "evaluations",
+    "Evaluate",
+    "Compare models on the same examples",
+    FlaskIcon,
   ],
-  ["evaluations", "Evaluate", "Pinned cross-model runs", FlaskIcon],
-  [
-    "artifacts",
-    "Artifacts",
-    "Graph, prompt, and indexed snapshot revisions",
-    GitBranchIcon,
-  ],
+  ["artifacts", "Artifacts", "Graph, prompts, and snapshots", GitBranchIcon],
 ] as const;
 
 export function SystemOverviewScreen({ systemKey }: { systemKey: string }) {
@@ -71,12 +66,12 @@ export function SystemOverviewScreen({ systemKey }: { systemKey: string }) {
         </div>
         <aside className="border border-[var(--border)] bg-[var(--surface)] p-5">
           <p className="mono text-[9px] lowercase tracking-[0.12em] text-[var(--text-faint)]">
-            Workspace inventory
+            In this system
           </p>
           <dl className="mt-5 grid gap-4 text-[11px]">
             <Inventory label="Graph versions" value={system.versions.length} />
             <Inventory
-              label="Prompt families"
+              label="Prompts"
               value={
                 catalog.data?.prompts.filter(
                   (item) => item.agent_system_id === system.id,
