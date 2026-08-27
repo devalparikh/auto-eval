@@ -311,7 +311,7 @@ export function VersionEditor({
             >
               {kind === "graph" && !graphDefinition
                 ? "The current source is not a valid agent graph definition."
-                : "Saving creates a new immutable version."}
+                : "Saving creates a new version. Versions you already have never change."}
             </p>
           </div>
           <button

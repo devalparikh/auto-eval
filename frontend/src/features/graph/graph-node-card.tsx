@@ -1,6 +1,6 @@
 "use client";
 
-import { Handle, Position } from "@xyflow/react";
+import { Handle, Position, useStore } from "@xyflow/react";
 import type { ReactNode } from "react";
 import { GraphNodeIcon, graphNodeIsFilled } from "@/features/graph/node-icon";
 import {
@@ -10,6 +10,13 @@ import {
   type GraphNodeType,
   type GraphNodeView,
 } from "@/features/graph/node-view";
+
+/**
+ * Below this zoom a card is a map pin, not something to read: the detail lines
+ * are illegible either way, and the label survives only because it is drawn
+ * larger to compensate for the canvas scaling it back down.
+ */
+const overviewZoom = 0.78;
 
 /**
  * The node card every graph screen draws. Colour, icon, and badge wording come
@@ -27,6 +34,13 @@ export function GraphNodeCard({
   footer?: ReactNode;
 }) {
   const accent = `var(--node-${view.type})`;
+  const zoom = useStore((state) => state.transform[2]);
+  const overview = zoom < overviewZoom;
+  // Cancel out the canvas scale so the label reads the same at any zoom.
+  const scale = (size: number, cap: number) =>
+    overview ? Math.min(cap, size / Math.max(zoom, 0.2)) : size;
+  const labelSize = scale(12, 20);
+  const badgeSize = scale(8, 13);
   return (
     <div
       style={{
@@ -48,26 +62,34 @@ export function GraphNodeCard({
       <div className="flex items-start gap-2">
         <GraphNodeIcon type={view.type} />
         <span className="min-w-0 flex-1">
-          <span className="block truncate text-[12px] font-semibold">
+          <span
+            style={{ fontSize: `${labelSize}px` }}
+            className="block truncate leading-tight font-semibold"
+          >
             {view.label}
           </span>
-          <span
-            style={{ color: accent }}
-            className="mono mt-0.5 block truncate text-[8px] tracking-[0.04em]"
-          >
-            {view.typeLabel}
-          </span>
+          {overview ? null : (
+            <span
+              style={{ color: accent }}
+              className="mono mt-0.5 block truncate text-[8px] tracking-[0.04em]"
+            >
+              {view.typeLabel}
+            </span>
+          )}
         </span>
       </div>
-      <p className="mono mt-2 truncate text-[8px] text-[var(--text-faint)]">
-        {view.summary}
-      </p>
+      {overview ? null : (
+        <p className="mono mt-2 truncate text-[8px] text-[var(--text-faint)]">
+          {view.summary}
+        </p>
+      )}
       {view.badges.length ? (
         <div className="mt-2 flex flex-wrap gap-1">
           {view.badges.map((badge) => (
             <span
               key={badge}
-              className="border border-[var(--border)] px-1.5 py-0.5 text-[8px] text-[var(--text-muted)]"
+              style={{ fontSize: `${badgeSize}px` }}
+              className="border border-[var(--border)] px-1.5 py-0.5 leading-tight text-[var(--text-muted)]"
             >
               {badge}
             </span>
