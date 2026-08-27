@@ -20,9 +20,15 @@ import {
   PORTFOLIO_QUERY_SYSTEM_KEY,
 } from "@/features/run/run-options";
 import { RunGraphPreview } from "@/features/run/run-graph-preview";
-import { RunSavedInputs } from "@/features/run/run-saved-inputs";
+import { RunNodeControls } from "@/features/run/run-node-controls";
+import {
+  RunPlanSummary,
+  type RunPlanItem,
+} from "@/features/run/run-plan-summary";
+import { useRunLiveInputs } from "@/features/run/use-run-live-inputs";
 import { useRunSavedInputs } from "@/features/run/use-run-saved-inputs";
 import {
+  graphPromptAssociations,
   promptForGraphKey,
   promptKeysForGraph,
 } from "@/features/systems/graph-prompts";
@@ -115,6 +121,31 @@ export function RunWorkbench({
   const graphVersionIsCurrent = graphDetail.data?.id === selectedGraphVersionId;
   const graphVersionIsChanging = graphDetail.loading || !graphVersionIsCurrent;
   const savedInputs = useRunSavedInputs(graphDefinition);
+  const liveInputs = useRunLiveInputs(system.id, graphDefinition);
+  const [promptVersionIds, setPromptVersionIds] = useState<
+    Record<string, string>
+  >({});
+  const [promptGraphVersionId, setPromptGraphVersionId] = useState(
+    selectedGraphVersionId,
+  );
+  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+  const [selectedNodeGraphId, setSelectedNodeGraphId] = useState<string | null>(
+    null,
+  );
+
+  // Another graph can need a different set of prompts: start each one from its
+  // newest version rather than carrying the last graph's choices over.
+  if (promptGraphVersionId !== selectedGraphVersionId) {
+    setPromptGraphVersionId(selectedGraphVersionId);
+    setPromptVersionIds({});
+  }
+  // A different graph means a different set of nodes: open its first node
+  // rather than keeping a selection that no longer exists.
+  if (graphDetail.data && selectedNodeGraphId !== graphDetail.data.id) {
+    setSelectedNodeGraphId(graphDetail.data.id);
+    setSelectedNodeId(graphDetail.data.definition.entry_point);
+  }
+
   const hasRefreshNodes =
     graphDefinition?.nodes.some(
       (node) => node.runtime_input_policy?.runtime_mode === "refresh",
@@ -128,6 +159,60 @@ export function RunWorkbench({
     .filter(({ prompt }) => !prompt?.versions.length)
     .map(({ key }) => key);
   const usesKeyedPrompts = promptKeys.length > 0;
+  const selectedPromptVersionIds = Object.fromEntries(
+    promptFamilies.map(({ key, prompt }) => {
+      const versions = prompt?.versions ?? [];
+      const requested = versions.find(
+        (version) => version.id === promptVersionIds[key],
+      );
+      return [key, (requested ?? versions[0])?.id ?? ""];
+    }),
+  ) as Record<string, string>;
+  const planItems: RunPlanItem[] = [
+    ...(usesKeyedPrompts
+      ? promptFamilies.map(({ key, prompt }) => {
+          const version = prompt?.versions.find(
+            (candidate) => candidate.id === selectedPromptVersionIds[key],
+          );
+          return {
+            nodeId:
+              graphPromptAssociations(graphDefinition, key)[0]?.nodeId ?? "",
+            label: prompt?.name ?? key,
+            value: version ? `Version ${version.version}` : "No prompt yet",
+            unset: !version,
+          };
+        })
+      : []),
+    ...savedInputs.savedInputNodes.map((node) => {
+      const choice = savedInputs.choices[node.id]?.find(
+        (candidate) =>
+          candidate.token === savedInputs.selectedChoiceTokens[node.id],
+      );
+      return {
+        nodeId: node.id,
+        label: node.label,
+        value: choice?.label ?? "Nothing saved yet",
+        unset: !choice,
+      };
+    }),
+    ...liveInputs.lockedNodes.map((node) => {
+      const snapshot = liveInputs.choices[node.id]?.find(
+        (candidate) => candidate.id === liveInputs.snapshotIds[node.id],
+      );
+      return {
+        nodeId: node.id,
+        label: node.label,
+        value: snapshot?.label ?? "Nothing saved yet",
+        unset: !snapshot,
+      };
+    }),
+  ];
+  const planWarnings = liveInputs.emptyOptionalNodes.map(
+    (node) =>
+      `${node.label} has no saved copy yet, so this run has no ${readableSource(
+        node.runtime_input_policy?.source,
+      )} data to read.`,
+  );
 
   const hasExecutionInputs =
     graphs.length > 0 &&
@@ -138,7 +223,8 @@ export function RunWorkbench({
     graphVersionIsCurrent &&
     !graphDetail.loading &&
     !graphDetail.error &&
-    savedInputs.ready;
+    savedInputs.ready &&
+    liveInputs.ready;
   const selectedModel = models.find((model) => model.id === selectedModelId);
   const product = catalog.agent_systems.find(
     (candidate) => candidate.key === system.product_key,
@@ -147,6 +233,10 @@ export function RunWorkbench({
     system.flow_key === "run"
       ? `Run ${system.name}`
       : `${product?.name ?? system.name} · ${system.flow_name}`;
+
+  function selectPromptVersion(promptKey: string, versionId: string) {
+    setPromptVersionIds((current) => ({ ...current, [promptKey]: versionId }));
+  }
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -163,11 +253,8 @@ export function RunWorkbench({
     }
 
     const form = new FormData(event.currentTarget);
-    const promptVersionIds = Object.fromEntries(
-      promptKeys.map((key) => [key, String(form.get(`promptVersion:${key}`))]),
-    );
     const legacyPromptVersionId = usesKeyedPrompts
-      ? Object.values(promptVersionIds)[0]
+      ? Object.values(selectedPromptVersionIds)[0]
       : String(form.get("promptVersion"));
     setSubmitting(true);
     try {
@@ -177,8 +264,13 @@ export function RunWorkbench({
         agent_system_id: system.id,
         agent_system_version_id: selectedGraphVersionId,
         prompt_version_id: legacyPromptVersionId,
-        ...(usesKeyedPrompts ? { prompt_version_ids: promptVersionIds } : {}),
+        ...(usesKeyedPrompts
+          ? { prompt_version_ids: selectedPromptVersionIds }
+          : {}),
         node_resource_selections: savedInputs.selections,
+        ...(Object.keys(liveInputs.snapshotIds).length
+          ? { runtime_input_snapshot_ids: liveInputs.snapshotIds }
+          : {}),
         capture_node_outputs: captureNodeOutputs,
       });
       setTrace(completedTrace);
@@ -196,7 +288,7 @@ export function RunWorkbench({
     <>
       <PageHeader
         title={pageTitle}
-        description="Choose a graph, prompt, and model, then run the request."
+        description="Choose a graph and model, set what each node uses, then run it."
       />
       <section className="grid gap-4 p-4 md:p-7">
         <form
@@ -208,7 +300,11 @@ export function RunWorkbench({
             <h2 className="text-[12px] font-semibold">Execution plan</h2>
           </div>
           <div className="grid gap-5 p-4 md:p-5">
-            <div className="grid gap-4 md:grid-cols-3">
+            <div
+              className={`grid gap-4 ${
+                usesKeyedPrompts ? "md:grid-cols-2" : "md:grid-cols-3"
+              }`}
+            >
               <div className="field">
                 <label htmlFor="run-graph-version">Graph version</label>
                 <Select
@@ -228,25 +324,7 @@ export function RunWorkbench({
                   ))}
                 </Select>
               </div>
-              {usesKeyedPrompts ? (
-                promptFamilies.map(({ key, prompt }) => (
-                  <div className="field" key={key}>
-                    <label htmlFor={`run-prompt-${key}`}>Prompt: {key}</label>
-                    <Select
-                      id={`run-prompt-${key}`}
-                      name={`promptVersion:${key}`}
-                      disabled={submitting || !prompt?.versions.length}
-                      required
-                    >
-                      {prompt?.versions.map((version) => (
-                        <option key={version.id} value={version.id}>
-                          {prompt.name} v{version.version}
-                        </option>
-                      ))}
-                    </Select>
-                  </div>
-                ))
-              ) : (
+              {usesKeyedPrompts ? null : (
                 <div className="field">
                   <label htmlFor="run-prompt-version">Prompt version</label>
                   <Select
@@ -287,6 +365,13 @@ export function RunWorkbench({
               </div>
             </div>
 
+            <RunPlanSummary
+              items={planItems}
+              warnings={planWarnings}
+              loading={savedInputs.loading || liveInputs.loading}
+              onSelectNode={setSelectedNodeId}
+            />
+
             <section
               className="min-w-0"
               aria-labelledby="run-graph-preview-title"
@@ -300,8 +385,8 @@ export function RunWorkbench({
                     Execution graph
                   </h3>
                   <p className="mt-1 text-[10px] text-[var(--text-muted)]">
-                    Click a node to see what it does. Drag to pan, or use the
-                    controls to zoom.
+                    Click a node to see what it does and change what it uses.
+                    Drag to pan, or use the controls to zoom.
                   </p>
                 </div>
                 {selectedGraphVersion ? (
@@ -332,7 +417,43 @@ export function RunWorkbench({
                     <RunGraphPreview
                       definition={graphDefinition}
                       resourceSelections={savedInputs.selections}
-                      captureNodeOutputs={captureNodeOutputs}
+                      selectedNodeId={selectedNodeId}
+                      onSelectNode={setSelectedNodeId}
+                      renderNodeControls={(view) => (
+                        <RunNodeControls
+                          view={view}
+                          systemKey={systemKey}
+                          prompt={
+                            view.promptKey
+                              ? promptForGraphKey(
+                                  catalog,
+                                  system.id,
+                                  view.promptKey,
+                                )
+                              : undefined
+                          }
+                          promptVersionId={
+                            view.promptKey
+                              ? (selectedPromptVersionIds[view.promptKey] ?? "")
+                              : ""
+                          }
+                          onSelectPromptVersion={selectPromptVersion}
+                          savedInputChoices={savedInputs.choices[view.id] ?? []}
+                          savedInputToken={
+                            savedInputs.selectedChoiceTokens[view.id] ?? ""
+                          }
+                          savedInputLoading={savedInputs.loading}
+                          onSelectSavedInput={savedInputs.select}
+                          liveInputSnapshots={liveInputs.choices[view.id] ?? []}
+                          liveInputSnapshotId={
+                            liveInputs.snapshotIds[view.id] ?? ""
+                          }
+                          liveInputLoading={liveInputs.loading}
+                          onSelectLiveInput={liveInputs.select}
+                          captureNodeOutputs={captureNodeOutputs}
+                          submitting={submitting}
+                        />
+                      )}
                     />
                   </div>
                 ) : (
@@ -354,15 +475,6 @@ export function RunWorkbench({
                 ) : null}
               </div>
             </section>
-
-            <RunSavedInputs
-              nodes={savedInputs.savedInputNodes}
-              choices={savedInputs.choices}
-              selectedTokens={savedInputs.selectedChoiceTokens}
-              loading={savedInputs.loading}
-              submitting={submitting}
-              onSelect={savedInputs.select}
-            />
 
             <RuntimeInputNotice definition={graphDefinition} context="run" />
 
@@ -453,6 +565,30 @@ export function RunWorkbench({
                   .join(", ")}{" "}
                 input before it can run. Create one first.
               </p>
+            ) : liveInputs.lockedNodes.length && liveInputs.error ? (
+              <p
+                id="run-error"
+                role="alert"
+                className="text-[11px] text-[var(--danger)]"
+              >
+                Saved copies of live data could not be loaded:{" "}
+                {liveInputs.error}
+              </p>
+            ) : liveInputs.missingRequiredNodes.length ? (
+              <p
+                id="run-error"
+                role="alert"
+                className="text-[11px] text-[var(--danger)]"
+              >
+                This graph reads a saved copy of{" "}
+                {liveInputs.missingRequiredNodes
+                  .map((node) =>
+                    readableSource(node.runtime_input_policy?.source),
+                  )
+                  .join(", ")}{" "}
+                instead of fetching it, and nothing has been saved yet. Run this
+                graph with live data first, keeping a copy.
+              </p>
             ) : error ? (
               <p
                 id="run-error"
@@ -512,6 +648,10 @@ export function RunWorkbench({
       </section>
     </>
   );
+}
+
+function readableSource(source: string | undefined): string {
+  return (source ?? "live").replaceAll("_", " ");
 }
 
 function RunResult({ trace, systemKey }: { trace: Trace; systemKey: string }) {

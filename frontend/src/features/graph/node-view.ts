@@ -198,7 +198,7 @@ function describeDataFlow(
       onRun:
         runtimePolicy.runtime_mode === "refresh"
           ? "Fetches new data."
-          : "Reuses the last saved copy.",
+          : "Replays a saved copy you pick before the run.",
       onEvaluation:
         runtimePolicy.evaluation_mode === "locked"
           ? "Reuses the copy pinned to each dataset example."

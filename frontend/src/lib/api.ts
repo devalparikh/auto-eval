@@ -132,6 +132,7 @@ export const api = {
     prompt_version_id?: string;
     prompt_version_ids?: Record<string, string>;
     node_resource_selections?: Record<string, NodeResourceSelection>;
+    runtime_input_snapshot_ids?: Record<string, string>;
     capture_node_outputs?: boolean;
   }) => apiRequest<Trace>("/traces/run", { method: "POST", body: payload }),
   datasetVersion: (versionId: string) =>
