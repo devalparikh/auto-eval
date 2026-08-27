@@ -11,6 +11,8 @@ export default async function ArtifactsPage({
   searchParams: Promise<{
     snapshot?: string | string[];
     runtimeSnapshot?: string | string[];
+    artifact?: string | string[];
+    prompt?: string | string[];
   }>;
 }) {
   const { systemKey } = await params;
@@ -19,10 +21,21 @@ export default async function ArtifactsPage({
   const snapshotId = Array.isArray(requestedSnapshot)
     ? requestedSnapshot[0]
     : requestedSnapshot;
+  const artifact = first(query.artifact);
   return (
     <SystemsScreen
       systemKey={systemKey}
       initialSnapshotId={snapshotId}
+      initialArtifact={
+        artifact === "graph" || artifact === "prompt" || artifact === "snapshot"
+          ? artifact
+          : undefined
+      }
+      initialPromptKey={first(query.prompt)}
     />
   );
+}
+
+function first(value: string | string[] | undefined): string | undefined {
+  return Array.isArray(value) ? value[0] : value;
 }
