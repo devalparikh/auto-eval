@@ -58,6 +58,18 @@ export function GraphNodeDetails({
             <p style={{ color: accent }} className="mono mt-0.5 text-[9px]">
               {view.typeLabel}
             </p>
+            {view.badges.length ? (
+              <div className="mt-1.5 flex flex-wrap gap-1">
+                {view.badges.map((badge) => (
+                  <span
+                    key={badge}
+                    className="border border-[var(--border)] px-1.5 py-0.5 text-[8px] text-[var(--text-muted)]"
+                  >
+                    {badge}
+                  </span>
+                ))}
+              </div>
+            ) : null}
           </div>
         </div>
         {action}

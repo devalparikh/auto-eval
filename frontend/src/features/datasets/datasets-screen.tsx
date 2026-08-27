@@ -146,7 +146,7 @@ export function DatasetsScreen({ systemKey }: { systemKey: string }) {
               <StatusBadge status={selectedVersion?.status ?? "final"} />
               <span>
                 {selectedVersion?.status === "draft"
-                  ? `${selectedVersion.item_count} examples · Finalizing locks this version.`
+                  ? `${selectedVersion.item_count} examples. Finalizing locks this version.`
                   : "Locked. Every example uses the exact snapshot pinned to it."}
               </span>
             </div>

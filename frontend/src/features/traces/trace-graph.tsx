@@ -4,6 +4,7 @@ import type { Node, NodeProps } from "@xyflow/react";
 import { useMemo } from "react";
 import { GraphCanvas } from "@/components/graph-canvas";
 import { GraphLegend, GraphNodeCard } from "@/features/graph/graph-node-card";
+import { graphHeightClass, graphRowCount } from "@/features/graph/layout";
 import {
   buildTraceGraph,
   type TraceNodeData,
@@ -39,7 +40,7 @@ export function TraceGraph({
       </div>
       <GraphCanvas
         ariaLabel="Trace execution graph"
-        className="h-[420px] md:h-[520px]"
+        className={graphHeightClass(graphRowCount(nodes))}
         nodes={nodes}
         edges={edges}
         nodeTypes={nodeTypes}

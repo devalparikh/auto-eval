@@ -19,6 +19,12 @@ import type {
 
 type InspectorView = "overview" | "metadata" | "content";
 
+const inspectorViews: Array<{ id: InspectorView; label: string }> = [
+  { id: "overview", label: "Overview" },
+  { id: "metadata", label: "Details" },
+  { id: "content", label: "Content" },
+];
+
 export function NodeSnapshotBrowser({
   systemKey,
   snapshots,
@@ -210,14 +216,14 @@ function SnapshotInspector({
           className="version-view-switch"
           aria-label="Snapshot inspector view"
         >
-          {(["overview", "metadata", "content"] as const).map((item) => (
+          {inspectorViews.map(({ id, label }) => (
             <button
-              key={item}
+              key={id}
               type="button"
-              aria-pressed={view === item}
-              onClick={() => onViewChange(item)}
+              aria-pressed={view === id}
+              onClick={() => onViewChange(id)}
             >
-              {item[0].toUpperCase() + item.slice(1)}
+              {label}
             </button>
           ))}
         </div>
@@ -286,10 +292,7 @@ function SnapshotInspector({
       ) : view === "metadata" ? (
         <div className="grid gap-4 p-4">
           <JsonViewer label="Where it came from" value={detail.provenance} />
-          <JsonViewer
-            label="Node details"
-            value={detail.node_metadata}
-          />
+          <JsonViewer label="Node details" value={detail.node_metadata} />
           {detail.usages[0] ? (
             <JsonViewer
               label="Latest run details"

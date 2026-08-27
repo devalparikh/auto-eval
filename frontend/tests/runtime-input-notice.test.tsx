@@ -31,9 +31,7 @@ describe("RuntimeInputNotice", () => {
   it("says a run fetches new data, and which nodes are optional", () => {
     render(<RuntimeInputNotice definition={definition} context="run" />);
     expect(screen.getByText("Live data in this run")).toBeVisible();
-    expect(
-      screen.getByText(/fetch data from outside the app/),
-    ).toBeVisible();
+    expect(screen.getByText(/fetch data from outside the app/)).toBeVisible();
     expect(
       screen.getByText(/Fetch options chain — Fetches new data. Optional./),
     ).toBeVisible();
@@ -43,7 +41,7 @@ describe("RuntimeInputNotice", () => {
     render(<RuntimeInputNotice definition={definition} context="evaluation" />);
     expect(screen.getByText("Live data in evaluations")).toBeVisible();
     expect(
-      screen.getByText(/exact snapshot pinned to it, so scores stay comparable/),
+      screen.getByText(/exact snapshot pinned to it, so scores stay/),
     ).toBeVisible();
     expect(
       screen.getByText(/Uses the snapshot pinned to each example./),

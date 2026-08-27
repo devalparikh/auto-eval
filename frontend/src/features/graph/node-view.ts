@@ -114,8 +114,11 @@ export function graphNodeView(
   const facts: GraphNodeFact[] = [
     { label: "Type", value: typeLabels[type] },
     { label: "Node", value: node.id },
-    { label: "Runs", value: node.handler },
   ];
+  // Most handlers are named after their node; repeating that tells the reader nothing.
+  if (node.handler !== node.id) {
+    facts.push({ label: "Runs", value: node.handler });
+  }
   if (node.prompt_key) facts.push({ label: "Prompt", value: node.prompt_key });
   if (runtimePolicy) facts.push({ label: "Source", value: runtimePolicy.source });
   if (resourcePolicy) {

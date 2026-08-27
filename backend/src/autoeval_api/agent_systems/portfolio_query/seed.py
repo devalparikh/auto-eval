@@ -181,8 +181,8 @@ async def ensure_demo_runs(
 
 def _get_or_create_system(session: Session) -> AgentSystemRecord:
     description = (
-        "Answer questions over an immutable server-resolved portfolio snapshot using "
-        "deterministic facts, supplied market data, and policy checks."
+        "Ask questions about a saved portfolio, answered from calculated facts, "
+        "market data, and your policy limits."
     )
     record = session.query(AgentSystemRecord).filter_by(key="portfolio-query").first()
     if record is None:
@@ -201,8 +201,8 @@ def _get_or_create_system(session: Session) -> AgentSystemRecord:
 
 def _get_or_create_snapshot_owner(session: Session) -> AgentSystemRecord:
     description = (
-        "Index portfolio context into an immutable snapshot and explain deterministic "
-        "exposure, concentration, bucket, liquidity, and scenario analysis."
+        "Analyse a portfolio's exposure, concentration, liquidity, and scenarios, "
+        "then save the result so questions can be asked against it."
     )
     record = session.query(AgentSystemRecord).filter_by(key="portfolio-analyst").first()
     if record is None:

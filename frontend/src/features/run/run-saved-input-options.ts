@@ -62,7 +62,7 @@ export function savedInputChoicesForNode(
   const exactChoices = exact.map((snapshot) => ({
     token: `locked:${snapshot.id}`,
     label: `Exact version: ${snapshot.label}`,
-    description: `Observed: ${new Date(snapshot.observed_at).toLocaleString()}`,
+    description: `Saved ${new Date(snapshot.observed_at).toLocaleString()}`,
     selection: { mode: "locked", snapshot_id: snapshot.id } as const,
     snapshot,
   }));

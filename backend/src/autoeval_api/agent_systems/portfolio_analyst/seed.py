@@ -145,8 +145,8 @@ async def ensure_demo_runs(
 
 def _get_or_create_system(session: Session) -> AgentSystemRecord:
     description = (
-        "Index portfolio context into an immutable snapshot and explain deterministic "
-        "exposure, concentration, bucket, liquidity, and scenario analysis."
+        "Analyse a portfolio's exposure, concentration, liquidity, and scenarios, "
+        "then save the result so questions can be asked against it."
     )
     record = session.query(AgentSystemRecord).filter_by(key="portfolio-analyst").first()
     if record is None:

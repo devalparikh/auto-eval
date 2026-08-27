@@ -91,19 +91,30 @@ test("groups growing node-output snapshots by deterministic node", async ({
   await expect(page.getByLabel("Agent graph structure")).toBeVisible();
   await page.getByRole("button", { name: "Expand graph" }).click();
   const graphDialog = page.getByRole("dialog");
+  await expect(graphDialog.getByText("Live data").first()).toBeVisible();
+  await expect(graphDialog.getByText("Saved data").first()).toBeVisible();
+  await expect(graphDialog.getByText("Optional").first()).toBeVisible();
+
+  await graphDialog
+    .getByText("Resolve or fetch external options observation")
+    .click();
+  const nodeDetails = graphDialog.getByLabel(
+    "Resolve or fetch external options observation details",
+  );
+  await expect(nodeDetails.getByText("options_chain").first()).toBeVisible();
+  await expect(nodeDetails.getByText("Fetches new data.")).toBeVisible();
   await expect(
-    graphDialog.getByText("external input · options_chain"),
+    nodeDetails.getByText(
+      "Reuses the copy pinned to each dataset example.",
+    ),
   ).toBeVisible();
-  await expect(graphDialog.getByText("run refresh")).toBeVisible();
-  await expect(graphDialog.getByText("eval locked").first()).toBeVisible();
-  await expect(graphDialog.getByText("conditional")).toBeVisible();
   await page.keyboard.press("Escape");
 
   await page.getByRole("button", { name: /Snapshots/ }).click();
   await expect(
-    page.getByRole("heading", { name: "Node snapshots" }),
+    page.getByRole("heading", { name: "Snapshots", exact: true }),
   ).toBeVisible();
-  await expect(page.getByText("Deterministic nodes")).toBeVisible();
+  await expect(page.getByText("Nodes", { exact: true })).toBeVisible();
   await expect(
     page.getByRole("button", { name: /Persist immutable portfolio snapshot/ }),
   ).toBeVisible();
@@ -263,7 +274,7 @@ test("run a trace and review it into a draft dataset", async ({ page }) => {
   await page.getByRole("button", { name: "Done" }).click();
   await page.reload();
   await expect(
-    page.getByText(/Incident triage ground truth; version: \d+; status: draft/),
+    page.getByText(/Incident triage ground truth v\d+ \(draft\)/),
   ).toBeVisible();
 });
 
@@ -275,10 +286,12 @@ test("runs Q&A against a server-resolved synthetic portfolio snapshot", async ({
   await expect(resource).toBeVisible();
   await resource.selectOption("current:synthetic-indexed-portfolio-v2");
   await expect(resource).toHaveValue("current:synthetic-indexed-portfolio-v2");
-  await expect(page.getByText("saved input: latest")).toBeVisible();
+  await expect(
+    page.getByText("Uses the newest saved version.").first(),
+  ).toBeVisible();
   await expect(
     page.getByRole("checkbox", {
-      name: /Capture refreshed external outputs/,
+      name: /Keep a copy of live data/,
     }),
   ).not.toBeChecked();
 

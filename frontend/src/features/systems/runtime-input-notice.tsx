@@ -22,11 +22,13 @@ export function RuntimeInputNotice({
       />
       <div className="min-w-0">
         <p className="text-[11px] font-medium">
-          {context === "run" ? "Live data in this run" : "Live data in evaluations"}
+          {context === "run"
+            ? "Live data in this run"
+            : "Live data in evaluations"}
         </p>
         <p className="mt-1 text-[10px] leading-5 text-[var(--text-muted)]">
           {context === "run"
-            ? "These nodes fetch data from outside the app while the run happens."
+            ? "These nodes fetch data from outside the app as the run happens."
             : "Every example uses the exact snapshot pinned to it, so scores stay comparable across runs."}
         </p>
         <div className="mt-2 grid gap-1 text-[9px] text-[var(--text-faint)]">

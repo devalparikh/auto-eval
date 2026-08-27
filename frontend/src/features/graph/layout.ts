@@ -32,3 +32,19 @@ export function graphLevels(
 
   return levels;
 }
+
+/** Distinct rows a laid-out graph occupies. */
+export function graphRowCount(nodes: Array<{ position: { y: number } }>): number {
+  return new Set(nodes.map((node) => node.position.y)).size;
+}
+
+/**
+ * Canvas height for a graph. Fit-to-view is width-bound for the wide, shallow
+ * chains this app draws, so a fixed tall canvas leaves a single-row graph
+ * stranded in empty space without making its nodes any bigger.
+ */
+export function graphHeightClass(rowCount: number): string {
+  if (rowCount <= 1) return "h-[240px]";
+  if (rowCount === 2) return "h-[340px]";
+  return "h-[440px]";
+}

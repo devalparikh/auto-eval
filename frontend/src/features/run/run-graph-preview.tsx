@@ -4,7 +4,11 @@ import type { Edge, Node, NodeProps } from "@xyflow/react";
 import { useMemo, useState } from "react";
 import { GraphCanvas } from "@/components/graph-canvas";
 import { GraphLegend, GraphNodeCard } from "@/features/graph/graph-node-card";
-import { graphLevels } from "@/features/graph/layout";
+import {
+  graphHeightClass,
+  graphLevels,
+  graphRowCount,
+} from "@/features/graph/layout";
 import {
   GraphNodeDetails,
   GraphNodeDetailsEmpty,
@@ -110,7 +114,7 @@ export function RunGraphPreview({
       <GraphLegend types={nodes.map((node) => node.data.view.type)} />
       <GraphCanvas
         ariaLabel="Selected graph execution preview"
-        className="h-[350px] border border-[var(--border)] md:h-[380px]"
+        className={`border border-[var(--border)] ${graphHeightClass(graphRowCount(nodes))}`}
         nodes={nodes}
         edges={edges}
         nodeTypes={nodeTypes}

@@ -4,7 +4,11 @@ import type { Edge, Node, NodeProps } from "@xyflow/react";
 import { useMemo, useState } from "react";
 import { GraphCanvas } from "@/components/graph-canvas";
 import { GraphLegend, GraphNodeCard } from "@/features/graph/graph-node-card";
-import { graphLevels } from "@/features/graph/layout";
+import {
+  graphHeightClass,
+  graphLevels,
+  graphRowCount,
+} from "@/features/graph/layout";
 import {
   GraphNodeDetails,
   GraphNodeDetailsEmpty,
@@ -128,7 +132,9 @@ export function AgentGraph({
         <GraphCanvas
           ariaLabel="Agent graph structure"
           className={`border border-[var(--border-strong)] ${
-            fullscreen ? "h-[calc(100dvh-12rem)]" : "h-[400px]"
+            fullscreen
+              ? "h-[calc(100dvh-12rem)]"
+              : graphHeightClass(graphRowCount(nodes))
           }`}
           nodes={nodes}
           edges={edges}
