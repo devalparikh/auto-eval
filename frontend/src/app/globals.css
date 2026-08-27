@@ -41,14 +41,18 @@
   --json-string: #a9c8ae;
   --json-number: #d9a974;
   --json-literal: #b4a8d2;
-  --node-model: #b3a4d4;
-  --node-model-soft: #221d2e;
-  --node-live: #7fb6c6;
-  --node-live-soft: #14232a;
-  --node-saved: #c99468;
-  --node-saved-soft: #2e2118;
-  --node-logic: #9e9891;
-  --node-logic-soft: #1c1b18;
+  --node-model: #b198ec;
+  --node-model-soft: #1c1926;
+  --node-model-line: #4c3f70;
+  --node-live: #6bc2d8;
+  --node-live-soft: #12212a;
+  --node-live-line: #2f5566;
+  --node-saved: #bf9370;
+  --node-saved-soft: #1f1a14;
+  --node-saved-line: #493a2b;
+  --node-logic: #a09a92;
+  --node-logic-soft: #1a1917;
+  --node-logic-line: #3b3833;
   --radius: 4px;
   --page-gutter: clamp(1rem, 2.6vw, 2rem);
   --font-body:
@@ -102,14 +106,18 @@
   --json-string: #2f6a49;
   --json-number: #8c551c;
   --json-literal: #67528d;
-  --node-model: #59459d;
-  --node-model-soft: #e7e2f4;
-  --node-live: #1d6473;
-  --node-live-soft: #dbedf1;
-  --node-saved: #8b4f2c;
-  --node-saved-soft: #eedfd2;
-  --node-logic: #625d56;
-  --node-logic-soft: #ebe6de;
+  --node-model: #5b3fb8;
+  --node-model-soft: #efebfb;
+  --node-model-line: #c1b3ea;
+  --node-live: #0f7285;
+  --node-live-soft: #e2f2f6;
+  --node-live-line: #a6d2dd;
+  --node-saved: #8a5a37;
+  --node-saved-soft: #f3e9df;
+  --node-saved-line: #ddc7b1;
+  --node-logic: #6b665e;
+  --node-logic-soft: #efece6;
+  --node-logic-line: #d2ccc2;
 }
 
 * {

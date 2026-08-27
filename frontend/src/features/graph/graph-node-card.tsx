@@ -1,13 +1,8 @@
 "use client";
 
-import {
-  BracketsCurlyIcon,
-  CloudArrowDownIcon,
-  DatabaseIcon,
-  WaveformIcon,
-} from "@phosphor-icons/react";
 import { Handle, Position } from "@xyflow/react";
 import type { ReactNode } from "react";
+import { GraphNodeIcon, graphNodeIsFilled } from "@/features/graph/node-icon";
 import {
   graphNodeTypeHint,
   graphNodeTypeLabel,
@@ -15,13 +10,6 @@ import {
   type GraphNodeType,
   type GraphNodeView,
 } from "@/features/graph/node-view";
-
-const icons = {
-  model: WaveformIcon,
-  live: CloudArrowDownIcon,
-  saved: DatabaseIcon,
-  logic: BracketsCurlyIcon,
-} as const;
 
 /**
  * The node card every graph screen draws. Colour, icon, and badge wording come
@@ -38,16 +26,18 @@ export function GraphNodeCard({
   width?: number;
   footer?: ReactNode;
 }) {
-  const Icon = icons[view.type];
   const accent = `var(--node-${view.type})`;
-  const soft = `var(--node-${view.type}-soft)`;
   return (
     <div
-      style={{ width, borderLeftColor: accent }}
-      className={`relative rounded-[2px] border border-l-2 bg-[var(--surface-raised)] p-3 shadow-[0_14px_40px_rgba(0,0,0,0.22)] transition-[border-color,box-shadow] duration-150 ${
+      style={{
+        width,
+        background: `var(--node-${view.type}-soft)`,
+        borderColor: `var(--node-${view.type}-line)`,
+      }}
+      className={`relative rounded-[2px] border p-3 transition-shadow duration-150 ${
         selected
-          ? "border-[var(--accent)] shadow-[0_0_0_1px_var(--accent),0_18px_45px_rgba(0,0,0,0.3)]"
-          : "border-[var(--border-strong)]"
+          ? "shadow-[0_0_0_2px_var(--focus),0_18px_45px_rgba(0,0,0,0.3)]"
+          : "shadow-[0_14px_40px_rgba(0,0,0,0.22)]"
       }`}
     >
       <Handle
@@ -56,12 +46,7 @@ export function GraphNodeCard({
         className="!size-1.5 !border-0 !bg-[var(--border-strong)]"
       />
       <div className="flex items-start gap-2">
-        <span
-          style={{ background: soft, color: accent }}
-          className="grid size-7 shrink-0 place-items-center rounded-[2px]"
-        >
-          <Icon size={14} weight="bold" aria-hidden />
-        </span>
+        <GraphNodeIcon type={view.type} />
         <span className="min-w-0 flex-1">
           <span className="block truncate text-[12px] font-semibold">
             {view.label}
@@ -90,7 +75,9 @@ export function GraphNodeCard({
         </div>
       ) : null}
       {footer ? (
-        <div className="mt-2 border-t border-[var(--border)] pt-2">{footer}</div>
+        <div className="mt-2 border-t border-[var(--border)] pt-2">
+          {footer}
+        </div>
       ) : null}
       <Handle
         type="source"
@@ -111,8 +98,17 @@ export function GraphLegend({ types }: { types: GraphNodeType[] }) {
         <li key={type} className="flex items-center gap-1.5">
           <span
             aria-hidden
-            style={{ background: `var(--node-${type})` }}
-            className="size-2 rounded-[1px]"
+            style={
+              graphNodeIsFilled(type)
+                ? { background: `var(--node-${type})` }
+                : {
+                    background: `var(--node-${type}-soft)`,
+                    borderColor: `var(--node-${type}-line)`,
+                  }
+            }
+            className={`size-2.5 rounded-[1px] ${
+              graphNodeIsFilled(type) ? "" : "border"
+            }`}
           />
           <span className="text-[10px] font-medium">
             {graphNodeTypeLabel(type)}
