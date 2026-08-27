@@ -10,11 +10,18 @@ import {
   graphRowCount,
 } from "@/features/graph/layout";
 import {
+  applyNodeEdit,
+  isNodeEditable,
+  type NodeEdit,
+} from "@/features/graph/node-edit";
+import {
   GraphNodeDetails,
   GraphNodeDetailsEmpty,
 } from "@/features/graph/node-details";
+import { GraphNodeEditorControls } from "@/features/graph/node-editor-controls";
+import { GraphNodePromptPanel } from "@/features/graph/node-prompt-panel";
 import { graphNodeView, type GraphNodeView } from "@/features/graph/node-view";
-import type { GraphDefinition } from "@/lib/types";
+import type { GraphDefinition, PromptSummary } from "@/lib/types";
 
 type AgentNodeData = {
   view: GraphNodeView;
@@ -87,12 +94,33 @@ export function isGraphDefinition(value: unknown): value is GraphDefinition {
   );
 }
 
+/**
+ * The graph of one agent system version, and the panel describing whichever
+ * node is selected.
+ *
+ * While `editable` is set, `definition` is the caller's draft rather than a
+ * saved version: the canvas draws it, node settings change it, and every change
+ * goes back out through `onDraftChange`. There is deliberately no second copy
+ * of the draft in here — the screen that owns the Save button owns the draft.
+ */
 export function AgentGraph({
   definition,
   fullscreen = false,
+  systemKey,
+  prompts,
+  editable = false,
+  onDraftChange,
 }: {
   definition: GraphDefinition;
   fullscreen?: boolean;
+  /** Links a model node's prompt to its artifact page. Omit to hide the prompt. */
+  systemKey?: string;
+  /** This system's prompts, so a model node can show the one it runs. */
+  prompts?: PromptSummary[];
+  /** Let the reader change node settings from the details panel. */
+  editable?: boolean;
+  /** Receives the whole definition again, with one setting changed. */
+  onDraftChange?: (next: GraphDefinition) => void;
 }) {
   const [selectedNodeId, setSelectedNodeId] = useState(definition.entry_point);
   const [shownEntryPoint, setShownEntryPoint] = useState(definition.entry_point);
@@ -111,10 +139,36 @@ export function AgentGraph({
   const selectedView =
     nodes.find((node) => node.id === selectedNodeId)?.data.view ?? null;
 
+  const editing = editable && Boolean(onDraftChange);
+  const promptKey = selectedView?.type === "model" ? selectedView.promptKey : null;
+  const editNode = (edit: NodeEdit) =>
+    onDraftChange?.(applyNodeEdit(definition, edit));
+
   const details = (
     <div className="min-w-0 border border-[var(--border-strong)]">
       {selectedView ? (
-        <GraphNodeDetails view={selectedView} />
+        <GraphNodeDetails view={selectedView}>
+          {systemKey && prompts && promptKey ? (
+            <GraphNodePromptPanel
+              systemKey={systemKey}
+              promptKey={promptKey}
+              prompt={prompts.find((prompt) => prompt.key === promptKey)}
+            />
+          ) : null}
+          {editing ? (
+            isNodeEditable(selectedView.definition) ? (
+              <GraphNodeEditorControls
+                node={selectedView.definition}
+                onEdit={editNode}
+              />
+            ) : (
+              <p className="px-4 py-3 text-[10px] leading-5 text-[var(--text-muted)]">
+                This node has nothing to change. Pick a live-data node to choose
+                where it gets its data.
+              </p>
+            )
+          ) : null}
+        </GraphNodeDetails>
       ) : (
         <GraphNodeDetailsEmpty />
       )}

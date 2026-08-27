@@ -171,6 +171,8 @@ export function SystemsScreen({
                 title={system.name}
                 description={system.description}
                 icon={<GitBranchIcon size={16} />}
+                systemKey={systemKey}
+                prompts={prompts}
                 versions={system.versions}
                 selectedVersionId={graphVersionId}
                 onVersionChange={setGraphVersionId}
