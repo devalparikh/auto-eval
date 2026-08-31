@@ -42,14 +42,6 @@ export function graphNodeTypeHint(type: GraphNodeType): string {
   return typeHints[type];
 }
 
-/** CSS custom-property names for a node type's accent and fill. */
-export function graphNodeTypeTokens(type: GraphNodeType): {
-  accent: string;
-  soft: string;
-} {
-  return { accent: `var(--node-${type})`, soft: `var(--node-${type}-soft)` };
-}
-
 export type GraphNodeFact = { label: string; value: string };
 
 export type GraphNodeDataFlow = {
@@ -206,7 +198,7 @@ function describeDataFlow(
       onRun:
         runtimePolicy.runtime_mode === "refresh"
           ? "Fetches new data."
-          : "Reuses the last saved copy.",
+          : "Replays a saved copy you pick before the run.",
       onEvaluation:
         runtimePolicy.evaluation_mode === "locked"
           ? "Reuses the copy pinned to each dataset example."

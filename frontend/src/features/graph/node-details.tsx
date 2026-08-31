@@ -1,20 +1,8 @@
 "use client";
 
-import {
-  BracketsCurlyIcon,
-  CloudArrowDownIcon,
-  DatabaseIcon,
-  WaveformIcon,
-} from "@phosphor-icons/react";
 import type { ReactNode } from "react";
+import { GraphNodeIcon } from "@/features/graph/node-icon";
 import type { GraphNodeView } from "@/features/graph/node-view";
-
-const icons = {
-  model: WaveformIcon,
-  live: CloudArrowDownIcon,
-  saved: DatabaseIcon,
-  logic: BracketsCurlyIcon,
-} as const;
 
 /**
  * The panel shown when a node on any graph is clicked. Screens add their own
@@ -29,7 +17,6 @@ export function GraphNodeDetails({
   action?: ReactNode;
   children?: ReactNode;
 }) {
-  const Icon = icons[view.type];
   const accent = `var(--node-${view.type})`;
   const dataRows = [
     { label: "Reads", value: view.dataFlow.reads },
@@ -47,12 +34,7 @@ export function GraphNodeDetails({
     >
       <header className="flex items-start justify-between gap-4 border-b border-[var(--border)] px-4 py-3">
         <div className="flex min-w-0 items-start gap-2.5">
-          <span
-            style={{ background: `var(--node-${view.type}-soft)`, color: accent }}
-            className="grid size-7 shrink-0 place-items-center rounded-[2px]"
-          >
-            <Icon size={14} weight="bold" aria-hidden />
-          </span>
+          <GraphNodeIcon type={view.type} />
           <div className="min-w-0">
             <h3 className="truncate text-[12px] font-semibold">{view.label}</h3>
             <p style={{ color: accent }} className="mono mt-0.5 text-[9px]">

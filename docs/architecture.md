@@ -196,3 +196,31 @@ it depends on, and scores stay comparable across runs even though the portfolio
 that item points at is one of many. `runtime_mode: "current"` — resolving the
 newest snapshot for an identity — exists only on the interactive run path, where
 "use my latest portfolio" is the point.
+
+## Why pinning live data needs a new graph version
+
+`RuntimeInputPolicy` carries two independent modes, and conflating them is the
+easiest mistake to make here:
+
+- `evaluation_mode` is `"locked"` on every shipped node. An evaluation reads the
+  observation pinned to each dataset item and never reaches the network, on any
+  graph version. Model-vs-model comparisons are already constant-input; nothing
+  about a graph version changes that.
+- `runtime_mode` governs the interactive run path only. `"refresh"` fetches;
+  `"locked"` replays a snapshot the caller names.
+
+`runtime_mode` lives in the graph definition, so switching a node to `"locked"`
+means creating a new graph version. `AgentGraphRunner._bind_locked_runtime_input_snapshots`
+enforces the boundary from the other side: it rejects a snapshot supplied for a
+`refresh`-mode node. The graph version is the contract; a run may only fill in a
+value the contract already permits.
+
+That is the point, not an accident of the schema. A graph version fully
+determines how each node resolves its input, so a trace's version identifies
+whether that run could have touched the network at all — the property evaluation
+reproducibility rests on. A per-run override would be cheaper and would quietly
+cost that.
+
+The price is version churn, which content hashing bounds: `create_agent_version`
+rejects a definition identical to one already stored, so flipping a node to
+`"locked"` and back selects the existing version rather than minting a third.

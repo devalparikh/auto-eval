@@ -8,12 +8,19 @@ import {
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { RunWorkbench } from "@/features/run/run-screen";
 import { api } from "@/lib/api";
-import type { AgentSystemSummary, Catalog, Trace } from "@/lib/types";
+import type {
+  AgentSystemSummary,
+  Catalog,
+  RuntimeInputSnapshotSummary,
+  Trace,
+} from "@/lib/types";
 
 vi.mock("@/lib/api", () => ({
   api: {
     agentVersion: vi.fn(),
     nodeSnapshots: vi.fn(),
+    promptVersion: vi.fn(),
+    runtimeInputSnapshots: vi.fn(),
     runTrace: vi.fn(),
   },
 }));
@@ -258,11 +265,78 @@ const portfolioQueryGraph = {
   },
 };
 
+const optionsSnapshots = [
+  {
+    id: "runtime-2",
+    agent_system_id: portfolioQuerySystem.id,
+    source_trace_id: null,
+    node_id: "load_options",
+    source_key: "options_chain",
+    schema_version: 1,
+    label: "Options chain, Aug 10",
+    observed_at: "2026-08-10T12:00:00Z",
+    fetched_at: "2026-08-10T12:00:00Z",
+    provider: "synthetic",
+    source_kind: "options_chain",
+    is_synthetic: true,
+    content_hash: "c".repeat(64),
+    created_at: "2026-08-10T12:00:00Z",
+  },
+  {
+    id: "runtime-1",
+    agent_system_id: portfolioQuerySystem.id,
+    source_trace_id: null,
+    node_id: "load_options",
+    source_key: "options_chain",
+    schema_version: 1,
+    label: "Options chain, Aug 9",
+    observed_at: "2026-08-09T12:00:00Z",
+    fetched_at: "2026-08-09T12:00:00Z",
+    provider: "synthetic",
+    source_kind: "options_chain",
+    is_synthetic: true,
+    content_hash: "d".repeat(64),
+    created_at: "2026-08-09T12:00:00Z",
+  },
+] satisfies RuntimeInputSnapshotSummary[];
+
+function lockedMarketGraph(required: boolean) {
+  return {
+    ...portfolioQueryGraph,
+    definition: {
+      ...portfolioQueryGraph.definition,
+      nodes: [
+        portfolioQueryGraph.definition.nodes[0],
+        {
+          ...portfolioQueryGraph.definition.nodes[1],
+          runtime_input_policy: {
+            source: "options_chain",
+            schema_version: 1,
+            required,
+            runtime_mode: "locked" as const,
+            evaluation_mode: "locked" as const,
+          },
+        },
+        portfolioQueryGraph.definition.nodes[2],
+      ],
+    },
+  };
+}
+
 describe("RunWorkbench", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(api.agentVersion).mockResolvedValue(legacyGraph);
     vi.mocked(api.nodeSnapshots).mockResolvedValue([]);
+    vi.mocked(api.runtimeInputSnapshots).mockResolvedValue([]);
+    vi.mocked(api.promptVersion).mockResolvedValue({
+      id: "prompt-3",
+      prompt_id: "prompt-1",
+      version: 3,
+      content: "Answer the question.",
+      content_hash: "e".repeat(64),
+      created_at: "2026-08-10T12:00:00Z",
+    });
   });
 
   afterEach(() => {
@@ -508,7 +582,7 @@ describe("RunWorkbench", () => {
     ).toBeDisabled();
   });
 
-  it("pins one prompt version per graph prompt key", async () => {
+  it("pins one prompt version per model node", async () => {
     const keyedCatalog = {
       ...catalog,
       prompts: [
@@ -519,6 +593,11 @@ describe("RunWorkbench", () => {
           key: "review-prompt",
           name: "Review prompt",
           versions: [
+            {
+              id: "prompt-9",
+              version: 9,
+              created_at: "2026-08-11T12:00:00Z",
+            },
             {
               id: "prompt-8",
               version: 8,
@@ -559,12 +638,28 @@ describe("RunWorkbench", () => {
       />,
     );
 
+    // Every prompt version is readable without opening a node.
+    const reviewPlanItem = await screen.findByRole("button", {
+      name: "Review prompt Version 9",
+    });
     expect(
-      await screen.findByLabelText("Prompt: research-agent-prompt"),
+      screen.getByRole("button", { name: "Research prompt Version 3" }),
+    ).toBeVisible();
+    expect(
+      screen.getByLabelText("Prompt version for Research prompt"),
     ).toHaveValue("prompt-3");
-    expect(screen.getByLabelText("Prompt: review-prompt")).toHaveValue(
-      "prompt-8",
+    expect(
+      screen.queryByLabelText("Prompt version for Review prompt"),
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(reviewPlanItem);
+    fireEvent.change(
+      await screen.findByLabelText("Prompt version for Review prompt"),
+      { target: { value: "prompt-8" } },
     );
+    expect(
+      await screen.findByRole("button", { name: "Review prompt Version 8" }),
+    ).toBeVisible();
     fireEvent.click(screen.getByRole("button", { name: "Run inference" }));
 
     await waitFor(() =>
@@ -578,5 +673,75 @@ describe("RunWorkbench", () => {
         }),
       ),
     );
+  });
+
+  it("replays a chosen saved copy for a locked live-data node", async () => {
+    vi.mocked(api.agentVersion).mockResolvedValueOnce(lockedMarketGraph(false));
+    vi.mocked(api.nodeSnapshots).mockResolvedValue(portfolioSnapshots);
+    vi.mocked(api.runtimeInputSnapshots).mockResolvedValue(optionsSnapshots);
+    vi.mocked(api.runTrace).mockResolvedValueOnce(completedTrace);
+    render(
+      <RunWorkbench
+        catalog={portfolioQueryCatalog}
+        system={portfolioQuerySystem}
+        systemKey={portfolioQuerySystem.key}
+      />,
+    );
+
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: "Run inference" }),
+      ).toBeEnabled(),
+    );
+    expect(api.runtimeInputSnapshots).toHaveBeenCalledWith(
+      portfolioQuerySystem.id,
+      { sourceKey: "options_chain", nodeId: "load_options", limit: 200 },
+    );
+
+    // The newest saved copy is used unless the reader picks another.
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Load current options Options chain, Aug 10",
+      }),
+    );
+    const picker = await screen.findByLabelText("Saved copy to use");
+    expect(picker).toHaveValue("runtime-2");
+    fireEvent.change(picker, { target: { value: "runtime-1" } });
+    expect(
+      await screen.findByRole("button", {
+        name: "Load current options Options chain, Aug 9",
+      }),
+    ).toBeVisible();
+
+    fireEvent.click(screen.getByRole("button", { name: "Run inference" }));
+    await waitFor(() =>
+      expect(api.runTrace).toHaveBeenCalledWith(
+        expect.objectContaining({
+          runtime_input_snapshot_ids: { load_options: "runtime-1" },
+        }),
+      ),
+    );
+  });
+
+  it("blocks a run when a required locked live-data node has nothing saved", async () => {
+    vi.mocked(api.agentVersion).mockResolvedValueOnce(lockedMarketGraph(true));
+    vi.mocked(api.nodeSnapshots).mockResolvedValue(portfolioSnapshots);
+    vi.mocked(api.runtimeInputSnapshots).mockResolvedValue([]);
+    render(
+      <RunWorkbench
+        catalog={portfolioQueryCatalog}
+        system={portfolioQuerySystem}
+        systemKey={portfolioQuerySystem.key}
+      />,
+    );
+
+    await waitFor(() =>
+      expect(screen.getByRole("alert")).toHaveTextContent(
+        "This graph reads a saved copy of options chain instead of fetching it, and nothing has been saved yet.",
+      ),
+    );
+    expect(
+      screen.getByRole("button", { name: "Run inference" }),
+    ).toBeDisabled();
   });
 });

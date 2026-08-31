@@ -16,9 +16,13 @@ type ArtifactKind = "graph" | "prompt" | "snapshot";
 export function SystemsScreen({
   systemKey,
   initialSnapshotId,
+  initialArtifact,
+  initialPromptKey,
 }: {
   systemKey: string;
   initialSnapshotId?: string;
+  initialArtifact?: ArtifactKind;
+  initialPromptKey?: string;
 }) {
   const catalog = useApiResource(api.catalog, []);
   const system = systemByKey(catalog.data, systemKey);
@@ -27,7 +31,7 @@ export function SystemsScreen({
       (item) => item.agent_system_id === system?.id,
     ) ?? [];
   const [activeKind, setActiveKind] = useState<ArtifactKind>(
-    initialSnapshotId ? "snapshot" : "graph",
+    initialArtifact ?? (initialSnapshotId ? "snapshot" : "graph"),
   );
   const [requestedGraphVersionId, setGraphVersionId] = useState("");
   const [requestedPromptId, setPromptId] = useState("");
@@ -36,7 +40,9 @@ export function SystemsScreen({
     initialSnapshotId ?? "",
   );
   const prompt =
-    prompts.find((item) => item.id === requestedPromptId) ?? prompts[0];
+    prompts.find((item) => item.id === requestedPromptId) ??
+    prompts.find((item) => item.key === initialPromptKey) ??
+    prompts[0];
   const graphVersionId =
     requestedGraphVersionId || system?.versions[0]?.id || "";
   const promptVersionId = prompt?.versions.some(
@@ -165,6 +171,8 @@ export function SystemsScreen({
                 title={system.name}
                 description={system.description}
                 icon={<GitBranchIcon size={16} />}
+                systemKey={systemKey}
+                prompts={prompts}
                 versions={system.versions}
                 selectedVersionId={graphVersionId}
                 onVersionChange={setGraphVersionId}
