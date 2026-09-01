@@ -69,8 +69,11 @@ export function AppShell({
       <a className="skip-link" href="#main-content">
         Skip to content
       </a>
-      <header className="shell-header">
-        <Link
+      {pathname === "/" ? (
+        <MarketingHeader theme={theme} onToggleTheme={toggleTheme} />
+      ) : (
+        <header className="shell-header">
+          <Link
           href="/"
           className="shell-brand"
           aria-label="AutoEval home"
@@ -136,7 +139,8 @@ export function AppShell({
             )}
           </button>
         </div>
-      </header>
+        </header>
+      )}
       <main id="main-content" className="route-frame">
         <motion.div
           key={pathname}
@@ -154,6 +158,53 @@ export function AppShell({
         </motion.div>
       </main>
     </div>
+  );
+}
+
+
+function MarketingHeader({
+  theme,
+  onToggleTheme,
+}: {
+  theme: ColorTheme;
+  onToggleTheme: () => void;
+}) {
+  return (
+    <header className="marketing-header">
+      <Link
+        href="/"
+        className="marketing-brand"
+        aria-label="AutoEval home"
+        data-sound="navigate"
+      >
+        <span aria-hidden="true">a/e</span>
+        <strong>AutoEval</strong>
+      </Link>
+      <nav aria-label="Landing page" className="marketing-nav">
+        <a href="#workflow">Workflow</a>
+        <a href="#modular">Connect</a>
+        <a href="#evidence">Versions</a>
+        <a href="#faq">FAQ</a>
+      </nav>
+      <div className="marketing-actions">
+        <button
+          type="button"
+          className="marketing-theme theme-toggle"
+          aria-label={`Use ${theme === "dark" ? "light" : "dark"} theme`}
+          title={`Use ${theme === "dark" ? "light" : "dark"} theme`}
+          onClick={onToggleTheme}
+        >
+          {theme === "dark" ? <MoonIcon size={15} /> : <SunIcon size={15} />}
+        </button>
+        <Link
+          href="/systems"
+          className="marketing-cta"
+          data-sound="navigate"
+        >
+          Open AutoEval <span aria-hidden="true">↗</span>
+        </Link>
+      </div>
+    </header>
   );
 }
 

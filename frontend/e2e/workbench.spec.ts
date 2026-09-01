@@ -44,11 +44,28 @@ test("renders the landing page without first-load fade gaps", async ({
 }) => {
   await page.goto("/");
   await expect(page.locator(".route-content")).toHaveCSS("opacity", "1");
-  await expect(page.locator(".landing-art-image")).toHaveCSS(
-    "animation-name",
-    "none",
+  await expect(
+    page.getByLabel("Interactive AutoEval workflow"),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Trace your agent. Test every change." }),
+  ).toBeVisible();
+
+  const tabs = page.getByRole("tablist", { name: "AutoEval workflow steps" });
+  await tabs.getByRole("tab", { name: /Connect/ }).click();
+  await expect(page.getByText("CODE ADAPTER")).toBeVisible();
+  await tabs.getByRole("tab", { name: /Save/ }).click();
+  await expect(page.getByText("Finalize v4")).toBeVisible();
+  await tabs.getByRole("tab", { name: /Compare/ }).click();
+  await expect(page.getByText("128 × 3 models")).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Use the agent you already have." }),
+  ).toBeVisible();
+  await expect(page.getByRole("link", { name: /Open AutoEval/ })).toHaveAttribute(
+    "href",
+    "/systems",
   );
-  await expect(page.locator(".landing-title canvas")).toHaveCSS("opacity", "1");
+  await expect(page.locator("canvas").first()).toHaveCSS("opacity", "1");
 });
 
 test("uses the shared select treatment and themed JSON disclosures", async ({
@@ -190,8 +207,8 @@ test("keeps shell geometry stable across primary navigation", async ({
   }
 
   await recordShellWidth();
-  await page.getByRole("link", { name: /Evaluate/ }).click();
-  await expect(page.getByRole("heading", { name: /Evaluate/i })).toBeVisible();
+  await page.getByRole("link", { name: /Compare/ }).click();
+  await expect(page.getByRole("heading", { name: /Compare/i })).toBeVisible();
   await recordShellWidth();
   await page.getByRole("link", { name: /Results/ }).click();
   await expect(page.getByRole("heading", { name: /results/i })).toBeVisible();
@@ -361,7 +378,7 @@ test("contains the Run graph preview across representative widths", async ({
 test("run the seeded evaluation workflow", async ({ page }) => {
   test.setTimeout(45_000);
   await page.goto(`${incidentRoot}/evaluations`);
-  await expect(page.getByRole("heading", { name: /Evaluate/i })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /Compare/i })).toBeVisible();
   await page.getByRole("button", { name: "Start evaluation" }).click();
   await expect(page.getByText(/^Run [a-f0-9]{8}$/)).toBeVisible();
   await expect(page.getByRole("link", { name: "View results" })).toBeVisible({
