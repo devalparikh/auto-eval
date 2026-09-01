@@ -90,9 +90,18 @@ See [the architecture](docs/architecture.md), [multi-system and provenance desig
 - The CLI provider is off by default, uses fixed commands without a shell, and has timeout and output limits.
 - Evaluation work runs in-process. There is no durable queue, worker recovery, or multi-instance coordination yet.
 
+## Deployment boundary
+
+AutoEval remains a local-first workbench. A fail-closed Vercel profile is
+available for a private, single-user preview: it requires HTTP Basic
+authentication, PostgreSQL, exact hosts and origins, and synchronous
+evaluations. It is not a multi-user production profile. See
+[Vercel deployment](docs/vercel-deployment.md) for configuration and remaining
+limitations.
+
 ## Current limitations
 
-- AutoEval is a local, single-user MVP with no authentication. Do not expose it to a network or place it behind a public reverse proxy.
+- The default local profile has no authentication. Do not expose it to a network or place it behind a public reverse proxy; the guarded hosted preview is a separate production profile.
 - The workspace ships three built-in runnable systems; creating or importing arbitrary systems still uses code-level extension seams rather than a generic creation UI.
 - Portfolio Analyst is presented as one product with `index` and `query` flows. Each flow has its own runtime registration and independently versioned LangGraph; the persisted `AgentFlow` normalization remains the additive migration documented in [agent-flow-refactor-plan.md](docs/agent-flow-refactor-plan.md).
 - Portfolio Q&A resolves an immutable snapshot ID from the local database. Tradier is the first optional options-chain adapter; no broker trading/order adapter is implemented, and stale, missing, or incomplete market data fails closed.
