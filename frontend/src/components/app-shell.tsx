@@ -181,9 +181,9 @@ function MarketingHeader({
         <strong>AutoEval</strong>
       </Link>
       <nav aria-label="Landing page" className="marketing-nav">
-        <a href="#workflow">How it works</a>
-        <a href="#modular">Modular</a>
-        <a href="#evidence">Evidence</a>
+        <a href="#workflow">Workflow</a>
+        <a href="#modular">Connect</a>
+        <a href="#evidence">Versions</a>
         <a href="#faq">FAQ</a>
       </nav>
       <div className="marketing-actions">
@@ -201,7 +201,7 @@ function MarketingHeader({
           className="marketing-cta"
           data-sound="navigate"
         >
-          Open workbench <span aria-hidden="true">↗</span>
+          Open AutoEval <span aria-hidden="true">↗</span>
         </Link>
       </div>
     </header>

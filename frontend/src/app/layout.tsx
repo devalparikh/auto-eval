@@ -8,7 +8,7 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: { default: "AutoEval", template: "%s | AutoEval" },
   description:
-    "Connect any agent system, inspect traces, curate datasets, and run reproducible evaluations across models and providers.",
+    "Trace agent runs, save versioned test cases, and compare models on the same dataset.",
 };
 
 export const dynamic = "force-dynamic";

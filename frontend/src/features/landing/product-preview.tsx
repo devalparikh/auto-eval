@@ -5,10 +5,10 @@ import { useState } from "react";
 import styles from "@/features/landing/landing.module.css";
 
 const stages = [
-  { key: "connect", index: "01", label: "Adapt", title: "System contract", value: "research-assistant / v7", description: "Register a graph and scoped handlers while your domain logic stays in its own package." },
-  { key: "observe", index: "02", label: "Observe", title: "Trace", value: "tr_01J8F2KQ", description: "Inspect the path, timing, and captured metadata for one execution." },
-  { key: "curate", index: "03", label: "Curate", title: "Dataset", value: "failure-modes / v4", description: "Promote the reviewed trace into a draft, then finalize an immutable test set." },
-  { key: "evaluate", index: "04", label: "Evaluate", title: "Evaluation", value: "comparison / 024", description: "Replay the same cases across selected model configurations." },
+  { key: "connect", index: "01", label: "Connect", title: "Agent setup", value: "research-assistant / v7", description: "Register the graph and handlers. Your agent code stays in its own package." },
+  { key: "observe", index: "02", label: "Trace", title: "Trace", value: "tr_01J8F2KQ", description: "Open one run. Check the node path, timing, model call, and output." },
+  { key: "curate", index: "03", label: "Save", title: "Dataset", value: "failure-modes / v4", description: "Add the reviewed trace to a draft dataset. Finalize it when it is ready." },
+  { key: "evaluate", index: "04", label: "Compare", title: "Evaluation", value: "comparison / 024", description: "Run the same locked cases against each model." },
 ] as const;
 
 type Stage = (typeof stages)[number]["key"];
@@ -18,14 +18,14 @@ export function ProductPreview() {
   const active = stages.find((stage) => stage.key === activeStage) ?? stages[1];
 
   return (
-    <div className={styles.productPreview} aria-label="Interactive AutoEval product walkthrough">
+    <div className={styles.productPreview} aria-label="Interactive AutoEval workflow">
       <div className={styles.previewChrome}>
         <div className={styles.previewDots} aria-hidden="true"><i /><i /><i /></div>
         <span>workspace / research-assistant</span>
         <span className={styles.previewLive}><i /> local</span>
       </div>
       <div className={styles.previewBody}>
-        <div className={styles.previewTabs} role="tablist" aria-label="Evaluation workflow stages">
+        <div className={styles.previewTabs} role="tablist" aria-label="AutoEval workflow steps">
           {stages.map((stage) => (
             <button key={stage.key} id={`preview-tab-${stage.key}`} type="button" role="tab" aria-selected={activeStage === stage.key} aria-controls={`preview-panel-${stage.key}`} className={activeStage === stage.key ? styles.activeTab : undefined} onClick={() => setActiveStage(stage.key)}>
               <span>{stage.index}</span>{stage.label}
@@ -49,7 +49,7 @@ export function ProductPreview() {
 }
 
 function ConnectScene() {
-  return <div className={styles.connectScene}><div className={styles.codePanel}><span>plugin.py</span><code><i>system_key</i> = &quot;research-assistant&quot;<br /><i>register_handlers</i>(registry)<br /><i>scoring_entries</i> = [...]</code></div><div className={styles.contractArrow}>registered through<br /><b>SCOPED CONTRACT</b><span>→</span></div><div className={styles.contractStack}><span>GRAPH</span><span>HANDLERS</span><span>SCORING</span><span>TRACE POLICY</span></div></div>;
+  return <div className={styles.connectScene}><div className={styles.codePanel}><span>plugin.py</span><code><i>system_key</i> = &quot;research-assistant&quot;<br /><i>register_handlers</i>(registry)<br /><i>scoring_entries</i> = [...]</code></div><div className={styles.contractArrow}>registered with<br /><b>CODE ADAPTER</b><span>→</span></div><div className={styles.contractStack}><span>GRAPH</span><span>HANDLERS</span><span>SCORING</span><span>TRACE POLICY</span></div></div>;
 }
 
 function TraceScene() {
@@ -57,7 +57,7 @@ function TraceScene() {
 }
 
 function DatasetScene() {
-  return <div className={styles.datasetScene}><div className={styles.datasetToolbar}><span>128 CASES</span><b>DRAFT</b><button type="button" tabIndex={-1}>Finalize v4</button></div><div className={styles.caseList}><div><span>001</span><strong>Ambiguous retrieval</strong><small>from tr_01J8F2KQ</small><b>reviewed</b></div><div><span>002</span><strong>Missing source citation</strong><small>from tr_01J8E9MP</small><b>reviewed</b></div><div><span>003</span><strong>Conflicting context</strong><small>from tr_01J8D44A</small><b>reviewed</b></div></div><footer><span>PROVENANCE ATTACHED</span><code>graph v7 · prompt v12 · snapshot 93f…</code></footer></div>;
+  return <div className={styles.datasetScene}><div className={styles.datasetToolbar}><span>128 CASES</span><b>DRAFT</b><button type="button" tabIndex={-1}>Finalize v4</button></div><div className={styles.caseList}><div><span>001</span><strong>Ambiguous retrieval</strong><small>from tr_01J8F2KQ</small><b>reviewed</b></div><div><span>002</span><strong>Missing source citation</strong><small>from tr_01J8E9MP</small><b>reviewed</b></div><div><span>003</span><strong>Conflicting context</strong><small>from tr_01J8D44A</small><b>reviewed</b></div></div><footer><span>SOURCE RUN ATTACHED</span><code>graph v7 · prompt v12 · snapshot 93f…</code></footer></div>;
 }
 
 function EvaluationScene() {
