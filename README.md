@@ -92,16 +92,16 @@ See [the architecture](docs/architecture.md), [multi-system and provenance desig
 
 ## Deployment boundary
 
-AutoEval is a local, single-user workbench and is not ready for a public Vercel
-deployment. The backend has no authentication, persists to local SQLite, runs
-evaluations in the API process, and rejects non-loopback clients by default.
-Do not disable those protections to make a hosted deployment respond. See
-[Vercel deployment readiness](docs/vercel-deployment.md) for the required
-authentication, durable storage, worker, and verification work.
+AutoEval remains a local-first workbench. A fail-closed Vercel profile is
+available for a private, single-user preview: it requires HTTP Basic
+authentication, PostgreSQL, exact hosts and origins, and synchronous
+evaluations. It is not a multi-user production profile. See
+[Vercel deployment](docs/vercel-deployment.md) for configuration and remaining
+limitations.
 
 ## Current limitations
 
-- AutoEval is a local, single-user MVP with no authentication. Do not expose it to a network or place it behind a public reverse proxy.
+- The default local profile has no authentication. Do not expose it to a network or place it behind a public reverse proxy; the guarded hosted preview is a separate production profile.
 - The workspace ships three built-in runnable systems; creating or importing arbitrary systems still uses code-level extension seams rather than a generic creation UI.
 - Portfolio Analyst is presented as one product with `index` and `query` flows. Each flow has its own runtime registration and independently versioned LangGraph; the persisted `AgentFlow` normalization remains the additive migration documented in [agent-flow-refactor-plan.md](docs/agent-flow-refactor-plan.md).
 - Portfolio Q&A resolves an immutable snapshot ID from the local database. Tradier is the first optional options-chain adapter; no broker trading/order adapter is implemented, and stale, missing, or incomplete market data fails closed.

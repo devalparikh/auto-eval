@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import base64
+import binascii
+import secrets
 from ipaddress import ip_address
 
 from starlette.datastructures import Headers, MutableHeaders
@@ -18,6 +21,9 @@ class RequestGuardMiddleware:
         self.max_request_bytes = settings.max_request_bytes
         self.allowed_origins = frozenset(settings.web_origins)
         self.enforce_loopback_clients = settings.enforce_loopback_clients
+        self.hosted_password = (
+            settings.hosted_password.get_secret_value() if settings.hosted_password else None
+        )
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         if scope["type"] != "http":
@@ -25,6 +31,16 @@ class RequestGuardMiddleware:
             return
 
         headers = Headers(scope=scope)
+        if self.hosted_password is not None and not self._has_valid_basic_auth(headers):
+            await self._respond(
+                scope,
+                receive,
+                send,
+                401,
+                "Authentication required",
+                headers={"WWW-Authenticate": 'Basic realm="AutoEval", charset="UTF-8"'},
+            )
+            return
         length_error = self._content_length_error(headers.get("content-length"))
         if length_error is not None:
             await self._respond(scope, receive, send, length_error[0], length_error[1])
@@ -87,6 +103,22 @@ class RequestGuardMiddleware:
         fetch_site = headers.get("sec-fetch-site", "").lower()
         return not (scope["method"] in UNSAFE_METHODS and fetch_site == "cross-site")
 
+    def _has_valid_basic_auth(self, headers: Headers) -> bool:
+        authorization = headers.get("authorization", "")
+        scheme, _, encoded = authorization.partition(" ")
+        if scheme.lower() != "basic" or not encoded:
+            return False
+        try:
+            decoded = base64.b64decode(encoded, validate=True).decode("utf-8")
+        except (binascii.Error, UnicodeDecodeError):
+            return False
+        username, separator, password = decoded.partition(":")
+        return bool(
+            separator
+            and secrets.compare_digest(username, "autoeval")
+            and secrets.compare_digest(password, self.hosted_password or "")
+        )
+
     async def _read_request_messages(self, receive: Receive) -> list[Message] | None:
         messages: list[Message] = []
         received_bytes = 0
@@ -103,9 +135,16 @@ class RequestGuardMiddleware:
 
     @staticmethod
     async def _respond(
-        scope: Scope, receive: Receive, send: Send, status_code: int, detail: str
+        scope: Scope,
+        receive: Receive,
+        send: Send,
+        status_code: int,
+        detail: str,
+        headers: dict[str, str] | None = None,
     ) -> None:
-        await JSONResponse({"detail": detail}, status_code=status_code)(scope, receive, send)
+        await JSONResponse({"detail": detail}, status_code=status_code, headers=headers)(
+            scope, receive, send
+        )
 
 
 class SecurityHeadersMiddleware:

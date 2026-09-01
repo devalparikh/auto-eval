@@ -17,7 +17,7 @@ import type {
 } from "@/lib/types";
 
 export const API_URL =
-  process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api";
+  process.env.NEXT_PUBLIC_API_URL ?? "/api/backend/api";
 
 type RequestOptions = Omit<RequestInit, "body"> & { body?: unknown };
 

@@ -12,6 +12,15 @@ const securityHeaders = [
 
 const nextConfig: NextConfig = {
   poweredByHeader: false,
+  async rewrites() {
+    if (process.env.VERCEL) return [];
+    return [
+      {
+        source: "/api/backend/:path*",
+        destination: "http://localhost:8000/:path*",
+      },
+    ];
+  },
   async headers() {
     return [{ source: "/:path*", headers: securityHeaders }];
   },

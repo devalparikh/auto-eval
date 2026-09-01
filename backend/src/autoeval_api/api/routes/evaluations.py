@@ -1,4 +1,4 @@
-from fastapi import APIRouter, BackgroundTasks, HTTPException, status
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Request, status
 
 from autoeval_api.api.dependencies import (
     EvaluationServiceDependency,
@@ -39,10 +39,16 @@ def eval_run_detail(run_id: str, session: SessionDependency) -> EvalRunResponse:
 @router.post("/api/eval-runs", response_model=EvalRunResponse, status_code=status.HTTP_201_CREATED)
 async def create_eval_run(
     payload: CreateEvalRunRequest,
+    request: Request,
     background_tasks: BackgroundTasks,
     session: SessionDependency,
     evaluation_service: EvaluationServiceDependency,
 ) -> EvalRunResponse:
+    if request.app.state.settings.production and payload.run_in_background:
+        raise HTTPException(
+            status_code=400,
+            detail="Hosted evaluations must set run_in_background=false",
+        )
     dataset_version = get_or_404(
         session, DatasetVersionRecord, payload.dataset_version_id, "Dataset version"
     )

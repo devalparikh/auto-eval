@@ -86,6 +86,7 @@ def create_application(
     app.state.provider_registry = provider_registry
     app.state.evaluation_service = evaluation_service
     app.state.session_factory = session_factory
+    app.state.settings = settings
 
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=settings.allowed_hosts)
     app.add_middleware(
