@@ -10,6 +10,14 @@ The root `vercel.json` declares the Next.js and FastAPI services and routes
 The frontend uses `/api/backend/api` by default, while local Next.js development
 proxies the same path to `localhost:8000`.
 
+The backend service declares `"entrypoint": "main:app"`, which the Python
+runtime resolves against the service root: `backend/main.py` re-exports the
+ASGI application from the installed `autoeval_api` package. A Python service
+must name its entrypoint explicitly - the build fails with
+`must specify an "entrypoint" for runtime "python"` when it is missing, because
+the application lives in `backend/src/autoeval_api/` rather than at a filename
+the runtime probes on its own.
+
 ## Required Vercel environment variables
 
 Set all values for every Vercel environment that will run the workbench:
