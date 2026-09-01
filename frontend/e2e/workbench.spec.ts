@@ -44,10 +44,11 @@ test("renders the landing page without first-load fade gaps", async ({
 }) => {
   await page.goto("/");
   await expect(page.locator(".route-content")).toHaveCSS("opacity", "1");
-  await expect(page.locator(".landing-art-image")).toHaveCSS(
-    "animation-name",
-    "none",
-  );
+  await expect(
+    page.getByLabel("Interactive AutoEval product preview"),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Evaluate" }).click();
+  await expect(page.getByText("model-comparison / 024")).toBeVisible();
   await expect(page.locator(".landing-title canvas")).toHaveCSS("opacity", "1");
 });
 
