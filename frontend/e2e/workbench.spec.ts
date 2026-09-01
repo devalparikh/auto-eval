@@ -45,11 +45,27 @@ test("renders the landing page without first-load fade gaps", async ({
   await page.goto("/");
   await expect(page.locator(".route-content")).toHaveCSS("opacity", "1");
   await expect(
-    page.getByLabel("Interactive AutoEval product preview"),
+    page.getByLabel("Interactive AutoEval product walkthrough"),
   ).toBeVisible();
-  await page.getByRole("button", { name: "Evaluate" }).click();
-  await expect(page.getByText("model-comparison / 024")).toBeVisible();
-  await expect(page.locator(".landing-title canvas")).toHaveCSS("opacity", "1");
+  await expect(
+    page.getByRole("heading", { name: "Know what changed. Prove what works." }),
+  ).toBeVisible();
+
+  const tabs = page.getByRole("tablist", { name: "Evaluation workflow stages" });
+  await tabs.getByRole("tab", { name: /Adapt/ }).click();
+  await expect(page.getByText("SCOPED CONTRACT")).toBeVisible();
+  await tabs.getByRole("tab", { name: /Curate/ }).click();
+  await expect(page.getByText("Finalize v4")).toBeVisible();
+  await tabs.getByRole("tab", { name: /Evaluate/ }).click();
+  await expect(page.getByText("128 × 3 models")).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Modular by contract, not by claim." }),
+  ).toBeVisible();
+  await expect(page.getByRole("link", { name: /Open the workbench/ })).toHaveAttribute(
+    "href",
+    "/systems",
+  );
+  await expect(page.locator("canvas").first()).toHaveCSS("opacity", "1");
 });
 
 test("uses the shared select treatment and themed JSON disclosures", async ({
