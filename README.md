@@ -90,6 +90,15 @@ See [the architecture](docs/architecture.md), [multi-system and provenance desig
 - The CLI provider is off by default, uses fixed commands without a shell, and has timeout and output limits.
 - Evaluation work runs in-process. There is no durable queue, worker recovery, or multi-instance coordination yet.
 
+## Deployment boundary
+
+AutoEval is a local, single-user workbench and is not ready for a public Vercel
+deployment. The backend has no authentication, persists to local SQLite, runs
+evaluations in the API process, and rejects non-loopback clients by default.
+Do not disable those protections to make a hosted deployment respond. See
+[Vercel deployment readiness](docs/vercel-deployment.md) for the required
+authentication, durable storage, worker, and verification work.
+
 ## Current limitations
 
 - AutoEval is a local, single-user MVP with no authentication. Do not expose it to a network or place it behind a public reverse proxy.
