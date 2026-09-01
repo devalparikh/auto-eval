@@ -31,8 +31,8 @@ export function LandingScreen() {
       <section className={styles.hero} aria-labelledby="landing-title">
         <div className={styles.heroBackdrop} aria-hidden="true" />
         <div className={styles.heroCopy}>
-          <p className={styles.eyebrow}><span /> Evals for agent systems</p>
-          <h1 id="landing-title" className={styles.title}>Trace your agent.<br /><em>Test every <DottedText color="var(--landing-highlight)">change.</DottedText></em></h1>
+          <h1 id="landing-title" className={styles.title}>Evals for<br /><em>agent systems.</em></h1>
+          <p className={styles.heroStatement}>Trace your agent. <DottedText color="var(--landing-highlight)">Test every change.</DottedText></p>
           <p className={styles.lede}>Connect your agent code to AutoEval. Inspect each run, save useful traces as versioned test cases, and compare models on the same dataset.</p>
           <div className={styles.actions}>
             <Link href="/systems" className={styles.primaryAction} data-sound="navigate">Open AutoEval <span aria-hidden="true">↗</span></Link>
@@ -41,7 +41,7 @@ export function LandingScreen() {
           <p className={styles.heroNote}>Runs locally. The included examples need no provider key.</p>
         </div>
         <div className={styles.previewColumn}>
-          <p className={styles.previewPrompt}><span>TRY THE WORKFLOW</span> Choose a step. See what AutoEval records.</p>
+          <p className={styles.previewPrompt}>Choose a step and see what AutoEval records.</p>
           <ProductPreview />
         </div>
       </section>
@@ -53,7 +53,6 @@ export function LandingScreen() {
 
       <section id="workflow" className={styles.workflow} aria-labelledby="workflow-title">
         <div className={styles.sectionIntro}>
-          <p className={styles.sectionLabel}>HOW IT WORKS / 4 STEPS</p>
           <h2 id="workflow-title">Run an agent. Save the trace. Test it again.</h2>
           <p>A reviewed trace becomes a dataset item. AutoEval keeps the graph, prompt, model, and runtime data attached.</p>
         </div>
@@ -70,7 +69,6 @@ export function LandingScreen() {
           <div className={styles.diagramOutputs}><span>MODEL A</span><span>MODEL B</span><span>PROVIDER N</span></div>
         </div>
         <div className={styles.modularCopy}>
-          <p className={styles.sectionLabel}>KEEP YOUR AGENT CODE</p>
           <h2 id="modular-title">Use the agent you already have.</h2>
           <p>Your package owns the graph, handlers, and scoring code. AutoEval runs them, records traces, versions datasets, and compares models.</p>
           <Link href="/systems" className={styles.inlineLink}>Open an included example <span>→</span></Link>
@@ -79,7 +77,6 @@ export function LandingScreen() {
 
       <section id="evidence" className={styles.evidence} aria-labelledby="evidence-title">
         <div className={styles.evidenceCopy}>
-          <p className={styles.sectionLabel}>KNOW WHAT RAN</p>
           <h2 id="evidence-title">Every result points back to the exact inputs.</h2>
           <p>Before an eval starts, AutoEval pins the graph, prompt, model, dataset, and runtime snapshots. A finalized dataset cannot change.</p>
         </div>
@@ -91,7 +88,7 @@ export function LandingScreen() {
       </section>
 
       <section id="compare" className={styles.compare} aria-labelledby="compare-title">
-        <div className={styles.compareHeading}><p className={styles.sectionLabel}>COMPARE THE RESULT</p><h2 id="compare-title">Compare quality, cost, and latency.</h2><p>Open any case behind the total score. See where each model passed, failed, slowed down, or cost more.</p></div>
+        <div className={styles.compareHeading}><h2 id="compare-title">Compare quality, cost, and latency.</h2><p>Open any case behind the total score. See where each model passed, failed, slowed down, or cost more.</p></div>
         <div className={styles.resultsTable} role="img" aria-label="Example model comparison showing quality, cost, and latency">
           <div className={styles.tableHeader}><span>MODEL</span><span>QUALITY</span><span>COST / RUN</span><span>P95 LATENCY</span></div>
           <div><strong>model / candidate-a</strong><span><i style={{ width: "91%" }} />91%</span><span>$0.014</span><span>1.2s</span></div>
@@ -102,12 +99,11 @@ export function LandingScreen() {
       </section>
 
       <section id="faq" className={styles.faq} aria-labelledby="faq-title">
-        <div><p className={styles.sectionLabel}>COMMON QUESTIONS</p><h2 id="faq-title">What you need to know.</h2></div>
+        <div><h2 id="faq-title">Questions,<br />answered.</h2></div>
         <div className={styles.faqList}>{faqs.map(([question, answer], index) => <details key={question} open={index === 0}><summary>{question}<span aria-hidden="true">+</span></summary><p>{answer}</p></details>)}</div>
       </section>
 
       <section className={styles.finalCta} aria-labelledby="landing-cta-title">
-        <p className={styles.sectionLabel}>RUN AN INCLUDED EXAMPLE</p>
         <h2 id="landing-cta-title">Run it. Trace it.<br />Turn it into a test.</h2>
         <Link href="/systems" className={styles.primaryAction} data-sound="navigate">Open AutoEval <span aria-hidden="true">→</span></Link>
         <p>Local app. One user. No authentication.</p>
