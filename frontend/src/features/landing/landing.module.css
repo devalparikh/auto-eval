@@ -268,6 +268,17 @@
   justify-self: end;
   gap: 0.8rem;
 }
+.workspaceAvatar {
+  display: grid;
+  width: 19px;
+  height: 19px;
+  place-items: center;
+  border: 1px solid #4a4b43;
+  border-radius: 5px;
+  background: #282a25;
+  color: #deded7;
+  font-size: 0.45rem;
+}
 
 .previewLive {
   display: flex;
@@ -338,8 +349,21 @@
     color 150ms ease,
     transform 150ms cubic-bezier(0.16, 1, 0.3, 1);
 }
+.stageIcon {
+  display: grid;
+  width: 25px;
+  height: 25px;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 1px solid var(--preview-line);
+  border-radius: 6px;
+  background: var(--preview-raised);
+  color: var(--preview-copy);
+  font-family: var(--font-mono);
+}
 
 .stageIndex {
+  margin-left: auto;
   color: color-mix(in srgb, var(--preview-copy) 62%, transparent);
   font-family: var(--font-mono);
   font-size: 0.55rem;
@@ -378,6 +402,19 @@
     inset 0 1px 0 rgb(255 255 255 / 0.04),
     0 5px 16px rgb(0 0 0 / 0.1);
   color: var(--preview-ink);
+}
+.previewTabs .activeTab .stageIcon {
+  border-color: color-mix(
+    in srgb,
+    var(--landing-accent) 58%,
+    var(--preview-line)
+  );
+  background: color-mix(
+    in srgb,
+    var(--landing-accent) 16%,
+    var(--preview-raised)
+  );
+  color: var(--landing-accent);
 }
 
 .previewMain {
@@ -621,6 +658,61 @@
   );
   background-size: 13px 13px;
 }
+.canvasTools {
+  position: absolute;
+  z-index: 4;
+  top: 0.65rem;
+  left: 0.65rem;
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+  border: 1px solid var(--preview-line);
+  border-radius: 6px;
+  background: var(--preview-raised);
+  box-shadow: 0 5px 14px rgb(0 0 0 / 0.08);
+}
+.canvasTools button,
+.canvasTools span {
+  min-width: 25px;
+  height: 24px;
+  border: 0;
+  border-right: 1px solid var(--preview-line);
+  background: transparent;
+  color: var(--preview-copy);
+  font-family: var(--font-mono);
+  font-size: 0.5rem;
+  line-height: 24px;
+  text-align: center;
+}
+.canvasTools button {
+  cursor: pointer;
+}
+.canvasTools button:last-child {
+  border-right: 0;
+  padding-inline: 0.45rem;
+}
+.canvasTools button:hover {
+  background: var(--preview-muted);
+  color: var(--preview-ink);
+}
+.graphEdges {
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+.graphEdges > path {
+  fill: none;
+  stroke: color-mix(in srgb, var(--preview-copy) 70%, transparent);
+  stroke-width: 0.45;
+  vector-effect: non-scaling-stroke;
+  marker-end: url("#trace-arrow");
+}
+.graphEdges marker path {
+  fill: var(--preview-copy);
+}
 
 .previewNode {
   position: absolute;
@@ -629,17 +721,54 @@
   width: 122px;
   gap: 0.27rem;
   border: 1px solid var(--preview-line);
-  border-left: 2px solid var(--landing-accent);
   border-radius: 8px;
   background: var(--preview-raised);
   box-shadow: 0 7px 18px rgb(27 44 64 / 0.1);
   padding: 0.68rem;
+  color: var(--preview-ink);
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  transform: translateY(-50%);
+  transition:
+    border-color 150ms ease,
+    box-shadow 150ms ease,
+    transform 150ms ease;
+}
+.previewNode:hover,
+.selectedNode {
+  border-color: color-mix(
+    in srgb,
+    var(--landing-accent) 70%,
+    var(--preview-line)
+  );
+  box-shadow: 0 9px 24px rgb(27 44 64 / 0.16);
+  transform: translateY(calc(-50% - 2px));
 }
 
 .previewNode span {
   color: var(--preview-copy);
   font-family: var(--font-mono);
   font-size: 0.5rem;
+}
+.previewNode span i {
+  display: inline-block;
+  width: 5px;
+  height: 5px;
+  margin-right: 0.25rem;
+  border-radius: 50%;
+  background: #4e9174;
+}
+.previewNode em {
+  position: absolute;
+  right: -4px;
+  top: 50%;
+  width: 7px;
+  height: 7px;
+  border: 1px solid var(--preview-copy);
+  border-radius: 50%;
+  background: var(--preview-raised);
+  transform: translateY(-50%);
 }
 
 .previewNode b {
@@ -650,50 +779,6 @@
 .previewNode small {
   color: var(--preview-copy);
   font-size: 0.55rem;
-}
-
-.inputNode {
-  top: 42%;
-  left: 5%;
-}
-.contextNode {
-  top: 17%;
-  left: 37%;
-}
-.modelNode {
-  right: 7%;
-  bottom: 18%;
-}
-.policyNode {
-  bottom: 7%;
-  left: 23%;
-}
-
-.flowLine {
-  position: absolute;
-  z-index: 1;
-  height: 1px;
-  background: color-mix(in srgb, var(--preview-copy) 68%, transparent);
-  transform-origin: left;
-}
-
-.flowOne {
-  top: 48%;
-  left: 29%;
-  width: 26%;
-  transform: rotate(-28deg);
-}
-.flowTwo {
-  top: 35%;
-  left: 59%;
-  width: 24%;
-  transform: rotate(34deg);
-}
-.flowThree {
-  bottom: 25%;
-  left: 47%;
-  width: 30%;
-  transform: rotate(-10deg);
 }
 
 .inspector {
@@ -764,6 +849,27 @@
   padding: 0.45rem 0.58rem;
   font-size: 0.57rem;
 }
+.saveModes {
+  display: flex;
+  gap: 0.2rem;
+  margin-left: auto;
+  padding: 0.18rem;
+  border: 1px solid var(--preview-line);
+  border-radius: 7px;
+  background: var(--preview-muted);
+}
+.saveModes button {
+  margin: 0;
+  border: 0;
+  background: transparent;
+  color: var(--preview-copy);
+  cursor: pointer;
+}
+.saveModes button[aria-pressed="true"] {
+  background: var(--preview-raised);
+  color: var(--preview-ink);
+  box-shadow: 0 1px 5px rgb(0 0 0 / 0.12);
+}
 
 .caseList {
   margin-top: 0.55rem;
@@ -823,6 +929,138 @@
   border: 1px solid var(--preview-line);
   border-radius: 8px;
   overflow: hidden;
+}
+.comparisonLayout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.5fr) minmax(145px, 0.75fr);
+  gap: 0.9rem;
+  min-height: 210px;
+  margin-top: 0.8rem;
+}
+.dotChart {
+  position: relative;
+  padding: 1rem 0.4rem 1.3rem 1.8rem;
+}
+.chartPlot {
+  position: relative;
+  height: 155px;
+  border-bottom: 1px solid var(--preview-line);
+  border-left: 1px solid var(--preview-line);
+  background-image: linear-gradient(
+    to top,
+    var(--preview-line) 1px,
+    transparent 1px
+  );
+  background-size: 100% 33.33%;
+}
+.targetZone {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 34%;
+  height: 36%;
+  border-radius: 0 0 7px;
+  background: rgb(47 138 109 / 0.08);
+  color: #4f967a;
+  padding: 0.35rem;
+  font-family: var(--font-mono);
+  font-size: 0.45rem;
+}
+.chartPlot button {
+  position: absolute;
+  border: 0;
+  background: transparent;
+  color: var(--preview-copy);
+  font-size: 0.47rem;
+  cursor: pointer;
+  translate: -50% 50%;
+}
+.chartPlot button i {
+  display: block;
+  width: 9px;
+  height: 9px;
+  margin: auto;
+  border: 2px solid var(--preview-bg);
+  border-radius: 50%;
+  background: var(--dot-color);
+  box-shadow: 0 0 0 1px var(--dot-color);
+  transition:
+    transform 180ms cubic-bezier(0.16, 1, 0.3, 1),
+    box-shadow 180ms ease;
+}
+.chartPlot button:hover i,
+.chartPlot .selectedDot i {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--dot-color) 25%, transparent);
+  transform: scale(1.35);
+}
+.chartPlot button span {
+  display: block;
+  margin-top: 0.27rem;
+  white-space: nowrap;
+  opacity: 0;
+  transition: opacity 150ms ease;
+}
+.chartPlot button:hover span,
+.chartPlot .selectedDot span {
+  opacity: 1;
+}
+.yLabel,
+.xLabel {
+  position: absolute;
+  color: var(--preview-copy);
+  font-family: var(--font-mono);
+  font-size: 0.45rem;
+}
+.yLabel {
+  left: 0;
+  top: 50%;
+  transform: rotate(-90deg) translateX(-50%);
+  transform-origin: top left;
+}
+.xLabel {
+  right: 0.4rem;
+  bottom: 0;
+}
+.modelLegend {
+  display: grid;
+  align-content: center;
+  gap: 0.22rem;
+}
+.modelLegend button {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--preview-ink);
+  padding: 0.42rem;
+  text-align: left;
+  cursor: pointer;
+}
+.modelLegend button:hover,
+.modelLegend button[aria-pressed="true"] {
+  border-color: var(--preview-line);
+  background: var(--preview-raised);
+}
+.modelLegend > button > i {
+  width: 7px;
+  height: 7px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+}
+.modelLegend span {
+  display: grid;
+  gap: 0.15rem;
+}
+.modelLegend b {
+  font-size: 0.55rem;
+  font-weight: 550;
+}
+.modelLegend small {
+  color: var(--preview-copy);
+  font-family: var(--font-mono);
+  font-size: 0.45rem;
 }
 
 .evalTable header,
@@ -1341,6 +1579,14 @@
   .contractStack {
     grid-template-columns: repeat(2, 1fr);
   }
+
+  .comparisonLayout {
+    grid-template-columns: 1fr;
+  }
+
+  .modelLegend {
+    grid-template-columns: repeat(2, 1fr);
+  }
 }
 
 @media (max-width: 480px) {
@@ -1372,6 +1618,10 @@
   }
 
   .stageIndex {
+    display: none;
+  }
+
+  .stageIcon {
     display: none;
   }
 

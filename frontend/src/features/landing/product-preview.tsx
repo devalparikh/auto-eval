@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import type { CSSProperties } from "react";
 
 import styles from "@/features/landing/landing.module.css";
 
@@ -14,6 +15,7 @@ const stages = [
     description:
       "Register the graph and handlers. Your agent code stays in its own package.",
     meta: "graph and handlers",
+    icon: "⌁",
   },
   {
     key: "observe",
@@ -24,6 +26,7 @@ const stages = [
     description:
       "Open one run. Check the node path, timing, model call, and output.",
     meta: "current trace",
+    icon: "◇",
   },
   {
     key: "curate",
@@ -34,6 +37,7 @@ const stages = [
     description:
       "Add the reviewed trace to a draft dataset. Finalize it when it is ready.",
     meta: "128 reviewed cases",
+    icon: "↓",
   },
   {
     key: "evaluate",
@@ -42,7 +46,8 @@ const stages = [
     title: "Evaluation",
     value: "comparison / 024",
     description: "Run the same locked cases against each model.",
-    meta: "three candidates",
+    meta: "four candidates",
+    icon: "↗",
   },
 ] as const;
 
@@ -80,9 +85,10 @@ export function ProductPreview({
           </div>
           <span className={styles.previewWindowTitle}>AutoEval Desktop</span>
           <div className={styles.previewChromeTools}>
-            <span>sample workspace</span>
+            <span className={styles.workspaceAvatar}>RA</span>
+            <span>Research assistant</span>
             <span className={styles.previewLive}>
-              <i /> local
+              <i /> running locally
             </span>
           </div>
         </div>
@@ -109,11 +115,14 @@ export function ProductPreview({
                 }
                 onClick={() => setActiveStage(stage.key)}
               >
-                <span className={styles.stageIndex}>{stage.index}</span>
+                <span className={styles.stageIcon} aria-hidden="true">
+                  {stage.icon}
+                </span>
                 <span className={styles.stageCopy}>
                   <b>{stage.label}</b>
                   <small>{stage.meta}</small>
                 </span>
+                <span className={styles.stageIndex}>{stage.index}</span>
               </button>
             ))}
           </div>
@@ -189,36 +198,99 @@ function ConnectScene() {
 }
 
 function TraceScene() {
+  const nodes = [
+    {
+      id: "question",
+      kind: "INPUT",
+      name: "Question",
+      meta: "0 ms",
+      x: 7,
+      y: 50,
+    },
+    {
+      id: "retrieve",
+      kind: "TOOL",
+      name: "Retrieve",
+      meta: "142 ms",
+      x: 36,
+      y: 27,
+    },
+    {
+      id: "generate",
+      kind: "MODEL",
+      name: "Generate",
+      meta: "820 ms",
+      x: 65,
+      y: 50,
+    },
+    {
+      id: "grounding",
+      kind: "CHECK",
+      name: "Grounding",
+      meta: "passed",
+      x: 36,
+      y: 79,
+    },
+  ] as const;
+  const [selected, setSelected] =
+    useState<(typeof nodes)[number]["id"]>("generate");
+  const activeNode = nodes.find((node) => node.id === selected) ?? nodes[2];
   return (
     <div className={styles.traceScene}>
-      <div className={styles.traceCanvas} aria-hidden="true">
-        <div className={`${styles.previewNode} ${styles.inputNode}`}>
-          <span>INPUT</span>
-          <b>Question</b>
-          <small>0 ms</small>
+      <div className={styles.traceCanvas}>
+        <div className={styles.canvasTools} aria-label="Graph controls">
+          <button type="button" aria-label="Zoom out">
+            −
+          </button>
+          <span>100%</span>
+          <button type="button" aria-label="Zoom in">
+            +
+          </button>
+          <button type="button">Fit</button>
         </div>
-        <i className={`${styles.flowLine} ${styles.flowOne}`} />
-        <div className={`${styles.previewNode} ${styles.contextNode}`}>
-          <span>CONTEXT</span>
-          <b>Retrieve</b>
-          <small>142 ms</small>
-        </div>
-        <i className={`${styles.flowLine} ${styles.flowTwo}`} />
-        <div className={`${styles.previewNode} ${styles.modelNode}`}>
-          <span>MODEL</span>
-          <b>Generate</b>
-          <small>820 ms</small>
-        </div>
-        <i className={`${styles.flowLine} ${styles.flowThree}`} />
-        <div className={`${styles.previewNode} ${styles.policyNode}`}>
-          <span>CHECK</span>
-          <b>Grounding</b>
-          <small>passed</small>
-        </div>
+        <svg
+          className={styles.graphEdges}
+          viewBox="0 0 100 100"
+          preserveAspectRatio="none"
+          aria-hidden="true"
+        >
+          <defs>
+            <marker
+              id="trace-arrow"
+              markerWidth="5"
+              markerHeight="5"
+              refX="4"
+              refY="2.5"
+              orient="auto"
+            >
+              <path d="M0,0 L5,2.5 L0,5 Z" />
+            </marker>
+          </defs>
+          <path d="M31 50 C34 50 33 27 36 27" />
+          <path d="M60 27 C63 27 62 50 65 50" />
+          <path d="M65 56 C62 56 63 79 60 79" />
+        </svg>
+        {nodes.map((node) => (
+          <button
+            key={node.id}
+            type="button"
+            className={`${styles.previewNode} ${selected === node.id ? styles.selectedNode : ""}`}
+            style={{ left: `${node.x}%`, top: `${node.y}%` }}
+            aria-pressed={selected === node.id}
+            onClick={() => setSelected(node.id)}
+          >
+            <span>
+              <i /> {node.kind}
+            </span>
+            <b>{node.name}</b>
+            <small>{node.meta}</small>
+            <em aria-hidden="true" />
+          </button>
+        ))}
       </div>
       <aside className={styles.inspector}>
         <span>SPAN DETAIL</span>
-        <strong>Generate</strong>
+        <strong>{activeNode.name}</strong>
         <dl>
           <div>
             <dt>Status</dt>
@@ -226,7 +298,7 @@ function TraceScene() {
           </div>
           <div>
             <dt>Model</dt>
-            <dd>candidate-a</dd>
+            <dd>{activeNode.id === "generate" ? "Claude 3.5 Haiku" : "—"}</dd>
           </div>
           <div>
             <dt>Tokens</dt>
@@ -247,14 +319,24 @@ function TraceScene() {
 }
 
 function DatasetScene() {
+  const [mode, setMode] = useState<"review" | "tag" | "finalize">("review");
   return (
     <div className={styles.datasetScene}>
       <div className={styles.datasetToolbar}>
         <span>128 CASES</span>
         <b>DRAFT</b>
-        <button type="button" tabIndex={-1}>
-          Finalize v4
-        </button>
+        <div className={styles.saveModes} aria-label="Dataset mode">
+          {(["review", "tag", "finalize"] as const).map((item) => (
+            <button
+              key={item}
+              type="button"
+              aria-pressed={mode === item}
+              onClick={() => setMode(item)}
+            >
+              {item}
+            </button>
+          ))}
+        </div>
       </div>
       <div className={styles.caseList}>
         <div>
@@ -277,7 +359,13 @@ function DatasetScene() {
         </div>
       </div>
       <footer>
-        <span>SOURCE RUN ATTACHED</span>
+        <span>
+          {mode === "finalize"
+            ? "READY TO LOCK AS V4"
+            : mode === "tag"
+              ? "TAGGING FAILURE MODES"
+              : "SOURCE RUN ATTACHED"}
+        </span>
         <code>graph v7 · prompt v12 · snapshot 93f…</code>
       </footer>
     </div>
@@ -285,6 +373,42 @@ function DatasetScene() {
 }
 
 function EvaluationScene() {
+  const models = [
+    {
+      name: "Claude 3.5 Haiku",
+      quality: 91,
+      cost: 1.79,
+      latency: "1.2s",
+      x: 74,
+      color: "#e06b55",
+    },
+    {
+      name: "GPT-4o mini",
+      quality: 86,
+      cost: 0.77,
+      latency: "0.8s",
+      x: 27,
+      color: "#5f8f7a",
+    },
+    {
+      name: "Gemini 1.5 Flash",
+      quality: 82,
+      cost: 0.43,
+      latency: "0.6s",
+      x: 12,
+      color: "#6e7fa8",
+    },
+    {
+      name: "Llama 3.1 70B",
+      quality: 79,
+      cost: 1.15,
+      latency: "1.6s",
+      x: 48,
+      color: "#9a7aaa",
+    },
+  ] as const;
+  type ModelName = (typeof models)[number]["name"];
+  const [selected, setSelected] = useState<ModelName>(models[0].name);
   return (
     <div className={styles.evaluationScene}>
       <div className={styles.evalSummary}>
@@ -298,37 +422,60 @@ function EvaluationScene() {
         </div>
         <div>
           <span>CASES</span>
-          <b>128 × 3 models</b>
+          <b>128 × 4 models</b>
         </div>
       </div>
-      <div className={styles.evalTable}>
-        <header>
-          <span>MODEL</span>
-          <span>QUALITY</span>
-          <span>COST</span>
-          <span>LATENCY</span>
-        </header>
-        <div>
-          <strong>candidate-a</strong>
-          <span>91%</span>
-          <span>$1.79</span>
-          <span>1.2s</span>
+      <div className={styles.comparisonLayout}>
+        <div
+          className={styles.dotChart}
+          aria-label="Model quality versus cost comparison"
+        >
+          <span className={styles.yLabel}>quality score ↑</span>
+          <div className={styles.chartPlot}>
+            <div className={styles.targetZone}>best value</div>
+            {models.map((model) => (
+              <button
+                key={model.name}
+                type="button"
+                className={selected === model.name ? styles.selectedDot : ""}
+                style={
+                  {
+                    left: `${model.x}%`,
+                    bottom: `${model.quality - 70}%`,
+                    "--dot-color": model.color,
+                  } as CSSProperties
+                }
+                onClick={() => setSelected(model.name)}
+                aria-label={`${model.name}: ${model.quality}% quality, $${model.cost} cost`}
+              >
+                <i />
+                <span>{model.name}</span>
+              </button>
+            ))}
+          </div>
+          <span className={styles.xLabel}>cost per 128 cases →</span>
         </div>
-        <div>
-          <strong>candidate-b</strong>
-          <span>86%</span>
-          <span>$0.77</span>
-          <span>0.8s</span>
-        </div>
-        <div>
-          <strong>baseline</strong>
-          <span>79%</span>
-          <span>$1.15</span>
-          <span>1.6s</span>
+        <div className={styles.modelLegend}>
+          {models.map((model) => (
+            <button
+              key={model.name}
+              type="button"
+              aria-pressed={selected === model.name}
+              onClick={() => setSelected(model.name)}
+            >
+              <i style={{ background: model.color }} />
+              <span>
+                <b>{model.name}</b>
+                <small>
+                  {model.quality}% · ${model.cost} · {model.latency}
+                </small>
+              </span>
+            </button>
+          ))}
         </div>
       </div>
       <footer>
-        <span>384 / 384 runs resolved</span>
+        <span>512 / 512 runs resolved</span>
         <i>
           <b />
         </i>
