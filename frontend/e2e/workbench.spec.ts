@@ -57,15 +57,61 @@ test("renders the landing page without first-load fade gaps", async ({
   await tabs.getByRole("tab", { name: /Save/ }).click();
   await expect(page.getByText("Finalize v4")).toBeVisible();
   await tabs.getByRole("tab", { name: /Compare/ }).click();
-  await expect(page.getByText("128 × 3 models")).toBeVisible();
+  await expect(
+    page
+      .getByLabel("Interactive AutoEval workflow")
+      .getByText("128 × 3 models"),
+  ).toBeVisible();
   await expect(
     page.getByRole("heading", { name: "Use the agent you already have." }),
   ).toBeVisible();
-  await expect(page.getByRole("link", { name: /Open AutoEval/ })).toHaveAttribute(
-    "href",
-    "/systems",
-  );
+  await expect(
+    page.getByRole("link", { name: "open autoeval", exact: true }).first(),
+  ).toHaveAttribute("href", "/systems");
   await expect(page.locator("canvas").first()).toHaveCSS("opacity", "1");
+});
+
+test("keeps the marketing navigation and desktop preview interactive", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1280, height: 820 });
+  await page.goto("/");
+
+  const github = page.getByRole("link", { name: "github" });
+  await expect(github).toHaveAttribute(
+    "href",
+    "https://github.com/devalparikh/auto-eval",
+  );
+  await expect(github).toHaveAttribute("target", "_blank");
+
+  const product = page.getByRole("button", { name: "product" });
+  await product.focus();
+  await page.keyboard.press("Enter");
+  await expect(product).toHaveAttribute("aria-expanded", "true");
+
+  const menu = page.locator("#marketing-product-menu");
+  await expect(menu).toBeVisible();
+  await menu.getByRole("link", { name: "provenance" }).hover();
+  await expect(menu.getByText("Pin every graph")).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(product).toHaveAttribute("aria-expanded", "false");
+
+  const preview = page
+    .getByLabel("Interactive AutoEval workflow")
+    .locator("[class*='previewWindow']");
+  await expect(preview).toBeVisible();
+  expect(
+    await preview.evaluate((element) =>
+      Number.parseFloat(getComputedStyle(element).borderRadius),
+    ),
+  ).toBeGreaterThanOrEqual(12);
+
+  await page.getByRole("button", { name: "continue to save" }).click();
+  await expect(
+    page
+      .getByRole("tablist", { name: "AutoEval workflow steps" })
+      .getByRole("tab", { name: /Save/ }),
+  ).toHaveAttribute("aria-selected", "true");
 });
 
 test("uses the shared select treatment and themed JSON disclosures", async ({
@@ -207,8 +253,8 @@ test("keeps shell geometry stable across primary navigation", async ({
   }
 
   await recordShellWidth();
-  await page.getByRole("link", { name: /Compare/ }).click();
-  await expect(page.getByRole("heading", { name: /Compare/i })).toBeVisible();
+  await page.getByRole("link", { name: /Evaluate/ }).click();
+  await expect(page.getByRole("heading", { name: /Evaluate/i })).toBeVisible();
   await recordShellWidth();
   await page.getByRole("link", { name: /Results/ }).click();
   await expect(page.getByRole("heading", { name: /results/i })).toBeVisible();
@@ -378,7 +424,7 @@ test("contains the Run graph preview across representative widths", async ({
 test("run the seeded evaluation workflow", async ({ page }) => {
   test.setTimeout(45_000);
   await page.goto(`${incidentRoot}/evaluations`);
-  await expect(page.getByRole("heading", { name: /Compare/i })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /Evaluate/i })).toBeVisible();
   await page.getByRole("button", { name: "Start evaluation" }).click();
   await expect(page.getByText(/^Run [a-f0-9]{8}$/)).toBeVisible();
   await expect(page.getByRole("link", { name: "View results" })).toBeVisible({

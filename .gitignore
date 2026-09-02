@@ -14,3 +14,4 @@ frontend/.next/
 frontend/coverage/
 frontend/playwright-report/
 frontend/test-results/
+/work/pstack-port/

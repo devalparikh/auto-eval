@@ -1,15 +1,19 @@
 "use client";
 
 import {
+  ArrowUpRightIcon,
+  CaretDownIcon,
+  GithubLogoIcon,
   MoonIcon,
   SpeakerHighIcon,
   SpeakerSlashIcon,
   SunIcon,
 } from "@phosphor-icons/react";
 import Link from "next/link";
-import { motion, useReducedMotion } from "motion/react";
+import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { usePathname } from "next/navigation";
 import {
+  useRef,
   useState,
   useSyncExternalStore,
   type MouseEvent,
@@ -19,6 +23,39 @@ import { playUiSound, UI_SOUND_STORAGE_KEY, type UiSound } from "@/lib/sound";
 import { THEME_COOKIE_NAME, type ColorTheme } from "@/lib/theme";
 
 const SOUND_PREFERENCE_EVENT = "autoeval:sound-preference";
+
+const MARKETING_NAV_ITEMS = [
+  {
+    key: "workflow",
+    label: "workflow",
+    href: "#workflow",
+    description: "Trace one run and turn the useful failures into repeatable tests.",
+    details: ["connect the agent", "inspect the trace", "save the cases", "compare models"],
+  },
+  {
+    key: "connect",
+    label: "connect",
+    href: "#modular",
+    description: "Keep your graph, handlers, scoring, and trace policy beside the agent.",
+    details: ["plugin manifest", "graph definition", "handlers and scoring", "trace policy"],
+  },
+  {
+    key: "provenance",
+    label: "provenance",
+    href: "#provenance",
+    description: "Pin every graph, prompt, dataset, model, and runtime snapshot before evaluation.",
+    details: ["content hashes", "locked dataset", "pinned snapshots", "backend keys"],
+  },
+  {
+    key: "questions",
+    label: "questions",
+    href: "#faq",
+    description: "See how frameworks, providers, immutable datasets, and local operation work.",
+    details: ["agent frameworks", "model providers", "dataset versions", "local operation"],
+  },
+] as const;
+
+type MarketingNavKey = (typeof MARKETING_NAV_ITEMS)[number]["key"];
 
 export function AppShell({
   children,
@@ -169,8 +206,34 @@ function MarketingHeader({
   theme: ColorTheme;
   onToggleTheme: () => void;
 }) {
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [activeItemKey, setActiveItemKey] =
+    useState<MarketingNavKey>("workflow");
+  const menuCloseTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const reduceMotion = useReducedMotion();
+  const activeItem =
+    MARKETING_NAV_ITEMS.find((item) => item.key === activeItemKey) ??
+    MARKETING_NAV_ITEMS[0];
+
+  function keepMenuOpen() {
+    if (menuCloseTimer.current) {
+      clearTimeout(menuCloseTimer.current);
+      menuCloseTimer.current = null;
+    }
+  }
+
+  function scheduleMenuClose() {
+    keepMenuOpen();
+    menuCloseTimer.current = setTimeout(() => setMenuOpen(false), 180);
+  }
+
   return (
-    <header className="marketing-header">
+    <header
+      className="marketing-header"
+      onMouseEnter={keepMenuOpen}
+      onMouseLeave={scheduleMenuClose}
+    >
       <Link
         href="/"
         className="marketing-brand"
@@ -180,11 +243,173 @@ function MarketingHeader({
         <span aria-hidden="true">a/e</span>
         <strong>AutoEval</strong>
       </Link>
-      <nav aria-label="Landing page" className="marketing-nav">
-        <a href="#workflow">Workflow</a>
-        <a href="#modular">Connect</a>
-        <a href="#evidence">Versions</a>
-        <a href="#faq">FAQ</a>
+      <nav
+        aria-label="Landing page"
+        className="marketing-nav"
+        onKeyDown={(event) => {
+          if (event.key === "Escape" && menuOpen) {
+            event.preventDefault();
+            setMenuOpen(false);
+            triggerRef.current?.focus();
+          }
+          if (event.key === "ArrowDown" && event.target === triggerRef.current) {
+            event.preventDefault();
+            setMenuOpen(true);
+            requestAnimationFrame(() => {
+              document
+                .querySelector<HTMLAnchorElement>(
+                  "#marketing-product-menu .marketing-menu-list > a",
+                )
+                ?.focus();
+            });
+          }
+        }}
+        onBlur={(event) => {
+          if (
+            !event.currentTarget.contains(event.relatedTarget as Node | null)
+          ) {
+            setMenuOpen(false);
+          }
+        }}
+      >
+        <button
+          ref={triggerRef}
+          type="button"
+          className="marketing-nav-trigger"
+          aria-expanded={menuOpen}
+          aria-controls="marketing-product-menu"
+          onMouseEnter={() => setMenuOpen(true)}
+          onClick={() => {
+            keepMenuOpen();
+            setMenuOpen(true);
+          }}
+        >
+          product
+          <CaretDownIcon size={12} weight="bold" aria-hidden="true" />
+        </button>
+        <a
+          className="marketing-nav-link"
+          href="#workflow"
+          onMouseEnter={() => setMenuOpen(false)}
+        >
+          workflow
+        </a>
+        <a
+          className="marketing-nav-link marketing-github-link"
+          href="https://github.com/devalparikh/auto-eval"
+          target="_blank"
+          rel="noreferrer"
+          onMouseEnter={() => setMenuOpen(false)}
+        >
+          <GithubLogoIcon size={14} weight="regular" aria-hidden="true" />
+          github
+          <ArrowUpRightIcon size={11} weight="bold" aria-hidden="true" />
+        </a>
+        <AnimatePresence>
+          {menuOpen ? (
+            <motion.div
+              id="marketing-product-menu"
+              className="marketing-menu"
+              onMouseEnter={keepMenuOpen}
+              onMouseLeave={scheduleMenuClose}
+              initial={
+                reduceMotion
+                  ? false
+                  : { opacity: 0, y: -6, filter: "blur(6px)" }
+              }
+              animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+              exit={
+                reduceMotion
+                  ? { opacity: 0 }
+                  : {
+                      opacity: 0,
+                      y: -4,
+                      filter: "blur(4px)",
+                      transition: {
+                        duration: 0.16,
+                        ease: [0.4, 0, 0.2, 1],
+                      },
+                    }
+              }
+              transition={{
+                duration: reduceMotion ? 0 : 0.22,
+                ease: [0.16, 1, 0.3, 1],
+              }}
+            >
+              <div className="marketing-menu-list">
+                {MARKETING_NAV_ITEMS.map((item) => (
+                  <a
+                    key={item.key}
+                    href={item.href}
+                    onMouseEnter={() => setActiveItemKey(item.key)}
+                    onFocus={() => setActiveItemKey(item.key)}
+                    onClick={() => setMenuOpen(false)}
+                  >
+                    {activeItemKey === item.key ? (
+                      <motion.span
+                        className="marketing-menu-active"
+                        layoutId="marketing-menu-active"
+                        transition={
+                          reduceMotion
+                            ? { duration: 0 }
+                            : {
+                                type: "spring",
+                                stiffness: 430,
+                                damping: 34,
+                              }
+                        }
+                      />
+                    ) : null}
+                    <span>{item.label}</span>
+                    <ArrowUpRightIcon
+                      size={13}
+                      weight="bold"
+                      aria-hidden="true"
+                    />
+                  </a>
+                ))}
+              </div>
+              <div className="marketing-menu-preview">
+                <AnimatePresence mode="wait" initial={false}>
+                  <motion.div
+                    key={activeItem.key}
+                    initial={
+                      reduceMotion
+                        ? false
+                        : { opacity: 0, x: 8, filter: "blur(5px)" }
+                    }
+                    animate={{ opacity: 1, x: 0, filter: "blur(0px)" }}
+                    exit={
+                      reduceMotion
+                        ? { opacity: 0 }
+                        : { opacity: 0, x: -5, filter: "blur(3px)" }
+                    }
+                    transition={{
+                      duration: reduceMotion ? 0 : 0.2,
+                      ease: [0.16, 1, 0.3, 1],
+                    }}
+                  >
+                    <strong>{activeItem.label}</strong>
+                    <p>{activeItem.description}</p>
+                    <div>
+                      {activeItem.details.map((detail) => (
+                        <span key={detail}>{detail}</span>
+                      ))}
+                    </div>
+                    <a href={activeItem.href} onClick={() => setMenuOpen(false)}>
+                      open section
+                      <ArrowUpRightIcon
+                        size={12}
+                        weight="bold"
+                        aria-hidden="true"
+                      />
+                    </a>
+                  </motion.div>
+                </AnimatePresence>
+              </div>
+            </motion.div>
+          ) : null}
+        </AnimatePresence>
       </nav>
       <div className="marketing-actions">
         <button
@@ -196,12 +421,8 @@ function MarketingHeader({
         >
           {theme === "dark" ? <MoonIcon size={15} /> : <SunIcon size={15} />}
         </button>
-        <Link
-          href="/systems"
-          className="marketing-cta"
-          data-sound="navigate"
-        >
-          Open AutoEval <span aria-hidden="true">↗</span>
+        <Link href="/systems" className="marketing-cta" data-sound="navigate">
+          open autoeval <span aria-hidden="true">↗</span>
         </Link>
       </div>
     </header>
