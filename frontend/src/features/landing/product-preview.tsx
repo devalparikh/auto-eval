@@ -407,7 +407,8 @@ function EvaluationScene() {
       color: "#9a7aaa",
     },
   ] as const;
-  const [selected, setSelected] = useState(models[0].name);
+  type ModelName = (typeof models)[number]["name"];
+  const [selected, setSelected] = useState<ModelName>(models[0].name);
   return (
     <div className={styles.evaluationScene}>
       <div className={styles.evalSummary}>
