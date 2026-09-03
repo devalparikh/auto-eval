@@ -98,7 +98,7 @@ test("keeps the marketing navigation and desktop preview interactive", async ({
 
   const preview = page
     .getByLabel("Interactive AutoEval workflow")
-    .locator("[class*='previewWindow']");
+    .locator("div[class*='previewWindow']");
   await expect(preview).toBeVisible();
   expect(
     await preview.evaluate((element) =>
