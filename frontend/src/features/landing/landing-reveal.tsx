@@ -1,7 +1,7 @@
 "use client";
 
 import { motion, useReducedMotion } from "motion/react";
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 
 type LandingRevealProps = {
   children: ReactNode;
@@ -12,6 +12,11 @@ type LandingRevealProps = {
 
 const visible = { opacity: 1, y: 0, filter: "blur(0px)" };
 
+/**
+ * Fade-and-rise reveal. `data-seen` flips to "true" once the block has been
+ * on screen so stylesheet-driven details inside it (typing, toggles, list
+ * staggers) can start at the right moment instead of on page load.
+ */
 export function LandingReveal({
   children,
   className,
@@ -19,6 +24,7 @@ export function LandingReveal({
   mode = "scroll",
 }: LandingRevealProps) {
   const reduceMotion = useReducedMotion();
+  const [seen, setSeen] = useState(mode === "load");
   const hidden = reduceMotion
     ? false
     : {
@@ -38,6 +44,7 @@ export function LandingReveal({
     return (
       <motion.div
         className={className}
+        data-seen="true"
         initial={hidden}
         animate={visible}
         transition={transition}
@@ -50,8 +57,10 @@ export function LandingReveal({
   return (
     <motion.div
       className={className}
+      data-seen={seen || reduceMotion ? "true" : "false"}
       initial={hidden}
       whileInView={visible}
+      onViewportEnter={() => setSeen(true)}
       viewport={{ once: true, amount: 0.18, margin: "0px 0px -7% 0px" }}
       transition={transition}
     >

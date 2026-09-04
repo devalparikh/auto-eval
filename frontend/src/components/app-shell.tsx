@@ -33,11 +33,25 @@ const MARKETING_NAV_ITEMS = [
     details: ["connect the agent", "inspect the trace", "save the cases", "compare models"],
   },
   {
+    key: "trace",
+    label: "trace",
+    href: "#trace",
+    description: "Open one run and see every node, model call, cost, and timing with the context that produced it.",
+    details: ["span waterfall", "model calls and cost", "failed checks", "save to a dataset"],
+  },
+  {
     key: "connect",
     label: "connect",
     href: "#modular",
     description: "Keep your graph, handlers, scoring, and trace policy beside the agent.",
     details: ["plugin manifest", "graph definition", "handlers and scoring", "trace policy"],
+  },
+  {
+    key: "compare",
+    label: "compare",
+    href: "#compare",
+    description: "Run the same locked cases against every candidate and line up quality, cost, and latency.",
+    details: ["one finalized dataset", "every model", "per-case results", "cost and latency"],
   },
   {
     key: "provenance",

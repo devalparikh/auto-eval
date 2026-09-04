@@ -53,7 +53,7 @@ test("renders the landing page without first-load fade gaps", async ({
 
   const tabs = page.getByRole("tablist", { name: "AutoEval workflow steps" });
   await tabs.getByRole("tab", { name: /Connect/ }).click();
-  await expect(page.getByText("CODE ADAPTER")).toBeVisible();
+  await expect(page.getByText("CODE ADAPTER", { exact: true })).toBeVisible();
   await tabs.getByRole("tab", { name: /Save/ }).click();
   await expect(page.getByText("Finalize v4")).toBeVisible();
   await tabs.getByRole("tab", { name: /Compare/ }).click();
@@ -77,7 +77,7 @@ test("keeps the marketing navigation and desktop preview interactive", async ({
   await page.setViewportSize({ width: 1280, height: 820 });
   await page.goto("/");
 
-  const github = page.getByRole("link", { name: "github" });
+  const github = page.getByRole("link", { name: "github", exact: true });
   await expect(github).toHaveAttribute(
     "href",
     "https://github.com/devalparikh/auto-eval",
