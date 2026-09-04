@@ -758,51 +758,57 @@ function DatasetScene({ running, reduceMotion }: SceneProps) {
 const candidates = [
   {
     name: "Claude Opus 5",
-    short: "Opus 5",
     vendor: "anthropic",
     score: 95,
     cost: 0.062,
+    passed: 122,
+    tokens: "2,410",
     latency: "2.1s",
   },
   {
     name: "Claude Sonnet 5",
-    short: "Sonnet 5",
     vendor: "anthropic",
     score: 93,
     cost: 0.021,
+    passed: 119,
+    tokens: "1,284",
     latency: "1.2s",
   },
   {
     name: "ra-sonnet-ft-v3",
-    short: "ft-v3",
     vendor: "finetune",
     score: 92,
     cost: 0.006,
+    passed: 118,
+    tokens: "690",
     latency: "0.7s",
     best: true,
   },
   {
     name: "GPT-5",
-    short: "GPT-5",
     vendor: "openai",
     score: 91,
     cost: 0.028,
+    passed: 116,
+    tokens: "1,530",
     latency: "1.4s",
   },
   {
     name: "Claude Haiku 4.5",
-    short: "Haiku 4.5",
     vendor: "anthropic",
     score: 86,
     cost: 0.004,
+    passed: 110,
+    tokens: "910",
     latency: "0.6s",
   },
   {
     name: "Gemini 3 Flash",
-    short: "Gemini 3 Flash",
     vendor: "google",
     score: 84,
     cost: 0.003,
+    passed: 108,
+    tokens: "870",
     latency: "0.5s",
   },
 ] as const;
@@ -839,7 +845,9 @@ function chartY(score: number) {
 }
 
 function EvaluationScene({ running, reduceMotion }: SceneProps) {
-  const phase = useCycle([1400, 2200, 3200], running && !reduceMotion);
+  const [hovered, setHovered] = useState<number | null>(null);
+  const phase = useCycle([600, 2400, 3600], running && !reduceMotion);
+  const hoveredCandidate = hovered === null ? null : candidates[hovered];
   const scored = reduceMotion || phase >= 1;
   const complete = reduceMotion || phase >= 2;
   const xTicks = [0, 0.01, 0.02, 0.03, 0.04, 0.05, 0.06, 0.07];
@@ -869,110 +877,182 @@ function EvaluationScene({ running, reduceMotion }: SceneProps) {
             grounding + citation_format · lower cost and higher score is better
           </span>
         </div>
-        <svg viewBox={`0 0 ${CHART.w} ${CHART.h}`} className={styles.chartSvg}>
-          <rect
-            className={styles.chartQuadrant}
-            data-show={scored ? "true" : "false"}
-            x={chartX(0)}
-            y={chartY(100)}
-            width={chartX(0.012) - chartX(0)}
-            height={chartY(88) - chartY(100)}
-          />
-          <text
-            className={styles.chartQuadrantLabel}
-            data-show={scored ? "true" : "false"}
-            x={chartX(0) + 8}
-            y={chartY(100) + 13}
+        <div className={styles.chartPlot}>
+          <svg
+            viewBox={`0 0 ${CHART.w} ${CHART.h}`}
+            className={styles.chartSvg}
           >
-            most attractive quadrant
-          </text>
-          {yTicks.map((tick) => (
-            <g key={tick}>
-              <line
-                className={styles.chartGrid}
-                x1={CHART.left}
-                x2={CHART.w - CHART.right}
-                y1={chartY(tick)}
-                y2={chartY(tick)}
-              />
-              <text
-                className={styles.chartTick}
-                x={CHART.left - 6}
-                y={chartY(tick) + 3}
-                textAnchor="end"
-              >
-                {tick}%
-              </text>
-            </g>
-          ))}
-          {xTicks.map((tick) => (
-            <g key={tick}>
-              <line
-                className={styles.chartGrid}
-                y1={CHART.top}
-                y2={CHART.h - CHART.bottom}
-                x1={chartX(tick)}
-                x2={chartX(tick)}
-              />
-              <text
-                className={styles.chartTick}
-                x={chartX(tick)}
-                y={CHART.h - CHART.bottom + 12}
-                textAnchor="middle"
-              >
-                ${tick.toFixed(2)}
-              </text>
-            </g>
-          ))}
-          <text
-            className={styles.chartAxis}
-            x={(CHART.left + CHART.w - CHART.right) / 2}
-            y={CHART.h - 4}
-            textAnchor="middle"
-          >
-            cost per case (USD)
-          </text>
-          <text
-            className={styles.chartAxis}
-            transform={`translate(10 ${(CHART.top + CHART.h - CHART.bottom) / 2}) rotate(-90)`}
-            textAnchor="middle"
-          >
-            eval score
-          </text>
-          {candidates.map((candidate, index) => {
-            const cx = chartX(candidate.cost);
-            const cy = chartY(candidate.score);
-            const labelLeft = candidate.cost > 0.05;
-            return (
-              <g
-                key={candidate.name}
-                className={styles.chartPoint}
-                data-vendor={candidate.vendor}
-                data-show={scored ? "true" : "false"}
-                data-best={"best" in candidate ? "true" : "false"}
-                style={
-                  {
-                    "--i": index,
-                    "--cx": `${cx}px`,
-                    "--cy": `${cy}px`,
-                  } as CSSProperties
-                }
-              >
-                {"best" in candidate && complete ? (
-                  <circle className={styles.chartRing} cx={cx} cy={cy} r="6" />
-                ) : null}
-                <circle cx={cx} cy={cy} r="5" />
+            <rect
+              className={styles.chartQuadrant}
+              data-show={scored ? "true" : "false"}
+              x={chartX(0)}
+              y={chartY(100)}
+              width={chartX(0.012) - chartX(0)}
+              height={chartY(88) - chartY(100)}
+            />
+            <text
+              className={styles.chartQuadrantLabel}
+              data-show={scored ? "true" : "false"}
+              x={chartX(0) + 8}
+              y={chartY(100) + 13}
+            >
+              most attractive quadrant
+            </text>
+            {yTicks.map((tick) => (
+              <g key={tick}>
+                <line
+                  className={styles.chartGrid}
+                  x1={CHART.left}
+                  x2={CHART.w - CHART.right}
+                  y1={chartY(tick)}
+                  y2={chartY(tick)}
+                />
                 <text
-                  x={labelLeft ? cx - 9 : cx + 9}
-                  y={cy + 3}
-                  textAnchor={labelLeft ? "end" : "start"}
+                  className={styles.chartTick}
+                  x={CHART.left - 6}
+                  y={chartY(tick) + 3}
+                  textAnchor="end"
                 >
-                  {candidate.name}
+                  {tick}%
                 </text>
               </g>
-            );
-          })}
-        </svg>
+            ))}
+            {xTicks.map((tick) => (
+              <g key={tick}>
+                <line
+                  className={styles.chartGrid}
+                  y1={CHART.top}
+                  y2={CHART.h - CHART.bottom}
+                  x1={chartX(tick)}
+                  x2={chartX(tick)}
+                />
+                <text
+                  className={styles.chartTick}
+                  x={chartX(tick)}
+                  y={CHART.h - CHART.bottom + 12}
+                  textAnchor="middle"
+                >
+                  ${tick.toFixed(2)}
+                </text>
+              </g>
+            ))}
+            <text
+              className={styles.chartAxis}
+              x={(CHART.left + CHART.w - CHART.right) / 2}
+              y={CHART.h - 4}
+              textAnchor="middle"
+            >
+              cost per case (USD)
+            </text>
+            <text
+              className={styles.chartAxis}
+              transform={`translate(10 ${(CHART.top + CHART.h - CHART.bottom) / 2}) rotate(-90)`}
+              textAnchor="middle"
+            >
+              eval score
+            </text>
+            {candidates.map((candidate, index) => {
+              const rank = [...candidates]
+                .sort((a, b) => a.cost - b.cost)
+                .indexOf(candidate);
+              const cx = chartX(candidate.cost);
+              const cy = chartY(candidate.score);
+              const labelLeft = candidate.cost > 0.05;
+              return (
+                <g
+                  key={candidate.name}
+                  className={styles.chartPoint}
+                  data-vendor={candidate.vendor}
+                  data-show={scored ? "true" : "false"}
+                  data-best={"best" in candidate ? "true" : "false"}
+                  data-hovered={hovered === index ? "true" : "false"}
+                  data-dimmed={
+                    hovered !== null && hovered !== index ? "true" : "false"
+                  }
+                  style={{ "--i": rank } as CSSProperties}
+                  tabIndex={0}
+                  role="button"
+                  aria-label={`${candidate.name}: score ${candidate.score}%, $${candidate.cost.toFixed(3)} per case`}
+                  onMouseEnter={() => setHovered(index)}
+                  onMouseLeave={() => setHovered(null)}
+                  onFocus={() => setHovered(index)}
+                  onBlur={() => setHovered(null)}
+                >
+                  <circle className={styles.chartHit} cx={cx} cy={cy} r="14" />
+                  {"best" in candidate && complete ? (
+                    <circle
+                      className={styles.chartRing}
+                      cx={cx}
+                      cy={cy}
+                      r="6"
+                    />
+                  ) : null}
+                  <circle className={styles.chartDot} cx={cx} cy={cy} r="5" />
+                  <text
+                    x={labelLeft ? cx - 9 : cx + 9}
+                    y={cy + 3}
+                    textAnchor={labelLeft ? "end" : "start"}
+                  >
+                    {candidate.name}
+                  </text>
+                </g>
+              );
+            })}
+          </svg>
+          <AnimatePresence>
+            {hoveredCandidate ? (
+              <motion.div
+                key={hoveredCandidate.name}
+                className={styles.chartTooltip}
+                data-vendor={hoveredCandidate.vendor}
+                data-flip={hoveredCandidate.cost > 0.045 ? "true" : "false"}
+                style={
+                  {
+                    "--tx": `${(chartX(hoveredCandidate.cost) / CHART.w) * 100}%`,
+                    "--ty": `${(chartY(hoveredCandidate.score) / CHART.h) * 100}%`,
+                  } as CSSProperties
+                }
+                initial={
+                  reduceMotion ? false : { opacity: 0, scale: 0.96, y: 2 }
+                }
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.96, y: 2 }}
+                transition={{ duration: 0.16, ease: [0.22, 1, 0.36, 1] }}
+              >
+                <header>
+                  <i />
+                  <strong>{hoveredCandidate.name}</strong>
+                  <span>{vendorLabels[hoveredCandidate.vendor]}</span>
+                </header>
+                <dl>
+                  <div>
+                    <dt>Eval score</dt>
+                    <dd>{hoveredCandidate.score}%</dd>
+                  </div>
+                  <div>
+                    <dt>Cases passed</dt>
+                    <dd>{hoveredCandidate.passed} / 128</dd>
+                  </div>
+                  <div>
+                    <dt>Cost per case</dt>
+                    <dd>${hoveredCandidate.cost.toFixed(3)}</dd>
+                  </div>
+                  <div>
+                    <dt>Avg latency</dt>
+                    <dd>{hoveredCandidate.latency}</dd>
+                  </div>
+                  <div>
+                    <dt>Avg tokens</dt>
+                    <dd>{hoveredCandidate.tokens}</dd>
+                  </div>
+                </dl>
+                <footer>
+                  comparison / 024 · failure-modes v4 · graph v7 · prompt v12
+                </footer>
+              </motion.div>
+            ) : null}
+          </AnimatePresence>
+        </div>
         <div className={styles.chartLegend}>
           {Object.entries(vendorLabels).map(([vendor, label]) => (
             <span key={vendor} data-vendor={vendor}>

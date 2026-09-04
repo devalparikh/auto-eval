@@ -21,10 +21,15 @@ function parseExpected(text: string): ParsedExpected {
   try {
     value = JSON.parse(text);
   } catch (caught) {
-    const detail = caught instanceof Error ? caught.message : "";
+    // Browsers append a quoted excerpt of the text to the message; the
+    // position detail before it is what helps, so drop the excerpt.
+    const detail =
+      caught instanceof Error
+        ? caught.message.replace(/,\s*(?:\.{3}|").*$/s, "").trim()
+        : "";
     return {
       ok: false,
-      message: detail ? `Not valid JSON: ${detail}` : "Not valid JSON.",
+      message: detail ? `Not valid JSON: ${detail}.` : "Not valid JSON.",
     };
   }
   if (value === null || typeof value !== "object" || Array.isArray(value)) {

@@ -2946,11 +2946,134 @@
   font-size: 0.5rem;
 }
 
+.chartPlot {
+  position: relative;
+  padding: 0.3rem 0.4rem 0;
+}
+
 .chartSvg {
   display: block;
   width: 100%;
   height: auto;
-  padding: 0.3rem 0.4rem 0;
+  overflow: visible;
+}
+
+.chartPoint .chartHit {
+  fill: transparent;
+  cursor: pointer;
+}
+
+.chartDot {
+  transition: r 0.2s cubic-bezier(0.2, 0.9, 0.3, 1.2);
+}
+
+.chartPoint {
+  outline: none;
+}
+
+.chartPoint[data-hovered="true"] .chartDot,
+.chartPoint:focus-visible .chartDot {
+  r: 6.5;
+  stroke: var(--preview-bg);
+  stroke-width: 1.5;
+}
+
+.chartPoint[data-dimmed="true"] {
+  opacity: 0.35 !important;
+}
+
+.chartTooltip {
+  position: absolute;
+  z-index: 3;
+  top: var(--ty);
+  left: var(--tx);
+  width: 214px;
+  border: 1px solid var(--preview-line);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--preview-raised) 96%, transparent);
+  box-shadow:
+    0 12px 32px rgb(0 0 0 / 0.28),
+    0 1px 0 rgb(255 255 255 / 0.04) inset;
+  backdrop-filter: blur(10px);
+  padding: 0.6rem 0.7rem 0.55rem;
+  pointer-events: none;
+  translate: 14px -50%;
+}
+
+.chartTooltip[data-flip="true"] {
+  translate: calc(-100% - 14px) -50%;
+}
+
+.chartTooltip header {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-bottom: 0.45rem;
+}
+
+.chartTooltip header i {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--point);
+}
+
+.chartTooltip[data-vendor="anthropic"] {
+  --point: var(--landing-accent);
+}
+.chartTooltip[data-vendor="openai"] {
+  --point: var(--preview-copy);
+}
+.chartTooltip[data-vendor="google"] {
+  --point: var(--landing-blue);
+}
+.chartTooltip[data-vendor="finetune"] {
+  --point: var(--landing-green);
+}
+
+.chartTooltip strong {
+  font-size: 0.66rem;
+  font-weight: 550;
+}
+
+.chartTooltip header span {
+  margin-left: auto;
+  color: var(--preview-copy);
+  font-family: var(--font-mono);
+  font-size: 0.5rem;
+}
+
+.chartTooltip dl {
+  display: grid;
+  margin: 0;
+  gap: 0.15rem;
+}
+
+.chartTooltip dl div {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.6rem;
+  font-family: var(--font-mono);
+  font-size: 0.55rem;
+}
+
+.chartTooltip dt {
+  color: var(--preview-copy);
+}
+
+.chartTooltip dd {
+  margin: 0;
+  color: var(--preview-ink);
+}
+
+.chartTooltip footer {
+  margin-top: 0.45rem;
+  border-top: 1px solid var(--preview-line);
+  padding-top: 0.4rem;
+  color: var(--preview-copy);
+  font-family: var(--font-mono);
+  font-size: 0.48rem;
+  line-height: 1.5;
 }
 
 .chartGrid {
@@ -2974,7 +3097,7 @@
 .chartQuadrant {
   fill: color-mix(in srgb, var(--landing-green) 14%, transparent);
   opacity: 0;
-  transition: opacity 0.8s ease 0.2s;
+  transition: opacity 0.6s ease;
 }
 
 .chartQuadrant[data-show="true"] {
@@ -2987,7 +3110,7 @@
   font-size: 6.5px;
   letter-spacing: 0.04em;
   opacity: 0;
-  transition: opacity 0.6s ease 0.6s;
+  transition: opacity 0.5s ease 0.25s;
 }
 
 .chartQuadrantLabel[data-show="true"] {
@@ -2996,29 +3119,61 @@
 
 .chartPoint {
   --point: var(--preview-copy);
-  opacity: 0;
-  transform: scale(0.6);
-  transform-box: fill-box;
-  transform-origin: center;
-  transition:
-    opacity 0.4s cubic-bezier(0.2, 0.9, 0.3, 1.15),
-    transform 0.5s cubic-bezier(0.2, 0.9, 0.3, 1.2);
-  transition-delay: calc(var(--i, 0) * 140ms + 300ms);
+  opacity: 1;
+  transition: opacity 0.25s ease;
 }
 
-.chartPoint[data-show="true"] {
-  opacity: 1;
-  transform: scale(1);
+.chartPoint[data-show="false"] {
+  opacity: 0;
 }
 
 .chartPoint circle {
   fill: var(--point);
 }
 
+.chartDot {
+  opacity: 0;
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+.chartPoint[data-show="true"] .chartDot {
+  animation: dotPop 0.42s cubic-bezier(0.2, 0.9, 0.3, 1.15) both;
+  animation-delay: calc(var(--i, 0) * 110ms + 80ms);
+}
+
+@keyframes dotPop {
+  0% {
+    opacity: 0;
+    transform: scale(0.4) translateY(4px);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
 .chartPoint text {
   fill: var(--preview-ink);
   font-family: var(--font-mono);
   font-size: 7px;
+  opacity: 0;
+}
+
+.chartPoint[data-show="true"] text {
+  animation: labelSlide 0.32s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: calc(var(--i, 0) * 110ms + 300ms);
+}
+
+@keyframes labelSlide {
+  0% {
+    opacity: 0;
+    transform: translateX(-3px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(0);
+  }
 }
 
 .chartPoint[data-best="true"] text {
@@ -3031,6 +3186,7 @@
   stroke: var(--point);
   stroke-width: 1;
   animation: chartRing 1.6s ease-out infinite;
+  animation-delay: 0.3s;
 }
 
 @keyframes chartRing {
