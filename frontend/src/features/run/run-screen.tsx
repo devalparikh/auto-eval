@@ -13,8 +13,8 @@ import { graphVersions, promptVersions } from "@/features/catalog/catalog-option
 import {
   inputTemplateForRun,
   modelsForSystem,
+  NODE_RESOURCE_QUERY_INPUT_EDITOR,
   parseRunInput,
-  PORTFOLIO_QUERY_SYSTEM_KEY,
 } from "@/features/run/run-options";
 import { RunGraphPreview } from "@/features/run/run-graph-preview";
 import { RunSavedInputs } from "@/features/run/run-saved-inputs";
@@ -58,10 +58,11 @@ export function RunWorkbench({
   const graphs = graphVersions(catalog, systemKey);
   const prompts = promptVersions(catalog, systemKey);
   const models = modelsForSystem(catalog, system.default_model_ids, systemKey);
-  const isPortfolioQuery = systemKey === PORTFOLIO_QUERY_SYSTEM_KEY;
+  const isNodeResourceQuery =
+    system.input_editor === NODE_RESOURCE_QUERY_INPUT_EDITOR;
   const [input, setInput] = useState(
     JSON.stringify(
-      inputTemplateForRun(systemKey, system.input_template ?? {}),
+      inputTemplateForRun(system.input_editor, system.input_template ?? {}),
       null,
       2,
     ),
@@ -363,7 +364,7 @@ export function RunWorkbench({
 
             <div className="field">
               <label htmlFor="run-input">
-                {isPortfolioQuery
+                {isNodeResourceQuery
                   ? "Advanced query input (JSON)"
                   : "Request input (JSON)"}
               </label>
@@ -381,7 +382,7 @@ export function RunWorkbench({
                 id="run-input-help"
                 className="text-[10px] text-[var(--text-faint)]"
               >
-                {isPortfolioQuery
+                {isNodeResourceQuery
                   ? "Edit the question and policy here. The portfolio comes from the saved input above, and live market data is fetched when the run starts."
                   : "Prefilled from this system's example input."}
               </p>

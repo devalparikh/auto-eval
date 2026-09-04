@@ -263,6 +263,7 @@ def agent_system_summary(session: Session, system: AgentSystemRecord) -> AgentSy
         default_model_ids=list(spec.default_model_ids),
         input_template=spec.input_template,
         dataset_editor=spec.dataset_editor,
+        input_editor=spec.input_editor,
         primary_metric=spec.primary_metric,
     )
 

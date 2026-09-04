@@ -32,6 +32,7 @@ class AgentSystemSummary(BaseModel):
     default_model_ids: list[str] = []
     input_template: dict[str, Any] = {}
     dataset_editor: str = "json"
+    input_editor: str = "json"
     primary_metric: str = "accuracy"
 
 

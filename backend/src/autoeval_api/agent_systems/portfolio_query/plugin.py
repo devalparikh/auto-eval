@@ -8,6 +8,7 @@ PLUGIN = AgentSystemPlugin(
         default_model_ids=("mock/portfolio-analyst", "mock/portfolio-fast"),
         input_template=PORTFOLIO_QUERY_INPUT_TEMPLATE,
         dataset_editor="json",
+        input_editor="node-resource-query",
         primary_metric="safety_weighted_accuracy",
         product_key="portfolio-analyst",
         flow_key="query",

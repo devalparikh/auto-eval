@@ -30,6 +30,7 @@ const system = {
   default_model_ids: ["model-default"],
   input_template: { question: "What changed?" },
   dataset_editor: "json",
+  input_editor: "json",
   primary_metric: "accuracy",
 } satisfies AgentSystemSummary;
 
@@ -83,6 +84,7 @@ const portfolioQuerySystem = {
     market_context: { contracts: [] },
     policy: { min_dte: 21 },
   },
+  input_editor: "node-resource-query",
 } satisfies AgentSystemSummary;
 
 const portfolioQueryCatalog = {

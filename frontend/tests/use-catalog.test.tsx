@@ -27,6 +27,7 @@ const system = {
   default_model_ids: [],
   input_template: {},
   dataset_editor: "json",
+  input_editor: "json",
   primary_metric: "accuracy",
 } satisfies AgentSystemSummary;
 

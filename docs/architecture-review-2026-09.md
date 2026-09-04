@@ -141,9 +141,10 @@ hook still fails closed.
 ### WP6. Frontend branches on capabilities, never on system identity
 
 - Backend: `AgentSystemSpec` gains `input_editor: str = "json"` and the catalog
-  exposes it. Portfolio Query declares `"portfolio-query"`. Regenerate types
-  with `make api-types`.
-- Frontend: `dataset_editor === "incident"` replaces
+  exposes it. Portfolio Query declares `"node-resource-query"`, named for what
+  the editor does (strip pinned snapshot fields from the editable input), not
+  for the system. Regenerate types with `make api-types`.
+- Frontend: `system.dataset_editor` replaces
   `systemKey === "incident-triage"` in both dataset modals;
   `system.input_editor` replaces `PORTFOLIO_QUERY_SYSTEM_KEY` in
   `run-options.ts` and `run-screen.tsx`. Delete the constant.

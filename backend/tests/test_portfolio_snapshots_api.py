@@ -121,6 +121,7 @@ def test_catalog_exposes_portfolio_product_flow_metadata(
     systems = client.get("/api/catalog").json()["agent_systems"]
     index_flow = next(system for system in systems if system["key"] == "portfolio-analyst")
     query_flow = next(system for system in systems if system["key"] == "portfolio-query")
+    incident_triage = next(system for system in systems if system["key"] == "incident-triage")
 
     assert (index_flow["product_key"], index_flow["flow_key"], index_flow["flow_name"]) == (
         "portfolio-analyst",
@@ -132,3 +133,6 @@ def test_catalog_exposes_portfolio_product_flow_metadata(
         "query",
         "Query portfolio",
     )
+    assert query_flow["input_editor"] == "node-resource-query"
+    assert index_flow["input_editor"] == "json"
+    assert incident_triage["input_editor"] == "json"

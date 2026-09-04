@@ -244,6 +244,7 @@ export function DatasetsScreen({ systemKey }: { systemKey: string }) {
       <EditDatasetItemModal
         item={editingItem}
         systemKey={systemKey}
+        datasetEditor={system?.dataset_editor ?? "json"}
         onClose={() => setEditingItem(null)}
         onSaved={async () => {
           setEditingItem(null);

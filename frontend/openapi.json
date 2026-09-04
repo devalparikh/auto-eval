@@ -207,6 +207,11 @@
             "title": "Id",
             "type": "string"
           },
+          "input_editor": {
+            "default": "json",
+            "title": "Input Editor",
+            "type": "string"
+          },
           "input_template": {
             "additionalProperties": true,
             "default": {},

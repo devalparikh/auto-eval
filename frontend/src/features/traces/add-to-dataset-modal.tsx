@@ -27,6 +27,7 @@ export function AddToDatasetModal({
   runtimeInputSnapshotIds,
   nodeResourceSelections,
   systemKey,
+  datasetEditor,
   onClose,
   onMembershipChanged,
 }: {
@@ -37,6 +38,7 @@ export function AddToDatasetModal({
   runtimeInputSnapshotIds?: Record<string, string>;
   nodeResourceSelections?: Record<string, NodeResourceSelection>;
   systemKey: string;
+  datasetEditor: string;
   onClose: () => void;
   onMembershipChanged: () => Promise<void>;
 }) {
@@ -64,7 +66,7 @@ export function AddToDatasetModal({
     let expected: Record<string, unknown>;
     try {
       expected =
-        systemKey === "incident-triage"
+        datasetEditor === "incident-triage"
           ? groundTruthFromForm(form)
           : (JSON.parse(String(form.get("expectedJson"))) as Record<
               string,
@@ -151,7 +153,7 @@ export function AddToDatasetModal({
               ))}
             </Select>
           </div>
-          {systemKey === "incident-triage" ? (
+          {datasetEditor === "incident-triage" ? (
             <GroundTruthFields
               key={JSON.stringify(expectedSuggestion)}
               initial={groundTruthFromRecord(expectedSuggestion)}

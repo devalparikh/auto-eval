@@ -18,6 +18,7 @@ class AgentSystemSpec:
     default_model_ids: tuple[str, ...]
     input_template: dict[str, Any]
     dataset_editor: str
+    input_editor: str = "json"
     primary_metric: str = "accuracy"
     product_key: str | None = None
     flow_key: str = "run"
@@ -106,4 +107,5 @@ def system_spec(key: str) -> AgentSystemSpec:
         default_model_ids=(),
         input_template={},
         dataset_editor="json",
+        input_editor="json",
     )
