@@ -25,7 +25,7 @@ function parseExpected(text: string): ParsedExpected {
     // position detail before it is what helps, so drop the excerpt.
     const detail =
       caught instanceof Error
-        ? caught.message.replace(/,\s*(?:\.{3}|").*$/s, "").trim()
+        ? caught.message.replace(/,\s*(?:\.{3}|")[\s\S]*$/, "").trim()
         : "";
     return {
       ok: false,
