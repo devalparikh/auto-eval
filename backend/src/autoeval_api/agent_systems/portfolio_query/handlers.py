@@ -1,41 +1,39 @@
 from __future__ import annotations
 
 from collections import Counter
-from datetime import UTC, datetime
-from math import floor
 from typing import Any
 
+from autoeval_api.agent_systems.portfolio_query.covered_call import (
+    covered_call_candidate,
+    normalized_policy,
+    positions_by_symbol,
+    safety,
+)
+from autoeval_api.agent_systems.portfolio_query.market_observation import (
+    MARKET_DATA_NODE_ID,
+    SNAPSHOT_RESOURCE_KEY,
+    locked_market_observation,
+    market_data_reference,
+    refreshed_market_observation,
+)
+from autoeval_api.agent_systems.portfolio_query.model_context import (
+    bounded_question,
+    model_candidate,
+    model_portfolio_facts,
+    model_safety,
+    portfolio_facts,
+)
 from autoeval_api.agent_systems.portfolio_query.types import (
     PortfolioModelContext,
     PortfolioSnapshotReference,
 )
-from autoeval_api.coerce import (
-    dict_list,
-    integer,
-    number,
-    optional_integer,
-    optional_number,
-    round_amount,
-    string_list,
-)
+from autoeval_api.coerce import integer, number, string_list
 from autoeval_api.graph.context import GraphRuntimeContext
 from autoeval_api.graph.registry import NodeHandlerRegistry
 from autoeval_api.inference.base import InferenceResponse
-from autoeval_api.market_data import (
-    OPTIONS_CHAIN_SOURCE,
-    OptionsChainRequest,
-    OptionsMarketDataError,
-)
-from autoeval_api.models import AgentSystemRecord
-from autoeval_api.services.runtime_input_snapshots import (
-    create_runtime_input_snapshot,
-    runtime_input_snapshot_binding,
-)
+from autoeval_api.market_data import OPTIONS_CHAIN_SOURCE
 
-MODEL_QUESTION_MAX_CHARS = 600
-SNAPSHOT_RESOURCE_KEY = "portfolio_query.snapshot"
 MARKET_DATA_RESOURCE_KEY = "portfolio_query.market_data"
-MARKET_DATA_NODE_ID = "load_portfolio_market_data"
 
 
 def register_handlers(registry: NodeHandlerRegistry) -> None:
@@ -92,7 +90,7 @@ def normalize_portfolio_query(state: dict[str, Any]) -> dict[str, Any]:
             "question": question,
             "intent": intent,
             "snapshot": dict(snapshot_reference) if isinstance(snapshot_reference, dict) else {},
-            "policy": _normalized_policy(policy),
+            "policy": normalized_policy(policy),
         }
     }
 
@@ -129,9 +127,9 @@ async def load_portfolio_market_data(
         }
 
     if runtime_input.mode == "locked":
-        observation, contracts = _locked_market_observation(state, query, context)
+        observation, contracts = locked_market_observation(state, query, context)
     else:
-        observation, contracts = await _refreshed_market_observation(
+        observation, contracts = await refreshed_market_observation(
             query,
             context,
             runtime_input.capability,
@@ -155,291 +153,6 @@ async def load_portfolio_market_data(
             },
         )
     return {"market_data_observation": observation}
-
-
-def _locked_market_observation(
-    state: dict[str, Any], query: dict[str, Any], context: GraphRuntimeContext
-) -> tuple[dict[str, Any], list[dict[str, Any]]]:
-    binding = context.runtime_input_snapshot(MARKET_DATA_NODE_ID, OPTIONS_CHAIN_SOURCE)
-    if binding is not None:
-        contracts = dict_list(binding.payload.get("contracts"))
-        if not contracts:
-            return _market_data_error("locked", "snapshot_payload_invalid"), []
-        provenance = binding.provenance
-        freshness = (
-            dict(provenance.get("freshness", {}))
-            if isinstance(provenance.get("freshness"), dict)
-            else {}
-        )
-        age_seconds = number(freshness.get("age_seconds"), -1)
-        max_age_seconds = query["policy"]["max_quote_age_hours"] * 3600
-        freshness.update(
-            {
-                "status": ("fresh" if 0 <= age_seconds <= max_age_seconds else "stale"),
-                "max_age_seconds": round(max_age_seconds, 3),
-            }
-        )
-        return (
-            {
-                "source": str(provenance.get("source", OPTIONS_CHAIN_SOURCE)),
-                "mode": "locked",
-                "status": "ready",
-                "provider": str(provenance.get("provider", "recorded-snapshot")),
-                "provider_ref": provenance.get("provider_ref"),
-                "as_of": provenance.get("as_of"),
-                "fetched_at": provenance.get("fetched_at"),
-                "freshness": freshness,
-                "greeks": dict(provenance.get("greeks", {}))
-                if isinstance(provenance.get("greeks"), dict)
-                else {},
-                "contract_count": len(contracts),
-                "runtime_input_snapshot": {
-                    "id": binding.id,
-                    "source_key": binding.source_key,
-                    "schema_version": binding.schema_version,
-                    "content_hash": binding.content_hash,
-                    "is_synthetic": binding.is_synthetic,
-                },
-            },
-            contracts,
-        )
-
-    # Compatibility only for finalized dataset versions created before runtime snapshots.
-    supplied = state.get("input", {}).get("market_context")
-    if not isinstance(supplied, dict):
-        return _market_data_error("locked", "locked_observation_missing"), []
-    contracts = [
-        _normalize_locked_contract(item, supplied) for item in dict_list(supplied.get("contracts"))
-    ]
-    source = str(supplied.get("source", "")).strip()
-    as_of = str(supplied.get("as_of", "")).strip()
-    quote_age_hours = optional_number(supplied.get("quote_age_hours"))
-    if not source or not as_of or quote_age_hours is None or quote_age_hours < 0:
-        return _market_data_error("locked", "locked_observation_invalid"), []
-    if not contracts:
-        return _market_data_error("locked", "locked_observation_empty"), []
-
-    age_seconds = quote_age_hours * 3600
-    max_age_seconds = query["policy"]["max_quote_age_hours"] * 3600
-    freshness = {
-        "status": "fresh" if age_seconds <= max_age_seconds else "stale",
-        "age_seconds": round(age_seconds, 3),
-        "max_age_seconds": round(max_age_seconds, 3),
-        "quote_delay_minutes": integer(supplied.get("quote_delay_minutes")),
-    }
-    return (
-        {
-            "source": source,
-            "mode": "locked",
-            "status": "ready",
-            "provider": "recorded-fixture",
-            "provider_ref": str(supplied.get("provider_ref", "")) or None,
-            "as_of": as_of,
-            "fetched_at": str(supplied.get("fetched_at", as_of)),
-            "freshness": freshness,
-            "greeks": _locked_greeks_provenance(supplied),
-            "contract_count": len(contracts),
-        },
-        contracts,
-    )
-
-
-async def _refreshed_market_observation(
-    query: dict[str, Any],
-    context: GraphRuntimeContext,
-    capability: Any,
-    schema_version: int,
-) -> tuple[dict[str, Any], list[dict[str, Any]]]:
-    snapshot = context.resources.get(SNAPSHOT_RESOURCE_KEY, {})
-    reference = query.get("snapshot", {})
-    positions = snapshot.get("positions", []) if isinstance(snapshot, dict) else []
-    symbols = tuple(
-        sorted(
-            {
-                str(position.get("symbol", "")).strip().upper()
-                for position in positions
-                if isinstance(position, dict)
-                and position.get("covered_calls_allowed") is True
-                and integer(position.get("shares")) > integer(position.get("pledged_shares"))
-            }
-        )
-    )
-    requested_at = datetime.now(UTC)
-    try:
-        result = await capability.refresh(
-            OptionsChainRequest(
-                symbols=symbols,
-                min_dte=query["policy"]["min_dte"],
-                max_dte=query["policy"]["max_dte"],
-                is_synthetic=bool(reference.get("is_synthetic")),
-                requested_at=requested_at,
-            )
-        )
-    except OptionsMarketDataError as error:
-        observation = _market_data_error("refresh", error.code)
-        _bind_market_execution_observation(
-            context,
-            observation,
-            schema_version=schema_version,
-            captured=False,
-        )
-        return observation, []
-
-    age_seconds = max(0.0, (result.fetched_at - result.as_of).total_seconds())
-    max_age_seconds = query["policy"]["max_quote_age_hours"] * 3600
-    freshness = {
-        "status": "fresh" if age_seconds <= max_age_seconds else "stale",
-        "age_seconds": round(age_seconds, 3),
-        "max_age_seconds": round(max_age_seconds, 3),
-        "quote_delay_minutes": result.quote_delay_minutes,
-    }
-    greeks_age = (
-        max(0.0, (result.fetched_at - result.greeks_as_of).total_seconds())
-        if result.greeks_as_of is not None
-        else None
-    )
-    observation = {
-        "source": result.source,
-        "mode": "refresh",
-        "status": "ready",
-        "provider": result.provider_id,
-        "provider_ref": result.provider_ref,
-        "as_of": result.as_of.isoformat().replace("+00:00", "Z"),
-        "fetched_at": result.fetched_at.isoformat().replace("+00:00", "Z"),
-        "freshness": freshness,
-        "greeks": {
-            "status": "available" if result.greeks_as_of is not None else "unavailable",
-            "as_of": (
-                result.greeks_as_of.isoformat().replace("+00:00", "Z")
-                if result.greeks_as_of is not None
-                else None
-            ),
-            "age_seconds": round(greeks_age, 3) if greeks_age is not None else None,
-        },
-        "contract_count": len(result.contracts),
-    }
-    if context.capture_node_outputs:
-        owner = (
-            context.session.query(AgentSystemRecord).filter_by(key=context.agent_system_key).one()
-        )
-        record = create_runtime_input_snapshot(
-            context.session,
-            owner,
-            source_trace_id=context.trace_id,
-            node_id=MARKET_DATA_NODE_ID,
-            source_key=OPTIONS_CHAIN_SOURCE,
-            schema_version=schema_version,
-            label=f"{result.source} options observation",
-            observed_at=result.as_of,
-            fetched_at=result.fetched_at,
-            provider=result.provider_id,
-            source_kind="synthetic" if bool(reference.get("is_synthetic")) else "live_refresh",
-            is_synthetic=bool(reference.get("is_synthetic")),
-            payload={"schema_version": schema_version, "contracts": list(result.contracts)},
-            provenance=observation,
-        )
-        binding = runtime_input_snapshot_binding(record)
-        context.bind_runtime_input_snapshot(MARKET_DATA_NODE_ID, binding)
-        observation["runtime_input_snapshot"] = {
-            "id": binding.id,
-            "source_key": binding.source_key,
-            "schema_version": binding.schema_version,
-            "content_hash": binding.content_hash,
-            "is_synthetic": binding.is_synthetic,
-        }
-        _bind_market_execution_observation(
-            context,
-            observation,
-            schema_version=schema_version,
-            captured=True,
-            snapshot_id=binding.id,
-        )
-    else:
-        _bind_market_execution_observation(
-            context,
-            observation,
-            schema_version=schema_version,
-            captured=False,
-        )
-    return observation, list(result.contracts)
-
-
-def _bind_market_execution_observation(
-    context: GraphRuntimeContext,
-    observation: dict[str, Any],
-    *,
-    schema_version: int,
-    captured: bool,
-    snapshot_id: str | None = None,
-) -> None:
-    metadata = {
-        "output_key": OPTIONS_CHAIN_SOURCE,
-        "schema_version": schema_version,
-        "capture_requested": context.capture_node_outputs,
-        "captured": captured,
-        "observation_status": observation.get("status"),
-        "source": observation.get("source"),
-        "provider": observation.get("provider"),
-        "as_of": observation.get("as_of"),
-        "fetched_at": observation.get("fetched_at"),
-        "freshness": observation.get("freshness"),
-        "error_code": observation.get("error_code"),
-    }
-    if snapshot_id is not None:
-        context.bind_node_snapshot(
-            MARKET_DATA_NODE_ID,
-            snapshot_id,
-            role="produced",
-            resolution_mode="live",
-            metadata=metadata,
-        )
-    else:
-        context.bind_node_observation(
-            MARKET_DATA_NODE_ID,
-            role="produced",
-            resolution_mode="live",
-            metadata=metadata,
-        )
-
-
-def _market_data_error(mode: str, code: str) -> dict[str, Any]:
-    return {
-        "source": OPTIONS_CHAIN_SOURCE,
-        "mode": mode,
-        "status": "error",
-        "error_code": code,
-        "as_of": None,
-        "freshness": {"status": "unknown"},
-        "greeks": {"status": "unknown", "as_of": None, "age_seconds": None},
-        "contract_count": 0,
-    }
-
-
-def _locked_greeks_provenance(value: dict[str, Any]) -> dict[str, Any]:
-    as_of = str(value.get("greeks_as_of", "")).strip() or None
-    age_hours = optional_number(value.get("greeks_age_hours"))
-    return {
-        "status": "available" if as_of else "unknown",
-        "as_of": as_of,
-        "age_seconds": round(age_hours * 3600, 3) if age_hours is not None else None,
-    }
-
-
-def _normalize_locked_contract(
-    value: dict[str, Any], observation: dict[str, Any]
-) -> dict[str, Any]:
-    normalized = dict(value)
-    normalized["provider_contract_id"] = str(
-        value.get("provider_contract_id") or value.get("contract_id") or ""
-    )
-    normalized["event_data_known"] = value.get("event_data_known") is True
-    normalized["quote_timestamp_available"] = True
-    normalized["underlying_timestamp_available"] = True
-    normalized["greeks_age_hours"] = number(
-        observation.get("greeks_age_hours"),
-        number(observation.get("quote_age_hours")),
-    )
-    return normalized
 
 
 def validate_portfolio_query(state: dict[str, Any]) -> dict[str, Any]:
@@ -500,8 +213,8 @@ def calculate_portfolio_answer(
                 "status": "missing_context",
                 "blocked_reasons": blocked,
                 "candidates": [],
-                "market_data": _market_data_reference(market_observation),
-                "safety": _safety(status, []),
+                "market_data": market_data_reference(market_observation),
+                "safety": safety(status, []),
             }
         }
     if query.get("intent") != "covered_call":
@@ -513,9 +226,9 @@ def calculate_portfolio_answer(
                     "status": "unsupported",
                     "portfolio_facts": {},
                     "candidates": [],
-                    "market_data": _market_data_reference(market_observation),
+                    "market_data": market_data_reference(market_observation),
                     "blocked_reasons": ["non_synthetic_fact_selection_required"],
-                    "safety": _safety(status, []),
+                    "safety": safety(status, []),
                 }
             }
         return {
@@ -523,13 +236,13 @@ def calculate_portfolio_answer(
                 "snapshot": reference,
                 "intent": "portfolio_question",
                 "status": "ready",
-                "portfolio_facts": _portfolio_facts(
+                "portfolio_facts": portfolio_facts(
                     snapshot.get("positions", []), include_position_facts=True
                 ),
                 "candidates": [],
-                "market_data": _market_data_reference(market_observation),
+                "market_data": market_data_reference(market_observation),
                 "blocked_reasons": [],
-                "safety": _safety(status, []),
+                "safety": safety(status, []),
             }
         }
     if not status.get("market_data_fresh"):
@@ -539,19 +252,19 @@ def calculate_portfolio_answer(
                 "intent": "covered_call",
                 "status": "needs_market_data",
                 "candidates": [],
-                "market_data": _market_data_reference(market_observation),
+                "market_data": market_data_reference(market_observation),
                 "blocked_reasons": ["stale_option_quotes"],
-                "safety": _safety(status, []),
+                "safety": safety(status, []),
             }
         }
 
-    positions = _positions_by_symbol(snapshot.get("positions", []))
+    positions = positions_by_symbol(snapshot.get("positions", []))
     policy = query["policy"]
     candidates = []
     failed_checks: Counter[str] = Counter()
     for contract in contracts if isinstance(contracts, list | tuple) else []:
         symbol_positions = positions.get(str(contract.get("symbol", "")).upper())
-        candidate, failures = _covered_call_candidate(symbol_positions, contract, policy)
+        candidate, failures = covered_call_candidate(symbol_positions, contract, policy)
         failed_checks.update(failures)
         if candidate is not None:
             candidates.append(candidate)
@@ -573,15 +286,15 @@ def calculate_portfolio_answer(
             "intent": "covered_call",
             "status": "candidates" if candidates else "blocked",
             "candidates": candidates,
-            "market_data": _market_data_reference(market_observation),
-            "portfolio_facts": _portfolio_facts(
+            "market_data": market_data_reference(market_observation),
+            "portfolio_facts": portfolio_facts(
                 snapshot.get("positions", []),
                 include_position_facts=bool(reference["is_synthetic"]),
             ),
             "blocked_reasons": (
                 [] if candidates else [key for key, _ in failed_checks.most_common()]
             ),
-            "safety": _safety(status, candidates),
+            "safety": safety(status, candidates),
         }
     }
 
@@ -593,7 +306,7 @@ def build_portfolio_model_context(state: dict[str, Any]) -> dict[str, Any]:
     is_synthetic = bool(snapshot.get("is_synthetic"))
     model_context: PortfolioModelContext = {
         "schema_version": 1,
-        "question": _bounded_question(query.get("question")),
+        "question": bounded_question(query.get("question")),
         "intent": str(analysis.get("intent", "portfolio_question")),
         "status": str(analysis.get("status", "missing_context")),
         "snapshot": {
@@ -601,17 +314,17 @@ def build_portfolio_model_context(state: dict[str, Any]) -> dict[str, Any]:
             "as_of": snapshot.get("as_of"),
             "is_synthetic": is_synthetic,
         },
-        "market_data": _market_data_reference(analysis.get("market_data")),
-        "portfolio_facts": _model_portfolio_facts(
+        "market_data": market_data_reference(analysis.get("market_data")),
+        "portfolio_facts": model_portfolio_facts(
             analysis.get("portfolio_facts"), is_synthetic=is_synthetic
         ),
         "candidates": [
-            _model_candidate(item, include_symbol=is_synthetic)
+            model_candidate(item, include_symbol=is_synthetic)
             for item in analysis.get("candidates", [])
             if isinstance(item, dict)
         ],
         "blocked_reasons": string_list(analysis.get("blocked_reasons")),
-        "safety": _model_safety(analysis.get("safety")),
+        "safety": model_safety(analysis.get("safety")),
     }
     return {"portfolio_model_context": model_context}
 
@@ -622,7 +335,7 @@ def apply_portfolio_query_safety(state: dict[str, Any]) -> dict[str, Any]:
     answer = explanation.get("answer", {}) if isinstance(explanation.get("answer"), dict) else {}
     output = {
         "snapshot": analysis.get("snapshot", {}),
-        "market_data": _market_data_reference(analysis.get("market_data")),
+        "market_data": market_data_reference(analysis.get("market_data")),
         "query": {
             "intent": analysis.get("intent"),
             "status": analysis.get("status"),
@@ -690,330 +403,3 @@ def merge_portfolio_query_explanation(
             }
         }
     }
-
-
-def _covered_call_candidate(
-    positions: list[dict[str, Any]] | None,
-    contract: dict[str, Any],
-    policy: dict[str, Any],
-) -> tuple[dict[str, Any] | None, list[str]]:
-    failures = []
-    if not positions:
-        return None, ["holding_not_found"]
-
-    allowed_lots = [item for item in positions if bool(item.get("covered_calls_allowed"))]
-    assignable_lots = [item for item in allowed_lots if bool(item.get("assignment_acceptable"))]
-    eligible_lots = [item for item in assignable_lots if not bool(item.get("do_not_touch"))]
-    shares = sum(max(0, integer(item.get("shares"))) for item in eligible_lots)
-    pledged = sum(max(0, integer(item.get("pledged_shares"))) for item in eligible_lots)
-    multiplier = max(1, integer(contract.get("multiplier"), 100))
-    available_contracts = floor(max(0, shares - pledged) / multiplier)
-    bid = number(contract.get("bid"))
-    ask = number(contract.get("ask"))
-    midpoint = (bid + ask) / 2 if bid + ask > 0 else 0
-    spread_ratio = (ask - bid) / midpoint if midpoint > 0 else 1
-    underlying = number(contract.get("underlying_price"))
-    strike = number(contract.get("strike"))
-    strike_upside = (strike - underlying) / underlying if underlying > 0 else -1
-    delta_value = optional_number(contract.get("delta"))
-    delta = abs(delta_value) if delta_value is not None else 0
-    open_interest = optional_integer(contract.get("open_interest"))
-    event_data_known = contract.get("event_data_known") is True
-    greeks_age_hours = optional_number(contract.get("greeks_age_hours"))
-    min_exit_price = max(
-        (number(item.get("min_exit_price")) for item in eligible_lots),
-        default=0,
-    )
-    checks = {
-        "call_option": str(contract.get("option_type", "")).lower() == "call",
-        "valid_expiry": bool(str(contract.get("expiry", "")).strip()),
-        "standard_contract_multiplier": multiplier == 100,
-        "covered_calls_allowed": bool(allowed_lots),
-        "assignment_acceptable": bool(assignable_lots),
-        "not_do_not_touch": bool(eligible_lots),
-        "fully_covered": available_contracts >= 1,
-        "dte_in_range": policy["min_dte"] <= integer(contract.get("dte")) <= policy["max_dte"],
-        "delta_available": delta_value is not None,
-        "greeks_fresh": delta_value is not None
-        and greeks_age_hours is not None
-        and 0 <= greeks_age_hours <= policy["max_greeks_age_hours"],
-        "delta_in_range": delta_value is not None
-        and policy["min_delta"] <= delta <= policy["max_delta"],
-        "open_interest_available": open_interest is not None,
-        "liquid_open_interest": open_interest is not None
-        and open_interest >= policy["min_open_interest"],
-        "underlying_price_valid": underlying > 0,
-        "quote_values_valid": 0 < bid <= ask,
-        "quote_timestamp_available": contract.get("quote_timestamp_available") is True,
-        "underlying_timestamp_available": contract.get("underlying_timestamp_available") is True,
-        "spread_in_range": 0 < bid <= ask
-        and 0 <= spread_ratio <= policy["max_bid_ask_spread_ratio"],
-        "strike_upside_in_range": strike_upside >= policy["min_strike_upside"],
-        "exit_floor_met": strike >= min_exit_price,
-        "event_data_known": not policy["earnings_blackout"] or event_data_known,
-        "event_policy_met": not policy["earnings_blackout"]
-        or (event_data_known and contract.get("earnings_before_expiry") is False),
-        "valid_bid": bid > 0,
-    }
-    failures.extend(key for key, passed in checks.items() if not passed)
-    if failures:
-        return None, failures
-    contracts = min(available_contracts, policy["max_contracts_per_symbol"])
-    premium_yield = bid / underlying if underlying > 0 else 0
-    return (
-        {
-            "provider_contract_id": str(contract.get("provider_contract_id", "unknown")),
-            "symbol": str(contract.get("symbol", "")).upper(),
-            "option_type": "call",
-            "expiry": str(contract.get("expiry", "unknown")),
-            "dte": integer(contract.get("dte")),
-            "strike": round_amount(strike),
-            "bid": round_amount(bid),
-            "ask": round_amount(ask),
-            "delta": round_amount(delta),
-            "contracts": contracts,
-            "metrics": {
-                "gross_premium_usd": round_amount(bid * multiplier * contracts),
-                "premium_yield": round_amount(premium_yield),
-                "strike_upside": round_amount(strike_upside),
-                "downside_cushion": round_amount(premium_yield),
-                "effective_sale_price": round_amount(strike + bid),
-                "spread_ratio": round_amount(spread_ratio),
-            },
-            "assignment_impact": {
-                "shares_after_assignment": shares - multiplier * contracts,
-                "remaining_position_weight_estimate": round_amount(
-                    sum(number(item.get("weight")) for item in eligible_lots)
-                    * max(0, shares - multiplier * contracts)
-                    / shares
-                )
-                if shares
-                else 0,
-                "buckets": sorted(
-                    {str(item.get("bucket", "unassigned")) for item in eligible_lots}
-                ),
-            },
-            "policy_checks": [{"key": key, "passed": passed} for key, passed in checks.items()],
-        },
-        [],
-    )
-
-
-def _safety(status: dict[str, Any], candidates: list[dict[str, Any]]) -> dict[str, Any]:
-    return {
-        "market_data_fresh": bool(status.get("market_data_fresh")),
-        "fully_covered": bool(candidates)
-        and all(
-            any(
-                check["key"] == "fully_covered" and check["passed"]
-                for check in candidate.get("policy_checks", [])
-            )
-            for candidate in candidates
-        ),
-        "assignment_acknowledgement_required": bool(candidates),
-    }
-
-
-def _portfolio_facts(
-    positions: list[dict[str, Any]], *, include_position_facts: bool = False
-) -> dict[str, Any]:
-    ordered = sorted(positions, key=lambda item: number(item.get("weight")), reverse=True)
-    facts = {
-        "position_count": len(positions),
-        "largest_symbol": str(ordered[0].get("symbol")) if ordered else None,
-        "largest_weight": round_amount(number(ordered[0].get("weight"))) if ordered else 0,
-        "bucket_weights": _bucket_weights(positions),
-    }
-    if include_position_facts:
-        facts["position_facts"] = [
-            _synthetic_position_fact(item, index) for index, item in enumerate(positions)
-        ]
-    return facts
-
-
-def _synthetic_position_fact(value: dict[str, Any], index: int) -> dict[str, Any]:
-    position_id = str(value.get("position_id") or f"position-{index + 1}")
-    return {
-        "fact_id": f"position:{position_id}",
-        "symbol": str(value.get("symbol", "")),
-        "instrument_type": str(value.get("instrument_type", "unknown")),
-        "shares": max(0, integer(value.get("shares"))),
-        "pledged_shares": max(0, integer(value.get("pledged_shares"))),
-        "weight": round_amount(number(value.get("weight"))),
-        "bucket": str(value.get("bucket", "unassigned")),
-        "tags": [str(item) for item in value.get("tags", []) if isinstance(item, str)],
-        "covered_calls_allowed": bool(value.get("covered_calls_allowed")),
-        "assignment_acceptable": bool(value.get("assignment_acceptable")),
-        "do_not_touch": bool(value.get("do_not_touch")),
-    }
-
-
-def _bucket_weights(positions: list[dict[str, Any]]) -> dict[str, float]:
-    weights: dict[str, float] = {}
-    for position in positions:
-        bucket = str(position.get("bucket", "unassigned"))
-        weights[bucket] = weights.get(bucket, 0) + number(position.get("weight"))
-    return {key: round_amount(value) for key, value in sorted(weights.items())}
-
-
-def _positions_by_symbol(
-    positions: list[dict[str, Any]],
-) -> dict[str, list[dict[str, Any]]]:
-    grouped: dict[str, list[dict[str, Any]]] = {}
-    for position in positions:
-        symbol = str(position.get("symbol", "")).upper()
-        if symbol:
-            grouped.setdefault(symbol, []).append(position)
-    return grouped
-
-
-def _normalized_policy(value: dict[str, Any]) -> dict[str, Any]:
-    return {
-        "min_dte": integer(value.get("min_dte"), 21),
-        "max_dte": integer(value.get("max_dte"), 45),
-        "min_delta": number(value.get("min_delta"), 0.15),
-        "max_delta": number(value.get("max_delta"), 0.3),
-        "target_delta": number(value.get("target_delta"), 0.2),
-        "min_open_interest": integer(value.get("min_open_interest"), 500),
-        "max_bid_ask_spread_ratio": number(value.get("max_bid_ask_spread_ratio"), 0.12),
-        "min_strike_upside": number(value.get("min_strike_upside"), 0.05),
-        "max_quote_age_hours": number(value.get("max_quote_age_hours"), 24),
-        "max_greeks_age_hours": number(value.get("max_greeks_age_hours"), 4),
-        "earnings_blackout": bool(value.get("earnings_blackout", True)),
-        "max_contracts_per_symbol": max(1, integer(value.get("max_contracts_per_symbol"), 1)),
-    }
-
-
-def _model_candidate(value: dict[str, Any], *, include_symbol: bool) -> dict[str, Any]:
-    metrics = value.get("metrics", {}) if isinstance(value.get("metrics"), dict) else {}
-    candidate = {
-        "candidate_id": str(value.get("candidate_id", "")),
-        "option_type": str(value.get("option_type", "")),
-        "expiry": str(value.get("expiry", "")),
-        "dte": value.get("dte"),
-        "strike": value.get("strike"),
-        "bid": value.get("bid"),
-        "ask": value.get("ask"),
-        "delta": value.get("delta"),
-        "rank": value.get("rank"),
-        "metrics": {
-            key: metrics.get(key)
-            for key in (
-                "premium_yield",
-                "strike_upside",
-                "downside_cushion",
-                "effective_sale_price",
-                "spread_ratio",
-            )
-        },
-        "policy_checks": [
-            {
-                "key": str(item.get("key", "")),
-                "passed": bool(item.get("passed")),
-            }
-            for item in value.get("policy_checks", [])
-            if isinstance(item, dict)
-        ],
-    }
-    if include_symbol:
-        candidate["symbol"] = str(value.get("symbol", ""))
-    return candidate
-
-
-def _market_data_reference(value: Any) -> dict[str, Any]:
-    if not isinstance(value, dict):
-        return {}
-    freshness = value.get("freshness", {})
-    greeks = value.get("greeks", {})
-    runtime_snapshot = value.get("runtime_input_snapshot", {})
-    return {
-        key: value.get(key)
-        for key in (
-            "source",
-            "mode",
-            "status",
-            "provider",
-            "as_of",
-            "fetched_at",
-            "error_code",
-            "contract_count",
-        )
-        if value.get(key) is not None
-    } | {
-        "freshness": {
-            key: freshness.get(key)
-            for key in (
-                "status",
-                "age_seconds",
-                "max_age_seconds",
-                "quote_delay_minutes",
-            )
-            if isinstance(freshness, dict) and freshness.get(key) is not None
-        },
-        "greeks": {
-            key: greeks.get(key)
-            for key in ("status", "as_of", "age_seconds")
-            if isinstance(greeks, dict) and greeks.get(key) is not None
-        },
-        "runtime_input_snapshot": {
-            key: runtime_snapshot.get(key)
-            for key in (
-                "id",
-                "source_key",
-                "schema_version",
-                "content_hash",
-                "is_synthetic",
-            )
-            if isinstance(runtime_snapshot, dict) and runtime_snapshot.get(key) is not None
-        },
-    }
-
-
-def _model_portfolio_facts(value: Any, *, is_synthetic: bool) -> dict[str, Any]:
-    if not is_synthetic or not isinstance(value, dict):
-        return {}
-    bucket_weights = value.get("bucket_weights", {})
-    position_facts = value.get("position_facts", [])
-    return {
-        "position_count": integer(value.get("position_count")),
-        "largest_symbol": str(value.get("largest_symbol", "")),
-        "largest_weight": number(value.get("largest_weight")),
-        "bucket_weights": {str(key): number(weight) for key, weight in bucket_weights.items()}
-        if isinstance(bucket_weights, dict)
-        else {},
-        "position_facts": [
-            {
-                "fact_id": str(item.get("fact_id", "")),
-                "symbol": str(item.get("symbol", "")),
-                "instrument_type": str(item.get("instrument_type", "unknown")),
-                "shares": max(0, integer(item.get("shares"))),
-                "pledged_shares": max(0, integer(item.get("pledged_shares"))),
-                "weight": number(item.get("weight")),
-                "bucket": str(item.get("bucket", "unassigned")),
-                "tags": [str(tag) for tag in item.get("tags", []) if isinstance(tag, str)],
-                "covered_calls_allowed": bool(item.get("covered_calls_allowed")),
-                "assignment_acceptable": bool(item.get("assignment_acceptable")),
-                "do_not_touch": bool(item.get("do_not_touch")),
-            }
-            for item in position_facts
-            if isinstance(item, dict) and item.get("fact_id")
-        ],
-    }
-
-
-def _model_safety(value: Any) -> dict[str, bool]:
-    if not isinstance(value, dict):
-        return {}
-    return {
-        key: bool(value.get(key))
-        for key in (
-            "market_data_fresh",
-            "fully_covered",
-            "assignment_acknowledgement_required",
-        )
-    }
-
-
-def _bounded_question(value: Any) -> str:
-    normalized = " ".join(str(value or "").split())
-    return normalized[:MODEL_QUESTION_MAX_CHARS]
