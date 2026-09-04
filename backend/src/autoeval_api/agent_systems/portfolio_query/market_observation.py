@@ -5,6 +5,7 @@ from typing import Any
 
 from autoeval_api.coerce import dict_list, integer, number, optional_number
 from autoeval_api.graph.context import GraphRuntimeContext
+from autoeval_api.graph.definition import AgentGraphDefinition
 from autoeval_api.market_data import (
     OPTIONS_CHAIN_SOURCE,
     OptionsChainRequest,
@@ -67,7 +68,9 @@ def locked_market_observation(
             contracts,
         )
 
-    # Compatibility only for finalized dataset versions created before runtime snapshots.
+    # Compatibility only for finalized dataset versions created before runtime
+    # snapshots. Twin of `legacy_locked_input_exemptions` below: both exist only
+    # for those dataset versions and should be deleted together.
     supplied = state.get("input", {}).get("market_context")
     if not isinstance(supplied, dict):
         return _market_data_error("locked", "locked_observation_missing"), []
@@ -303,6 +306,27 @@ def _normalize_locked_contract(
         number(observation.get("quote_age_hours")),
     )
     return normalized
+
+
+def legacy_locked_input_exemptions(
+    definition: AgentGraphDefinition, item_input: dict[str, Any]
+) -> set[str]:
+    """Node ids that `EvaluationService._require_locked_runtime_inputs` may waive.
+
+    Twin of the "Compatibility only for finalized dataset versions created
+    before runtime snapshots" branch in `locked_market_observation` above: both
+    exist only to serve finalized dataset versions from before runtime-input
+    snapshots existed, and should be deleted together once none remain.
+    """
+    node = definition.node(MARKET_DATA_NODE_ID)
+    if (
+        node is not None
+        and node.runtime_input_policy is not None
+        and node.runtime_input_policy.source == OPTIONS_CHAIN_SOURCE
+        and isinstance(item_input.get("market_context"), dict)
+    ):
+        return {MARKET_DATA_NODE_ID}
+    return set()
 
 
 def market_data_reference(value: Any) -> dict[str, Any]:

@@ -14,4 +14,7 @@ PLUGIN = AgentSystemPlugin(
         flow_name="Query portfolio",
     ),
     trace_policy_module="autoeval_api.agent_systems.portfolio_query.trace_policy",
+    legacy_locked_input_exemptions_module=(
+        "autoeval_api.agent_systems.portfolio_query.market_observation"
+    ),
 )

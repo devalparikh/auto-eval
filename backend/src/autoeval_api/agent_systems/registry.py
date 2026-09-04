@@ -3,7 +3,13 @@ from __future__ import annotations
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from importlib import import_module
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    # Deferred: importing `graph.definition` at module load time would import the
+    # `graph` package, whose `runner` -> `trace_policy` chain imports this module
+    # back (see `system_plugins()`), so a top-level import here would cycle.
+    from autoeval_api.graph.definition import AgentGraphDefinition
 
 
 @dataclass(frozen=True)
@@ -25,6 +31,7 @@ class AgentSystemPlugin:
     package: str
     spec: AgentSystemSpec
     trace_policy_module: str | None = None
+    legacy_locked_input_exemptions_module: str | None = None
 
     def register_handlers(self, registry: Any) -> None:
         module = import_module(f"{self.package}.handlers")
@@ -58,6 +65,19 @@ class AgentSystemPlugin:
         module = import_module(self.trace_policy_module)
         projector = getattr(module, "project_inference_payload", module.project_payload)
         return projector(payload)
+
+    def legacy_locked_input_exemptions(
+        self, definition: AgentGraphDefinition, item_input: dict[str, Any]
+    ) -> set[str]:
+        """Node ids that may skip the locked-runtime-input requirement.
+
+        Compatibility escape hatch for finalized dataset versions that predate
+        runtime-input snapshots. Most systems have nothing to exempt.
+        """
+        if self.legacy_locked_input_exemptions_module is None:
+            return set()
+        module = import_module(self.legacy_locked_input_exemptions_module)
+        return module.legacy_locked_input_exemptions(definition, item_input)
 
 
 def builtin_system_plugins() -> tuple[AgentSystemPlugin, ...]:

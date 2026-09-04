@@ -15,6 +15,8 @@ Create `backend/src/autoeval_api/agent_systems/<system_key>/` with:
 
 Export `register_handlers` from the handler module and add the package's `PLUGIN` to `agent_systems/registry.py::builtin_system_plugins`. That is the only built-in composition edit: handler, scorer, seed, trace-policy, catalog, and demo registration are derived from the plugin. Deployments with their own catalog can instead inject registries and seed separately. Keep the generic runner free of domain-specific calculations. Add focused backend tests for topology, handler output, scoring, trace projection, registry scoping, and one traced run.
 
+If a system needs finalized dataset versions from before some runtime-input policy existed to keep evaluating, set `AgentSystemPlugin.legacy_locked_input_exemptions_module` to a module with a `legacy_locked_input_exemptions(definition, item_input) -> set[str]` function; the default exempts nothing, so `EvaluationService._require_locked_runtime_inputs` fails closed for every other system.
+
 Graph node handlers return partial state dictionaries. The node named by `output_node` currently needs to place the focused result under the top-level `output` key. A graph may use other state keys internally, but the runner does not extract an arbitrary output key from the declared output node.
 
 ## Add an inference provider
