@@ -72,7 +72,7 @@ autoeval_api/
   coerce.py                 shared coercion for untrusted JSON-shaped values
 ```
 
-Routes validate HTTP input and translate domain errors. Services own domain queries and workflows. The graph runner owns orchestration and span capture. Agent-system packages own domain-specific definitions and behavior. `app.py` is the composition root for replacing those dependencies without teaching routes about concrete providers or handlers.
+Routes validate HTTP input and translate domain errors. Services own domain queries and workflows. The graph runner owns orchestration and span capture; `graph/trace_recorder.py` owns how trace and span rows are persisted, while the runner decides when. Agent-system packages own domain-specific definitions and behavior. `app.py` is the composition root for replacing those dependencies without teaching routes about concrete providers or handlers. The database engine is chosen in `app.py::create_application` — an explicit `engine` argument, or `db.py`'s module-level engine by default — and `db.py::create_schema(engine)` upgrades whichever engine it is given.
 
 ## Implemented extension points
 

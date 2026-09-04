@@ -1,14 +1,12 @@
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from autoeval_api.agent_systems.incident_triage.seed import ensure_seed_data
+from autoeval_api.app import create_application
 from autoeval_api.config import Settings
-from autoeval_api.db import Base, configure_sqlite_foreign_keys
-from autoeval_api.main import create_application
-from autoeval_api.migrations import apply_migrations
+from autoeval_api.db import build_session_factory, configure_sqlite_foreign_keys, create_schema
 
 
 @pytest.fixture
@@ -19,9 +17,8 @@ def session_factory():
         poolclass=StaticPool,
     )
     configure_sqlite_foreign_keys(engine)
-    factory = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
-    Base.metadata.create_all(engine)
-    apply_migrations(engine)
+    create_schema(engine)
+    factory = build_session_factory(engine)
     session = factory()
     ensure_seed_data(session)
     session.close()
@@ -39,8 +36,10 @@ def client(session_factory):
         web_origins=["http://localhost:3000"],
         allowed_hosts=["testserver"],
     )
+    engine = session_factory.kw["bind"]
     app = create_application(
         settings=settings,
+        engine=engine,
         session_factory=session_factory,
         initialize_database=False,
         seed_on_start=False,

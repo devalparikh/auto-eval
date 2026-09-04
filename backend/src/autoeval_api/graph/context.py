@@ -40,12 +40,22 @@ class GraphRuntimeContext:
     )
     runtime_input_modes: dict[str, RuntimeInputMode] = field(default_factory=dict)
     runtime_input_snapshots: dict[str, RuntimeInputSnapshotBinding] = field(default_factory=dict)
-    runtime_input_snapshot_ids: dict[str, str] = field(default_factory=dict)
     node_snapshots: dict[str, NodeSnapshotExecutionBinding] = field(default_factory=dict)
-    node_snapshot_ids: dict[str, str] = field(default_factory=dict)
     node_resources: dict[str, NodeResourceExecutionBinding] = field(default_factory=dict)
     node_resource_selections: dict[str, dict[str, Any]] = field(default_factory=dict)
     capture_node_outputs: bool = False
+
+    @property
+    def runtime_input_snapshot_ids(self) -> dict[str, str]:
+        return {node_id: binding.id for node_id, binding in self.runtime_input_snapshots.items()}
+
+    @property
+    def node_snapshot_ids(self) -> dict[str, str]:
+        return {
+            node_id: binding.id
+            for node_id, binding in self.node_snapshots.items()
+            if binding.id is not None
+        }
 
     def runtime_input(self, node_id: str, source: str) -> ResolvedRuntimeInput:
         configured = self.runtime_input_modes.get(node_id)
@@ -68,7 +78,6 @@ class GraphRuntimeContext:
         binding: RuntimeInputSnapshotBinding,
     ) -> None:
         self.runtime_input_snapshots[node_id] = binding
-        self.runtime_input_snapshot_ids[node_id] = binding.id
         configured = self.runtime_input_modes.get(node_id)
         locked = configured is not None and configured.mode == "locked"
         self.bind_node_snapshot(
@@ -101,7 +110,6 @@ class GraphRuntimeContext:
             metadata=dict(metadata or {}),
         )
         self.node_snapshots[node_id] = binding
-        self.node_snapshot_ids[node_id] = snapshot_id
 
     def bind_node_observation(
         self,

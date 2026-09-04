@@ -23,6 +23,7 @@ from autoeval_api.models import (
     RunStatus,
     TraceOrigin,
     TraceRecord,
+    format_error_for_storage,
     utc_now,
 )
 from autoeval_api.schemas import (
@@ -319,7 +320,7 @@ class EvaluationService:
         if run is None:
             return
         run.status = RunStatus.FAILED
-        run.error = (str(error).strip() or error.__class__.__name__)[:2000]
+        run.error = format_error_for_storage(error)
         run.completed_at = utc_now()
         session.add(run)
         session.commit()
