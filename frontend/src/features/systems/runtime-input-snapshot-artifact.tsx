@@ -127,7 +127,7 @@ export function RuntimeInputSnapshotArtifact({
                   </div>
                   {view === "info" ? (
                     <div className="grid gap-4">
-                      <dl className="grid gap-4 border border-[var(--border)] bg-[var(--surface-muted)] p-4 text-[11px] md:grid-cols-2">
+                      <dl className="grid gap-4 rounded-[10px] border border-[var(--border)] bg-[var(--surface-muted)] p-4 text-[11px] md:grid-cols-2">
                         <SnapshotFact
                           label="Observed"
                           value={formatDate(detail.observed_at)}
@@ -187,7 +187,7 @@ export function RuntimeInputSnapshotArtifact({
                       value={detail.content}
                     />
                   ) : (
-                    <div className="border border-[var(--border)] bg-[var(--surface-muted)] p-5">
+                    <div className="rounded-[12px] border border-[var(--border)] bg-[var(--surface-muted)] p-5">
                       <p className="text-[11px] font-medium">
                         Content is not available
                       </p>

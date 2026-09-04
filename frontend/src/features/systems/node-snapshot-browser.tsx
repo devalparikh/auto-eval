@@ -61,7 +61,7 @@ export function NodeSnapshotBrowser({
   if (loading && snapshots.length === 0) return <LoadingState rows={10} />;
   if (snapshots.length === 0) {
     return (
-      <div className="border border-[var(--border)] bg-[var(--surface)] p-7">
+      <div className="rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface)] p-7">
         <p className="text-[12px] font-semibold">No snapshots yet</p>
         <p className="mt-1 max-w-[58ch] text-[10px] leading-5 text-[var(--text-muted)]">
           A snapshot appears here once a node saves its output.
@@ -71,7 +71,7 @@ export function NodeSnapshotBrowser({
   }
 
   return (
-    <section className="overflow-hidden border border-[var(--border)] bg-[var(--surface)]">
+    <section className="overflow-hidden rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface)]">
       <header className="flex flex-wrap items-start justify-between gap-4 border-b border-[var(--border)] px-5 py-4">
         <div>
           <h2 className="text-[13px] font-semibold">Snapshots</h2>
@@ -254,7 +254,7 @@ function SnapshotInspector({
             <h4 className="text-[9px] font-semibold lowercase tracking-[0.1em] text-[var(--text-faint)]">
               Where it was used
             </h4>
-            <div className="mt-2 border border-[var(--border)]">
+            <div className="mt-2 rounded-[8px] border border-[var(--border)]">
               {detail.usages.length ? (
                 detail.usages.map((usage) => (
                   <Link

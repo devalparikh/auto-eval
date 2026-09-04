@@ -200,7 +200,7 @@ export function RunWorkbench({
       />
       <section className="grid gap-4 p-4 md:p-7">
         <form
-          className="min-w-0 border border-[var(--border)] bg-[var(--surface)]"
+          className="min-w-0 overflow-hidden rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface)]"
           aria-busy={submitting}
           onSubmit={submit}
         >
@@ -367,7 +367,7 @@ export function RunWorkbench({
             <RuntimeInputNotice definition={graphDefinition} context="run" />
 
             {hasRefreshNodes ? (
-              <label className="flex cursor-pointer items-start gap-3 border border-[var(--border)] bg-[var(--surface-muted)] px-3 py-3">
+              <label className="rounded-[var(--radius)] flex cursor-pointer items-start gap-3 border border-[var(--border)] bg-[var(--surface-muted)] px-3 py-3">
                 <input
                   type="checkbox"
                   className="mt-0.5 accent-[var(--accent)]"
@@ -479,7 +479,7 @@ export function RunWorkbench({
         </form>
 
         <section
-          className="min-w-0 border border-[var(--border)] bg-[var(--surface)]"
+          className="min-w-0 overflow-hidden rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface)]"
           aria-live="polite"
           aria-busy={submitting}
         >

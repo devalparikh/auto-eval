@@ -49,7 +49,7 @@ export function GraphNodeDetails({
         <div className="flex min-w-0 items-start gap-2.5">
           <span
             style={{ background: `var(--node-${view.type}-soft)`, color: accent }}
-            className="grid size-7 shrink-0 place-items-center rounded-[2px]"
+            className="grid size-7 shrink-0 place-items-center rounded-[8px]"
           >
             <Icon size={14} weight="bold" aria-hidden />
           </span>
@@ -63,7 +63,7 @@ export function GraphNodeDetails({
                 {view.badges.map((badge) => (
                   <span
                     key={badge}
-                    className="border border-[var(--border)] px-1.5 py-0.5 text-[8px] text-[var(--text-muted)]"
+                    className="rounded-[4px] border border-[var(--border)] px-1.5 py-0.5 text-[8px] text-[var(--text-muted)]"
                   >
                     {badge}
                   </span>

@@ -10,7 +10,7 @@ const tones: Record<string, string> = {
 export function StatusBadge({ status }: { status: string }) {
   return (
     <span
-      className={`mono inline-flex min-h-5 items-center gap-1.5 rounded-[2px] border border-current/15 px-1.5 text-[9px] font-medium ${
+      className={`inline-flex min-h-[19px] items-center gap-1 rounded-full px-2 text-[11px] font-medium tracking-[-0.1px] ${
         tones[status] ?? "bg-[var(--surface-muted)] text-[var(--text-muted)]"
       }`}
     >

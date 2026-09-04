@@ -125,7 +125,7 @@ export function SystemsScreen({
         <section className="grid gap-4 p-4 md:p-7 xl:grid-cols-[220px_minmax(0,1fr)]">
           <nav
             aria-label="What to view"
-            className="h-fit overflow-hidden border border-[var(--border)] bg-[var(--surface)]"
+            className="rounded-[var(--radius)] h-fit overflow-hidden border border-[var(--border)] bg-[var(--surface)]"
           >
             <div className="border-b border-[var(--border)] px-4 py-3">
               <p className="mono text-[9px] lowercase tracking-[0.12em] text-[var(--text-faint)]">

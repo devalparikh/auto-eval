@@ -27,60 +27,60 @@
 
 :root {
   color-scheme: dark;
-  --bg: #0a0a09;
-  --surface: #10100f;
-  --surface-raised: #161513;
-  --surface-muted: #1c1b18;
-  --surface-hover: #211f1c;
-  --text: #e9e4de;
-  --text-muted: #9e9891;
-  --text-faint: #8a847d;
-  --border: #292724;
-  --border-strong: #3b3833;
-  --accent: #c99468;
-  --accent-strong: #dda978;
-  --accent-soft: #2e2118;
-  --success: #86bd97;
-  --success-soft: #17261d;
-  --warning: #d3a66d;
-  --warning-soft: #2d2418;
-  --danger: #db8680;
-  --danger-soft: #2e1b1b;
-  --focus: #e4b080;
-  --accent-ink: #100d0a;
+  --bg: #0a0a0a;
+  --surface: #121212;
+  --surface-raised: #1a1a1a;
+  --surface-muted: #171717;
+  --surface-hover: #202020;
+  --text: #f2f2ef;
+  --text-muted: #9a9ea3;
+  --text-faint: #6f7379;
+  --border: #1f1f1f;
+  --border-strong: #2f2f2f;
+  --accent: #f07a65;
+  --accent-strong: #f5907c;
+  --accent-soft: #35201c;
+  --success: #6cc39a;
+  --success-soft: #16291f;
+  --warning: #e8a33d;
+  --warning-soft: #2c2214;
+  --danger: #ee7f74;
+  --danger-soft: #331c1a;
+  --focus: #f07a65;
+  --accent-ink: #171717;
   --danger-ink: #160a0a;
-  --selection-ink: #0a0a09;
-  --canvas: #0d0d0c;
-  --shell-bg: rgb(10 10 9 / 0.92);
-  --shell-hover: rgb(255 255 255 / 0.025);
-  --shell-active: rgb(255 255 255 / 0.04);
-  --control-bg: #0d0d0c;
-  --control-focus-bg: #11100e;
-  --control-border-hover: #4a4640;
-  --focus-shadow: rgb(201 148 104 / 0.09);
-  --accent-shadow: rgb(201 148 104 / 0.12);
-  --skeleton-highlight: #25231f;
-  --status-ring: rgb(134 189 151 / 0.08);
-  --json-key: #c8a47f;
-  --json-string: #a9c8ae;
-  --json-number: #d9a974;
-  --json-literal: #b4a8d2;
-  --node-model: #b3a4d4;
-  --node-model-soft: #221d2e;
-  --node-live: #7fb6c6;
-  --node-live-soft: #14232a;
-  --node-saved: #c99468;
-  --node-saved-soft: #2e2118;
-  --node-logic: #9e9891;
-  --node-logic-soft: #1c1b18;
-  --radius: 4px;
+  --selection-ink: #0a0a0a;
+  --canvas: #0e0e0e;
+  --shell-bg: rgb(10 10 10 / 0.92);
+  --shell-hover: rgb(255 255 255 / 0.04);
+  --shell-active: rgb(255 255 255 / 0.06);
+  --control-bg: #111111;
+  --control-focus-bg: #141414;
+  --control-border-hover: #3a3a3a;
+  --focus-shadow: rgb(240 122 101 / 0.14);
+  --accent-shadow: rgb(240 122 101 / 0.16);
+  --skeleton-highlight: #232323;
+  --status-ring: rgb(108 195 154 / 0.1);
+  --json-key: #f0a08f;
+  --json-string: #a9d4b8;
+  --json-number: #d9ad6f;
+  --json-literal: #b8aee0;
+  --node-model: #f07a65;
+  --node-model-soft: #35201c;
+  --node-live: #7fb2dc;
+  --node-live-soft: #16232e;
+  --node-saved: #d9ad6f;
+  --node-saved-soft: #2c2217;
+  --node-logic: #9a9ea3;
+  --node-logic-soft: #1c1c1c;
+  --radius: 14px;
   --page-gutter: clamp(1rem, 2.6vw, 2rem);
   --font-body:
-    "Avenir Next", Avenir, "Helvetica Neue", Helvetica, Arial, sans-serif;
+    "Host Grotesk", "Avenir Next", Avenir, "Helvetica Neue", Helvetica, Arial,
+    sans-serif;
   --font-host-grotesk: "Host Grotesk";
   --font-display:
-    "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Palatino, Georgia,
-    serif;
+    "Host Grotesk", "Iowan Old Style", "Palatino Linotype", Georgia, serif;
   --font-mono:
     "SFMono-Regular", "Cascadia Code", "Roboto Mono", Menlo, Consolas, monospace;
   --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
@@ -89,52 +89,52 @@
 
 [data-theme="light"] {
   color-scheme: light;
-  --bg: #f3f0ea;
-  --surface: #faf8f3;
-  --surface-raised: #fffdf8;
-  --surface-muted: #ebe6de;
-  --surface-hover: #e5ded4;
-  --text: #25221e;
-  --text-muted: #625d56;
-  --text-faint: #756e66;
-  --border: #ddd6cc;
-  --border-strong: #c5baae;
-  --accent: #8b4f2c;
-  --accent-strong: #713d22;
-  --accent-soft: #eedfd2;
-  --success: #2f7650;
-  --success-soft: #dfeee5;
-  --warning: #8b5a1a;
-  --warning-soft: #f3e7d3;
-  --danger: #a6403a;
-  --danger-soft: #f3dfdd;
-  --focus: #7c4528;
-  --accent-ink: #fffaf4;
+  --bg: #fbfbfa;
+  --surface: #ffffff;
+  --surface-raised: #ffffff;
+  --surface-muted: #f4f3f0;
+  --surface-hover: #edece8;
+  --text: #15171b;
+  --text-muted: #5f646b;
+  --text-faint: #8a8f96;
+  --border: #e7e6e2;
+  --border-strong: #d3d2cd;
+  --accent: #df654f;
+  --accent-strong: #c9553f;
+  --accent-soft: #fbe6e1;
+  --success: #2f8a6d;
+  --success-soft: #dff0e6;
+  --warning: #b4854a;
+  --warning-soft: #f6ead6;
+  --danger: #c2463a;
+  --danger-soft: #fbe4e1;
+  --focus: #df654f;
+  --accent-ink: #ffffff;
   --danger-ink: #fff8f6;
-  --selection-ink: #fffaf4;
-  --canvas: #f8f5ef;
-  --shell-bg: rgb(243 240 234 / 0.92);
-  --shell-hover: rgb(74 56 42 / 0.045);
-  --shell-active: rgb(74 56 42 / 0.07);
-  --control-bg: #fffdf8;
-  --control-focus-bg: #fffaf4;
-  --control-border-hover: #9f9387;
-  --focus-shadow: rgb(124 69 40 / 0.12);
-  --accent-shadow: rgb(95 55 31 / 0.15);
-  --skeleton-highlight: #f8f4ee;
-  --status-ring: rgb(47 118 80 / 0.1);
-  --json-key: #7b472a;
+  --selection-ink: #ffffff;
+  --canvas: #f7f6f3;
+  --shell-bg: rgb(251 251 250 / 0.92);
+  --shell-hover: rgb(21 23 27 / 0.04);
+  --shell-active: rgb(21 23 27 / 0.07);
+  --control-bg: #ffffff;
+  --control-focus-bg: #ffffff;
+  --control-border-hover: #a9a8a3;
+  --focus-shadow: rgb(223 101 79 / 0.14);
+  --accent-shadow: rgb(223 101 79 / 0.16);
+  --skeleton-highlight: #faf9f7;
+  --status-ring: rgb(47 138 109 / 0.1);
+  --json-key: #b84f3b;
   --json-string: #2f6a49;
   --json-number: #8c551c;
   --json-literal: #67528d;
-  --node-model: #59459d;
-  --node-model-soft: #e7e2f4;
-  --node-live: #1d6473;
-  --node-live-soft: #dbedf1;
-  --node-saved: #8b4f2c;
-  --node-saved-soft: #eedfd2;
-  --node-logic: #625d56;
-  --node-logic-soft: #ebe6de;
+  --node-model: #df654f;
+  --node-model-soft: #fbe6e1;
+  --node-live: #3f78a8;
+  --node-live-soft: #dce9f3;
+  --node-saved: #b4854a;
+  --node-saved-soft: #f4e6cf;
+  --node-logic: #5f646b;
+  --node-logic-soft: #f4f3f0;
 }
 
 * {
@@ -280,6 +280,7 @@ label:has(input.sr-only:focus-visible) {
   flex: 0 0 auto;
   place-items: center;
   border: 1px solid var(--border-strong);
+  border-radius: 6px;
   color: var(--accent);
   font-family: var(--font-mono);
   font-size: 9px;
@@ -449,9 +450,10 @@ label:has(input.sr-only:focus-visible) {
 
 .page-header-title {
   margin: 0;
-  font-size: clamp(1.35rem, 2.2vw, 1.7rem);
-  font-weight: 560;
-  letter-spacing: -0.045em;
+  font-family: var(--font-host-grotesk), var(--font-body);
+  font-size: clamp(1.45rem, 2.3vw, 1.85rem);
+  font-weight: 500;
+  letter-spacing: -0.035em;
   line-height: 1.05;
 }
 
@@ -459,7 +461,7 @@ label:has(input.sr-only:focus-visible) {
   max-width: 62ch;
   margin: 0.45rem 0 0;
   color: var(--text-muted);
-  font-size: 11px;
+  font-size: 12px;
   line-height: 1.55;
   text-wrap: pretty;
 }
@@ -470,14 +472,14 @@ label:has(input.sr-only:focus-visible) {
   align-items: center;
   justify-content: center;
   gap: 8px;
-  border: 1px solid var(--accent);
-  border-radius: 2px;
+  border: 1px solid var(--text);
+  border-radius: 6px;
   padding: 0 14px;
-  background: var(--accent);
-  color: var(--accent-ink);
-  font-size: 11px;
-  font-weight: 650;
-  letter-spacing: 0.01em;
+  background: var(--text);
+  color: var(--bg);
+  font-size: 12px;
+  font-weight: 550;
+  letter-spacing: 0;
   text-decoration: none;
   white-space: nowrap;
   cursor: pointer;
@@ -491,8 +493,9 @@ label:has(input.sr-only:focus-visible) {
 }
 
 .app-button:hover {
-  border-color: var(--accent-strong);
-  background: var(--accent-strong);
+  border-color: var(--accent);
+  background: var(--accent);
+  color: #171717;
   box-shadow: 0 8px 28px var(--accent-shadow);
   transform: translateY(-1px);
 }
@@ -546,7 +549,7 @@ label:has(input.sr-only:focus-visible) {
 .app-textarea {
   width: 100%;
   border: 1px solid var(--border-strong);
-  border-radius: 2px;
+  border-radius: 8px;
   background: var(--control-bg);
   color: var(--text);
   transition:
@@ -691,6 +694,7 @@ label:has(input.sr-only:focus-visible) {
   display: inline-flex;
   padding: 2px;
   border: 1px solid var(--border);
+  border-radius: 8px;
   background: var(--surface-muted);
 }
 
@@ -974,7 +978,7 @@ label:has(input.sr-only:focus-visible) {
 }
 
 .skeleton {
-  border-radius: 2px;
+  border-radius: 6px;
   background: linear-gradient(
     100deg,
     var(--surface-muted) 20%,
@@ -991,8 +995,6 @@ label:has(input.sr-only:focus-visible) {
   flex: 0 0 auto;
   border-radius: 50%;
   background: currentColor;
-  box-shadow: 0 0 0 3px currentColor;
-  opacity: 0.72;
 }
 
 .status-running .status-dot {

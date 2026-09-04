@@ -103,7 +103,7 @@ export function AddToDatasetModal({
       {!targets.loading && !targets.error ? (
         <form onSubmit={submit} className="grid gap-4 p-5" aria-busy={saving}>
           {targets.data?.memberships.length ? (
-            <div className="rounded-[2px] border border-[var(--border)] bg-[var(--surface-muted)] p-3">
+            <div className="rounded-[8px] border border-[var(--border)] bg-[var(--surface-muted)] p-3">
               <p className="text-[10px] font-semibold text-[var(--text-muted)]">
                 Already used as a source
               </p>
@@ -119,7 +119,7 @@ export function AddToDatasetModal({
             </div>
           ) : null}
           {targets.data?.evaluation_expected ? (
-            <div className="flex gap-2 rounded-[2px] border border-[var(--warning)] bg-[var(--warning-soft)] p-3 text-[10px] leading-5">
+            <div className="flex gap-2 rounded-[8px] border border-[var(--warning)] bg-[var(--warning-soft)] p-3 text-[10px] leading-5">
               <WarningIcon size={14} className="mt-0.5 shrink-0" />
               This evaluation trace is prefilled from the original reviewed
               expected value, never from the model&apos;s actual output.
@@ -169,7 +169,7 @@ export function AddToDatasetModal({
               />
             </div>
           )}
-          <div className="rounded-[2px] bg-[var(--surface-muted)] p-3">
+          <div className="rounded-[8px] bg-[var(--surface-muted)] p-3">
             <p className="text-[10px] font-semibold text-[var(--text-muted)]">
               Request
             </p>
@@ -178,7 +178,7 @@ export function AddToDatasetModal({
             </p>
           </div>
           {Object.keys(runtimeInputSnapshotIds ?? {}).length ? (
-            <section className="border border-[var(--border)] bg-[var(--surface-muted)] p-3">
+            <section className="rounded-[10px] border border-[var(--border)] bg-[var(--surface-muted)] p-3">
               <p className="text-[10px] font-semibold text-[var(--text-muted)]">
                 Live data snapshots
               </p>
@@ -193,7 +193,7 @@ export function AddToDatasetModal({
             </section>
           ) : null}
           {Object.keys(nodeResourceSelections ?? {}).length ? (
-            <section className="border border-[var(--border)] bg-[var(--surface-muted)] p-3">
+            <section className="rounded-[10px] border border-[var(--border)] bg-[var(--surface-muted)] p-3">
               <p className="text-[10px] font-semibold text-[var(--text-muted)]">
                 Saved data snapshots
               </p>

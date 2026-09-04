@@ -65,7 +65,7 @@ const integrationCards = [
   {
     title: "The graph is the workflow",
     description:
-      "Parse it once, run it as recorded. Input, live, model, and check nodes keep their kinds so a trace reads the way the graph does.",
+      "One path, typed by step. Deterministic steps replay, live steps read a frozen snapshot, and model steps call the candidate, so a trace reads the way the graph does.",
     visual: <GraphVisual />,
   },
   {

@@ -60,7 +60,7 @@ test("renders the landing page without first-load fade gaps", async ({
   await expect(
     page
       .getByLabel("Interactive AutoEval workflow")
-      .getByText("128 × 3 models"),
+      .getByText("128 × 6 models"),
   ).toBeVisible();
   await expect(
     page.getByRole("heading", { name: "Use the agent you already have." }),

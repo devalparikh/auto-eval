@@ -118,7 +118,7 @@ export function Modal({
                 aria-label="Close"
                 data-autofocus
                 onClick={onClose}
-                className="grid size-8 shrink-0 place-items-center rounded-[2px] text-[var(--text-muted)] transition-colors hover:bg-[var(--surface-muted)] hover:text-[var(--text)]"
+                className="grid size-8 shrink-0 place-items-center rounded-[8px] text-[var(--text-muted)] transition-colors hover:bg-[var(--surface-muted)] hover:text-[var(--text)]"
               >
                 <XIcon size={16} />
               </button>

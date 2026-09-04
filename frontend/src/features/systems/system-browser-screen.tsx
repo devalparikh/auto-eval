@@ -50,7 +50,7 @@ export function SystemBrowserScreen() {
           return (
             <article
               key={product.product_key}
-              className="grid min-h-[190px] content-between border border-[var(--border)] bg-[var(--surface)] p-5"
+              className="rounded-[var(--radius)] grid min-h-[190px] content-between border border-[var(--border)] bg-[var(--surface)] p-5"
             >
               <div>
                 <div className="flex items-center justify-between gap-4">

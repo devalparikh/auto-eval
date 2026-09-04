@@ -14,7 +14,7 @@ export function RuntimeInputNotice({
   if (nodes.length === 0) return null;
   const Icon = context === "run" ? CloudArrowDownIcon : LockKeyIcon;
   return (
-    <div className="flex items-start gap-3 border border-[var(--border)] bg-[var(--surface-muted)] px-3 py-3">
+    <div className="rounded-[var(--radius)] flex items-start gap-3 border border-[var(--border)] bg-[var(--surface-muted)] px-3 py-3">
       <Icon
         size={15}
         className="mt-0.5 shrink-0 text-[var(--accent)]"

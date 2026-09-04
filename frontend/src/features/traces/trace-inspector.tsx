@@ -82,7 +82,7 @@ export function TraceInspector({
           </p>
           {span.snapshot_metadata &&
           Object.keys(span.snapshot_metadata).length ? (
-            <details className="mt-2 border border-[var(--border)] px-3 py-2">
+            <details className="mt-2 rounded-[8px] border border-[var(--border)] px-3 py-2">
               <summary className="cursor-pointer text-[9px] font-medium text-[var(--text-muted)]">
                 Details
               </summary>
@@ -271,7 +271,7 @@ function InspectorSection({
 
 function JsonBlock({ value }: { value: Record<string, unknown> }) {
   return (
-    <pre className="mono max-h-52 overflow-auto whitespace-pre-wrap break-words rounded-[2px] border border-[var(--border)] bg-[var(--canvas)] p-3 text-[10px] leading-5 text-[var(--text-muted)]">
+    <pre className="mono max-h-52 overflow-auto whitespace-pre-wrap break-words rounded-[8px] border border-[var(--border)] bg-[var(--canvas)] p-3 text-[10px] leading-5 text-[var(--text-muted)]">
       {JSON.stringify(value, null, 2)}
     </pre>
   );

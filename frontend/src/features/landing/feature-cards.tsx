@@ -198,36 +198,32 @@ export function ManifestVisual() {
   );
 }
 
-/* Card 2: a run moves through the graph while a recording timer counts. */
+/* Card 2: a run moves through the pipeline while a recording timer counts. */
 const graphNodes = [
-  { x: 10, y: 48, w: 74, kind: "input", name: "question" },
-  { x: 132, y: 14, w: 70, kind: "live", name: "retrieve" },
-  { x: 132, y: 82, w: 70, kind: "model", name: "generate" },
-  { x: 250, y: 48, w: 66, kind: "check", name: "grounding" },
+  { x: 4, kind: "input", name: "question" },
+  { x: 68, kind: "step", name: "normalize" },
+  { x: 132, kind: "live", name: "fetch" },
+  { x: 196, kind: "model", name: "generate" },
+  { x: 260, kind: "check", name: "grounding" },
 ] as const;
 
-const graphEdges = [
-  "M84 66 C 108 66, 110 32, 132 32",
-  "M84 66 C 108 66, 110 100, 132 100",
-  "M202 32 C 226 32, 228 66, 250 66",
-  "M202 100 C 226 100, 228 66, 250 66",
-];
-
 const cursorStops = [
-  { x: 24, y: 58 },
-  { x: 46, y: 26 },
-  { x: 50, y: 74 },
-  { x: 80, y: 56 },
+  { x: 18, y: 30 },
+  { x: 36, y: 62 },
+  { x: 52, y: 30 },
+  { x: 70, y: 60 },
+  { x: 86, y: 30 },
 ];
 
 export function GraphVisual() {
   const ref = useRef<HTMLDivElement>(null);
   const { active, reduceMotion } = useSceneActive(ref);
-  const phase = useCycle([1500, 1600, 1600, 2000], active);
+  const phase = useCycle([1200, 1300, 1700, 1600, 2000], active);
   const timer = useTimer(active);
-  const done = reduceMotion ? 4 : phase;
+  const done = reduceMotion ? 5 : phase;
   const statusOf = (index: number) =>
     index < done ? "complete" : index === done ? "running" : "pending";
+  const snapshotState = done > 2 ? "frozen" : done === 2 ? "capturing" : "idle";
 
   return (
     <div ref={ref} className={styles.stage} aria-hidden="true">
@@ -241,7 +237,7 @@ export function GraphVisual() {
         </span>
         <span
           className={styles.recordingPill}
-          data-pressed={phase < 3 ? "true" : "false"}
+          data-pressed={done < 5 ? "true" : "false"}
         >
           <i />
           Run graph
@@ -254,14 +250,26 @@ export function GraphVisual() {
             <i />
             <i />
           </div>
-          <svg viewBox="0 0 326 132" className={styles.graphSvg}>
-            {graphEdges.map((d, index) => (
-              <path
-                key={d}
-                className={styles.graphEdge}
-                d={d}
-                data-active={index < 2 ? done >= 1 : done >= 3}
-              />
+          <svg viewBox="0 0 326 118" className={styles.graphSvg}>
+            {graphNodes.slice(0, -1).map((node, index) => (
+              <g key={node.name}>
+                <line
+                  className={styles.graphEdge}
+                  x1={node.x + 60}
+                  y1={45}
+                  x2={graphNodes[index + 1].x}
+                  y2={45}
+                />
+                <line
+                  className={styles.graphEdgeFill}
+                  pathLength="1"
+                  x1={node.x + 60}
+                  y1={45}
+                  x2={graphNodes[index + 1].x}
+                  y2={45}
+                  data-active={done > index ? "true" : "false"}
+                />
+              </g>
             ))}
             {graphNodes.map((node, index) => (
               <g
@@ -270,51 +278,48 @@ export function GraphVisual() {
                 data-kind={node.kind}
                 data-status={statusOf(index)}
               >
-                <rect x={node.x} y={node.y} width={node.w} height="36" rx="6" />
+                <rect x={node.x} y={28} width="60" height="34" rx="6" />
                 <rect
                   x={node.x}
-                  y={node.y + 7}
+                  y={35}
                   width="2"
-                  height="22"
+                  height="20"
                   className={styles.graphNodeBar}
                 />
-                <text
-                  x={node.x + 10}
-                  y={node.y + 14}
-                  className={styles.graphNodeKind}
-                >
+                <text x={node.x + 8} y={41} className={styles.graphNodeKind}>
                   {node.kind}
                 </text>
-                <text
-                  x={node.x + 10}
-                  y={node.y + 27}
-                  className={styles.graphNodeName}
-                >
+                <text x={node.x + 8} y={54} className={styles.graphNodeName}>
                   {node.name}
                 </text>
                 <circle
-                  cx={node.x + node.w - 8}
-                  cy={node.y + 9}
-                  r="2.4"
+                  cx={node.x + 53}
+                  cy={36}
+                  r="2.2"
                   className={styles.graphNodeDot}
                 />
               </g>
             ))}
-            {!reduceMotion ? (
-              <circle className={styles.graphPulse} r="2.6">
-                <animateMotion
-                  dur="2.4s"
-                  repeatCount="indefinite"
-                  path="M84 66 C 108 66, 110 32, 132 32 L 202 32 C 226 32, 228 66, 250 66"
-                />
-              </circle>
-            ) : null}
+            <g className={styles.snapshotTag} data-state={snapshotState}>
+              <line x1="162" y1="62" x2="162" y2="76" />
+              <rect x="122" y="76" width="80" height="26" rx="5" />
+              <text x="130" y="87" className={styles.graphNodeKind}>
+                snapshot
+              </text>
+              <text x="130" y="97" className={styles.snapshotTagValue}>
+                {snapshotState === "frozen"
+                  ? "93f2 · frozen"
+                  : snapshotState === "capturing"
+                    ? "capturing…"
+                    : "pending"}
+              </text>
+            </g>
           </svg>
         </div>
         <Cursor
           label="You"
           show={!reduceMotion}
-          {...cursorStops[Math.min(phase, 3)]}
+          {...cursorStops[Math.min(phase, 4)]}
         />
       </div>
     </div>
@@ -528,13 +533,15 @@ export function SnapshotVisual() {
               <em>{shown >= 1 ? "frozen" : "live"}</em>
             </li>
           ))}
-          {shown >= 2 ? (
-            <li className={styles.rowEnter} data-replay="true">
-              <span>+30 d</span>
-              <b>eval 024</b>
-              <em>identical</em>
-            </li>
-          ) : null}
+          <li
+            className={styles.rowEnter}
+            data-replay="true"
+            data-pending={shown >= 2 ? "false" : "true"}
+          >
+            <span>+30 d</span>
+            <b>eval 024</b>
+            <em>identical</em>
+          </li>
         </ul>
       </Panel>
     </div>

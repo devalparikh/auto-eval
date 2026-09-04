@@ -52,8 +52,8 @@ const stages = [
     title: "Evaluation",
     value: "comparison / 024",
     description: "Run the same locked cases against each model.",
-    meta: "three candidates",
-    prompt: "Run failure-modes v4 against all three candidates.",
+    meta: "six candidates",
+    prompt: "Run failure-modes v4 against every candidate, including ft-v3.",
   },
 ] as const;
 
@@ -140,48 +140,67 @@ export function ProductPreview({
           </div>
         </div>
         <div className={styles.previewBody}>
-          <div
-            className={styles.previewTabs}
-            role="tablist"
-            aria-label={tablistLabel}
-          >
-            <div className={styles.previewSidebarHeader} aria-hidden="true">
-              <strong>evaluation loop</strong>
+          <div className={styles.previewRail}>
+            <div className={styles.railWorkspace} aria-hidden="true">
+              <span className={styles.railMark}>ra</span>
+              <span className={styles.railName}>
+                <b>research-assistant</b>
+                <small>local workspace</small>
+              </span>
+              <i className={styles.railChevron} />
+            </div>
+            <div className={styles.railSection} aria-hidden="true">
+              <span>Evaluation loop</span>
               <span>{activeIndex + 1} / 4</span>
             </div>
-            {stages.map((stage) => (
-              <button
-                key={stage.key}
-                id={`${idPrefix}-tab-${stage.key}`}
-                type="button"
-                role="tab"
-                aria-selected={activeStage === stage.key}
-                aria-controls={`${idPrefix}-panel-${stage.key}`}
-                className={
-                  activeStage === stage.key ? styles.activeTab : undefined
-                }
-                onClick={() => select(stage.key)}
-              >
-                <span className={styles.stageIndex}>{stage.index}</span>
-                <span className={styles.stageCopy}>
-                  <b>{stage.label}</b>
-                  <small>{stage.meta}</small>
-                </span>
-                {activeStage === stage.key ? (
-                  <i
-                    key={`${stage.key}-${autoplay}`}
-                    className={styles.tabProgress}
-                    aria-hidden="true"
-                    style={
-                      {
-                        "--progress-duration": `${AUTO_ADVANCE_MS}ms`,
-                        animationPlayState: autoplay ? "running" : "paused",
-                      } as CSSProperties
-                    }
-                  />
-                ) : null}
-              </button>
-            ))}
+            <div
+              className={styles.previewTabs}
+              role="tablist"
+              aria-label={tablistLabel}
+              aria-orientation="vertical"
+            >
+              {stages.map((stage, index) => (
+                <button
+                  key={stage.key}
+                  id={`${idPrefix}-tab-${stage.key}`}
+                  type="button"
+                  role="tab"
+                  aria-selected={activeStage === stage.key}
+                  aria-controls={`${idPrefix}-panel-${stage.key}`}
+                  className={
+                    activeStage === stage.key ? styles.activeTab : undefined
+                  }
+                  data-done={index < activeIndex ? "true" : "false"}
+                  onClick={() => select(stage.key)}
+                >
+                  <span className={styles.stageIndex}>{stage.index}</span>
+                  <span className={styles.stageCopy}>
+                    <b>{stage.label}</b>
+                    <small>{stage.meta}</small>
+                  </span>
+                  <span className={styles.stageState} aria-hidden="true" />
+                  {activeStage === stage.key ? (
+                    <i
+                      key={`${stage.key}-${autoplay}`}
+                      className={styles.tabProgress}
+                      aria-hidden="true"
+                      style={
+                        {
+                          "--progress-duration": `${AUTO_ADVANCE_MS}ms`,
+                          animationPlayState: autoplay ? "running" : "paused",
+                        } as CSSProperties
+                      }
+                    />
+                  ) : null}
+                </button>
+              ))}
+            </div>
+            <div className={styles.railFooter} aria-hidden="true">
+              <span>
+                <i /> sqlite · loopback
+              </span>
+              <span>v0.1</span>
+            </div>
           </div>
           <section
             id={`${idPrefix}-panel-${active.key}`}
@@ -219,7 +238,11 @@ export function ProductPreview({
                     />
                   )}
                   {activeStage === "observe" && (
-                    <TraceScene running={inView} reduceMotion={reduceMotion} />
+                    <TraceScene
+                      running={inView}
+                      reduceMotion={reduceMotion}
+                      onInteract={() => setInteracted(true)}
+                    />
                   )}
                   {activeStage === "curate" && (
                     <DatasetScene
@@ -261,7 +284,11 @@ export function ProductPreview({
   );
 }
 
-type SceneProps = { running: boolean; reduceMotion: boolean };
+type SceneProps = {
+  running: boolean;
+  reduceMotion: boolean;
+  onInteract?: () => void;
+};
 
 function StageBadge({ stage, running }: { stage: Stage; running: boolean }) {
   const phase = useCycle([1800, 6000], running, stage);
@@ -270,7 +297,7 @@ function StageBadge({ stage, running }: { stage: Stage; running: boolean }) {
     connect: ["Reading manifest", "Registered"],
     observe: ["Running", "Version pinned"],
     curate: ["Draft", "Ready to finalize"],
-    evaluate: ["384 runs in flight", "Complete"],
+    evaluate: ["768 runs in flight", "Complete"],
   };
   const [pending, done] = labels[stage];
   return (
@@ -359,79 +386,172 @@ function ConnectScene({ running, reduceMotion }: SceneProps) {
 }
 
 const traceNodes = [
-  { x: 14, y: 96, w: 104, kind: "input", name: "question", ms: "0 ms" },
-  { x: 178, y: 30, w: 104, kind: "context", name: "retrieve", ms: "142 ms" },
-  { x: 178, y: 162, w: 104, kind: "model", name: "generate", ms: "820 ms" },
-  { x: 342, y: 96, w: 104, kind: "check", name: "grounding", ms: "446 ms" },
+  {
+    x: 8,
+    kind: "input",
+    name: "question",
+    ms: "0 ms",
+    detail: "dataset item 017",
+  },
+  {
+    x: 112,
+    kind: "step",
+    name: "normalize",
+    ms: "2 ms",
+    detail: "deterministic",
+  },
+  {
+    x: 216,
+    kind: "live",
+    name: "fetch",
+    ms: "142 ms",
+    detail: "snapshot 93f2",
+  },
+  {
+    x: 320,
+    kind: "model",
+    name: "generate",
+    ms: "820 ms",
+    detail: "claude-sonnet-5",
+  },
+  {
+    x: 424,
+    kind: "check",
+    name: "grounding",
+    ms: "446 ms",
+    detail: "score 0.92",
+  },
 ] as const;
 
-const traceEdges = [
-  "M118 122 C 150 122, 148 56, 178 56",
-  "M118 122 C 150 122, 148 188, 178 188",
-  "M282 56 C 312 56, 312 122, 342 122",
-  "M282 188 C 312 188, 312 122, 342 122",
-];
+const NODE_W = 90;
 
-function TraceScene({ running, reduceMotion }: SceneProps) {
-  const phase = useCycle([1300, 1500, 1500, 2600], running && !reduceMotion);
-  const done = reduceMotion ? 4 : phase;
+function TraceScene({ running, reduceMotion, onInteract }: SceneProps) {
+  const [pinned, setPinned] = useState<number | null>(null);
+  const playing = running && !reduceMotion && pinned === null;
+  const phase = useCycle([1100, 1200, 1800, 1600, 2600], playing, pinned);
+  const done = reduceMotion || pinned !== null ? 5 : phase;
   const statusOf = (index: number) =>
     index < done ? "complete" : index === done ? "running" : "pending";
-  const selected = traceNodes[Math.min(done, 3)];
-  const selectedIndex = traceNodes.indexOf(selected);
+  const selectedIndex = pinned ?? Math.min(done, 4);
+
+  function pin(index: number) {
+    setPinned(index);
+    onInteract?.();
+  }
+  const selected = traceNodes[selectedIndex];
+  const snapshotState = done > 2 ? "frozen" : done === 2 ? "capturing" : "idle";
   const spans = [
     { name: "question", start: 0, width: 1, tone: "logic" },
-    { name: "retrieve", start: 1, width: 10, tone: "live" },
-    { name: "generate", start: 11, width: 58, tone: "model" },
+    { name: "normalize", start: 1, width: 1, tone: "logic" },
+    { name: "fetch", start: 2, width: 10, tone: "live" },
+    { name: "generate", start: 12, width: 57, tone: "model" },
     { name: "grounding", start: 69, width: 31, tone: "check" },
   ];
+  const outputs: Record<string, string> = {
+    question:
+      '{ "text": "Which 2024 paper introduced the retrieval benchmark we use in evals?",\n  "user": "analyst-7", "item": "017" }',
+    normalize:
+      '{ "query": "2024 paper retrieval benchmark evals",\n  "language": "en", "entities": ["retrieval benchmark"] }',
+    fetch:
+      '{ "snapshot": "93f2", "frozen": true,\n  "quotes": 12, "documents": 3, "age": "0 ms (replayed)" }',
+    generate:
+      '"The benchmark was introduced in BEIR-2 (Thakur et al., 2024)…"\n{ "model": "claude-sonnet-5", "tokens": 1284, "cost_usd": 0.0042 }',
+    grounding:
+      '{ "score": 0.92, "citations": 4, "in_context": 4,\n  "verdict": "pass" }',
+  };
+  const detailRows: Record<string, [string, string][]> = {
+    question: [
+      ["Source", "dataset item 017"],
+      ["Tokens", "38"],
+    ],
+    normalize: [
+      ["Handler", "normalize_query"],
+      ["Pure", "yes · no I/O"],
+    ],
+    fetch: [
+      ["Provider", "market + docs"],
+      ["Snapshot", "93f2 · frozen"],
+      ["Documents", "3"],
+    ],
+    generate: [
+      ["Model", "claude-sonnet-5"],
+      ["Tokens", "1,284"],
+      ["Cost", "$0.0042"],
+    ],
+    grounding: [
+      ["Score", "0.92"],
+      ["Sources", "4 / 4 in context"],
+    ],
+  };
   return (
     <div className={styles.traceScene}>
-      <div className={styles.traceCanvas} aria-hidden="true">
-        <svg viewBox="0 0 460 250" className={styles.traceSvg}>
-          {traceEdges.map((d, index) => (
-            <path
-              key={d}
-              className={styles.graphEdge}
-              d={d}
-              data-active={index < 2 ? done >= 1 : done >= 3}
-            />
+      <div className={styles.traceCanvas}>
+        <div className={styles.traceToolbar}>
+          <span>
+            {pinned === null
+              ? "playing back the run · click a step to inspect it"
+              : `inspecting ${selected.name} · playback paused`}
+          </span>
+          {pinned !== null ? (
+            <button type="button" onClick={() => setPinned(null)}>
+              <b aria-hidden="true">▶</b> replay run
+            </button>
+          ) : null}
+        </div>
+        <svg viewBox="0 0 522 210" className={styles.traceSvg}>
+          {traceNodes.slice(0, -1).map((node, index) => (
+            <g key={node.name}>
+              <line
+                className={styles.graphEdge}
+                x1={node.x + NODE_W}
+                y1={84}
+                x2={traceNodes[index + 1].x}
+                y2={84}
+              />
+              <line
+                className={styles.graphEdgeFill}
+                pathLength="1"
+                x1={node.x + NODE_W}
+                y1={84}
+                x2={traceNodes[index + 1].x}
+                y2={84}
+                data-active={done > index ? "true" : "false"}
+              />
+            </g>
           ))}
           {traceNodes.map((node, index) => (
             <g
               key={node.name}
-              className={styles.graphNode}
+              className={`${styles.graphNode} ${styles.graphNodeButton}`}
               data-kind={node.kind}
               data-status={statusOf(index)}
               data-selected={selected.name === node.name ? "true" : "false"}
+              role="button"
+              tabIndex={0}
+              aria-label={`Inspect ${node.name} step`}
+              onClick={() => pin(index)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" || event.key === " ") {
+                  event.preventDefault();
+                  pin(index);
+                }
+              }}
             >
-              <rect x={node.x} y={node.y} width={node.w} height="52" rx="8" />
+              <rect x={node.x} y={58} width={NODE_W} height="52" rx="8" />
               <rect
                 x={node.x}
-                y={node.y + 10}
+                y={68}
                 width="2.5"
                 height="32"
                 className={styles.graphNodeBar}
               />
-              <text
-                x={node.x + 13}
-                y={node.y + 17}
-                className={styles.graphNodeKind}
-              >
+              <text x={node.x + 12} y={75} className={styles.graphNodeKind}>
                 {node.kind}
               </text>
-              <text
-                x={node.x + 13}
-                y={node.y + 33}
-                className={styles.graphNodeName}
-              >
+              <text x={node.x + 12} y={91} className={styles.graphNodeName}>
                 {node.name}
               </text>
-              <text
-                x={node.x + 13}
-                y={node.y + 45}
-                className={styles.graphNodeMeta}
-              >
+              <text x={node.x + 12} y={103} className={styles.graphNodeMeta}>
                 {index < done
                   ? node.ms
                   : index === done
@@ -439,29 +559,62 @@ function TraceScene({ running, reduceMotion }: SceneProps) {
                     : "queued"}
               </text>
               <circle
-                cx={node.x + node.w - 11}
-                cy={node.y + 12}
+                cx={node.x + NODE_W - 11}
+                cy={70}
                 r="3"
                 className={styles.graphNodeDot}
               />
             </g>
           ))}
-          {!reduceMotion ? (
-            <circle className={styles.graphPulse} r="3">
-              <animateMotion
-                dur="2.8s"
-                repeatCount="indefinite"
-                path="M118 122 C 150 122, 148 56, 178 56 L 282 56 C 312 56, 312 122, 342 122"
-              />
-            </circle>
-          ) : null}
+          <g className={styles.snapshotTag} data-state={snapshotState}>
+            <line x1="261" y1="110" x2="261" y2="132" />
+            <rect x="203" y="132" width="116" height="40" rx="7" />
+            <text x="214" y="148" className={styles.graphNodeKind}>
+              external data
+            </text>
+            <text x="214" y="163" className={styles.snapshotTagValue}>
+              {snapshotState === "frozen"
+                ? "snapshot 93f2 · frozen"
+                : snapshotState === "capturing"
+                  ? "capturing quotes + docs…"
+                  : "captured on first run"}
+            </text>
+          </g>
+          <text x="8" y="26" className={styles.graphNodeKind}>
+            graph v7 · 5 nodes · one path
+          </text>
+          <text x="8" y="40" className={styles.graphNodeMeta}>
+            deterministic steps replay, live steps read the frozen snapshot,
+            model steps call the candidate
+          </text>
         </svg>
+        <div className={styles.traceOutput}>
+          <span>
+            {selected.name} output
+            <b>{done > selectedIndex ? "recorded" : "pending"}</b>
+          </span>
+          <AnimatePresence mode="wait" initial={false}>
+            <motion.pre
+              key={selected.name}
+              initial={reduceMotion ? false : { opacity: 0, y: 3 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.22 }}
+            >
+              {outputs[selected.name]}
+            </motion.pre>
+          </AnimatePresence>
+        </div>
         <div className={styles.traceSpans}>
           {spans.map((span, index) => (
-            <span
+            <button
+              type="button"
               key={span.name}
+              aria-label={`Inspect ${span.name} span`}
               data-tone={span.tone}
+              data-selected={selectedIndex === index ? "true" : "false"}
               data-show={index <= done ? "true" : "false"}
+              onClick={() => pin(index)}
               style={
                 {
                   left: `${span.start}%`,
@@ -494,49 +647,12 @@ function TraceScene({ running, reduceMotion }: SceneProps) {
                 <dt>Kind</dt>
                 <dd>{selected.kind}</dd>
               </div>
-              {selected.name === "generate" ? (
-                <>
-                  <div>
-                    <dt>Model</dt>
-                    <dd>candidate-a</dd>
-                  </div>
-                  <div>
-                    <dt>Tokens</dt>
-                    <dd>1,284</dd>
-                  </div>
-                  <div>
-                    <dt>Cost</dt>
-                    <dd>$0.0042</dd>
-                  </div>
-                </>
-              ) : selected.name === "retrieve" ? (
-                <>
-                  <div>
-                    <dt>Documents</dt>
-                    <dd>3</dd>
-                  </div>
-                  <div>
-                    <dt>Snapshot</dt>
-                    <dd>93f2 · pinned</dd>
-                  </div>
-                </>
-              ) : selected.name === "grounding" ? (
-                <>
-                  <div>
-                    <dt>Score</dt>
-                    <dd>0.92</dd>
-                  </div>
-                  <div>
-                    <dt>Sources</dt>
-                    <dd>4 / 4 in context</dd>
-                  </div>
-                </>
-              ) : (
-                <div>
-                  <dt>Source</dt>
-                  <dd>dataset item 017</dd>
+              {detailRows[selected.name].map(([key, value]) => (
+                <div key={key}>
+                  <dt>{key}</dt>
+                  <dd>{value}</dd>
                 </div>
-              )}
+              ))}
               <div>
                 <dt>Latency</dt>
                 <dd>{selected.ms}</dd>
@@ -639,23 +755,95 @@ function DatasetScene({ running, reduceMotion }: SceneProps) {
   );
 }
 
-const modelRows = [
-  ["candidate-a", 91, "$1.79", "1.2s"],
-  ["candidate-b", 86, "$0.77", "0.8s"],
-  ["baseline", 79, "$1.15", "1.6s"],
+const candidates = [
+  {
+    name: "Claude Opus 5",
+    short: "Opus 5",
+    vendor: "anthropic",
+    score: 95,
+    cost: 0.062,
+    latency: "2.1s",
+  },
+  {
+    name: "Claude Sonnet 5",
+    short: "Sonnet 5",
+    vendor: "anthropic",
+    score: 93,
+    cost: 0.021,
+    latency: "1.2s",
+  },
+  {
+    name: "ra-sonnet-ft-v3",
+    short: "ft-v3",
+    vendor: "finetune",
+    score: 92,
+    cost: 0.006,
+    latency: "0.7s",
+    best: true,
+  },
+  {
+    name: "GPT-5",
+    short: "GPT-5",
+    vendor: "openai",
+    score: 91,
+    cost: 0.028,
+    latency: "1.4s",
+  },
+  {
+    name: "Claude Haiku 4.5",
+    short: "Haiku 4.5",
+    vendor: "anthropic",
+    score: 86,
+    cost: 0.004,
+    latency: "0.6s",
+  },
+  {
+    name: "Gemini 3 Flash",
+    short: "Gemini 3 Flash",
+    vendor: "google",
+    score: 84,
+    cost: 0.003,
+    latency: "0.5s",
+  },
 ] as const;
+
+const vendorLabels: Record<string, string> = {
+  anthropic: "Anthropic",
+  openai: "OpenAI",
+  google: "Google",
+  finetune: "Fine-tuned (yours)",
+};
 
 const caseRows = [
   ["001", "Ambiguous retrieval", true, true, false],
-  ["002", "Missing source citation", true, false, false],
+  ["002", "Missing source citation", true, true, false],
   ["003", "Conflicting context", true, true, true],
   ["004", "Grounding cites outside context", false, true, false],
 ] as const;
 
+const CHART = { w: 520, h: 236, left: 44, right: 14, top: 18, bottom: 34 };
+const X_MAX = 0.07;
+const Y_MIN = 78;
+const Y_MAX = 100;
+
+function chartX(cost: number) {
+  return CHART.left + (cost / X_MAX) * (CHART.w - CHART.left - CHART.right);
+}
+
+function chartY(score: number) {
+  return (
+    CHART.top +
+    (1 - (score - Y_MIN) / (Y_MAX - Y_MIN)) *
+      (CHART.h - CHART.top - CHART.bottom)
+  );
+}
+
 function EvaluationScene({ running, reduceMotion }: SceneProps) {
-  const phase = useCycle([1600, 2000, 3000], running && !reduceMotion);
+  const phase = useCycle([1400, 2200, 3200], running && !reduceMotion);
   const scored = reduceMotion || phase >= 1;
   const complete = reduceMotion || phase >= 2;
+  const xTicks = [0, 0.01, 0.02, 0.03, 0.04, 0.05, 0.06, 0.07];
+  const yTicks = [80, 85, 90, 95, 100];
   return (
     <div className={styles.evaluationScene}>
       <div className={styles.evalSummary}>
@@ -671,37 +859,135 @@ function EvaluationScene({ running, reduceMotion }: SceneProps) {
         </div>
         <div>
           <span>CASES</span>
-          <b>128 × 3 models</b>
+          <b>128 × 6 models</b>
         </div>
       </div>
-      <div className={styles.evalTable}>
-        <header>
-          <span>MODEL</span>
-          <span>QUALITY</span>
-          <span>COST</span>
-          <span>LATENCY</span>
-        </header>
-        {modelRows.map(([model, quality, cost, latency], index) => (
-          <div key={model} style={{ "--i": index } as CSSProperties}>
-            <strong>{model}</strong>
-            <span className={styles.qualityCell}>
-              <i
-                data-show={scored ? "true" : "false"}
-                style={{ "--w": `${quality}%` } as CSSProperties}
+      <div className={styles.chart} aria-hidden="true">
+        <div className={styles.chartHead}>
+          <strong>Eval score vs. cost per case</strong>
+          <span>
+            grounding + citation_format · lower cost and higher score is better
+          </span>
+        </div>
+        <svg viewBox={`0 0 ${CHART.w} ${CHART.h}`} className={styles.chartSvg}>
+          <rect
+            className={styles.chartQuadrant}
+            data-show={scored ? "true" : "false"}
+            x={chartX(0)}
+            y={chartY(100)}
+            width={chartX(0.012) - chartX(0)}
+            height={chartY(88) - chartY(100)}
+          />
+          <text
+            className={styles.chartQuadrantLabel}
+            data-show={scored ? "true" : "false"}
+            x={chartX(0) + 8}
+            y={chartY(100) + 13}
+          >
+            most attractive quadrant
+          </text>
+          {yTicks.map((tick) => (
+            <g key={tick}>
+              <line
+                className={styles.chartGrid}
+                x1={CHART.left}
+                x2={CHART.w - CHART.right}
+                y1={chartY(tick)}
+                y2={chartY(tick)}
               />
-              {scored ? `${quality}%` : "…"}
+              <text
+                className={styles.chartTick}
+                x={CHART.left - 6}
+                y={chartY(tick) + 3}
+                textAnchor="end"
+              >
+                {tick}%
+              </text>
+            </g>
+          ))}
+          {xTicks.map((tick) => (
+            <g key={tick}>
+              <line
+                className={styles.chartGrid}
+                y1={CHART.top}
+                y2={CHART.h - CHART.bottom}
+                x1={chartX(tick)}
+                x2={chartX(tick)}
+              />
+              <text
+                className={styles.chartTick}
+                x={chartX(tick)}
+                y={CHART.h - CHART.bottom + 12}
+                textAnchor="middle"
+              >
+                ${tick.toFixed(2)}
+              </text>
+            </g>
+          ))}
+          <text
+            className={styles.chartAxis}
+            x={(CHART.left + CHART.w - CHART.right) / 2}
+            y={CHART.h - 4}
+            textAnchor="middle"
+          >
+            cost per case (USD)
+          </text>
+          <text
+            className={styles.chartAxis}
+            transform={`translate(10 ${(CHART.top + CHART.h - CHART.bottom) / 2}) rotate(-90)`}
+            textAnchor="middle"
+          >
+            eval score
+          </text>
+          {candidates.map((candidate, index) => {
+            const cx = chartX(candidate.cost);
+            const cy = chartY(candidate.score);
+            const labelLeft = candidate.cost > 0.05;
+            return (
+              <g
+                key={candidate.name}
+                className={styles.chartPoint}
+                data-vendor={candidate.vendor}
+                data-show={scored ? "true" : "false"}
+                data-best={"best" in candidate ? "true" : "false"}
+                style={
+                  {
+                    "--i": index,
+                    "--cx": `${cx}px`,
+                    "--cy": `${cy}px`,
+                  } as CSSProperties
+                }
+              >
+                {"best" in candidate && complete ? (
+                  <circle className={styles.chartRing} cx={cx} cy={cy} r="6" />
+                ) : null}
+                <circle cx={cx} cy={cy} r="5" />
+                <text
+                  x={labelLeft ? cx - 9 : cx + 9}
+                  y={cy + 3}
+                  textAnchor={labelLeft ? "end" : "start"}
+                >
+                  {candidate.name}
+                </text>
+              </g>
+            );
+          })}
+        </svg>
+        <div className={styles.chartLegend}>
+          {Object.entries(vendorLabels).map(([vendor, label]) => (
+            <span key={vendor} data-vendor={vendor}>
+              <i />
+              {label}
             </span>
-            <span>{scored ? cost : "…"}</span>
-            <span>{scored ? latency : "…"}</span>
-          </div>
-        ))}
+          ))}
+        </div>
       </div>
       <div className={styles.evalCases} aria-label="Per-case results">
         <header>
           <span>CASE</span>
-          <span>A</span>
-          <span>B</span>
-          <span>BASE</span>
+          <span>Sonnet 5</span>
+          <span>ft-v3</span>
+          <span>Haiku 4.5</span>
         </header>
         {caseRows.map(([id, name, ...results], rowIndex) => (
           <div key={id}>
@@ -723,11 +1009,11 @@ function EvaluationScene({ running, reduceMotion }: SceneProps) {
       </div>
       <footer>
         <span>
-          {complete ? "384 / 384" : scored ? "312 / 384" : "96 / 384"} runs
+          {complete ? "768 / 768" : scored ? "612 / 768" : "180 / 768"} runs
           resolved
         </span>
         <i>
-          <b style={{ width: complete ? "100%" : scored ? "81%" : "25%" }} />
+          <b style={{ width: complete ? "100%" : scored ? "80%" : "23%" }} />
         </i>
       </footer>
     </div>

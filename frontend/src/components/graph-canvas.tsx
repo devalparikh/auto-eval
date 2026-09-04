@@ -136,7 +136,7 @@ export function GraphCanvas<NodeType extends Node>({
           showInteractive={false}
           fitViewOptions={fitViewOptions}
           aria-label="Graph viewport controls"
-          className="!overflow-hidden !rounded-[2px] !border-[var(--border-strong)] !bg-[var(--surface-raised)] !shadow-none"
+          className="!overflow-hidden !rounded-[8px] !border-[var(--border-strong)] !bg-[var(--surface-raised)] !shadow-none"
         />
       </ReactFlow>
     </div>

@@ -131,7 +131,7 @@ export function VersionEditor({
       </div>
       <div className="p-4">
         {kind === "prompt" ? (
-          <div className="mb-3 border border-[var(--border)] bg-[var(--surface-muted)] px-3 py-2.5">
+          <div className="rounded-[var(--radius)] mb-3 border border-[var(--border)] bg-[var(--surface-muted)] px-3 py-2.5">
             <p className="text-[10px] font-medium">
               {associations.length
                 ? `Used by ${associations.length} node${associations.length === 1 ? "" : "s"} in the selected graph`

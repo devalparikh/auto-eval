@@ -657,7 +657,17 @@
 }
 
 .cardCompact .panelHead {
-  flex-wrap: wrap;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+}
+
+.cardCompact .panel {
+  min-height: 178px;
+}
+
+.cardCompact .stage {
+  min-height: 178px;
 }
 
 .cardCompact .hashRows li {
@@ -1167,8 +1177,18 @@
   transition: stroke 0.5s;
 }
 
-.graphEdge[data-active="true"] {
-  stroke: color-mix(in srgb, var(--landing-ink) 55%, transparent);
+.graphEdgeFill {
+  fill: none;
+  stroke: var(--landing-accent);
+  stroke-width: 1.4;
+  stroke-linecap: round;
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  transition: stroke-dashoffset 0.55s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.graphEdgeFill[data-active="true"] {
+  stroke-dashoffset: 0;
 }
 
 .graphNode rect:first-child {
@@ -1190,7 +1210,8 @@
   transition: opacity 0.4s;
 }
 
-.graphNode[data-kind="input"] {
+.graphNode[data-kind="input"],
+.graphNode[data-kind="step"] {
   --node-tone: var(--landing-faint);
 }
 .graphNode[data-kind="live"],
@@ -1241,6 +1262,40 @@
 
 .graphNode[data-status="complete"] .graphNodeDot {
   fill: var(--landing-green);
+}
+
+.snapshotTag line {
+  stroke: color-mix(in srgb, var(--landing-blue) 55%, transparent);
+  stroke-dasharray: 2 2;
+}
+
+.snapshotTag rect {
+  fill: color-mix(in srgb, var(--landing-blue) 8%, var(--landing-mini-raised));
+  stroke: color-mix(in srgb, var(--landing-blue) 45%, transparent);
+  stroke-dasharray: 3 2;
+  stroke-width: 0.8;
+  transition:
+    stroke 0.4s,
+    fill 0.4s;
+}
+
+.snapshotTag[data-state="frozen"] rect {
+  stroke: var(--landing-blue);
+  stroke-dasharray: none;
+}
+
+.snapshotTag[data-state="idle"] {
+  opacity: 0.55;
+}
+
+.snapshotTag {
+  transition: opacity 0.4s;
+}
+
+.snapshotTagValue {
+  fill: var(--landing-blue);
+  font-family: var(--font-mono);
+  font-size: 7px;
 }
 
 .graphPulse {
@@ -1533,6 +1588,11 @@
 
 .snapshotRows li[data-replay="true"] {
   border-top-style: dashed;
+}
+
+.snapshotRows li[data-pending="true"] {
+  visibility: hidden;
+  animation: none;
 }
 
 .snapshotRows li[data-replay="true"] span,
@@ -2185,62 +2245,113 @@
 .previewBody {
   display: grid;
   min-height: 560px;
-  grid-template-columns: 186px minmax(0, 1fr);
+  grid-template-columns: 196px minmax(0, 1fr);
+}
+
+.previewRail {
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
+  border-right: 1px solid var(--preview-line);
+  background: color-mix(in srgb, var(--preview-muted) 66%, var(--preview-bg));
+}
+
+.railWorkspace {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.55rem;
+  margin: 0.55rem 0.55rem 0;
+  border: 1px solid var(--preview-line);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--preview-raised) 80%, transparent);
+  padding: 0.5rem 0.6rem;
+}
+
+.railMark {
+  display: grid;
+  width: 22px;
+  height: 22px;
+  place-items: center;
+  border-radius: 6px;
+  background: var(--landing-accent);
+  color: #171717;
+  font-family: var(--font-mono);
+  font-size: 0.5rem;
+  font-weight: 700;
+}
+
+.railName {
+  display: grid;
+  min-width: 0;
+  gap: 0.1rem;
+}
+
+.railName b {
+  overflow: hidden;
+  font-size: 0.66rem;
+  font-weight: 550;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.railName small {
+  color: var(--preview-copy);
+  font-size: 0.52rem;
+}
+
+.railChevron {
+  width: 6px;
+  height: 6px;
+  border-right: 1px solid var(--preview-copy);
+  border-bottom: 1px solid var(--preview-copy);
+  transform: rotate(45deg) translateY(-2px);
+}
+
+.railSection {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.95rem 0.95rem 0.35rem;
+  color: var(--preview-copy);
+  font-family: var(--font-mono);
+  font-size: 0.52rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.railSection span:last-child {
+  letter-spacing: 0;
+  font-variant-numeric: tabular-nums;
 }
 
 .previewTabs {
-  border-right: 1px solid var(--preview-line);
-  background: color-mix(in srgb, var(--preview-muted) 66%, var(--preview-bg));
-  padding: 0.45rem 0.35rem;
-}
-
-.previewSidebarHeader {
-  display: flex;
-  min-height: 38px;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0 0.55rem;
-  color: var(--preview-copy);
-  font-size: 0.62rem;
-}
-
-.previewSidebarHeader strong {
-  color: var(--preview-ink);
-  font-weight: 500;
-}
-
-.previewSidebarHeader span {
-  border: 1px solid var(--preview-line);
-  border-radius: 5px;
-  padding: 0.16rem 0.32rem;
-  font-family: var(--font-mono);
-  font-size: 0.5rem;
-  font-variant-numeric: tabular-nums;
+  display: grid;
+  align-content: start;
+  gap: 2px;
+  padding: 0 0.45rem;
 }
 
 .previewTabs button {
   position: relative;
-  display: flex;
-  width: calc(100% - 0.2rem);
-  min-height: 64px;
+  display: grid;
+  width: 100%;
+  min-height: 46px;
+  grid-template-columns: 20px minmax(0, 1fr) auto;
   align-items: center;
-  gap: 0.62rem;
-  margin: 0.1rem;
+  gap: 0.5rem;
   overflow: hidden;
-  border: 1px solid transparent;
-  border-radius: 8px;
+  border: 0;
+  border-radius: 7px;
   background: transparent;
   color: var(--preview-copy);
-  padding: 0.55rem 0.62rem;
+  padding: 0.35rem 0.55rem 0.35rem 0.6rem;
   font-family: inherit;
-  font-size: 0.71rem;
+  font-size: 0.7rem;
   text-align: left;
   cursor: pointer;
   transition:
     background-color 150ms ease,
-    border-color 150ms ease,
-    color 150ms ease,
-    transform 150ms cubic-bezier(0.16, 1, 0.3, 1);
+    color 150ms ease;
 }
 
 .stageIndex {
@@ -2252,7 +2363,7 @@
 .stageCopy {
   display: grid;
   min-width: 0;
-  gap: 0.18rem;
+  gap: 0.12rem;
 }
 
 .stageCopy b {
@@ -2269,36 +2380,78 @@
   white-space: nowrap;
 }
 
+.stageState {
+  width: 6px;
+  height: 6px;
+  border: 1px solid color-mix(in srgb, var(--preview-copy) 55%, transparent);
+  border-radius: 50%;
+  transition:
+    background-color 0.3s,
+    border-color 0.3s;
+}
+
+.previewTabs button[data-done="true"] .stageState {
+  border-color: var(--landing-green);
+  background: var(--landing-green);
+}
+
 .previewTabs button:hover {
   background: color-mix(in srgb, var(--preview-ink) 5%, transparent);
   color: var(--preview-ink);
-  transform: translateY(-1px);
 }
 
 .previewTabs .activeTab {
-  border-color: color-mix(in srgb, var(--preview-line) 80%, transparent);
-  background: color-mix(in srgb, var(--preview-ink) 7%, var(--preview-bg));
-  box-shadow:
-    inset 0 1px 0 rgb(255 255 255 / 0.04),
-    0 5px 16px rgb(0 0 0 / 0.1);
+  background: color-mix(in srgb, var(--preview-ink) 8%, transparent);
   color: var(--preview-ink);
+}
+
+.previewTabs .activeTab .stageState {
+  border-color: var(--landing-accent);
+  background: var(--landing-accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--landing-accent) 22%, transparent);
+}
+
+.railFooter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 0.55rem;
+  border-top: 1px solid var(--preview-line);
+  padding-top: 0.6rem;
+  color: var(--preview-copy);
+  font-family: var(--font-mono);
+  font-size: 0.5rem;
+}
+
+.railFooter span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.railFooter i {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--landing-green);
 }
 
 .tabProgress {
   position: absolute;
-  right: 0;
-  bottom: 0;
+  top: 6px;
+  bottom: 6px;
   left: 0;
-  height: 2px;
+  width: 2px;
+  border-radius: 2px;
   background: var(--landing-accent);
-  transform: scaleX(0);
-  transform-origin: left;
+  transform: scaleY(0);
+  transform-origin: top;
   animation: tabProgress var(--progress-duration, 7s) linear forwards;
 }
 
 @keyframes tabProgress {
   to {
-    transform: scaleX(1);
+    transform: scaleY(1);
   }
 }
 
@@ -2567,7 +2720,7 @@
 .traceCanvas {
   position: relative;
   display: grid;
-  grid-template-rows: minmax(0, 1fr) auto;
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
   overflow: hidden;
   background-color: var(--preview-bg);
   background-image: radial-gradient(
@@ -2579,8 +2732,96 @@
 }
 
 .traceSvg {
-  max-height: 300px;
-  align-self: center;
+  max-height: 176px;
+  align-self: start;
+}
+
+.traceOutput {
+  display: grid;
+  min-height: 0;
+  grid-template-rows: auto minmax(0, 1fr);
+  margin-top: 0.4rem;
+  overflow: hidden;
+  border: 1px solid var(--preview-line);
+  border-radius: 8px;
+  background: var(--preview-raised);
+}
+
+.traceOutput > span {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--preview-line);
+  padding: 0.4rem 0.7rem;
+  color: var(--preview-copy);
+  font-family: var(--font-mono);
+  font-size: 0.52rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.traceOutput > span b {
+  color: var(--landing-green);
+  font-weight: 500;
+}
+
+.traceOutput pre {
+  margin: 0;
+  overflow: hidden;
+  padding: 0.55rem 0.7rem;
+  color: var(--preview-ink);
+  font-family: var(--font-mono);
+  font-size: 0.58rem;
+  line-height: 1.6;
+  white-space: pre-wrap;
+}
+
+.traceToolbar {
+  display: flex;
+  min-height: 26px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  color: var(--preview-copy);
+  font-family: var(--font-mono);
+  font-size: 0.52rem;
+}
+
+.traceToolbar button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  border: 1px solid var(--preview-line);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--preview-ink) 8%, transparent);
+  color: var(--preview-ink);
+  padding: 0.2rem 0.55rem;
+  font-family: inherit;
+  font-size: 0.52rem;
+  cursor: pointer;
+  transition: background-color 150ms ease;
+}
+
+.traceToolbar button:hover {
+  background: color-mix(in srgb, var(--preview-ink) 14%, transparent);
+}
+
+.traceToolbar button b {
+  font-size: 0.45rem;
+}
+
+.graphNodeButton {
+  cursor: pointer;
+  outline: none;
+}
+
+.graphNodeButton:hover rect:first-child,
+.graphNodeButton:focus-visible rect:first-child {
+  stroke: color-mix(in srgb, var(--node-tone) 85%, transparent);
+}
+
+.graphNodeButton:focus-visible rect:first-child {
+  stroke-width: 1.6;
 }
 
 .traceSpans {
@@ -2591,31 +2832,47 @@
   background: color-mix(in srgb, var(--preview-line) 60%, transparent);
 }
 
-.traceSpans span {
+.traceSpans button {
   position: absolute;
   top: 0;
   height: 100%;
+  min-width: 6px;
+  border: 0;
   border-radius: 2px;
   background: var(--span-tone);
+  padding: 0;
+  cursor: pointer;
   transform: scaleX(0);
   transform-origin: left;
-  transition: transform 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+  transition:
+    transform 0.6s cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 0.2s;
 }
 
-.traceSpans span[data-show="true"] {
+.traceSpans button[data-show="true"] {
   transform: scaleX(1);
 }
 
-.traceSpans span[data-tone="logic"] {
+.traceSpans button[data-selected="true"],
+.traceSpans button:hover {
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--span-tone) 40%, transparent);
+}
+
+.traceSpans button:focus-visible {
+  outline: 2px solid var(--landing-accent);
+  outline-offset: 2px;
+}
+
+.traceSpans button[data-tone="logic"] {
   --span-tone: var(--landing-faint);
 }
-.traceSpans span[data-tone="live"] {
+.traceSpans button[data-tone="live"] {
   --span-tone: var(--landing-blue);
 }
-.traceSpans span[data-tone="model"] {
+.traceSpans button[data-tone="model"] {
   --span-tone: var(--landing-accent);
 }
-.traceSpans span[data-tone="check"] {
+.traceSpans button[data-tone="check"] {
   --span-tone: var(--landing-green);
 }
 
@@ -2657,6 +2914,175 @@
 }
 .warn {
   color: #e8a33d;
+}
+
+/* Score vs. cost chart */
+
+.chart {
+  margin-top: 0.9rem;
+  overflow: hidden;
+  border: 1px solid var(--preview-line);
+  border-radius: 10px;
+  background: var(--preview-raised);
+}
+
+.chartHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  border-bottom: 1px solid var(--preview-line);
+  padding: 0.6rem 0.85rem;
+}
+
+.chartHead strong {
+  font-size: 0.66rem;
+  font-weight: 550;
+}
+
+.chartHead span {
+  color: var(--preview-copy);
+  font-family: var(--font-mono);
+  font-size: 0.5rem;
+}
+
+.chartSvg {
+  display: block;
+  width: 100%;
+  height: auto;
+  padding: 0.3rem 0.4rem 0;
+}
+
+.chartGrid {
+  stroke: color-mix(in srgb, var(--preview-line) 80%, transparent);
+  stroke-width: 0.6;
+}
+
+.chartTick,
+.chartAxis {
+  fill: var(--preview-copy);
+  font-family: var(--font-mono);
+  font-size: 6.5px;
+}
+
+.chartAxis {
+  font-size: 7px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.chartQuadrant {
+  fill: color-mix(in srgb, var(--landing-green) 14%, transparent);
+  opacity: 0;
+  transition: opacity 0.8s ease 0.2s;
+}
+
+.chartQuadrant[data-show="true"] {
+  opacity: 1;
+}
+
+.chartQuadrantLabel {
+  fill: var(--landing-green);
+  font-family: var(--font-mono);
+  font-size: 6.5px;
+  letter-spacing: 0.04em;
+  opacity: 0;
+  transition: opacity 0.6s ease 0.6s;
+}
+
+.chartQuadrantLabel[data-show="true"] {
+  opacity: 1;
+}
+
+.chartPoint {
+  --point: var(--preview-copy);
+  opacity: 0;
+  transform: scale(0.6);
+  transform-box: fill-box;
+  transform-origin: center;
+  transition:
+    opacity 0.4s cubic-bezier(0.2, 0.9, 0.3, 1.15),
+    transform 0.5s cubic-bezier(0.2, 0.9, 0.3, 1.2);
+  transition-delay: calc(var(--i, 0) * 140ms + 300ms);
+}
+
+.chartPoint[data-show="true"] {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.chartPoint circle {
+  fill: var(--point);
+}
+
+.chartPoint text {
+  fill: var(--preview-ink);
+  font-family: var(--font-mono);
+  font-size: 7px;
+}
+
+.chartPoint[data-best="true"] text {
+  fill: var(--landing-green);
+  font-weight: 600;
+}
+
+.chartRing {
+  fill: none !important;
+  stroke: var(--point);
+  stroke-width: 1;
+  animation: chartRing 1.6s ease-out infinite;
+}
+
+@keyframes chartRing {
+  0% {
+    r: 6;
+    opacity: 0.9;
+  }
+  100% {
+    r: 14;
+    opacity: 0;
+  }
+}
+
+.chartPoint[data-vendor="anthropic"],
+.chartLegend span[data-vendor="anthropic"] {
+  --point: var(--landing-accent);
+}
+.chartPoint[data-vendor="openai"],
+.chartLegend span[data-vendor="openai"] {
+  --point: var(--preview-copy);
+}
+.chartPoint[data-vendor="google"],
+.chartLegend span[data-vendor="google"] {
+  --point: var(--landing-blue);
+}
+.chartPoint[data-vendor="finetune"],
+.chartLegend span[data-vendor="finetune"] {
+  --point: var(--landing-green);
+}
+
+.chartLegend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 1rem;
+  border-top: 1px solid var(--preview-line);
+  padding: 0.5rem 0.85rem;
+  color: var(--preview-copy);
+  font-family: var(--font-mono);
+  font-size: 0.52rem;
+}
+
+.chartLegend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.chartLegend i {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--point);
 }
 
 /* Dataset scene */
@@ -2864,7 +3290,7 @@
 .evalCases header,
 .evalCases > div {
   display: grid;
-  grid-template-columns: 34px minmax(0, 1fr) 48px 48px 48px;
+  grid-template-columns: 34px minmax(0, 1fr) 64px 64px 64px;
   align-items: center;
   padding: 0.5rem 0.75rem;
 }
@@ -2983,24 +3409,33 @@
     grid-template-columns: 1fr;
   }
 
-  .previewTabs {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
+  .previewRail {
+    grid-template-rows: auto;
     border-right: 0;
     border-bottom: 1px solid var(--preview-line);
-    padding: 0;
   }
 
-  .previewSidebarHeader {
+  .railWorkspace,
+  .railSection,
+  .railFooter {
     display: none;
   }
 
+  .previewTabs {
+    grid-template-columns: repeat(4, 1fr);
+    padding: 0.35rem;
+  }
+
   .previewTabs button {
-    min-height: 48px;
-    justify-content: center;
-    border-bottom: 2px solid transparent;
-    border-left: 0;
+    min-height: 44px;
+    grid-template-columns: minmax(0, 1fr);
+    justify-items: center;
     padding: 0 0.3rem;
+  }
+
+  .stageIndex,
+  .stageState {
+    display: none;
   }
 
   .stageCopy {
@@ -3011,8 +3446,22 @@
     display: none;
   }
 
-  .previewTabs .activeTab {
-    border-bottom-color: var(--landing-accent);
+  .tabProgress {
+    top: auto;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    width: auto;
+    height: 2px;
+    transform: scaleX(0);
+    transform-origin: left;
+    animation-name: tabProgressX;
+  }
+
+  @keyframes tabProgressX {
+    to {
+      transform: scaleX(1);
+    }
   }
 
   .previewMain {
@@ -3211,7 +3660,41 @@
     transition-delay: 0ms !important;
   }
 
-  .graphPulse {
+  .snapshotTag line {
+  stroke: color-mix(in srgb, var(--landing-blue) 55%, transparent);
+  stroke-dasharray: 2 2;
+}
+
+.snapshotTag rect {
+  fill: color-mix(in srgb, var(--landing-blue) 8%, var(--landing-mini-raised));
+  stroke: color-mix(in srgb, var(--landing-blue) 45%, transparent);
+  stroke-dasharray: 3 2;
+  stroke-width: 0.8;
+  transition:
+    stroke 0.4s,
+    fill 0.4s;
+}
+
+.snapshotTag[data-state="frozen"] rect {
+  stroke: var(--landing-blue);
+  stroke-dasharray: none;
+}
+
+.snapshotTag[data-state="idle"] {
+  opacity: 0.55;
+}
+
+.snapshotTag {
+  transition: opacity 0.4s;
+}
+
+.snapshotTagValue {
+  fill: var(--landing-blue);
+  font-family: var(--font-mono);
+  font-size: 7px;
+}
+
+.graphPulse {
     display: none;
   }
 

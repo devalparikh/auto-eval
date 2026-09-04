@@ -44,7 +44,7 @@ export function GraphNodeCard({
   return (
     <div
       style={{ width, borderLeftColor: accent }}
-      className={`relative rounded-[2px] border border-l-2 bg-[var(--surface-raised)] p-3 shadow-[0_14px_40px_rgba(0,0,0,0.22)] transition-[border-color,box-shadow] duration-150 ${
+      className={`relative rounded-[8px] border border-l-2 bg-[var(--surface-raised)] p-3 shadow-[0_14px_40px_rgba(0,0,0,0.22)] transition-[border-color,box-shadow] duration-150 ${
         selected
           ? "border-[var(--accent)] shadow-[0_0_0_1px_var(--accent),0_18px_45px_rgba(0,0,0,0.3)]"
           : "border-[var(--border-strong)]"
@@ -58,7 +58,7 @@ export function GraphNodeCard({
       <div className="flex items-start gap-2">
         <span
           style={{ background: soft, color: accent }}
-          className="grid size-7 shrink-0 place-items-center rounded-[2px]"
+          className="grid size-7 shrink-0 place-items-center rounded-[8px]"
         >
           <Icon size={14} weight="bold" aria-hidden />
         </span>
@@ -82,7 +82,7 @@ export function GraphNodeCard({
           {view.badges.map((badge) => (
             <span
               key={badge}
-              className="border border-[var(--border)] px-1.5 py-0.5 text-[8px] text-[var(--text-muted)]"
+              className="rounded-[4px] border border-[var(--border)] px-1.5 py-0.5 text-[8px] text-[var(--text-muted)]"
             >
               {badge}
             </span>
@@ -112,7 +112,7 @@ export function GraphLegend({ types }: { types: GraphNodeType[] }) {
           <span
             aria-hidden
             style={{ background: `var(--node-${type})` }}
-            className="size-2 rounded-[1px]"
+            className="size-2 rounded-[3px]"
           />
           <span className="text-[10px] font-medium">
             {graphNodeTypeLabel(type)}

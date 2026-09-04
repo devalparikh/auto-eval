@@ -103,7 +103,7 @@ export function SnapshotArtifact({
             Index a portfolio to create the first snapshot.
           </p>
         ) : view === "info" ? (
-          <dl className="grid gap-4 border border-[var(--border)] bg-[var(--surface-muted)] p-4 text-[11px] md:grid-cols-2">
+          <dl className="grid gap-4 rounded-[10px] border border-[var(--border)] bg-[var(--surface-muted)] p-4 text-[11px] md:grid-cols-2">
             <SnapshotFact label="Snapshot ID" value={detail.id} mono />
             <SnapshotFact
               label="Schema version"
@@ -122,7 +122,7 @@ export function SnapshotArtifact({
         ) : detail.content_available && detail.content ? (
           <JsonViewer label="Snapshot content" value={detail.content} />
         ) : (
-          <div className="border border-[var(--border)] bg-[var(--surface-muted)] p-5">
+          <div className="rounded-[12px] border border-[var(--border)] bg-[var(--surface-muted)] p-5">
             <p className="text-[11px] font-medium">Content is not available</p>
             <p className="mt-1 text-[10px] leading-5 text-[var(--text-muted)]">
               This snapshot shows details only, not its saved content.

@@ -48,7 +48,7 @@ export function SystemOverviewScreen({ systemKey }: { systemKey: string }) {
             <Link
               key={section}
               href={systemPath(systemKey, section)}
-              className="data-row flex min-h-[128px] items-start justify-between gap-5 border border-[var(--border)] bg-[var(--surface)] p-4 no-underline"
+              className="rounded-[var(--radius)] data-row flex min-h-[128px] items-start justify-between gap-5 border border-[var(--border)] bg-[var(--surface)] p-4 no-underline"
             >
               <div>
                 <Icon size={16} className="text-[var(--accent)]" />
@@ -64,7 +64,7 @@ export function SystemOverviewScreen({ systemKey }: { systemKey: string }) {
             </Link>
           ))}
         </div>
-        <aside className="border border-[var(--border)] bg-[var(--surface)] p-5">
+        <aside className="rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface)] p-5">
           <p className="mono text-[9px] lowercase tracking-[0.12em] text-[var(--text-faint)]">
             In this system
           </p>
