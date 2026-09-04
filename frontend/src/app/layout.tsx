@@ -5,10 +5,35 @@ import { AppShell } from "@/components/app-shell";
 import { colorThemeFromCookie, THEME_COOKIE_NAME } from "@/lib/theme";
 import "./globals.css";
 
+const description =
+  "Trace agent runs, save versioned test cases, and compare models on the same dataset.";
+
 export const metadata: Metadata = {
+  metadataBase: new URL(
+    process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000",
+  ),
   title: { default: "AutoEval", template: "%s | AutoEval" },
-  description:
-    "Trace agent runs, save versioned test cases, and compare models on the same dataset.",
+  description,
+  openGraph: {
+    title: "AutoEval",
+    description,
+    siteName: "AutoEval",
+    type: "website",
+    images: [
+      {
+        url: "/images/autoeval-share-v1.jpg",
+        width: 1200,
+        height: 630,
+        alt: "AutoEval. Trace your agent. Test every change.",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "AutoEval",
+    description,
+    images: ["/images/autoeval-share-v1.jpg"],
+  },
 };
 
 export const dynamic = "force-dynamic";
