@@ -5,12 +5,11 @@ import Link from "next/link";
 import { PageHeader } from "@/components/page-header";
 import { EmptyState, ErrorState, LoadingState } from "@/components/states";
 import { systemPath } from "@/features/systems/system-path";
-import { api } from "@/lib/api";
 import type { AgentSystemSummary } from "@/lib/types";
-import { useApiResource } from "@/lib/use-api-resource";
+import { useCatalog } from "@/lib/use-catalog";
 
 export function SystemBrowserScreen() {
-  const catalog = useApiResource(api.catalog, []);
+  const catalog = useCatalog();
   const products = Object.values(
     (catalog.data?.agent_systems ?? []).reduce<
       Record<string, AgentSystemSummary[]>

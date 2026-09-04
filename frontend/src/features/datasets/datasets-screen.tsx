@@ -13,9 +13,10 @@ import { formatDate, shortId, textPreview } from "@/lib/format";
 import { playPreferredUiSound } from "@/lib/sound";
 import type { DatasetItem } from "@/lib/types";
 import { useApiResource } from "@/lib/use-api-resource";
+import { useCatalog } from "@/lib/use-catalog";
 
 export function DatasetsScreen({ systemKey }: { systemKey: string }) {
-  const catalog = useApiResource(api.catalog, []);
+  const catalog = useCatalog();
   const system = systemByKey(catalog.data, systemKey);
   const datasets =
     catalog.data?.datasets.filter(

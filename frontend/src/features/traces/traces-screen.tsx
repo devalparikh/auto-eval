@@ -16,9 +16,10 @@ import {
   textPreview,
 } from "@/lib/format";
 import { useApiResource } from "@/lib/use-api-resource";
+import { useCatalog } from "@/lib/use-catalog";
 
 export function TracesScreen({ systemKey }: { systemKey: string }) {
-  const catalog = useApiResource(api.catalog, []);
+  const catalog = useCatalog();
   const system = systemByKey(catalog.data, systemKey);
   const traces = useApiResource(
     () => (system?.id ? api.traces(system.id) : Promise.resolve([])),

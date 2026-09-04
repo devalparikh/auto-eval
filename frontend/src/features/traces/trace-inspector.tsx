@@ -139,10 +139,7 @@ function NodeSnapshotUse({
   const snapshotId =
     span.node_snapshot_id ?? span.runtime_input_snapshot_id ?? "";
   const detail = useApiResource(
-    () =>
-      snapshotId
-        ? api.nodeSnapshot(snapshotId)
-        : Promise.reject(new Error("No node snapshot selected")),
+    snapshotId ? () => api.nodeSnapshot(snapshotId) : null,
     [snapshotId],
   );
   const mode =

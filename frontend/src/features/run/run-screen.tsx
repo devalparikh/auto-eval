@@ -3,16 +3,13 @@
 import { ArrowRightIcon, PlayIcon } from "@phosphor-icons/react";
 import Link from "next/link";
 import { useState, type FormEvent } from "react";
+import { CatalogGate } from "@/components/catalog-gate";
 import { JsonViewer } from "@/components/json-viewer";
 import { PageHeader } from "@/components/page-header";
 import { Select } from "@/components/select";
-import { ErrorState, LoadingState } from "@/components/states";
+import { LoadingState } from "@/components/states";
 import { StatusBadge } from "@/components/status-badge";
-import {
-  graphVersions,
-  promptVersions,
-  systemByKey,
-} from "@/features/catalog/catalog-options";
+import { graphVersions, promptVersions } from "@/features/catalog/catalog-options";
 import {
   inputTemplateForRun,
   modelsForSystem,
@@ -35,41 +32,17 @@ import type { AgentSystemSummary, Catalog, Trace } from "@/lib/types";
 import { useApiResource } from "@/lib/use-api-resource";
 
 export function RunScreen({ systemKey }: { systemKey: string }) {
-  const catalog = useApiResource(api.catalog, []);
-  const system = systemByKey(catalog.data, systemKey);
-
-  if (catalog.loading) {
-    return (
-      <>
-        <PageHeader title="Run inference" />
-        <LoadingState rows={9} />
-      </>
-    );
-  }
-  if (catalog.error) {
-    return (
-      <>
-        <PageHeader title="Run inference" />
-        <ErrorState message={catalog.error} retry={catalog.reload} />
-      </>
-    );
-  }
-  if (!catalog.data || !system) {
-    return (
-      <>
-        <PageHeader title="Run inference" />
-        <ErrorState message="Agent system not found" />
-      </>
-    );
-  }
-
   return (
-    <RunWorkbench
-      key={system.id}
-      catalog={catalog.data}
-      system={system}
-      systemKey={systemKey}
-    />
+    <CatalogGate systemKey={systemKey} title="Run inference">
+      {({ catalog, system }) => (
+        <RunWorkbench
+          key={system.id}
+          catalog={catalog}
+          system={system}
+          systemKey={systemKey}
+        />
+      )}
+    </CatalogGate>
   );
 }
 
@@ -102,10 +75,9 @@ export function RunWorkbench({
   const [error, setError] = useState<string | null>(null);
   const [trace, setTrace] = useState<Trace | null>(null);
   const graphDetail = useApiResource(
-    () =>
-      selectedGraphVersionId
-        ? api.agentVersion(selectedGraphVersionId)
-        : Promise.reject(new Error("Select a graph version")),
+    selectedGraphVersionId
+      ? () => api.agentVersion(selectedGraphVersionId)
+      : null,
     [selectedGraphVersionId],
   );
   const graphDefinition = graphDetail.data?.definition ?? null;

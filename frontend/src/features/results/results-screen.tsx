@@ -14,9 +14,10 @@ import { buildResultRows } from "@/features/results/result-rows";
 import { ResultsTable } from "@/features/results/results-table";
 import { api } from "@/lib/api";
 import { useApiResource } from "@/lib/use-api-resource";
+import { useCatalog } from "@/lib/use-catalog";
 
 export function ResultsScreen({ systemKey }: { systemKey: string }) {
-  const catalog = useApiResource(api.catalog, []);
+  const catalog = useCatalog();
   const system = systemByKey(catalog.data, systemKey);
   const [requestedDatasetVersionId, setDatasetVersionId] = useState("");
   const [graphVersionId, setGraphVersionId] = useState("");
