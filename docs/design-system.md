@@ -5,12 +5,11 @@ page, adding a screen, or building any new surface. It records decisions that
 are already implemented, so treat a conflict between this file and the code as
 a bug in one of them.
 
-Two references shaped the current system. The bordered center column, the
-full-bleed rules, the mono eyebrows, and the marker highlights come from a
-long-form product marketing page in the vein of workers.io. The rounded cards
-with live product miniatures inside, and nearly all of the motion vocabulary,
-come from a dark app-marketing page in the vein of x.ai/bot. Where the two
-conflict, the layout is the first and the components are the second.
+Two references shaped the system. A long-form product marketing page in the
+vein of **workers.io** gave the page architecture. A dark app-marketing page in
+the vein of **x.ai/bot** gave the components and nearly all of the motion. Where
+they conflict, the layout follows the first and the components follow the
+second.
 
 ## The one rule
 
@@ -18,8 +17,37 @@ conflict, the layout is the first and the components are the second.
 small, real interface would fit. A card about trace policy shows toggles
 flipping. A card about snapshots shows rows freezing. A step about comparing
 models shows bars growing past a target line. If you cannot make a visual that
-says something true about the product, use words instead and leave the space
-empty.
+says something true about the product, use words and leave the space empty.
+
+## What each reference contributed
+
+**From the workers.io side — page architecture:**
+
+- A bordered center column that reads like a document.
+- Full-bleed hairlines between every section, drawn wider than the column.
+- Corner crosshair ticks on visual bands, like registration marks.
+- Mono uppercase eyebrows preceded by a 3px color bar.
+- A marker highlight behind the second line of a headline, sweeping in on
+  scroll.
+- Numbered `STEP 01`–`STEP 04` columns.
+- A `› link` under each section intro instead of a button.
+- Photographic bands, heavily desaturated and tinted, with a grain overlay.
+- `kbd` chips on buttons advertising real keyboard shortcuts.
+- Per-section accent: each section sets its own `--eyebrow-bar` so the color
+  names the topic.
+
+**From the x.ai/bot side — components and motion:**
+
+- 24px radius cards, 32px padding, no border, on a 20px gap grid.
+- The visual pinned to the card's bottom edge with `margin-top: auto`.
+- Inner panels at a 6% foreground tint, 16px radius.
+- Pill badges at 12px on a 14% tint of their own color.
+- Two badges stacked in one grid cell, crossfading between working and done.
+- Chips that morph open to reveal a label.
+- A labeled cursor gliding over a screenshot-like screen.
+- A recording bar with a live timer and a pressed capture pill.
+- Chat bubbles at 16px radius on a 6% tint, entries popping in with overshoot.
+- Scene crossfades at ~0.5s when a card switches what it is showing.
 
 ## Tokens
 
@@ -67,75 +95,141 @@ Rules:
   size carries it.
 - Body copy is 16px at 1.625 line-height in cards, smaller in dense product
   chrome. Muted, never full ink.
-- Eyebrows are 11px mono, uppercase, `0.14em` tracking, preceded by a 3px color
-  bar whose color names the section.
+- Eyebrows are 11px mono, uppercase, `0.14em` tracking.
 
-## Layout
+## Layout patterns
 
-- The landing page is a **bordered center column**, `min(1120px, 100% - 4rem)`,
-  with vertical hairlines on both sides. Every section draws a **full-bleed
-  horizontal rule** across the whole viewport at its top, using an absolutely
-  positioned `::before` at `width: 100vw`. The column feels like a document, the
-  rules feel like a spec sheet.
-- Visual bands get **corner crosshair ticks** drawn as eight background
-  gradients inset by 5px. They read as registration marks.
-- Cards are 24px radius, 32px padding, no border in dark, hairline in light,
-  laid out on a 20px gap grid. Compact variants are 24px padding.
-- The card interior is always: title, muted description, then the visual pushed
-  to the bottom with `margin-top: auto` and a 32px gap. **Visuals align along
-  the bottom edge of a card row.** That alignment is most of the polish.
+These five compositions cover nearly everything built so far. Reach for one
+before inventing a sixth.
+
+**The column.** `min(1120px, 100% - 4rem)` with vertical hairlines on both
+sides. Every section draws a full-bleed horizontal rule at its top via an
+absolutely positioned `::before` at `width: 100vw`.
+
+**The band.** A full-width photographic section behind a product visual. The
+photo is tinted with its own token, veiled at 76–82% opacity, desaturated to
+~0.32, and grained with an inline SVG turbulence filter at low opacity. Corner
+ticks mark the four corners. The photo is atmosphere; it must never compete
+with the interface on top of it.
+
+**The card.** Title, muted description, then the visual pushed to the bottom
+with `margin-top: auto` and a 32px gap. **Visuals align along the bottom edge
+of a card row.** That alignment is most of the perceived polish.
+
+**The rail.** A product sidebar: workspace switcher at top, a mono section
+label with a counter, the navigable items, and a status footer. Items are
+borderless with a soft fill when active, a state dot per item, and progress
+drawn as a thin bar down the active row's leading edge. Never give sidebar rows
+their own borders and shadows; the rail is one surface.
+
+**The window.** Chrome with three dots, a centered breadcrumb pill, and
+right-aligned tools. Inside, a real layout at reduced scale. Never a
+screenshot: these are live DOM and they animate, which is the point.
 
 ## Motion
 
-Motion exists to explain a sequence, not to decorate. Everything below is
-implemented in `landing.module.css` and `landing-motion.ts`.
+Motion exists to explain a sequence, not to decorate.
 
 ### Curves
 
 | Purpose | Curve | Duration |
 |---|---|---|
 | Enter with overshoot | `cubic-bezier(0.2, 0.9, 0.3, 1.15)` | 420ms |
-| Settle, draw, morph | `cubic-bezier(0.22, 1, 0.36, 1)` | 320-600ms |
-| Scroll reveal | `cubic-bezier(0.16, 1, 0.3, 1)` | 580-640ms |
-| Color and opacity only | `ease` | 160-260ms |
+| Settle, draw, morph | `cubic-bezier(0.22, 1, 0.36, 1)` | 320–600ms |
+| Scroll reveal | `cubic-bezier(0.16, 1, 0.3, 1)` | 580–640ms |
+| Color and opacity only | `ease` | 160–260ms |
+
+### Timing
+
+| Thing | Value |
+|---|---|
+| First element's delay after a scene opens | 80–120ms |
+| Stagger between siblings | 110–140ms |
+| Label trailing its own mark | +200ms |
+| Scene beat (one step of a loop) | 1.2–2.6s |
+| Auto-advance between tabs | ~7s, with a visible progress bar |
+| Continuous breathe on an accent | 3.2s |
+| Spinner rotation | 2.4s linear |
+
+**Front-load the entrance.** An opening delay above ~200ms reads as lag, not
+choreography. Stagger creates the sense of sequence; the leading delay only
+creates waiting.
 
 ### The vocabulary
 
-- **Pop in**: `opacity 0 → 1`, `translateY(8px) → 0`, `scale(0.97) → 1`. Every
-  new entry, bubble, and row uses this. Stagger siblings by 110-140ms.
-- **Row enter**: `translateX(-10px) → 0`. For list rows that arrive in order.
-- **Receipt check**: `scale(0.4) → 1`. For a check mark landing after its row.
-- **Tile pop**: `scale(0.7) translateY(3px) → 1`. For grid cells like pass/fail.
-- **Badge swap**: two badges in one grid cell, the inactive one at `opacity: 0`,
-  crossfading over 260ms. Used everywhere a thing goes from working to done.
-- **Pill morph**: a chip opens to reveal a label by animating
-  `grid-template-columns: 0fr → 1fr` with the label fading and sliding 6px.
-- **Draw**: an edge or bar fills via `stroke-dashoffset` or `scaleX` from its
-  origin, timed to the step that produced it.
+- **Pop in** — `opacity 0→1`, `translateY(8px)→0`, `scale(0.97)→1`. Every new
+  entry, bubble, and row.
+- **Row enter** — `translateX(-10px)→0`. List rows arriving in order.
+- **Receipt check** — `scale(0.4)→1`. A check landing after its row.
+- **Tile pop** — `scale(0.7) translateY(3px)→1`. Grid cells like pass/fail.
+- **Dot pop** — same shape, animated from each element's **own** center via
+  `transform-box: fill-box`. Chart points.
+- **Badge swap** — two badges in one grid cell, the inactive at `opacity: 0`,
+  crossfading over 260ms.
+- **Pill morph** — a chip opens to reveal its label by animating
+  `grid-template-columns: 0fr → 1fr`, label fading and sliding 6px.
+- **Draw** — an edge or bar fills via `stroke-dashoffset` or `scaleX`, timed to
+  the step that produced it.
+- **Scene crossfade** — swapping what a panel shows, ~320ms opacity only.
+- **Typing** — `clip-path: inset(0 100% 0 0)` animated with `steps()`, plus a
+  blinking caret. Never a JS character loop.
+- **Breathe** — opacity 1→0.5→1 over 3.2s. The only thing allowed to loop
+  forever, and only on one element per view.
 
 ### Rules that matter more than the vocabulary
 
 1. **Loop only while on screen.** `useSceneActive` gates every loop on
-   `useInView` plus `prefers-reduced-motion`. Nothing animates off screen.
+   `useInView` plus `prefers-reduced-motion`.
 2. **One clock per scene.** A scene's beats come from a single `useCycle`
-   schedule. Independent timers that drift out of sync read as broken. A
-   free-running element that ignores the scene's state is worse than no motion:
-   an earlier version had a pulse traveling a graph on its own timer while the
-   nodes advanced on another, and it read as confusing rather than alive.
-3. **Never loop back to empty.** If a build-up animation resets, a viewer
-   arriving mid-cycle sees a half-drawn or blank state and reads it as broken.
-   Build once, settle in the finished state, and if you want continued life,
-   breathe a single accent element.
-4. **Reserve the final height.** Anything that grows as it animates must
-   already occupy its finished height, or the page jitters. Compact panels set
-   a `min-height`; rows that appear late are rendered from the start and only
-   revealed.
-5. **Interaction beats playback.** Any auto-advancing surface pauses on hover
-   and yields permanently once the viewer clicks. Give them a way back: an
-   explicit replay control, not a timeout.
-6. **Reduced motion is a real branch.** Under `prefers-reduced-motion`, scenes
-   render their finished state with every element visible. Never just set
-   `animation: none` on something whose resting state is `opacity: 0`.
+   schedule. An element on its own timer beside state-driven ones reads as
+   confusing, not alive.
+3. **Never loop back to empty.** Build once, settle in the finished state, and
+   breathe a single accent element if you want continued life.
+4. **Reserve the final height.** Anything that grows must already occupy its
+   finished size, or the page jitters. Panels set `min-height`; late rows are
+   rendered from the start and only revealed.
+5. **Interaction beats playback.** Auto-advancing surfaces pause on hover and
+   yield permanently once clicked. Always give a way back: an explicit replay
+   control, never a timeout.
+6. **Reduced motion is a real branch.** Render the finished state with every
+   element visible. Never just set `animation: none` on something whose resting
+   state is `opacity: 0` — that renders nothing.
+7. **Animate from an element's own origin.** Scaling a group scales it from the
+   group's corner and everything slides. Set `transform-box: fill-box` and
+   `transform-origin: center` per element.
+8. **Order by data, not by DOM.** Chart points enter cheapest-first so the eye
+   reads the axis. Source order is an implementation detail.
+9. **Motion is state, not decoration.** If an animation cannot be described as
+   "this step finished, so this happened," cut it.
+
+## Data visualization
+
+- Quality on Y, cost on X. Shade the "most attractive quadrant" bounded by the
+  medians and label it.
+- Label points beside their marks; flip the label to the other side near an
+  edge so it never clips.
+- Color by vendor or category with a legend, not by value.
+- **Every point is hoverable.** Give it an invisible ~14px hit circle, grow the
+  mark, dim the others to 35%, and raise a card with the numbers **plus the run
+  that produced them**. Provenance is the product; show it in the tooltip.
+- Ticks, axis labels, and all numbers in mono.
+
+## Diagrams must be true
+
+A picture of a pipeline is a claim about how the system works. Reviewers read
+it literally.
+
+- **Show the real topology.** An early graph forked into two parallel branches
+  for no reason and immediately drew the question "why would it fork like
+  that?" It became one honest path: input → deterministic step → live fetch →
+  model → check.
+- **Type every node and color by type**, with the same colors the app uses.
+- **Attach the interesting mechanism to the node that owns it.** The snapshot
+  tag hangs off the live-fetch node and moves from pending, to capturing, to
+  frozen as the run passes through.
+- **Fill dead canvas with real content.** A large empty area under a diagram
+  reads as unfinished. Ours became a step-output panel that follows the
+  selected node.
 
 ## Components
 
@@ -145,34 +239,19 @@ A pill: `min-height: 20px`, `line-height: 1`, `padding: 3px 8px`, 12px text, a
 14% tint of its tone, the tone as text color, with a 5px dot or a 10px spinner
 at `flex: 0 0 auto`.
 
-**Do not set a fixed height equal to the line-height.** That was a real bug
-here: `height: 19px` with `line-height: 19px` leaves flex centering no slack, so
-the glyphs sit high inside the pill. Padding plus `line-height: 1` is what
-actually centers text in a pill.
+**Do not set a fixed height equal to the line-height.** That leaves flex
+centering no slack and the glyphs sit high. Padding plus `line-height: 1` is
+what actually centers text in a pill.
 
-When two badges swap in place, align them to the same edge as the row they sit
-in: `justify-items: end` for a right-aligned header, `start` for a left-aligned
-column. Otherwise the narrower badge visibly jumps.
+**Align a swap to the edge of the row it sits in** — `justify-items: end` in a
+right-aligned header, `start` in a left-aligned column. Otherwise the narrower
+badge visibly jumps as it swaps.
 
 ### Buttons
 
-Ink-filled with a coral hover, 6px radius on the app, 3px on the landing page.
-A `kbd` chip inside a landing button advertises its shortcut, and the shortcut
-is actually wired up. Do not print a shortcut you have not implemented.
-
-### Product miniatures
-
-A window chrome with three dots, a centered breadcrumb, and right-aligned tools.
-Inside, a real layout at reduced scale. Never a screenshot: these are live DOM
-and they animate, which is the whole point.
-
-### Charts
-
-Score on Y, cost on X, a shaded "most attractive quadrant" bounded by the
-medians, model names labeled beside their points, mono ticks. Points enter
-staggered in data order, not DOM order, so the eye reads the axis. Hovering a
-point dims the others to 35% and raises a card with the numbers plus the run
-that produced them.
+Ink-filled with a coral hover, 6px radius in the app, 3px on the landing page.
+A `kbd` chip advertises a shortcut, and the shortcut is actually wired up. Do
+not print a shortcut you have not implemented.
 
 ## Voice
 
@@ -180,6 +259,12 @@ Terse and concrete. The reader is an engineer who already knows the domain.
 
 - **Cut anything the interface already says.** A panel titled "Datasets" does
   not need "Here you can manage your datasets."
+- **Cut descriptions that restate their heading.** "Cost and accuracy" followed
+  by "lower cost and higher accuracy are better" says nothing twice.
+- **Cut trailing clauses that carry no fact** — "…so you can reuse it later"
+  is the most common offender.
+- **Keep anything stating a rule or consequence** the reader cannot infer:
+  immutability, loopback-only operation, what to do next in an empty state.
 - **State facts, not intentions.** "Finalizing locks the dataset" beats "This
   will allow you to lock your dataset."
 - **No hedges**: you can, simply, please, in order to, just, note that.
@@ -193,17 +278,36 @@ Terse and concrete. The reader is an engineer who already knows the domain.
 
 ## Accessibility
 
-Non-negotiable, and cheap if you do it while building:
-
 - Decorative visuals are `aria-hidden`. Interactive ones get a role, a label,
-  `tabIndex`, and keyboard handlers. Every clickable graph node in the trace
-  preview responds to Enter and Space.
+  `tabIndex`, and keyboard handlers. Every clickable graph node responds to
+  Enter and Space.
 - Focus rings are a 2px accent outline at 3px offset. Never remove one without
   putting a visible substitute in the same place.
-- Contrast holds in both themes. Muted copy is the floor, faint is for
+- Contrast holds in both themes. Muted copy is the floor; faint is for
   non-essential detail only.
 - An aria-label is a promise about what the control does. When you shorten a
   visible label that doubles as the accessible name, keep it unambiguous.
+- Changing an accessible name is a breaking change for tests. Grep before
+  renaming.
+
+## Learned the hard way
+
+Every line here is a fix, not a preference. They repeat rules above because
+these are the ones that actually got shipped wrong.
+
+| Symptom | Cause | Fix |
+|---|---|---|
+| Badge text sits high in its pill | `height` equal to `line-height` | Padding plus `line-height: 1` |
+| Badge jumps sideways as it swaps | Swap aligned to the wrong edge | Align to the row's own edge |
+| A traveling dot "feels confusing" | Its own timer, ignoring node state | One clock; draw edges as steps finish |
+| Cards resize while animating | Growing content with no reserved height | `min-height`; render late rows hidden |
+| Marks look broken mid-scroll | Loop resetting to empty | Build once and settle |
+| Nothing renders under reduced motion | `animation: none` on `opacity: 0` at rest | Force the finished state explicitly |
+| Chart entrance "feels off" | Group scaled from a shared corner | Per-element origin, ordered by data |
+| Dots take too long to appear | 420ms leading delay | 80ms, stagger does the work |
+| Sidebar looks unpolished | Per-row borders and shadows | One surface, soft fill, state dots |
+| Large empty canvas | Diagram sized for a bigger area | Fill it with a real output panel |
+| "Why would it fork like that?" | Diagram not semantically true | Draw the actual topology |
 
 ## Checklist before shipping a surface
 
@@ -213,4 +317,5 @@ Non-negotiable, and cheap if you do it while building:
 4. Does the finished state make sense with all motion disabled?
 5. Is there exactly one accent per view?
 6. Is every number and identifier in mono?
-7. Can you delete a sentence without losing a fact? Delete it.
+7. Is every data point hoverable, and does the tooltip name its provenance?
+8. Can you delete a sentence without losing a fact? Delete it.
