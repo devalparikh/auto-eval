@@ -21,6 +21,7 @@ const catalog = {
       default_model_ids: ["ready"],
       input_template: {},
       dataset_editor: "json",
+      input_editor: "json",
       primary_metric: "accuracy",
       versions: [{ id: "graph-2", version: 2, created_at: "2026-01-01" }],
     },

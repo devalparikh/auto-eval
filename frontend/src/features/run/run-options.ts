@@ -1,6 +1,6 @@
 import type { Catalog, ModelOption } from "@/lib/types";
 
-export const PORTFOLIO_QUERY_SYSTEM_KEY = "portfolio-query";
+export const NODE_RESOURCE_QUERY_INPUT_EDITOR = "node-resource-query";
 
 export function modelsForSystem(
   catalog: Catalog | null,
@@ -35,10 +35,10 @@ export function parseRunInput(value: string): Record<string, unknown> {
 }
 
 export function inputTemplateForRun(
-  systemKey: string,
+  inputEditor: string,
   template: Record<string, unknown>,
 ): Record<string, unknown> {
-  if (systemKey !== PORTFOLIO_QUERY_SYSTEM_KEY) return template;
+  if (inputEditor !== NODE_RESOURCE_QUERY_INPUT_EDITOR) return template;
   const advancedInput = { ...template };
   delete advancedInput.snapshot;
   delete advancedInput.snapshot_id;

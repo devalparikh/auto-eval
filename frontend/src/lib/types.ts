@@ -17,6 +17,7 @@ export type AgentSystemSummary = {
   default_model_ids: string[];
   input_template: Record<string, unknown>;
   dataset_editor: string;
+  input_editor: string;
   primary_metric: string;
 };
 

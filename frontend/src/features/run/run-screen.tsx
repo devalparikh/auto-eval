@@ -3,21 +3,18 @@
 import { ArrowRightIcon, PlayIcon } from "@phosphor-icons/react";
 import Link from "next/link";
 import { useState, type FormEvent } from "react";
+import { CatalogGate } from "@/components/catalog-gate";
 import { JsonViewer } from "@/components/json-viewer";
 import { PageHeader } from "@/components/page-header";
 import { Select } from "@/components/select";
-import { ErrorState, LoadingState } from "@/components/states";
+import { LoadingState } from "@/components/states";
 import { StatusBadge } from "@/components/status-badge";
-import {
-  graphVersions,
-  promptVersions,
-  systemByKey,
-} from "@/features/catalog/catalog-options";
+import { graphVersions, promptVersions } from "@/features/catalog/catalog-options";
 import {
   inputTemplateForRun,
   modelsForSystem,
+  NODE_RESOURCE_QUERY_INPUT_EDITOR,
   parseRunInput,
-  PORTFOLIO_QUERY_SYSTEM_KEY,
 } from "@/features/run/run-options";
 import { RunGraphPreview } from "@/features/run/run-graph-preview";
 import { RunSavedInputs } from "@/features/run/run-saved-inputs";
@@ -35,41 +32,17 @@ import type { AgentSystemSummary, Catalog, Trace } from "@/lib/types";
 import { useApiResource } from "@/lib/use-api-resource";
 
 export function RunScreen({ systemKey }: { systemKey: string }) {
-  const catalog = useApiResource(api.catalog, []);
-  const system = systemByKey(catalog.data, systemKey);
-
-  if (catalog.loading) {
-    return (
-      <>
-        <PageHeader title="Run inference" />
-        <LoadingState rows={9} />
-      </>
-    );
-  }
-  if (catalog.error) {
-    return (
-      <>
-        <PageHeader title="Run inference" />
-        <ErrorState message={catalog.error} retry={catalog.reload} />
-      </>
-    );
-  }
-  if (!catalog.data || !system) {
-    return (
-      <>
-        <PageHeader title="Run inference" />
-        <ErrorState message="Agent system not found" />
-      </>
-    );
-  }
-
   return (
-    <RunWorkbench
-      key={system.id}
-      catalog={catalog.data}
-      system={system}
-      systemKey={systemKey}
-    />
+    <CatalogGate systemKey={systemKey} title="Run inference">
+      {({ catalog, system }) => (
+        <RunWorkbench
+          key={system.id}
+          catalog={catalog}
+          system={system}
+          systemKey={systemKey}
+        />
+      )}
+    </CatalogGate>
   );
 }
 
@@ -85,10 +58,11 @@ export function RunWorkbench({
   const graphs = graphVersions(catalog, systemKey);
   const prompts = promptVersions(catalog, systemKey);
   const models = modelsForSystem(catalog, system.default_model_ids, systemKey);
-  const isPortfolioQuery = systemKey === PORTFOLIO_QUERY_SYSTEM_KEY;
+  const isNodeResourceQuery =
+    system.input_editor === NODE_RESOURCE_QUERY_INPUT_EDITOR;
   const [input, setInput] = useState(
     JSON.stringify(
-      inputTemplateForRun(systemKey, system.input_template ?? {}),
+      inputTemplateForRun(system.input_editor, system.input_template ?? {}),
       null,
       2,
     ),
@@ -102,10 +76,9 @@ export function RunWorkbench({
   const [error, setError] = useState<string | null>(null);
   const [trace, setTrace] = useState<Trace | null>(null);
   const graphDetail = useApiResource(
-    () =>
-      selectedGraphVersionId
-        ? api.agentVersion(selectedGraphVersionId)
-        : Promise.reject(new Error("Select a graph version")),
+    selectedGraphVersionId
+      ? () => api.agentVersion(selectedGraphVersionId)
+      : null,
     [selectedGraphVersionId],
   );
   const graphDefinition = graphDetail.data?.definition ?? null;
@@ -391,7 +364,7 @@ export function RunWorkbench({
 
             <div className="field">
               <label htmlFor="run-input">
-                {isPortfolioQuery
+                {isNodeResourceQuery
                   ? "Advanced query input (JSON)"
                   : "Request input (JSON)"}
               </label>
@@ -409,7 +382,7 @@ export function RunWorkbench({
                 id="run-input-help"
                 className="text-[10px] text-[var(--text-faint)]"
               >
-                {isPortfolioQuery
+                {isNodeResourceQuery
                   ? "Edit the question and policy here. The portfolio comes from the saved input above, and live market data is fetched when the run starts."
                   : "Prefilled from this system's example input."}
               </p>

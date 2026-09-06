@@ -47,6 +47,8 @@ Which target for which change:
   against it. Keep domain behavior in its feature directory and promote to
   `components/` only once it is genuinely shared.
 - Do not add a global helper until more than one feature owns the behavior.
+- Frontend: branch on capabilities the catalog declares (`dataset_editor`,
+  `input_editor`), never on an agent system's key.
 
 ## Before changing exposure, provider access, or dependencies
 

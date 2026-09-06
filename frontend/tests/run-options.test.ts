@@ -60,8 +60,8 @@ describe("run options", () => {
     expect(() => parseRunInput("not-json")).toThrow("valid JSON");
   });
 
-  it("keeps portfolio snapshot documents out of editable query input", () => {
-    const template = inputTemplateForRun("portfolio-query", {
+  it("keeps snapshot documents out of editable query input for node-resource-query systems", () => {
+    const template = inputTemplateForRun("node-resource-query", {
       snapshot_id: "snapshot-1",
       snapshot: { positions: [{ shares: 200 }] },
       market_context: { contracts: [{ symbol: "NVDA" }] },
@@ -69,5 +69,17 @@ describe("run options", () => {
     });
 
     expect(template).toEqual({ question: "What changed?" });
+  });
+
+  it("leaves the input template untouched for other input editors", () => {
+    const template = inputTemplateForRun("json", {
+      snapshot_id: "snapshot-1",
+      question: "What changed?",
+    });
+
+    expect(template).toEqual({
+      snapshot_id: "snapshot-1",
+      question: "What changed?",
+    });
   });
 });

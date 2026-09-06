@@ -522,6 +522,11 @@ export interface components {
             /** Id */
             id: string;
             /**
+             * Input Editor
+             * @default json
+             */
+            input_editor: string;
+            /**
              * Input Template
              * @default {}
              */

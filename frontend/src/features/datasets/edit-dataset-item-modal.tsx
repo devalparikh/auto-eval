@@ -54,11 +54,13 @@ function expectedText(item: DatasetItem | null): string {
 export function EditDatasetItemModal({
   item,
   systemKey,
+  datasetEditor,
   onClose,
   onSaved,
 }: {
   item: DatasetItem | null;
   systemKey: string;
+  datasetEditor: string;
   onClose: () => void;
   onSaved: () => Promise<void>;
 }) {
@@ -70,7 +72,7 @@ export function EditDatasetItemModal({
     null,
   );
 
-  const usesGroundTruthForm = systemKey === "incident-triage";
+  const usesGroundTruthForm = datasetEditor === "incident-triage";
   const savedText = expectedText(item);
   const jsonText =
     draft && item && draft.itemId === item.id ? draft.text : savedText;

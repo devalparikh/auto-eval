@@ -2,15 +2,14 @@
 
 import { FlaskIcon } from "@phosphor-icons/react";
 import { useEffect, useRef, useState, type FormEvent } from "react";
+import { CatalogGate } from "@/components/catalog-gate";
 import { PageHeader } from "@/components/page-header";
 import { Select } from "@/components/select";
-import { ErrorState, LoadingState } from "@/components/states";
 import {
   availableModels,
   finalDatasetVersions,
   graphVersions,
   promptVersions,
-  systemByKey,
 } from "@/features/catalog/catalog-options";
 import { ModelPicker } from "@/features/evaluations/model-picker";
 import { RunStatusPanel } from "@/features/evaluations/run-status-panel";
@@ -22,33 +21,52 @@ import {
 import { RuntimeInputNotice } from "@/features/systems/runtime-input-notice";
 import { api } from "@/lib/api";
 import { playPreferredUiSound } from "@/lib/sound";
+import type { AgentSystemSummary, Catalog } from "@/lib/types";
 import { useApiResource } from "@/lib/use-api-resource";
 
 export function EvaluationsScreen({ systemKey }: { systemKey: string }) {
-  const catalog = useApiResource(api.catalog, []);
-  const system = systemByKey(catalog.data, systemKey);
+  return (
+    <CatalogGate systemKey={systemKey}>
+      {({ catalog, system }) => (
+        <EvaluationsWorkbench
+          key={system.id}
+          catalog={catalog}
+          system={system}
+          systemKey={systemKey}
+        />
+      )}
+    </CatalogGate>
+  );
+}
+
+function EvaluationsWorkbench({
+  catalog,
+  system,
+  systemKey,
+}: {
+  catalog: Catalog;
+  system: AgentSystemSummary;
+  systemKey: string;
+}) {
   const [requestedModels, setSelectedModels] = useState<string[] | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { run, setRun } = useEvalRunPolling();
   const previousRunStatus = useRef<string | null>(null);
-  const datasets = finalDatasetVersions(catalog.data, systemKey);
-  const models = availableModels(catalog.data, systemKey);
-  const graphs = graphVersions(catalog.data, systemKey);
-  const prompts = promptVersions(catalog.data, systemKey);
+  const datasets = finalDatasetVersions(catalog, systemKey);
+  const models = availableModels(catalog, systemKey);
+  const graphs = graphVersions(catalog, systemKey);
+  const prompts = promptVersions(catalog, systemKey);
   const [selectedGraphVersionId, setSelectedGraphVersionId] = useState("");
   const graphVersionId = selectedGraphVersionId || graphs[0]?.id || "";
   const graphDetail = useApiResource(
-    () =>
-      graphVersionId
-        ? api.agentVersion(graphVersionId)
-        : Promise.reject(new Error("Select a graph version")),
+    graphVersionId ? () => api.agentVersion(graphVersionId) : null,
     [graphVersionId],
   );
   const promptKeys = promptKeysForGraph(graphDetail.data?.definition ?? null);
   const promptFamilies = promptKeys.map((key) => ({
     key,
-    prompt: promptForGraphKey(catalog.data, system?.id, key),
+    prompt: promptForGraphKey(catalog, system.id, key),
   }));
   const missingPromptKeys = promptFamilies
     .filter(({ prompt }) => !prompt?.versions.length)
@@ -56,10 +74,9 @@ export function EvaluationsScreen({ systemKey }: { systemKey: string }) {
   const usesKeyedPrompts = promptKeys.length > 0;
   const selectedModels =
     requestedModels ??
-    system?.default_model_ids.filter((modelId) =>
+    system.default_model_ids.filter((modelId) =>
       models.some((model) => model.id === modelId),
-    ) ??
-    [];
+    );
 
   useEffect(() => {
     if (
@@ -103,7 +120,7 @@ export function EvaluationsScreen({ systemKey }: { systemKey: string }) {
   return (
     <>
       <PageHeader
-        title={`Evaluate ${system?.name ?? "agent system"}`}
+        title={`Evaluate ${system.name}`}
         description="Run the same examples and the same saved data across models."
       />
       <section className="grid gap-5 p-4 md:p-7 xl:grid-cols-[minmax(0,720px)_minmax(280px,1fr)]">
@@ -111,113 +128,107 @@ export function EvaluationsScreen({ systemKey }: { systemKey: string }) {
           <div className="border-b border-[var(--border)] px-5 py-4">
             <h2 className="text-[14px] font-semibold">Evaluation inputs</h2>
           </div>
-          {catalog.loading ? (
-            <LoadingState rows={6} />
-          ) : catalog.error ? (
-            <ErrorState message={catalog.error} retry={catalog.reload} />
-          ) : (
-            <form onSubmit={submit} className="grid gap-5 p-5">
-              <div className="grid gap-4 md:grid-cols-3">
-                <div className="field">
-                  <label htmlFor="eval-dataset">Dataset version</label>
-                  <Select id="eval-dataset" name="datasetVersion" required>
-                    {datasets.map(({ dataset, version }) => (
-                      <option key={version.id} value={version.id}>
-                        {dataset.name} v{version.version}
-                      </option>
-                    ))}
-                  </Select>
-                </div>
-                <div className="field">
-                  <label htmlFor="eval-graph">Agent system</label>
-                  <Select
-                    id="eval-graph"
-                    name="graphVersion"
-                    value={graphVersionId}
-                    required
-                    onChange={(event) =>
-                      setSelectedGraphVersionId(event.target.value)
-                    }
-                  >
-                    {graphs.map((version) => (
-                      <option key={version.id} value={version.id}>
-                        {system?.name} v{version.version}
-                      </option>
-                    ))}
-                  </Select>
-                </div>
-                {usesKeyedPrompts ? (
-                  promptFamilies.map(({ key, prompt }) => (
-                    <div className="field" key={key}>
-                      <label htmlFor={`eval-prompt-${key}`}>
-                        Prompt: {key}
-                      </label>
-                      <Select
-                        id={`eval-prompt-${key}`}
-                        name={`promptVersion:${key}`}
-                        disabled={!prompt?.versions.length}
-                        required
-                      >
-                        {prompt?.versions.map((version) => (
-                          <option key={version.id} value={version.id}>
-                            {prompt.name} v{version.version}
-                          </option>
-                        ))}
-                      </Select>
-                    </div>
-                  ))
-                ) : (
-                  <div className="field">
-                    <label htmlFor="eval-prompt">System prompt</label>
-                    <Select id="eval-prompt" name="promptVersion" required>
-                      {prompts.map((version) => (
+          <form onSubmit={submit} className="grid gap-5 p-5">
+            <div className="grid gap-4 md:grid-cols-3">
+              <div className="field">
+                <label htmlFor="eval-dataset">Dataset version</label>
+                <Select id="eval-dataset" name="datasetVersion" required>
+                  {datasets.map(({ dataset, version }) => (
+                    <option key={version.id} value={version.id}>
+                      {dataset.name} v{version.version}
+                    </option>
+                  ))}
+                </Select>
+              </div>
+              <div className="field">
+                <label htmlFor="eval-graph">Agent system</label>
+                <Select
+                  id="eval-graph"
+                  name="graphVersion"
+                  value={graphVersionId}
+                  required
+                  onChange={(event) =>
+                    setSelectedGraphVersionId(event.target.value)
+                  }
+                >
+                  {graphs.map((version) => (
+                    <option key={version.id} value={version.id}>
+                      {system.name} v{version.version}
+                    </option>
+                  ))}
+                </Select>
+              </div>
+              {usesKeyedPrompts ? (
+                promptFamilies.map(({ key, prompt }) => (
+                  <div className="field" key={key}>
+                    <label htmlFor={`eval-prompt-${key}`}>
+                      Prompt: {key}
+                    </label>
+                    <Select
+                      id={`eval-prompt-${key}`}
+                      name={`promptVersion:${key}`}
+                      disabled={!prompt?.versions.length}
+                      required
+                    >
+                      {prompt?.versions.map((version) => (
                         <option key={version.id} value={version.id}>
-                          Prompt v{version.version}
+                          {prompt.name} v{version.version}
                         </option>
                       ))}
                     </Select>
                   </div>
-                )}
-              </div>
-              <RuntimeInputNotice
-                definition={graphDetail.data?.definition ?? null}
-                context="evaluation"
-              />
-              <ModelPicker
-                models={models}
-                selectedModelIds={selectedModels}
-                onChange={setSelectedModels}
-              />
-              {missingPromptKeys.length || graphDetail.error || error ? (
-                <p role="alert" className="text-[12px] text-[var(--danger)]">
-                  {missingPromptKeys.length
-                    ? `This graph needs prompts that do not exist yet: ${missingPromptKeys.join(", ")}.`
-                    : graphDetail.error
-                      ? `This graph could not be loaded: ${graphDetail.error}`
-                      : error}
-                </p>
-              ) : null}
-              <div className="flex items-center justify-between gap-3 border-t border-[var(--border)] pt-4">
-                <p className="text-[10px] text-[var(--text-muted)]">
-                  {datasets[0]?.version.item_count ?? 0} examples per model
-                </p>
-                <button
-                  className="app-button"
-                  disabled={
-                    submitting ||
-                    selectedModels.length === 0 ||
-                    datasets.length === 0 ||
-                    graphDetail.loading ||
-                    Boolean(graphDetail.error) ||
-                    missingPromptKeys.length > 0
-                  }
-                >
-                  <FlaskIcon size={15} />
-                  {submitting ? "Starting..." : "Start evaluation"}
-                </button>
-              </div>
-            </form>
-          )}
+                ))
+              ) : (
+                <div className="field">
+                  <label htmlFor="eval-prompt">System prompt</label>
+                  <Select id="eval-prompt" name="promptVersion" required>
+                    {prompts.map((version) => (
+                      <option key={version.id} value={version.id}>
+                        Prompt v{version.version}
+                      </option>
+                    ))}
+                  </Select>
+                </div>
+              )}
+            </div>
+            <RuntimeInputNotice
+              definition={graphDetail.data?.definition ?? null}
+              context="evaluation"
+            />
+            <ModelPicker
+              models={models}
+              selectedModelIds={selectedModels}
+              onChange={setSelectedModels}
+            />
+            {missingPromptKeys.length || graphDetail.error || error ? (
+              <p role="alert" className="text-[12px] text-[var(--danger)]">
+                {missingPromptKeys.length
+                  ? `This graph needs prompts that do not exist yet: ${missingPromptKeys.join(", ")}.`
+                  : graphDetail.error
+                    ? `This graph could not be loaded: ${graphDetail.error}`
+                    : error}
+              </p>
+            ) : null}
+            <div className="flex items-center justify-between gap-3 border-t border-[var(--border)] pt-4">
+              <p className="text-[10px] text-[var(--text-muted)]">
+                {datasets[0]?.version.item_count ?? 0} examples per model
+              </p>
+              <button
+                className="app-button"
+                disabled={
+                  submitting ||
+                  selectedModels.length === 0 ||
+                  datasets.length === 0 ||
+                  graphDetail.loading ||
+                  Boolean(graphDetail.error) ||
+                  missingPromptKeys.length > 0
+                }
+              >
+                <FlaskIcon size={15} />
+                {submitting ? "Starting..." : "Start evaluation"}
+              </button>
+            </div>
+          </form>
         </div>
         <RunStatusPanel run={run} systemKey={systemKey} />
       </section>

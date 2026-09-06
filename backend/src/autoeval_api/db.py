@@ -22,6 +22,10 @@ def build_engine(settings: Settings):
     return engine
 
 
+def build_session_factory(engine: Engine) -> sessionmaker[Session]:
+    return sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
+
+
 def configure_sqlite_foreign_keys(target_engine: Engine) -> None:
     if target_engine.dialect.name != "sqlite":
         return
@@ -34,10 +38,10 @@ def configure_sqlite_foreign_keys(target_engine: Engine) -> None:
 
 
 engine = build_engine(get_settings())
-SessionLocal = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
+SessionLocal = build_session_factory(engine)
 
 
-def create_schema() -> None:
+def create_schema(engine: Engine) -> None:
     from autoeval_api import models  # noqa: F401
     from autoeval_api.migrations import apply_migrations
 

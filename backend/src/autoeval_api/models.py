@@ -29,6 +29,10 @@ def utc_now() -> datetime:
     return datetime.now(UTC)
 
 
+def format_error_for_storage(error: Exception) -> str:
+    return (str(error).strip() or error.__class__.__name__)[:2000]
+
+
 class DatasetStatus(StrEnum):
     DRAFT = "draft"
     FINAL = "final"

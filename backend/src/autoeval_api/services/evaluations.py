@@ -5,6 +5,7 @@ from typing import Any
 from sqlalchemy import update
 from sqlalchemy.orm import Session
 
+from autoeval_api.agent_systems.registry import system_plugins
 from autoeval_api.graph.definition import NodeResourceSelection, parse_graph_definition
 from autoeval_api.graph.runner import AgentGraphRunner, RunSelection, TraceContext
 from autoeval_api.models import (
@@ -22,6 +23,7 @@ from autoeval_api.models import (
     RunStatus,
     TraceOrigin,
     TraceRecord,
+    format_error_for_storage,
     utc_now,
 )
 from autoeval_api.schemas import (
@@ -189,7 +191,9 @@ class EvaluationService:
         completed: list[tuple[DatasetItemRecord, TraceRecord]] = []
         # One SQLAlchemy session owns this local run, so item execution is deliberately serialized.
         for item in context.items:
-            self._require_locked_runtime_inputs(context.graph_version, item)
+            self._require_locked_runtime_inputs(
+                context.graph_version, item, context.agent_system_key
+            )
             self._require_locked_node_resources(session, context.graph_version, item)
             trace = await self.runner.run(
                 session,
@@ -232,6 +236,7 @@ class EvaluationService:
     def _require_locked_runtime_inputs(
         graph_version: AgentSystemVersionRecord,
         item: DatasetItemRecord,
+        agent_system_key: str,
     ) -> None:
         definition = parse_graph_definition(graph_version.definition)
         locked_nodes = {
@@ -244,16 +249,14 @@ class EvaluationService:
         missing = sorted(locked_nodes - set(item.runtime_input_snapshot_ids or {}))
         if not missing:
             return
-        # Compatibility only for finalized Portfolio Query versions that predate
-        # runtime-input artifacts and stored this one observation inline.
-        legacy_node = definition.node("load_portfolio_market_data")
-        if (
-            set(missing) == {"load_portfolio_market_data"}
-            and legacy_node is not None
-            and legacy_node.runtime_input_policy is not None
-            and legacy_node.runtime_input_policy.source == "options_chain"
-            and isinstance(item.input.get("market_context"), dict)
-        ):
+        plugin = system_plugins().get(agent_system_key)
+        exemptions = (
+            plugin.legacy_locked_input_exemptions(definition, item.input)
+            if plugin is not None
+            else set()
+        )
+        missing = sorted(set(missing) - exemptions)
+        if not missing:
             return
         raise RuntimeError(
             "Evaluation item is missing locked runtime-input snapshots for nodes: "
@@ -317,7 +320,7 @@ class EvaluationService:
         if run is None:
             return
         run.status = RunStatus.FAILED
-        run.error = (str(error).strip() or error.__class__.__name__)[:2000]
+        run.error = format_error_for_storage(error)
         run.completed_at = utc_now()
         session.add(run)
         session.commit()

@@ -21,6 +21,7 @@ from autoeval_api.graph.registry import NodeHandlerRegistry, default_node_handle
 from autoeval_api.graph.runtime_inputs import RuntimeInputCapabilityRegistry
 from autoeval_api.graph.topology import sink_node_ids, topological_sequence
 from autoeval_api.graph.trace_policy import project_inference_payload, project_trace_payload
+from autoeval_api.graph.trace_recorder import TraceRecorder
 from autoeval_api.graph.types import AgentState
 from autoeval_api.inference.base import InferenceRequest, InferenceResponse
 from autoeval_api.inference.registry import InferenceProviderRegistry
@@ -31,6 +32,7 @@ from autoeval_api.models import (
     TraceOrigin,
     TraceRecord,
     TraceSpanRecord,
+    format_error_for_storage,
     utc_now,
 )
 from autoeval_api.services.node_resources import resolve_node_resource
@@ -107,8 +109,8 @@ class AgentGraphRunner:
             node_resource_selections={},
             capture_node_outputs=capture_node_outputs,
         )
-        session.add(trace)
-        session.commit()
+        recorder = TraceRecorder(session)
+        recorder.start_trace(trace)
 
         started = perf_counter()
         runtime_context: GraphRuntimeContext | None = None
@@ -134,7 +136,7 @@ class AgentGraphRunner:
                 node_resource_selections or {},
                 trace_origin_context.origin_type,
             )
-            graph = self._compile_graph(session, trace, selection, definition)
+            graph = self._compile_graph(recorder, trace, selection, definition)
             state = await graph.ainvoke(
                 {"input": request_input, "data": {}},
                 context=runtime_context,
@@ -144,26 +146,16 @@ class AgentGraphRunner:
             trace.status = RunStatus.COMPLETE
         except Exception as error:
             trace.status = RunStatus.FAILED
-            trace.error = self._safe_error(error)
+            trace.error = format_error_for_storage(error)
         finally:
             trace.latency_ms = round((perf_counter() - started) * 1000, 3)
             trace.completed_at = utc_now()
-            spans = session.query(TraceSpanRecord).filter_by(trace_id=trace.id).all()
-            trace.cost_usd = round(sum(span.cost_usd for span in spans), 8)
-            trace.input_tokens = sum(span.input_tokens for span in spans)
-            trace.output_tokens = sum(span.output_tokens for span in spans)
-            if runtime_context is not None:
-                trace.runtime_input_snapshot_ids = dict(runtime_context.runtime_input_snapshot_ids)
-                trace.node_snapshot_ids = dict(runtime_context.node_snapshot_ids)
-                trace.node_resource_selections = dict(runtime_context.node_resource_selections)
-            session.add(trace)
-            session.commit()
-            session.refresh(trace)
+            recorder.finish_trace(trace, runtime_context)
         return trace
 
     def _compile_graph(
         self,
-        session: Session,
+        recorder: TraceRecorder,
         trace: TraceRecord,
         selection: RunSelection,
         definition: AgentGraphDefinition,
@@ -174,7 +166,7 @@ class AgentGraphRunner:
         for node in definition.nodes:
             builder.add_node(
                 node.id,
-                self._traced_node(session, trace, selection, node, sequence[node.id]),
+                self._traced_node(recorder, trace, selection, node, sequence[node.id]),
             )
 
         builder.set_entry_point(definition.entry_point)
@@ -186,7 +178,7 @@ class AgentGraphRunner:
 
     def _traced_node(
         self,
-        session: Session,
+        recorder: TraceRecorder,
         trace: TraceRecord,
         selection: RunSelection,
         node: AgentNodeDefinition,
@@ -201,7 +193,6 @@ class AgentGraphRunner:
                 self._node_prompt_version(selection, node) if node.kind == "llm" else None
             )
             system_prompt = prompt_version.content if prompt_version is not None else None
-            node_snapshot = runtime.context.node_snapshots.get(node.id)
             span = TraceSpanRecord(
                 trace_id=trace.id,
                 node_id=node.id,
@@ -211,18 +202,9 @@ class AgentGraphRunner:
                 status=RunStatus.RUNNING,
                 system_prompt=system_prompt,
                 input=project_trace_payload(selection.agent_system_key, snapshot),
-                runtime_input_snapshot_id=runtime.context.runtime_input_snapshot_ids.get(node.id),
-                node_snapshot_id=node_snapshot.id if node_snapshot is not None else None,
-                snapshot_role=node_snapshot.role if node_snapshot is not None else None,
-                snapshot_resolution_mode=(
-                    node_snapshot.resolution_mode if node_snapshot is not None else None
-                ),
-                snapshot_metadata=(
-                    dict(node_snapshot.metadata) if node_snapshot is not None else {}
-                ),
             )
-            session.add(span)
-            session.commit()
+            self._sync_span_snapshot_fields(span, runtime.context, node.id)
+            recorder.start_span(span)
             started = perf_counter()
 
             try:
@@ -250,27 +232,30 @@ class AgentGraphRunner:
                 return self._graph_update(output)
             except Exception as error:
                 span.status = RunStatus.FAILED
-                span.error = self._safe_error(error)
+                span.error = format_error_for_storage(error)
                 raise
             finally:
-                span.runtime_input_snapshot_id = runtime.context.runtime_input_snapshot_ids.get(
-                    node.id
-                )
-                node_snapshot = runtime.context.node_snapshots.get(node.id)
-                span.node_snapshot_id = node_snapshot.id if node_snapshot is not None else None
-                span.snapshot_role = node_snapshot.role if node_snapshot is not None else None
-                span.snapshot_resolution_mode = (
-                    node_snapshot.resolution_mode if node_snapshot is not None else None
-                )
-                span.snapshot_metadata = (
-                    dict(node_snapshot.metadata) if node_snapshot is not None else {}
-                )
+                self._sync_span_snapshot_fields(span, runtime.context, node.id)
                 span.latency_ms = round((perf_counter() - started) * 1000, 3)
                 span.completed_at = utc_now()
-                session.add(span)
-                session.commit()
+                recorder.finish_span(span)
 
         return invoke
+
+    @staticmethod
+    def _sync_span_snapshot_fields(
+        span: TraceSpanRecord,
+        context: GraphRuntimeContext,
+        node_id: str,
+    ) -> None:
+        span.runtime_input_snapshot_id = context.runtime_input_snapshot_ids.get(node_id)
+        node_snapshot = context.node_snapshots.get(node_id)
+        span.node_snapshot_id = node_snapshot.id if node_snapshot is not None else None
+        span.snapshot_role = node_snapshot.role if node_snapshot is not None else None
+        span.snapshot_resolution_mode = (
+            node_snapshot.resolution_mode if node_snapshot is not None else None
+        )
+        span.snapshot_metadata = dict(node_snapshot.metadata) if node_snapshot is not None else {}
 
     @staticmethod
     def _bind_locked_runtime_input_snapshots(
@@ -443,8 +428,3 @@ class AgentGraphRunner:
             if response.metadata.get(key) is not None
         }
         return {**projected, "_inference": metadata} if metadata else projected
-
-    @staticmethod
-    def _safe_error(error: Exception) -> str:
-        message = str(error).strip() or error.__class__.__name__
-        return message[:2000]

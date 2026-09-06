@@ -1,6 +1,6 @@
 # Architecture
 
-AutoEval separates reusable execution infrastructure from each agent system's domain logic. The backend composes registries and services once; an agent package contributes one plugin manifest plus definitions, handlers, seed data, optional scoring, and an optional trace policy. The frontend follows the same rule: routes select a feature screen, while the feature owns its forms and state.
+AutoEval separates reusable execution infrastructure from each agent system's domain logic. The backend composes registries and services once; an agent package contributes one plugin manifest plus definitions, handlers, seed data, optional scoring, an optional trace policy, and an optional legacy locked-runtime-input exemption hook. The frontend follows the same rule: routes select a feature screen, while the feature owns its forms and state.
 
 Each run compiles only the selected graph definition into its own LangGraph instance. Handler names are resolved through a system-scoped registry, so two growing systems may use the same local handler name without collision. AutoEval never constructs one global LangGraph containing nodes from every registered system.
 
@@ -72,7 +72,7 @@ autoeval_api/
   coerce.py                 shared coercion for untrusted JSON-shaped values
 ```
 
-Routes validate HTTP input and translate domain errors. Services own domain queries and workflows. The graph runner owns orchestration and span capture. Agent-system packages own domain-specific definitions and behavior. `app.py` is the composition root for replacing those dependencies without teaching routes about concrete providers or handlers.
+Routes validate HTTP input and translate domain errors. Services own domain queries and workflows. The graph runner owns orchestration and span capture; `graph/trace_recorder.py` owns how trace and span rows are persisted, while the runner decides when. Agent-system packages own domain-specific definitions and behavior. `app.py` is the composition root for replacing those dependencies without teaching routes about concrete providers or handlers. The database engine is chosen in `app.py::create_application` — an explicit `engine` argument, or `db.py`'s module-level engine by default — and `db.py::create_schema(engine)` upgrades whichever engine it is given.
 
 ## Implemented extension points
 
