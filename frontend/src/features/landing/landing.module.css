@@ -622,8 +622,39 @@
 }
 
 .cardCompact {
+  isolation: isolate;
   min-height: 0;
+  border: 1px solid color-mix(in srgb, var(--landing-sand) 18%, transparent);
   padding: 24px;
+  transition:
+    border-color 220ms ease,
+    box-shadow 280ms cubic-bezier(0.16, 1, 0.3, 1),
+    transform 280ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.cardCompact::before {
+  position: absolute;
+  z-index: -1;
+  top: 0;
+  right: 0;
+  left: 0;
+  height: 3px;
+  background: linear-gradient(90deg, var(--landing-sand), var(--landing-accent));
+  content: "";
+  opacity: 0.7;
+  transform: scaleX(0.28);
+  transform-origin: left;
+  transition: transform 500ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.cardCompact:hover {
+  border-color: color-mix(in srgb, var(--landing-sand) 42%, transparent);
+  box-shadow: 0 20px 45px rgb(27 30 27 / 0.09);
+  transform: translateY(-4px);
+}
+
+.cardCompact:hover::before {
+  transform: scaleX(1);
 }
 
 .cardCopy h3 {
@@ -664,6 +695,10 @@
 
 .cardCompact .panel {
   min-height: 178px;
+  border: 1px solid color-mix(in srgb, var(--landing-ink) 6%, transparent);
+  box-shadow:
+    0 14px 35px rgb(27 30 27 / 0.06),
+    0 1px 0 rgb(255 255 255 / 0.42) inset;
 }
 
 .cardCompact .stage {
@@ -793,7 +828,8 @@
 
 .badgeSwap {
   display: inline-grid;
-  justify-items: end;
+  align-items: center;
+  justify-items: center;
 }
 
 .badgeSwap > span {

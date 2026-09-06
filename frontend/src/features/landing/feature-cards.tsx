@@ -411,8 +411,8 @@ export function PolicyVisual() {
 
 export function HashVisual() {
   const ref = useRef<HTMLDivElement>(null);
-  const { active, reduceMotion } = useSceneActive(ref);
-  const phase = useCycle([1600, 2600], active);
+  const { active, reduceMotion } = useSceneActive(ref, 0.15);
+  const phase = useCycle([850, 2400], active);
   const resolved = reduceMotion || phase === 1;
 
   return (
@@ -457,8 +457,8 @@ export function HashVisual() {
 
 export function LockVisual() {
   const ref = useRef<HTMLDivElement>(null);
-  const { active, reduceMotion } = useSceneActive(ref);
-  const phase = useCycle([1800, 2600], active);
+  const { active, reduceMotion } = useSceneActive(ref, 0.15);
+  const phase = useCycle([950, 2400], active);
   const locked = reduceMotion || phase === 1;
 
   return (
@@ -495,8 +495,8 @@ export function LockVisual() {
 
 export function SnapshotVisual() {
   const ref = useRef<HTMLDivElement>(null);
-  const { active, reduceMotion } = useSceneActive(ref);
-  const phase = useCycle([1500, 1500, 2600], active);
+  const { active, reduceMotion } = useSceneActive(ref, 0.15);
+  const phase = useCycle([750, 900, 2400], active);
   const shown = reduceMotion ? 2 : phase;
   const sources = [
     ["quotes", "09:14:02"],
@@ -550,8 +550,8 @@ export function SnapshotVisual() {
 
 export function KeysVisual() {
   const ref = useRef<HTMLDivElement>(null);
-  const { active, reduceMotion } = useSceneActive(ref);
-  const phase = useCycle([1800, 2400], active);
+  const { active, reduceMotion } = useSceneActive(ref, 0.15);
+  const phase = useCycle([900, 2400], active);
   const checked = reduceMotion || phase === 1;
 
   return (

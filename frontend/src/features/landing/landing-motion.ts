@@ -20,17 +20,13 @@ export function useCycle(
   useEffect(() => {
     if (!running) return;
     const waits = schedule.split(",").map(Number);
-    const timer = setTimeout(
-      () => {
-        setState((current) => ({
-          phase:
-            ((current.key === resetKey ? current.phase : 0) + 1) %
-            waits.length,
-          key: resetKey,
-        }));
-      },
-      waits[phase] ?? 1000,
-    );
+    const timer = setTimeout(() => {
+      setState((current) => ({
+        phase:
+          ((current.key === resetKey ? current.phase : 0) + 1) % waits.length,
+        key: resetKey,
+      }));
+    }, waits[phase] ?? 1000);
     return () => clearTimeout(timer);
   }, [phase, running, resetKey, schedule]);
 
@@ -41,9 +37,12 @@ export function useCycle(
  * Whether an element is on screen and the viewer has not asked for reduced
  * motion. Scenes use this to start their loops only while they are visible.
  */
-export function useSceneActive(ref: RefObject<HTMLElement | null>) {
+export function useSceneActive(
+  ref: RefObject<HTMLElement | null>,
+  amount: number | "some" | "all" = 0.4,
+) {
   const reduceMotion = useReducedMotion();
-  const inView = useInView(ref, { amount: 0.4 });
+  const inView = useInView(ref, { amount });
   return {
     active: inView && !reduceMotion,
     reduceMotion: Boolean(reduceMotion),
