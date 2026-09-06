@@ -4,7 +4,9 @@ A local, single-user evaluation workbench: FastAPI backend in `backend/`, Next.j
 frontend in `frontend/`. Read [docs/architecture.md](docs/architecture.md) before
 adding a directory, [docs/extension-guide.md](docs/extension-guide.md) before
 adding an agent system, node handler, provider, or frontend feature, and
-[docs/design-system.md](docs/design-system.md) before changing anything visual.
+[docs/design-system.md](docs/design-system.md) before changing anything visual
+(its companion [docs/design-references.md](docs/design-references.md) records
+the measured values behind those rules).
 
 ## Rules that are enforced in code — do not work around them
 
