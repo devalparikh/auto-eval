@@ -11,6 +11,12 @@ the vein of **x.ai/bot** gave the components and nearly all of the motion. Where
 they conflict, the layout follows the first and the components follow the
 second.
 
+**[design-references.md](design-references.md) holds the research record**: the
+measured values from both pages, their keyframes verbatim, a mapping from each
+reference detail to where it lives in our code, and the places we deliberately
+diverged. Go there when you need to know *why* a number is what it is, or when
+you are extending a pattern and want the original proportions.
+
 ## The one rule
 
 **Show the product doing the thing.** Never draw a decorative icon where a
@@ -20,6 +26,9 @@ models shows bars growing past a target line. If you cannot make a visual that
 says something true about the product, use words and leave the space empty.
 
 ## What each reference contributed
+
+Summary only — [design-references.md](design-references.md) has the measured
+values and techniques behind each line.
 
 **From the workers.io side — page architecture:**
 
