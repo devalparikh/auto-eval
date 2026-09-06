@@ -29,7 +29,7 @@ export function TracesScreen({ systemKey }: { systemKey: string }) {
     <>
       <PageHeader
         title={`${system?.name ?? "Agent system"} traces`}
-        description="Inspect runs and add useful traces to a dataset."
+        description="Add useful traces to a dataset."
         action={
           <Link className="app-button" href={systemPath(systemKey, "run")}>
             <PlayIcon size={15} weight="fill" />

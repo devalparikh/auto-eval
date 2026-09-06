@@ -31,8 +31,8 @@ export function RunSavedInputs({
           Saved inputs
         </h3>
         <p className="mt-1 text-[10px] leading-5 text-[var(--text-muted)]">
-          Pick which saved output this run reads. Latest picks the newest one
-          when the run starts; an exact version replays that one every time.
+          Latest picks the newest one when the run starts; an exact version
+          replays that one every time.
         </p>
       </div>
       {loading ? (

@@ -45,8 +45,8 @@ export function RuntimeInputSnapshotArtifact({
         <div>
           <h2 className="text-[13px] font-semibold">Live data snapshots</h2>
           <p className="mt-1 text-[10px] leading-5 text-[var(--text-muted)]">
-            Data fetched from outside the app and saved. Real data shows its
-            shape only; sample data shows its full content.
+            Real data shows its shape only; sample data shows its full
+            content.
           </p>
         </div>
       </div>

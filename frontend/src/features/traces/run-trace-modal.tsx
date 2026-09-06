@@ -76,7 +76,6 @@ export function RunTraceModal({
     <Modal
       open={open}
       title="Run an agent request"
-      description={`Run ${system?.name ?? "this system"} with the selected graph and prompt versions.`}
       onClose={onClose}
     >
       {loading ? (

@@ -57,9 +57,8 @@ export function CostAccuracyChart({ rows }: { rows: ResultRow[] }) {
         <div>
           <h2 className="text-[13px] font-semibold">Accuracy vs. cost</h2>
           <p className="mt-0.5 text-[10px] text-[var(--text-muted)]">
-            Higher and further left is better. The shaded region holds
-            results at or above the median accuracy for at most the median
-            cost.
+            The shaded region holds results at or above the median accuracy
+            for at most the median cost.
           </p>
         </div>
         {points.length ? (

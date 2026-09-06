@@ -439,6 +439,6 @@ test("results render model metrics and scatter plot", async ({ page }) => {
   await expect(page.getByRole("heading", { name: /results/i })).toBeVisible();
   await expect(page.getByText("Model comparison")).toBeVisible();
   await expect(
-    page.getByRole("img", { name: "Scatter chart of total cost by accuracy" }),
+    page.getByRole("img", { name: "Scatter chart of accuracy by total cost" }),
   ).toBeVisible();
 });

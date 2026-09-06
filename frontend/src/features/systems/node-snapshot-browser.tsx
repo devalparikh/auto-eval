@@ -76,7 +76,7 @@ export function NodeSnapshotBrowser({
         <div>
           <h2 className="text-[13px] font-semibold">Snapshots</h2>
           <p className="mt-1 max-w-[68ch] text-[10px] leading-5 text-[var(--text-muted)]">
-            Saved copies of node output, grouped by the node that saved them.
+            Saved copies of node output.
           </p>
         </div>
         <span className="mono text-[9px] text-[var(--text-faint)]">
