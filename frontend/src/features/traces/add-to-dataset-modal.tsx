@@ -95,7 +95,6 @@ export function AddToDatasetModal({
     <Modal
       open={open}
       title="Review dataset example"
-      description="Choose a draft, then confirm the expected output."
       onClose={close}
     >
       {targets.loading ? <LoadingState rows={5} /> : null}

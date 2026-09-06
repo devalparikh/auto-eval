@@ -2,8 +2,9 @@
 
 A local, single-user evaluation workbench: FastAPI backend in `backend/`, Next.js
 frontend in `frontend/`. Read [docs/architecture.md](docs/architecture.md) before
-adding a directory, and [docs/extension-guide.md](docs/extension-guide.md) before
-adding an agent system, node handler, provider, or frontend feature.
+adding a directory, [docs/extension-guide.md](docs/extension-guide.md) before
+adding an agent system, node handler, provider, or frontend feature, and
+[docs/design-system.md](docs/design-system.md) before changing anything visual.
 
 ## Rules that are enforced in code — do not work around them
 

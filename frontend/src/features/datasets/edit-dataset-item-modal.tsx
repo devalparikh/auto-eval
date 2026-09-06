@@ -117,7 +117,7 @@ export function EditDatasetItemModal({
     <Modal
       open={Boolean(item)}
       title="Review expected output"
-      description="Edit the expected output. The saved inputs stay as they are."
+      description="The saved inputs stay as they are."
       onClose={close}
     >
       <form

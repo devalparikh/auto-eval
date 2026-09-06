@@ -121,7 +121,7 @@ function EvaluationsWorkbench({
     <>
       <PageHeader
         title={`Evaluate ${system.name}`}
-        description="Run the same examples and the same saved data across models."
+        description="Run the same examples and saved data across models."
       />
       <section className="grid gap-5 p-4 md:p-7 xl:grid-cols-[minmax(0,720px)_minmax(280px,1fr)]">
         <div className="overflow-hidden rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface)]">

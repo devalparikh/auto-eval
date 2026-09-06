@@ -167,10 +167,7 @@ export function RunWorkbench({
 
   return (
     <>
-      <PageHeader
-        title={pageTitle}
-        description="Choose a graph, prompt, and model, then run the request."
-      />
+      <PageHeader title={pageTitle} />
       <section className="grid gap-4 p-4 md:p-7">
         <form
           className="min-w-0 overflow-hidden rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface)]"
@@ -272,10 +269,6 @@ export function RunWorkbench({
                   >
                     Execution graph
                   </h3>
-                  <p className="mt-1 text-[10px] text-[var(--text-muted)]">
-                    Click a node to see what it does. Drag to pan, or use the
-                    controls to zoom.
-                  </p>
                 </div>
                 {selectedGraphVersion ? (
                   <span className="mono flex shrink-0 items-center gap-2 text-[9px] text-[var(--text-faint)]">
@@ -355,8 +348,7 @@ export function RunWorkbench({
                     Keep a copy of live data
                   </span>
                   <span className="mt-1 block text-[10px] leading-5 text-[var(--text-muted)]">
-                    Keep a copy of any live data this run fetches, so you can
-                    reuse it later.
+                    Keep a copy of any live data this run fetches.
                   </span>
                 </span>
               </label>
@@ -383,7 +375,7 @@ export function RunWorkbench({
                 className="text-[10px] text-[var(--text-faint)]"
               >
                 {isNodeResourceQuery
-                  ? "Edit the question and policy here. The portfolio comes from the saved input above, and live market data is fetched when the run starts."
+                  ? "The portfolio comes from the saved input above, and live market data is fetched when the run starts."
                   : "Prefilled from this system's example input."}
               </p>
             </div>
@@ -463,9 +455,6 @@ export function RunWorkbench({
           {submitting && !trace ? (
             <div className="p-4">
               <p className="text-[11px] font-medium">Executing graph</p>
-              <p className="mt-1 text-[10px] text-[var(--text-muted)]">
-                The trace will appear here when execution finishes.
-              </p>
               <div className="mt-5">
                 <LoadingState rows={5} />
               </div>
@@ -475,10 +464,6 @@ export function RunWorkbench({
           ) : (
             <div className="p-5">
               <p className="text-[11px] font-medium">No run in this session</p>
-              <p className="mt-1 max-w-[34ch] text-[10px] leading-5 text-[var(--text-muted)]">
-                Run the request to see its output, timing, tokens, and cost
-                here.
-              </p>
             </div>
           )}
         </section>

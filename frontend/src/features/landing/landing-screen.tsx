@@ -22,6 +22,7 @@ import {
 import { Highlight } from "@/features/landing/landing-highlight";
 import { LandingHotkeys } from "@/features/landing/landing-hotkeys";
 import { LandingReveal } from "@/features/landing/landing-reveal";
+import { StepMark } from "@/features/landing/step-marks";
 import { ProductPreview } from "@/features/landing/product-preview";
 import { TraceWaterfall } from "@/features/landing/trace-waterfall";
 import styles from "@/features/landing/landing.module.css";
@@ -39,7 +40,7 @@ const steps = [
     index: "02",
     title: "Run and inspect the trace",
     description:
-      "Every node, model call, input, output, token count, cost, and timing lands in one recorded run.",
+      "Every node, model call, input, output, token count, cost, and timing lands in one run.",
   },
   {
     index: "03",
@@ -51,7 +52,7 @@ const steps = [
     index: "04",
     title: "Test every model",
     description:
-      "Run the locked cases against each candidate and compare quality, cost, and latency side by side.",
+      "Run the locked cases against each candidate and compare quality, cost, and latency.",
   },
 ];
 
@@ -59,13 +60,13 @@ const integrationCards = [
   {
     title: "The manifest names the system",
     description:
-      "One small file declares the system key, default model, and where the graph and handlers live. AutoEval discovers the rest.",
+      "One file declares the system key, default model, and where the graph and handlers live. AutoEval discovers the rest.",
     visual: <ManifestVisual />,
   },
   {
     title: "The graph is the workflow",
     description:
-      "One path, typed by step. Deterministic steps replay, live steps read a frozen snapshot, and model steps call the candidate, so a trace reads the way the graph does.",
+      "One path, typed by step. Deterministic steps replay, live steps read a frozen snapshot, and model steps call the candidate.",
     visual: <GraphVisual />,
   },
   {
@@ -86,7 +87,7 @@ const provenanceCards = [
   {
     title: "Content hashes",
     description:
-      "Graphs and prompts are versioned by content. The same bytes always resolve to the same version, so nothing is edited in place.",
+      "Graphs and prompts are versioned by content. The same bytes resolve to the same version, so nothing is edited in place.",
     visual: <HashVisual />,
   },
   {
@@ -98,13 +99,13 @@ const provenanceCards = [
   {
     title: "Pinned snapshots",
     description:
-      "External data is captured once and frozen with the case. Rerun it next month and the run sees the same inputs, so a score change means the model changed, not the world.",
+      "External data is captured once and frozen with the case. Rerun it next month and it sees the same inputs, so a score change means the model changed, not the world.",
     visual: <SnapshotVisual />,
   },
   {
     title: "Keys stay in the backend",
     description:
-      "Provider credentials are read from the server environment only. Nothing secret is ever shipped to the browser bundle.",
+      "Provider credentials are read from the server environment only. Nothing secret ships to the browser bundle.",
     visual: <KeysVisual />,
   },
 ];
@@ -112,11 +113,11 @@ const provenanceCards = [
 const faqs = [
   [
     "Do I need a specific agent framework?",
-    "No. Add a code integration with your graph, handlers, scoring, and any trace rules your system needs. AutoEval runs what you register.",
+    "No. Add a code integration with your graph, handlers, scoring, and trace rules. AutoEval runs what you register.",
   ],
   [
     "Can I compare models and providers?",
-    "Yes. AutoEval runs the same finalized dataset against every model you select through one provider interface, then lines up quality, cost, and latency.",
+    "Yes. One provider interface runs the same finalized dataset against every model you select, then lines up quality, cost, and latency.",
   ],
   [
     "Can a finalized dataset change?",
@@ -124,7 +125,7 @@ const faqs = [
   ],
   [
     "Is AutoEval hosted?",
-    "No. The current app runs locally for one user and has no authentication. Keep both services on loopback and do not expose them to a network.",
+    "No. It runs locally for one user with no authentication. Keep both services on loopback.",
   ],
 ];
 
@@ -145,7 +146,10 @@ const footerColumns = [
       ["GitHub", GITHUB_URL],
       ["Architecture", `${GITHUB_URL}/blob/main/docs/architecture.md`],
       ["Extension guide", `${GITHUB_URL}/blob/main/docs/extension-guide.md`],
-      ["Security notes", `${GITHUB_URL}/blob/main/docs/code-security-review.md`],
+      [
+        "Security notes",
+        `${GITHUB_URL}/blob/main/docs/code-security-review.md`,
+      ],
     ],
   },
 ];
@@ -168,9 +172,8 @@ export function LandingScreen() {
           <div className={styles.heroRow}>
             <LandingReveal mode="load" delay={0.08} className={styles.heroCopy}>
               <p>
-                AutoEval runs your agent, records every node and model call,
-                and turns the reviewed runs into a locked dataset you can test
-                every model against.
+                Record every node and model call, keep the runs worth testing,
+                and compare models against the same locked dataset.
               </p>
             </LandingReveal>
             <LandingReveal mode="load" delay={0.16} className={styles.actions}>
@@ -224,9 +227,9 @@ export function LandingScreen() {
               <Highlight tone="coral">a repeatable test.</Highlight>
             </h2>
             <p>
-              A reviewed trace becomes a dataset item. AutoEval keeps the graph,
-              prompt, model, and runtime data attached, so the case can be rerun
-              exactly as it happened and compared across every candidate.
+              A reviewed trace becomes a dataset item with its graph, prompt,
+              model, and runtime data attached, so it reruns exactly as it
+              happened.
             </p>
             <Link href="/systems" className={styles.textLink}>
               <span aria-hidden="true">›</span> open an included system
@@ -239,6 +242,7 @@ export function LandingScreen() {
             <li key={step.index} className={styles.step}>
               <LandingReveal delay={index * 0.06} className={styles.stepInner}>
                 <span className={styles.eyebrow}>Step {step.index}</span>
+                <StepMark index={index} />
                 <h3>{step.title}</h3>
                 <p>{step.description}</p>
               </LandingReveal>
@@ -261,8 +265,8 @@ export function LandingScreen() {
             </h2>
             <p>
               Every run is recorded node by node: inputs, outputs, model calls,
-              token counts, cost, and timing. Failures show up with the exact
-              context that produced them, not a summary of it.
+              token counts, cost, and timing. Failures arrive with the context
+              that produced them.
             </p>
             <Link href="/systems" className={styles.textLink}>
               <span aria-hidden="true">›</span> inspect a sample trace
@@ -293,9 +297,8 @@ export function LandingScreen() {
               <Highlight tone="slate">you already have.</Highlight>
             </h2>
             <p>
-              Your package owns the graph and the domain logic. AutoEval runs
-              it, records the trace, and makes each result reproducible without
-              asking you to adopt a framework.
+              Your package owns the graph and the domain logic. AutoEval runs it
+              and records the trace. No framework to adopt.
             </p>
             <a
               href={`${GITHUB_URL}/blob/main/docs/extension-guide.md`}
@@ -337,9 +340,8 @@ export function LandingScreen() {
               <Highlight tone="blue">against the same truth.</Highlight>
             </h2>
             <p>
-              Point a finalized dataset at each candidate and let the same
-              cases run. Open any result behind the total score to see where a
-              model passed, failed, slowed down, or cost more.
+              Point a finalized dataset at each candidate. Open any total score
+              to see where a model passed, failed, slowed down, or cost more.
             </p>
             <Link href="/systems" className={styles.textLink}>
               <span aria-hidden="true">›</span> start a comparison
@@ -376,8 +378,8 @@ export function LandingScreen() {
             </h2>
             <p>
               Evaluations pin the graph, prompt, model, dataset, and runtime
-              snapshots before work starts. Versions are immutable, so a score
-              from last month still means what it meant then.
+              snapshots before work starts. Versions are immutable, so last
+              month&rsquo;s score still means what it meant then.
             </p>
           </LandingReveal>
           <div className={`${styles.cardGrid} ${styles.cardGridFour}`}>
@@ -406,10 +408,7 @@ export function LandingScreen() {
           <LandingReveal className={styles.faqTitle}>
             <span className={styles.eyebrow}>Questions</span>
             <h2 id="faq-title">Questions, answered.</h2>
-            <p>
-              Everything else lives in the repository docs, next to the code it
-              describes.
-            </p>
+            <p>Everything else lives in the repository docs.</p>
           </LandingReveal>
           <LandingReveal delay={0.06} className={styles.faqList}>
             {faqs.map(([question, answer], index) => (

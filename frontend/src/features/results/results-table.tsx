@@ -32,9 +32,6 @@ export function ResultsTable({
       <div className="flex items-center justify-between border-b border-[var(--border)] px-4 py-3">
         <div>
           <h2 className="text-[13px] font-semibold">Model comparison</h2>
-          <p className="mt-0.5 text-[10px] text-[var(--text-muted)]">
-            Quality metrics come from this system&apos;s registered scoring suite.
-          </p>
         </div>
         <span className="mono text-[10px] text-[var(--text-muted)]">
           {rows.length} results
