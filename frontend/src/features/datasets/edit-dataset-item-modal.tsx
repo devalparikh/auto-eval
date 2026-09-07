@@ -119,6 +119,7 @@ export function EditDatasetItemModal({
       title="Review expected output"
       description="The saved inputs stay as they are."
       onClose={close}
+      size="wide"
     >
       <form
         onSubmit={submit}

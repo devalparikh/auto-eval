@@ -2,6 +2,7 @@
 
 import {
   BracketsCurlyIcon,
+  CaretDownIcon,
   CloudArrowDownIcon,
   DatabaseIcon,
   WaveformIcon,
@@ -24,10 +25,12 @@ export function GraphNodeDetails({
   view,
   action,
   children,
+  configurationCollapsed = false,
 }: {
   view: GraphNodeView;
   action?: ReactNode;
   children?: ReactNode;
+  configurationCollapsed?: boolean;
 }) {
   const Icon = icons[view.type];
   const accent = `var(--node-${view.type})`;
@@ -40,6 +43,43 @@ export function GraphNodeDetails({
     Boolean(row.value),
   );
 
+  const configuration = (
+    <>
+      <dl className="grid min-w-0 grid-cols-2 border-b border-[var(--border)] md:grid-cols-3">
+        {view.facts.map((fact) => (
+          <div
+            key={`${fact.label}-${fact.value}`}
+            className="min-w-0 border-r border-b border-[var(--border)] px-3 py-2.5 last:border-r-0"
+          >
+            <dt className="text-[9px] text-[var(--text-faint)]">
+              {fact.label}
+            </dt>
+            <dd
+              className="mono mt-1 min-w-0 break-words text-[10px] font-medium [overflow-wrap:anywhere]"
+              title={fact.value}
+            >
+              {fact.value}
+            </dd>
+          </div>
+        ))}
+      </dl>
+      {dataRows.length ? (
+        <dl className="min-w-0 border-b border-[var(--border)] px-4 py-3">
+          {dataRows.map((row) => (
+            <div key={row.label} className="flex min-w-0 gap-3 py-1">
+              <dt className="w-[104px] shrink-0 text-[10px] text-[var(--text-faint)]">
+                {row.label}
+              </dt>
+              <dd className="min-w-0 break-words text-[10px] leading-5 text-[var(--text-muted)]">
+                {row.value}
+              </dd>
+            </div>
+          ))}
+        </dl>
+      ) : null}
+    </>
+  );
+
   return (
     <section
       aria-label={`${view.label} details`}
@@ -48,13 +88,18 @@ export function GraphNodeDetails({
       <header className="flex items-start justify-between gap-4 border-b border-[var(--border)] px-4 py-3">
         <div className="flex min-w-0 items-start gap-2.5">
           <span
-            style={{ background: `var(--node-${view.type}-soft)`, color: accent }}
+            style={{
+              background: `var(--node-${view.type}-soft)`,
+              color: accent,
+            }}
             className="grid size-7 shrink-0 place-items-center rounded-[8px]"
           >
             <Icon size={14} weight="bold" aria-hidden />
           </span>
           <div className="min-w-0">
-            <h3 className="truncate text-[12px] font-semibold">{view.label}</h3>
+            <h3 className="min-w-0 break-words text-[12px] font-semibold [overflow-wrap:anywhere]">
+              {view.label}
+            </h3>
             <p style={{ color: accent }} className="mono mt-0.5 text-[9px]">
               {view.typeLabel}
             </p>
@@ -74,38 +119,17 @@ export function GraphNodeDetails({
         </div>
         {action}
       </header>
-      <dl className="grid grid-cols-2 border-b border-[var(--border)] md:grid-cols-3">
-        {view.facts.map((fact) => (
-          <div
-            key={`${fact.label}-${fact.value}`}
-            className="min-w-0 border-r border-b border-[var(--border)] px-3 py-2.5 last:border-r-0"
-          >
-            <dt className="text-[9px] text-[var(--text-faint)]">
-              {fact.label}
-            </dt>
-            <dd
-              className="mono mt-1 truncate text-[10px] font-medium"
-              title={fact.value}
-            >
-              {fact.value}
-            </dd>
-          </div>
-        ))}
-      </dl>
-      {dataRows.length ? (
-        <dl className="border-b border-[var(--border)] px-4 py-3">
-          {dataRows.map((row) => (
-            <div key={row.label} className="flex gap-3 py-1">
-              <dt className="w-[104px] shrink-0 text-[10px] text-[var(--text-faint)]">
-                {row.label}
-              </dt>
-              <dd className="min-w-0 text-[10px] leading-5 text-[var(--text-muted)]">
-                {row.value}
-              </dd>
-            </div>
-          ))}
-        </dl>
-      ) : null}
+      {configurationCollapsed ? (
+        <details className="min-w-0">
+          <summary className="flex min-w-0 cursor-pointer list-none items-center justify-between gap-3 border-b border-[var(--border)] px-4 py-2.5 text-[10px] font-medium text-[var(--text-muted)]">
+            <span>Node configuration</span>
+            <CaretDownIcon size={13} className="shrink-0" aria-hidden />
+          </summary>
+          {configuration}
+        </details>
+      ) : (
+        configuration
+      )}
       {children}
     </section>
   );

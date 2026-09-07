@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowRightIcon, PlayIcon } from "@phosphor-icons/react";
+import { ArrowRightIcon, ArrowsOutIcon, PlayIcon } from "@phosphor-icons/react";
 import Link from "next/link";
 import { useState, type FormEvent } from "react";
 import { CatalogGate } from "@/components/catalog-gate";
@@ -9,7 +9,11 @@ import { PageHeader } from "@/components/page-header";
 import { Select } from "@/components/select";
 import { LoadingState } from "@/components/states";
 import { StatusBadge } from "@/components/status-badge";
-import { graphVersions, promptVersions } from "@/features/catalog/catalog-options";
+import { Modal } from "@/components/modal";
+import {
+  graphVersions,
+  promptVersions,
+} from "@/features/catalog/catalog-options";
 import {
   inputTemplateForRun,
   modelsForSystem,
@@ -23,7 +27,6 @@ import {
   promptForGraphKey,
   promptKeysForGraph,
 } from "@/features/systems/graph-prompts";
-import { RuntimeInputNotice } from "@/features/systems/runtime-input-notice";
 import { systemPath } from "@/features/systems/system-path";
 import { api } from "@/lib/api";
 import { formatCost, formatDate, formatDuration, shortId } from "@/lib/format";
@@ -73,6 +76,10 @@ export function RunWorkbench({
   const [selectedModelId, setSelectedModelId] = useState(models[0]?.id ?? "");
   const [submitting, setSubmitting] = useState(false);
   const [captureNodeOutputs, setCaptureNodeOutputs] = useState(false);
+  const [selectedRunNodeId, setSelectedRunNodeId] = useState<string | null>(
+    null,
+  );
+  const [inputExpanded, setInputExpanded] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [trace, setTrace] = useState<Trace | null>(null);
   const graphDetail = useApiResource(
@@ -88,6 +95,14 @@ export function RunWorkbench({
   const graphVersionIsCurrent = graphDetail.data?.id === selectedGraphVersionId;
   const graphVersionIsChanging = graphDetail.loading || !graphVersionIsCurrent;
   const savedInputs = useRunSavedInputs(graphDefinition);
+  const activeRunNodeId =
+    selectedRunNodeId &&
+    graphDefinition?.nodes.some((node) => node.id === selectedRunNodeId)
+      ? selectedRunNodeId
+      : (graphDefinition?.entry_point ?? "");
+  const activeSavedInputNode = savedInputs.savedInputNodes.find(
+    (node) => node.id === activeRunNodeId,
+  );
   const hasRefreshNodes =
     graphDefinition?.nodes.some(
       (node) => node.runtime_input_policy?.runtime_mode === "refresh",
@@ -187,9 +202,10 @@ export function RunWorkbench({
                   value={selectedGraphVersionId}
                   disabled={submitting || graphs.length === 0}
                   required
-                  onChange={(event) =>
-                    setSelectedGraphVersionId(event.target.value)
-                  }
+                  onChange={(event) => {
+                    setSelectedGraphVersionId(event.target.value);
+                    setSelectedRunNodeId(null);
+                  }}
                 >
                   {graphs.map((version) => (
                     <option key={version.id} value={version.id}>
@@ -299,6 +315,28 @@ export function RunWorkbench({
                       definition={graphDefinition}
                       resourceSelections={savedInputs.selections}
                       captureNodeOutputs={captureNodeOutputs}
+                      selectedNodeId={activeRunNodeId}
+                      onSelectNode={setSelectedRunNodeId}
+                      selectedNodeContent={
+                        activeSavedInputNode ? (
+                          <RunSavedInputs
+                            node={activeSavedInputNode}
+                            choices={
+                              savedInputs.choices[activeSavedInputNode.id] ?? []
+                            }
+                            selectedToken={
+                              savedInputs.selectedChoiceTokens[
+                                activeSavedInputNode.id
+                              ] ?? ""
+                            }
+                            loading={savedInputs.loading}
+                            submitting={submitting}
+                            onSelect={(token) =>
+                              savedInputs.select(activeSavedInputNode.id, token)
+                            }
+                          />
+                        ) : null
+                      }
                     />
                   </div>
                 ) : (
@@ -321,17 +359,6 @@ export function RunWorkbench({
               </div>
             </section>
 
-            <RunSavedInputs
-              nodes={savedInputs.savedInputNodes}
-              choices={savedInputs.choices}
-              selectedTokens={savedInputs.selectedChoiceTokens}
-              loading={savedInputs.loading}
-              submitting={submitting}
-              onSelect={savedInputs.select}
-            />
-
-            <RuntimeInputNotice definition={graphDefinition} context="run" />
-
             {hasRefreshNodes ? (
               <label className="rounded-[var(--radius)] flex cursor-pointer items-start gap-3 border border-[var(--border)] bg-[var(--surface-muted)] px-3 py-3">
                 <input
@@ -345,21 +372,34 @@ export function RunWorkbench({
                 />
                 <span>
                   <span className="block text-[11px] font-medium">
-                    Keep a copy of live data
+                    Save live data for replay
                   </span>
                   <span className="mt-1 block text-[10px] leading-5 text-[var(--text-muted)]">
-                    Keep a copy of any live data this run fetches.
+                    {captureNodeOutputs
+                      ? "When needed, this run fetches fresh data with either setting. If a live-data node uses it, this run saves a snapshot for later evaluation."
+                      : "When needed, this run fetches fresh data with either setting. If a live-data node uses it, this trace cannot be added to a dataset."}
                   </span>
                 </span>
               </label>
             ) : null}
 
             <div className="field">
-              <label htmlFor="run-input">
-                {isNodeResourceQuery
-                  ? "Advanced query input (JSON)"
-                  : "Request input (JSON)"}
-              </label>
+              <div className="flex items-center justify-between gap-3">
+                <label htmlFor="run-input">
+                  {isNodeResourceQuery
+                    ? "Advanced query input (JSON)"
+                    : "Request input (JSON)"}
+                </label>
+                <button
+                  type="button"
+                  className="flex items-center gap-1.5 text-[10px] font-medium text-[var(--text-muted)] transition-colors hover:text-[var(--text)]"
+                  disabled={submitting}
+                  onClick={() => setInputExpanded(true)}
+                >
+                  <ArrowsOutIcon size={12} aria-hidden="true" />
+                  Expand editor
+                </button>
+              </div>
               <textarea
                 id="run-input"
                 className="app-textarea mono min-h-[280px] text-[11px]"
@@ -375,7 +415,7 @@ export function RunWorkbench({
                 className="text-[10px] text-[var(--text-faint)]"
               >
                 {isNodeResourceQuery
-                  ? "The portfolio comes from the saved input above, and live market data is fetched when the run starts."
+                  ? "Select the saved portfolio on its graph node. When needed, the run fetches fresh market data."
                   : "Prefilled from this system's example input."}
               </p>
             </div>
@@ -468,6 +508,32 @@ export function RunWorkbench({
           )}
         </section>
       </section>
+      <Modal
+        open={inputExpanded}
+        size="fullscreen"
+        title={
+          isNodeResourceQuery
+            ? "Advanced query input (JSON)"
+            : "Request input (JSON)"
+        }
+        description="Changes here also update the run form."
+        onClose={() => setInputExpanded(false)}
+      >
+        <div className="h-[calc(100dvh-8rem)] p-5">
+          <textarea
+            aria-label={
+              isNodeResourceQuery
+                ? "Expanded advanced query input (JSON)"
+                : "Expanded request input (JSON)"
+            }
+            className="app-textarea mono h-full min-h-0 w-full text-[11px]"
+            value={input}
+            disabled={submitting}
+            spellCheck={false}
+            onChange={(event) => setInput(event.target.value)}
+          />
+        </div>
+      </Modal>
     </>
   );
 }

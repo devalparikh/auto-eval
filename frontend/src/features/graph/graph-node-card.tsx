@@ -2,6 +2,7 @@
 
 import {
   BracketsCurlyIcon,
+  CheckIcon,
   CloudArrowDownIcon,
   DatabaseIcon,
   WaveformIcon,
@@ -43,12 +44,15 @@ export function GraphNodeCard({
   const soft = `var(--node-${view.type}-soft)`;
   return (
     <div
-      style={{ width, borderLeftColor: accent }}
-      className={`relative rounded-[8px] border border-l-2 bg-[var(--surface-raised)] p-3 shadow-[0_14px_40px_rgba(0,0,0,0.22)] transition-[border-color,box-shadow] duration-150 ${
-        selected
-          ? "border-[var(--accent)] shadow-[0_0_0_1px_var(--accent),0_18px_45px_rgba(0,0,0,0.3)]"
-          : "border-[var(--border-strong)]"
-      }`}
+      data-selected={selected}
+      style={{
+        width,
+        background: `color-mix(in srgb, var(--surface-raised) 94%, ${accent})`,
+        borderColor: selected
+          ? "var(--accent)"
+          : `color-mix(in srgb, var(--border-strong) 78%, ${accent})`,
+      }}
+      className="graph-node-card relative rounded-[8px] border p-3 shadow-[0_14px_40px_rgba(0,0,0,0.22)]"
     >
       <Handle
         type="target"
@@ -63,12 +67,15 @@ export function GraphNodeCard({
           <Icon size={14} weight="bold" aria-hidden />
         </span>
         <span className="min-w-0 flex-1">
-          <span className="block truncate text-[12px] font-semibold">
+          <span
+            className="block truncate text-[12px] font-semibold"
+            title={view.label}
+          >
             {view.label}
           </span>
           <span
             style={{ color: accent }}
-            className="mono mt-0.5 block truncate text-[8px] tracking-[0.04em]"
+            className="mono mt-0.5 inline-flex max-w-full items-center rounded-[4px] border border-[var(--border)] px-1.5 py-0 text-[8px] font-medium leading-[10px] tracking-[0.04em]"
           >
             {view.typeLabel}
           </span>
@@ -90,7 +97,18 @@ export function GraphNodeCard({
         </div>
       ) : null}
       {footer ? (
-        <div className="mt-2 border-t border-[var(--border)] pt-2">{footer}</div>
+        <div className="mt-2 border-t border-[var(--border)] pt-2">
+          {footer}
+        </div>
+      ) : null}
+      {selected ? (
+        <span
+          aria-hidden
+          style={{ color: accent }}
+          className="absolute -right-1.5 -top-1.5 grid size-4 place-items-center rounded-full border border-[var(--border-strong)] bg-[var(--surface-raised)] shadow-[0_2px_8px_rgba(0,0,0,0.22)]"
+        >
+          <CheckIcon size={9} weight="bold" />
+        </span>
       ) : null}
       <Handle
         type="source"

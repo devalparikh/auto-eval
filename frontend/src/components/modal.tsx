@@ -18,7 +18,7 @@ export function Modal({
   description?: string;
   onClose: () => void;
   children: ReactNode;
-  size?: "default" | "fullscreen";
+  size?: "default" | "wide" | "fullscreen";
 }) {
   const reduceMotion = useReducedMotion();
   const dialogRef = useRef<HTMLDivElement>(null);
@@ -86,9 +86,11 @@ export function Modal({
             aria-modal="true"
             aria-labelledby="modal-title"
             aria-describedby={description ? "modal-description" : undefined}
-            className={`w-full overflow-y-auto rounded-[var(--radius)] border border-[var(--border-strong)] bg-[var(--surface-raised)] shadow-[0_28px_90px_rgba(0,0,0,0.45)] ${
+            className={`min-w-0 w-full max-w-[calc(100vw-2rem)] overflow-y-auto rounded-[var(--radius)] border border-[var(--border-strong)] bg-[var(--surface-raised)] shadow-[0_28px_90px_rgba(0,0,0,0.45)] ${
               size === "fullscreen"
                 ? "h-[calc(100dvh-2rem)] max-h-[calc(100dvh-2rem)] max-w-[calc(100vw-2rem)]"
+                : size === "wide"
+                  ? "max-w-[760px]"
                 : "max-h-[88dvh] max-w-[560px]"
             }`}
             initial={reduceMotion ? false : { opacity: 0, scale: 0.97, y: 8 }}
@@ -96,8 +98,8 @@ export function Modal({
             exit={{ opacity: 0, scale: 0.98, y: 6 }}
             transition={{ duration: 0.18, ease: [0.23, 1, 0.32, 1] }}
           >
-            <div className="flex items-start justify-between gap-4 border-b border-[var(--border)] px-5 py-4">
-              <div>
+            <div className="flex min-w-0 items-start justify-between gap-4 border-b border-[var(--border)] px-5 py-4">
+              <div className="min-w-0">
                 <h2
                   id="modal-title"
                   className="text-[16px] font-semibold tracking-[-0.02em]"

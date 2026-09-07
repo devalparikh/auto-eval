@@ -1,5 +1,8 @@
 # todo
 
+local inference (running model via LMStudio (did we already research?))
+
+ux agent graph editor
 
 data structure:
 - i want the traces to either be single go through of a agent system 

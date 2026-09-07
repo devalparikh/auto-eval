@@ -1,7 +1,7 @@
 "use client";
 
 import type { Edge, Node, NodeProps } from "@xyflow/react";
-import { useMemo, useState } from "react";
+import { useMemo, type ReactNode } from "react";
 import { GraphCanvas } from "@/components/graph-canvas";
 import { GraphLegend, GraphNodeCard } from "@/features/graph/graph-node-card";
 import {
@@ -46,10 +46,14 @@ export function buildRunGraphPreview(
       .filter((edge) => edge.source === definitionNode.id)
       .map((edge) => edge.target);
     levelCounts.set(level, index + 1);
+    const selection = resourceSelections[definitionNode.id];
     const view = graphNodeView(definitionNode, {
       entry: definitionNode.id === definition.entry_point,
       output: definitionNode.id === definition.output_node,
-      selection: resourceSelections[definitionNode.id],
+      selection,
+      missingRequiredSelection: Boolean(
+        definitionNode.resource_policy?.required && !selection,
+      ),
       nextNodeIds: targets,
     });
     return {
@@ -79,21 +83,17 @@ export function RunGraphPreview({
   definition,
   resourceSelections,
   captureNodeOutputs,
+  selectedNodeId,
+  selectedNodeContent,
+  onSelectNode,
 }: {
   definition: GraphDefinition;
   resourceSelections: Record<string, NodeResourceSelection>;
   captureNodeOutputs: boolean;
+  selectedNodeId: string;
+  selectedNodeContent?: ReactNode;
+  onSelectNode: (nodeId: string) => void;
 }) {
-  const [selectedNodeId, setSelectedNodeId] = useState(definition.entry_point);
-  const [shownEntryPoint, setShownEntryPoint] = useState(definition.entry_point);
-
-  // A different graph means a different set of nodes: fall back to its entry
-  // point rather than keeping a selection that no longer exists.
-  if (shownEntryPoint !== definition.entry_point) {
-    setShownEntryPoint(definition.entry_point);
-    setSelectedNodeId(definition.entry_point);
-  }
-
   const { nodes, edges } = useMemo(
     () => buildRunGraphPreview(definition, resourceSelections, selectedNodeId),
     [definition, resourceSelections, selectedNodeId],
@@ -105,8 +105,8 @@ export function RunGraphPreview({
   const snapshotPolicy = selectedView?.definition.snapshot_policy;
   const keepsOptionalCopy = Boolean(
     snapshotPolicy &&
-      snapshotPolicy.binding_mode !== "consume" &&
-      !snapshotPolicy.required,
+    snapshotPolicy.binding_mode !== "consume" &&
+    !snapshotPolicy.required,
   );
 
   return (
@@ -122,7 +122,7 @@ export function RunGraphPreview({
         minZoom={0.12}
         maxZoom={1.4}
         elementsSelectable
-        onNodeClick={(_, node) => setSelectedNodeId(node.id)}
+        onNodeClick={(_, node) => onSelectNode(node.id)}
         translateExtent={[
           [-320, -260],
           [maximumX + nodeWidth + 320, maximumY + nodeHeight + 260],
@@ -134,10 +134,11 @@ export function RunGraphPreview({
             {keepsOptionalCopy ? (
               <p className="px-4 py-3 text-[10px] leading-5 text-[var(--text-muted)]">
                 {captureNodeOutputs
-                  ? "This run keeps a copy of this node's output."
-                  : "This run does not keep a copy of this node's output."}
+                  ? "If this node uses live data, this run saves it for replay."
+                  : "If this node uses live data, this trace cannot be added to a dataset."}
               </p>
             ) : null}
+            {selectedNodeContent}
           </GraphNodeDetails>
         ) : (
           <GraphNodeDetailsEmpty />
@@ -149,6 +150,10 @@ export function RunGraphPreview({
 
 function RunPreviewNode({ data }: NodeProps<Node<RunPreviewNodeData>>) {
   return (
-    <GraphNodeCard view={data.view} selected={data.selected} width={nodeWidth} />
+    <GraphNodeCard
+      view={data.view}
+      selected={data.selected}
+      width={nodeWidth}
+    />
   );
 }

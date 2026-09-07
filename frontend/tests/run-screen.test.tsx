@@ -437,15 +437,40 @@ describe("RunWorkbench", () => {
         limit: 500,
       }),
     );
-    const resource = screen.getByLabelText("Saved input version");
+    let resource = screen.getByLabelText("Saved input version");
     expect(resource).toHaveValue("current:main_synthetic_portfolio");
+    expect(
+      screen.getByText(/Latest resolves when the run starts/),
+    ).toBeVisible();
+    expect(screen.queryByText("Saved inputs")).not.toBeInTheDocument();
+    expect(screen.queryByText(/Node:/)).not.toBeInTheDocument();
     expect(screen.getByText("Uses the newest saved version.")).toBeVisible();
     const capture = screen.getByRole("checkbox", {
-      name: /Keep a copy of live data/,
+      name: /Save live data for replay/,
     });
     expect(capture).not.toBeChecked();
+    expect(
+      screen.getByText(/When needed, this run fetches fresh data/),
+    ).toBeVisible();
+    expect(screen.queryByText("Live data in this run")).not.toBeInTheDocument();
+    expect(screen.getByText(/cannot be added to a dataset/)).toBeVisible();
+
+    fireEvent.click(screen.getByLabelText(/^Load current options, Live data/));
+    expect(
+      screen.queryByLabelText("Saved input version"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByText(/If this node uses live data, this trace cannot/),
+    ).toBeVisible();
+    fireEvent.click(
+      screen.getByLabelText(/^Get indexed portfolio, Saved data/),
+    );
+    resource = screen.getByLabelText("Saved input version");
 
     const advancedInput = screen.getByLabelText("Advanced query input (JSON)");
+    expect(
+      screen.getByText(/Select the saved portfolio on its graph node/),
+    ).toBeVisible();
     expect((advancedInput as HTMLTextAreaElement).value).not.toContain(
       "snapshot_id",
     );
@@ -470,6 +495,16 @@ describe("RunWorkbench", () => {
       },
     });
     fireEvent.click(capture);
+    expect(
+      screen.getByText(/saves a snapshot for later evaluation/),
+    ).toBeVisible();
+    fireEvent.click(screen.getByLabelText(/^Load current options, Live data/));
+    expect(
+      screen.queryByLabelText("Saved input version"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByText(/If this node uses live data, this run saves it/),
+    ).toBeVisible();
     fireEvent.click(screen.getByRole("button", { name: "Run inference" }));
 
     await waitFor(() =>
@@ -489,6 +524,31 @@ describe("RunWorkbench", () => {
           capture_node_outputs: true,
         }),
       ),
+    );
+  });
+
+  it("edits the same request input in the expanded editor", async () => {
+    render(
+      <RunWorkbench catalog={catalog} system={system} systemKey={system.key} />,
+    );
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: "Run inference" }),
+      ).toBeEnabled(),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Expand editor" }));
+    const expanded = screen.getByLabelText("Expanded request input (JSON)");
+    fireEvent.change(expanded, {
+      target: { value: '{"question":"Edited while expanded."}' },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Close" }));
+    await waitFor(() =>
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
+    );
+
+    expect(screen.getByLabelText("Request input (JSON)")).toHaveValue(
+      '{"question":"Edited while expanded."}',
     );
   });
 

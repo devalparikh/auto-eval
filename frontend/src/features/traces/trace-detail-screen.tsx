@@ -5,6 +5,8 @@ import Link from "next/link";
 import { useState } from "react";
 import { CatalogGate } from "@/components/catalog-gate";
 import { PageHeader } from "@/components/page-header";
+import { JsonViewer } from "@/components/json-viewer";
+import { Select } from "@/components/select";
 import { ErrorState, LoadingState } from "@/components/states";
 import { StatusBadge } from "@/components/status-badge";
 import { AddToDatasetModal } from "@/features/traces/add-to-dataset-modal";
@@ -61,7 +63,7 @@ export function TraceDetailScreen({
         <>
           <PageHeader
             title={`Trace ${shortId(currentTrace.id)}`}
-            description={textPreview(currentTrace.request_input)}
+            description={textPreview(currentTrace.request_input, system.name)}
             action={
               <button
                 className="app-button secondary"
@@ -104,12 +106,14 @@ export function TraceDetailScreen({
                 value={currentTrace.model_id.split("/").slice(-1)[0]}
               />
               <Metric
-                label="Node outputs"
-                value={currentTrace.capture_node_outputs ? "saved" : "not saved"}
+                label="Save live data"
+                value={currentTrace.capture_node_outputs === undefined ? "not recorded" : currentTrace.capture_node_outputs ? "enabled for this run" : "off for this run"}
               />
             </div>
           </section>
-          <section className="grid gap-3 border-b border-[var(--border)] bg-[var(--surface)] px-4 py-3 md:grid-cols-2 md:px-7">
+          <details className="min-w-0 border-b border-[var(--border)] bg-[var(--surface)] px-4 py-3 md:px-7">
+            <summary className="cursor-pointer text-[12px] text-[var(--text-muted)]">Request and run details</summary>
+            <div className="mt-3 grid min-w-0 gap-3 md:grid-cols-2">
             <ProvenanceBlock
               label="Started by"
               value={
@@ -144,14 +148,21 @@ export function TraceDetailScreen({
                   : "Not in a dataset"
               }
             />
-          </section>
-          <div className="grid min-h-0 xl:grid-cols-[minmax(0,1fr)_380px]">
-            <section className="min-w-0 border-b border-[var(--border)] xl:border-r xl:border-b-0">
-              <div className="flex h-11 items-center justify-between border-b border-[var(--border)] bg-[var(--surface)] px-4">
+            <div className="min-w-0 md:col-span-2">
+              <JsonViewer label="Request input" value={currentTrace.request_input} />
+            </div>
+            </div>
+          </details>
+          <div className="grid min-h-0 min-w-0 grid-cols-[minmax(0,1fr)]">
+            <section className="min-w-0 border-b border-[var(--border)]">
+              <div className="flex min-h-11 flex-wrap items-center justify-between gap-2 border-b border-[var(--border)] bg-[var(--surface)] px-4 py-2">
                 <h2 className="text-[12px] font-semibold">Execution graph</h2>
-                <span className="text-[11px] text-[var(--text-muted)]">
-                  {currentTrace.spans.length} nodes
-                </span>
+                <div className="flex min-w-0 max-w-full items-center gap-2">
+                  <label htmlFor="trace-selected-node" className="shrink-0 text-[11px] text-[var(--text-muted)]">Inspect node</label>
+                  <Select id="trace-selected-node" className="max-w-[340px]" value={activeNodeId ?? ""} onChange={(event) => setSelectedNodeId(event.target.value)}>
+                    {(definition?.nodes ?? currentTrace.spans.map((span) => ({ id: span.node_id, label: span.node_id.replaceAll("_", " ") }))).map((node, index) => <option key={node.id} value={node.id}>{index + 1}. {node.label}</option>)}
+                  </Select>
+                </div>
               </div>
               <TraceGraph
                 trace={currentTrace}

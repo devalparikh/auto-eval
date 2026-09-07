@@ -60,9 +60,12 @@ describe("agent graph", () => {
     expect(graph.nodes[0]?.data.view.type).toBe("live");
     expect(graph.nodes[0]?.data.view.badges).toEqual([
       "Start",
-      "Saves output",
+      "Can save output",
       "Optional",
     ]);
+    expect(graph.nodes[0]?.data.view.dataFlow.writes).toBe(
+      "Can save a copy as options chain.",
+    );
     expect(graph.nodes[0]?.ariaLabel).toContain("Fetch options chain");
     expect(graph.nodes[0]?.ariaLabel).toContain("Live data");
     expect(graph.nodes[0]?.ariaLabel).toContain("Start");

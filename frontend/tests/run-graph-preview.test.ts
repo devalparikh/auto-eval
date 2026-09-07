@@ -63,6 +63,21 @@ describe("run graph node types", () => {
     expect(exact.type).toBe("saved");
     expect(latest.dataFlow.onRun).toBe("Uses the newest saved version.");
     expect(exact.dataFlow.onRun).toBe("Uses one exact saved version.");
+
+    const missing = buildRunGraphPreview(
+      {
+        entry_point: resourceNode.id,
+        output_node: resourceNode.id,
+        nodes: [resourceNode],
+        edges: [],
+      },
+      {},
+      resourceNode.id,
+    ).nodes[0]?.data.view;
+    expect(missing?.badges).toContain("Needs saved input");
+    expect(missing?.dataFlow.onRun).toBe(
+      "Choose a saved version before running.",
+    );
   });
 
   it("builds a bounded left-to-right graph with accessible node semantics", () => {

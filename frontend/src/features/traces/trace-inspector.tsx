@@ -14,9 +14,10 @@ import {
   GraphNodeDetailsEmpty,
 } from "@/features/graph/node-details";
 import { graphNodeView } from "@/features/graph/node-view";
+import { snapshotUse } from "@/features/traces/snapshot-use";
 import { systemPath } from "@/features/systems/system-path";
 import { api } from "@/lib/api";
-import { formatCost, formatDate, formatDuration, shortId } from "@/lib/format";
+import { formatCost, formatDate, formatDuration } from "@/lib/format";
 import type { GraphNodeDefinition, TraceSpan } from "@/lib/types";
 import { useApiResource } from "@/lib/use-api-resource";
 
@@ -56,8 +57,9 @@ export function TraceInspector({
     );
   }
 
+  const usage = snapshotUse(span, node);
   return (
-    <GraphNodeDetails view={view} action={<StatusBadge status={span.status} />}>
+    <GraphNodeDetails view={view} configurationCollapsed action={<StatusBadge status={span.status} />}>
       <div className="grid grid-cols-3 border-b border-[var(--border)]">
         <InspectorMetric
           label="Latency"
@@ -69,22 +71,19 @@ export function TraceInspector({
           value={`${span.input_tokens + span.output_tokens}`}
         />
       </div>
-      <InspectorSection label="Input">
-        <JsonBlock value={span.input} />
-      </InspectorSection>
       {span.node_snapshot_id || span.runtime_input_snapshot_id ? (
-        <NodeSnapshotUse span={span} systemKey={systemKey} />
-      ) : span.node_kind === "deterministic" ||
-        span.node_kind === "external_input" ? (
-        <InspectorSection label="Snapshot">
-          <p className="text-[10px] font-semibold text-[var(--text-muted)]">
-            Nothing saved
+        <NodeSnapshotUse key={span.node_snapshot_id ?? span.runtime_input_snapshot_id} span={span} systemKey={systemKey} />
+      ) : usage ? (
+        <InspectorSection label="Data used in this execution">
+          <p className="text-[13px] font-medium">
+            {usage.label}
           </p>
+          <p className="mt-1 max-w-[80ch] text-[12px] leading-5 text-[var(--text-muted)]">{usage.detail}</p>
           {span.snapshot_metadata &&
           Object.keys(span.snapshot_metadata).length ? (
             <details className="mt-2 rounded-[8px] border border-[var(--border)] px-3 py-2">
               <summary className="cursor-pointer text-[9px] font-medium text-[var(--text-muted)]">
-                Details
+                Observation details
               </summary>
               <div className="mt-2">
                 <JsonBlock value={span.snapshot_metadata} />
@@ -93,13 +92,11 @@ export function TraceInspector({
           ) : null}
         </InspectorSection>
       ) : null}
-      {span.system_prompt ? (
-        <InspectorSection label="System prompt">
-          <p className="max-h-44 overflow-y-auto whitespace-pre-wrap text-[11px] leading-5 text-[var(--text-muted)]">
-            {span.system_prompt}
-          </p>
-        </InspectorSection>
-      ) : null}
+      {span.error ? <p role="alert" className="border-b border-[var(--border)] p-4 text-[12px] text-[var(--danger)] [overflow-wrap:anywhere]">{span.error}</p> : null}
+      <div className="grid min-w-0 lg:grid-cols-2">
+      <InspectorSection label="Input">
+        <JsonBlock value={span.input} />
+      </InspectorSection>
       <InspectorSection
         label="Output"
         action={
@@ -114,6 +111,15 @@ export function TraceInspector({
       >
         <JsonBlock value={span.output ?? {}} />
       </InspectorSection>
+      </div>
+      {span.system_prompt ? (
+        <details className="min-w-0 border-t border-[var(--border)] p-4">
+          <summary className="cursor-pointer text-[12px] font-medium text-[var(--text-muted)]">System prompt</summary>
+          <p className="mt-3 whitespace-pre-wrap text-[12px] leading-6 text-[var(--text-muted)] [overflow-wrap:anywhere]">
+            {span.system_prompt}
+          </p>
+        </details>
+      ) : null}
     </GraphNodeDetails>
   );
 }
@@ -142,14 +148,10 @@ function NodeSnapshotUse({
     snapshotId ? () => api.nodeSnapshot(snapshotId) : null,
     [snapshotId],
   );
-  const mode =
-    span.snapshot_resolution_mode ??
-    (span.runtime_input_snapshot_id ? "replayed" : "computed");
-  const role =
-    span.snapshot_role ?? (mode === "replayed" ? "consumed" : "produced");
+  const usage = snapshotUse(span, null)!;
 
   return (
-    <InspectorSection label="Snapshot">
+    <InspectorSection label="Data used in this execution">
       <div className="border border-[var(--border)]">
         <div className="flex items-start justify-between gap-3 border-b border-[var(--border)] px-3 py-3">
           <span className="flex min-w-0 items-start gap-2">
@@ -158,13 +160,12 @@ function NodeSnapshotUse({
               className="mt-0.5 shrink-0 text-[var(--accent)]"
             />
             <span className="min-w-0">
-              <span className="block text-[10px] font-semibold">
-                {role === "consumed"
-                  ? "Used a saved copy"
-                  : "Saved a copy of this output"}
+              <span className="block text-[13px] font-medium">
+                {usage.label}
               </span>
-              <span className="mono mt-1 block truncate text-[8px] text-[var(--text-faint)]">
-                {shortId(snapshotId)}
+              <span className="mt-1 block text-[12px] leading-5 text-[var(--text-muted)]">{usage.detail}</span>
+              <span className="mono mt-2 block text-[11px] text-[var(--text-muted)] [overflow-wrap:anywhere]">
+                {snapshotId}
               </span>
             </span>
           </span>
@@ -172,18 +173,18 @@ function NodeSnapshotUse({
             href={`${systemPath(systemKey, "artifacts")}?snapshot=${encodeURIComponent(snapshotId)}`}
             className="flex shrink-0 items-center gap-1 text-[9px] text-[var(--accent)] hover:underline"
           >
-            Open
+            Open snapshot
             <ArrowSquareOutIcon size={10} />
           </Link>
         </div>
         {detail.data ? (
           <dl className="grid grid-cols-3 text-[9px]">
             <SnapshotFact
-              label="Saved"
+              label="Captured"
               value={formatDate(detail.data.captured_at)}
             />
             <SnapshotFact
-              label="From"
+              label="Source"
               value={
                 detail.data.provider
                   ? `${detail.data.source} via ${detail.data.provider}`
@@ -191,8 +192,8 @@ function NodeSnapshotUse({
               }
             />
             <SnapshotFact
-              label="Data"
-              value={detail.data.is_synthetic ? "Synthetic" : "Real"}
+              label="Observed"
+              value={detail.data.observed_at ? formatDate(detail.data.observed_at) : "Not recorded"}
             />
           </dl>
         ) : null}
@@ -209,7 +210,7 @@ function NodeSnapshotUse({
         {detail.data && Object.keys(detail.data.node_metadata).length ? (
           <details className="border-t border-[var(--border)] px-3 py-2">
             <summary className="cursor-pointer text-[9px] font-medium text-[var(--text-muted)]">
-              Details
+              Snapshot metadata
             </summary>
             <div className="mt-2">
               <JsonBlock value={detail.data.node_metadata} />
@@ -224,9 +225,9 @@ function NodeSnapshotUse({
 function SnapshotFact({ label, value }: { label: string; value: string }) {
   return (
     <div className="min-w-0 border-r border-[var(--border)] px-3 py-2 last:border-r-0">
-      <dt className="text-[8px] text-[var(--text-faint)]">{label}</dt>
+      <dt className="text-[10px] text-[var(--text-faint)]">{label}</dt>
       <dd
-        className="mono mt-1 truncate text-[9px] text-[var(--text-muted)]"
+        className="mono mt-1 text-[11px] text-[var(--text-muted)] [overflow-wrap:anywhere]"
         title={value}
       >
         {value}
@@ -254,9 +255,9 @@ function InspectorSection({
   children: ReactNode;
 }) {
   return (
-    <section className="border-b border-[var(--border)] p-4 last:border-b-0">
+    <section className="min-w-0 border-b border-[var(--border)] p-4 last:border-b-0">
       <div className="mb-2 flex items-center justify-between">
-        <h3 className="text-[10px] font-semibold text-[var(--text-muted)]">
+        <h3 className="text-[12px] font-medium text-[var(--text-muted)]">
           {label}
         </h3>
         {action}
@@ -268,7 +269,7 @@ function InspectorSection({
 
 function JsonBlock({ value }: { value: Record<string, unknown> }) {
   return (
-    <pre className="mono max-h-52 overflow-auto whitespace-pre-wrap break-words rounded-[8px] border border-[var(--border)] bg-[var(--canvas)] p-3 text-[10px] leading-5 text-[var(--text-muted)]">
+    <pre tabIndex={0} className="mono max-h-[480px] min-w-0 max-w-full overflow-y-auto whitespace-pre-wrap rounded-[8px] border border-[var(--border)] bg-[var(--canvas)] p-3 text-[12px] leading-6 text-[var(--text-muted)] [overflow-wrap:anywhere]">
       {JSON.stringify(value, null, 2)}
     </pre>
   );

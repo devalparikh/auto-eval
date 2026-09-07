@@ -1,7 +1,4 @@
-import type {
-  GraphNodeDefinition,
-  NodeResourceSelection,
-} from "@/lib/types";
+import type { GraphNodeDefinition, NodeResourceSelection } from "@/lib/types";
 
 /**
  * One vocabulary for graph nodes, shared by every screen that draws a graph.
@@ -79,6 +76,8 @@ export type GraphNodeViewOptions = {
   output?: boolean;
   /** The saved version a run has picked for this node, when one applies. */
   selection?: NodeResourceSelection;
+  /** A run cannot continue until this node has a saved input selection. */
+  missingRequiredSelection?: boolean;
   /** Node IDs this node feeds. */
   nextNodeIds?: string[];
 };
@@ -93,7 +92,13 @@ export function graphNodeType(node: GraphNodeDefinition): GraphNodeType {
 
 export function graphNodeView(
   node: GraphNodeDefinition,
-  { entry, output, selection, nextNodeIds = [] }: GraphNodeViewOptions = {},
+  {
+    entry,
+    output,
+    selection,
+    missingRequiredSelection,
+    nextNodeIds = [],
+  }: GraphNodeViewOptions = {},
 ): GraphNodeView {
   const type = graphNodeType(node);
   const runtimePolicy = node.runtime_input_policy;
@@ -103,11 +108,13 @@ export function graphNodeView(
     snapshotPolicy && snapshotPolicy.binding_mode !== "consume"
       ? snapshotPolicy.output_key
       : null;
+  const optionallySaves = Boolean(saves && !snapshotPolicy?.required);
 
   const badges = [
     entry ? "Start" : null,
     output ? "Result" : null,
-    saves ? "Saves output" : null,
+    saves ? (optionallySaves ? "Can save output" : "Saves output") : null,
+    missingRequiredSelection ? "Needs saved input" : null,
     isOptional(node) ? "Optional" : null,
   ].filter((badge): badge is string => Boolean(badge));
 
@@ -120,7 +127,8 @@ export function graphNodeView(
     facts.push({ label: "Runs", value: node.handler });
   }
   if (node.prompt_key) facts.push({ label: "Prompt", value: node.prompt_key });
-  if (runtimePolicy) facts.push({ label: "Source", value: runtimePolicy.source });
+  if (runtimePolicy)
+    facts.push({ label: "Source", value: runtimePolicy.source });
   if (resourcePolicy) {
     facts.push({ label: "Reads", value: resourcePolicy.resource_key });
     facts.push({
@@ -128,7 +136,9 @@ export function graphNodeView(
       value: `${resourcePolicy.producer_system_key} / ${resourcePolicy.producer_node_id}`,
     });
   }
-  if (saves) facts.push({ label: "Saves", value: saves });
+  if (saves) {
+    facts.push({ label: optionallySaves ? "Can save" : "Saves", value: saves });
+  }
   if (selection) {
     facts.push({
       label: "Using",
@@ -142,7 +152,13 @@ export function graphNodeView(
     facts.push({ label: "Then", value: nextNodeIds.join(", ") });
   }
 
-  const dataFlow = describeDataFlow(node, selection, saves);
+  const dataFlow = describeDataFlow(
+    node,
+    selection,
+    saves,
+    optionallySaves,
+    missingRequiredSelection,
+  );
   const summary = describeSummary(node, type);
 
   return {
@@ -194,6 +210,8 @@ function describeDataFlow(
   node: GraphNodeDefinition,
   selection: NodeResourceSelection | undefined,
   saves: string | null,
+  optionallySaves: boolean,
+  missingRequiredSelection: boolean | undefined,
 ): GraphNodeDataFlow {
   const runtimePolicy = node.runtime_input_policy;
   const resourcePolicy = node.resource_policy;
@@ -202,7 +220,11 @@ function describeDataFlow(
   if (runtimePolicy) {
     return {
       reads: `Live ${readable(runtimePolicy.source)} from outside the app.`,
-      writes: saves ? `Keeps a copy as ${readable(saves)}.` : null,
+      writes: saves
+        ? optionallySaves
+          ? `Can save a copy as ${readable(saves)}.`
+          : `Keeps a copy as ${readable(saves)}.`
+        : null,
       onRun:
         runtimePolicy.runtime_mode === "refresh"
           ? "Fetches new data."
@@ -218,9 +240,14 @@ function describeDataFlow(
     const mode = selection?.mode ?? resourcePolicy.runtime_mode;
     return {
       reads: `${capitalize(readable(resourcePolicy.resource_key))} saved by ${resourcePolicy.producer_system_key}.`,
-      writes: saves ? `Keeps a copy as ${readable(saves)}.` : null,
-      onRun:
-        mode === "current"
+      writes: saves
+        ? optionallySaves
+          ? `Can save a copy as ${readable(saves)}.`
+          : `Keeps a copy as ${readable(saves)}.`
+        : null,
+      onRun: missingRequiredSelection
+        ? "Choose a saved version before running."
+        : mode === "current"
           ? "Uses the newest saved version."
           : "Uses one exact saved version.",
       onEvaluation: "Uses the exact version pinned to each dataset example.",
@@ -238,7 +265,11 @@ function describeDataFlow(
 
   return {
     reads: null,
-    writes: saves ? `Saves its output as ${readable(saves)}.` : null,
+    writes: saves
+      ? optionallySaves
+        ? `Can save its output as ${readable(saves)}.`
+        : `Saves its output as ${readable(saves)}.`
+      : null,
     onRun: null,
     onEvaluation: null,
   };

@@ -63,10 +63,9 @@ describe("TraceInspector", () => {
       screen.getByRole("region", { name: "Load market data details" }),
     ).toBeVisible();
     expect(screen.getAllByText("Live data").length).toBeGreaterThan(0);
-    expect(screen.getByText("market_quotes")).toBeVisible();
-    expect(screen.getByText("Snapshot")).toBeVisible();
-    expect(screen.getByText("Used a saved copy")).toBeVisible();
-    expect(screen.getByRole("link", { name: "Open" })).toHaveAttribute(
+    expect(screen.getByText("Snapshot replayed")).toBeVisible();
+    expect(screen.getByText("runtime-snapshot-12345678")).toBeVisible();
+    expect(screen.getByRole("link", { name: "Open snapshot" })).toHaveAttribute(
       "href",
       "/systems/portfolio-query/artifacts?snapshot=runtime-snapshot-12345678",
     );
@@ -90,9 +89,9 @@ describe("TraceInspector", () => {
         systemKey="portfolio-query"
       />,
     );
-    expect(screen.getByText("Snapshot")).toBeVisible();
-    expect(screen.getByText("Nothing saved")).toBeVisible();
-    expect(screen.getByText("Details")).toBeVisible();
+    expect(screen.getByText("Live data not saved")).toBeVisible();
+    expect(screen.getByText(/Enable “Save live data for replay”/)).toBeVisible();
+    expect(screen.getByText("Observation details")).toBeVisible();
   });
 
   it("copies the node output to the clipboard", async () => {

@@ -27,8 +27,19 @@ export function shortId(value: string): string {
   return value.slice(0, 8);
 }
 
-export function textPreview(value: Record<string, unknown>): string {
-  const text = value.text;
-  if (typeof text === "string") return text;
-  return JSON.stringify(value);
+export function textPreview(
+  value: Record<string, unknown>,
+  fallback = "Structured request",
+): string {
+  for (const key of ["text", "question", "query", "prompt", "message", "title", "name"]) {
+    const text = value[key];
+    if (typeof text === "string" && text.trim()) {
+      const compact = text.trim().replace(/\s+/g, " ");
+      return compact.length > 180 ? `${compact.slice(0, 177)}…` : compact;
+    }
+  }
+  const keys = Object.keys(value);
+  if (!keys.length) return fallback;
+  const fields = keys.slice(0, 3).map((key) => key.replaceAll("_", " ")).join(", ");
+  return `${fallback} · ${fields}${keys.length > 3 ? ` +${keys.length - 3}` : ""}`;
 }

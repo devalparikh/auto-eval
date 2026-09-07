@@ -309,6 +309,35 @@ test("inspect a trace and its graph", async ({ page }) => {
   );
 });
 
+test("trace details and dataset review reflow around long structured requests", async ({ page }) => {
+  await page.goto(`${portfolioQueryRoot}/traces`);
+  await page.locator(`a[href^='${portfolioQueryRoot}/traces/']`).first().click();
+  const selector = page.getByLabel("Inspect node", { exact: true });
+  await expect(selector).toBeVisible();
+  await selector.selectOption("load_portfolio_market_data");
+  const inspector = page.getByRole("region", { name: "Resolve or fetch external options observation details" });
+  await expect(inspector).toBeVisible();
+  await expect(inspector.getByText("Data used in this execution")).toBeVisible();
+
+  for (const width of [1440, 768, 390]) {
+    await page.setViewportSize({ width, height: 900 });
+    await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(1);
+    const graphBottom = await page.getByLabel("Trace execution graph").evaluate(element => element.getBoundingClientRect().bottom);
+    const inspectorTop = await inspector.evaluate(element => element.getBoundingClientRect().top);
+    expect(inspectorTop).toBeGreaterThanOrEqual(graphBottom);
+  }
+  await page.getByRole("button", { name: "Add to dataset" }).click();
+  const dialog = page.getByRole("dialog", { name: "Review dataset example" });
+  await expect(dialog.getByLabel("Expected output (JSON)")).toBeVisible();
+  for (const width of [1440, 768, 390]) {
+    await page.setViewportSize({ width, height: 900 });
+    await expect.poll(() => dialog.evaluate(element => element.scrollWidth - element.clientWidth)).toBeLessThanOrEqual(1);
+    await expect.poll(() => dialog.locator("form").evaluate(element => element.scrollWidth - element.clientWidth)).toBeLessThanOrEqual(1);
+  }
+  await page.keyboard.press("Escape");
+  await expect(dialog).not.toBeVisible();
+});
+
 test("run a trace and review it into a draft dataset", async ({ page }) => {
   await page.goto(`${incidentRoot}/traces`);
   await page.getByRole("link", { name: "Run inference" }).click();
@@ -336,6 +365,7 @@ test("run a trace and review it into a draft dataset", async ({ page }) => {
   ).toBeVisible();
   await page.getByRole("button", { name: "Done" }).click();
   await page.reload();
+  await page.getByText("Request and run details", { exact: true }).click();
   await expect(
     page.getByText(/Incident triage ground truth v\d+ \(draft\)/),
   ).toBeVisible();
@@ -354,7 +384,7 @@ test("runs Q&A against a server-resolved synthetic portfolio snapshot", async ({
   ).toBeVisible();
   await expect(
     page.getByRole("checkbox", {
-      name: /Keep a copy of live data/,
+      name: /Save live data for replay/,
     }),
   ).not.toBeChecked();
 

@@ -3,6 +3,7 @@
 import type { Node, NodeProps } from "@xyflow/react";
 import { useMemo } from "react";
 import { GraphCanvas } from "@/components/graph-canvas";
+import { StatusBadge } from "@/components/status-badge";
 import { GraphLegend, GraphNodeCard } from "@/features/graph/graph-node-card";
 import { graphHeightClass, graphRowCount } from "@/features/graph/layout";
 import {
@@ -61,9 +62,13 @@ function TraceNode({ data }: NodeProps<Node<TraceNodeData>>) {
       selected={data.selected}
       width={208}
       footer={
-        <div className="flex items-center justify-between text-[10px] text-[var(--text-muted)]">
+        <div className="grid gap-2 text-[10px] text-[var(--text-muted)]">
+          {data.dataLabel ? <span className="text-[10px] leading-4">{data.dataLabel}</span> : null}
+          <div className="flex items-center justify-between gap-2">
+          <StatusBadge status={data.status} />
           <span className="mono">{formatDuration(data.latency)}</span>
           <span className="mono">{formatCost(data.cost)}</span>
+          </div>
         </div>
       }
     />

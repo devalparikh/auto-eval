@@ -2,6 +2,7 @@ import type { Edge, Node } from "@xyflow/react";
 import { graphLevels } from "@/features/graph/layout";
 import { graphNodeView, type GraphNodeView } from "@/features/graph/node-view";
 import type { Trace } from "@/lib/types";
+import { snapshotUse } from "@/features/traces/snapshot-use";
 
 export type TraceNodeData = {
   view: GraphNodeView;
@@ -12,6 +13,7 @@ export type TraceNodeData = {
   snapshotId: string | null;
   snapshotRole: "produced" | "consumed" | null;
   snapshotMode: string | null;
+  dataLabel: string | null;
 };
 
 export function buildTraceGraph(
@@ -35,9 +37,9 @@ export function buildTraceGraph(
     return {
       id: node.id,
       type: "traceNode",
-      position: { x: level * 278, y: index * 150 },
+      position: { x: level * 278, y: index * 190 },
       initialWidth: 208,
-      initialHeight: 118,
+      initialHeight: 156,
       ariaLabel: view.ariaLabel,
       data: {
         view,
@@ -49,6 +51,7 @@ export function buildTraceGraph(
           span?.node_snapshot_id ?? span?.runtime_input_snapshot_id ?? null,
         snapshotRole: span?.snapshot_role ?? null,
         snapshotMode: span?.snapshot_resolution_mode ?? null,
+        dataLabel: span ? snapshotUse(span, node)?.label ?? null : null,
       },
     };
   });

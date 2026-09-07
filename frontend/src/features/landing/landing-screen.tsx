@@ -407,7 +407,7 @@ export function LandingScreen() {
         >
           <LandingReveal className={styles.faqTitle}>
             <span className={styles.eyebrow}>Questions</span>
-            <h2 id="faq-title">Questions, answered.</h2>
+            <h2 id="faq-title">FAQs.</h2>
             <p>Everything else lives in the repository docs.</p>
           </LandingReveal>
           <LandingReveal delay={0.06} className={styles.faqList}>

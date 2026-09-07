@@ -63,10 +63,10 @@ export function TracesScreen({ systemKey }: { systemKey: string }) {
               className="data-row grid min-h-[58px] grid-cols-[minmax(0,1fr)_110px_90px_96px_36px] items-center gap-3 border-b border-[var(--border)] px-4 last:border-b-0 max-md:grid-cols-[minmax(0,1fr)_74px_28px]"
             >
               <div className="min-w-0">
-                <p className="truncate text-[13px] font-medium">
-                  {textPreview(trace.request_input)}
+                <p className="truncate text-[13px] font-medium" title={textPreview(trace.request_input, system?.name)}>
+                  {textPreview(trace.request_input, system?.name)}
                 </p>
-                <p className="mono mt-0.5 text-[10px] text-[var(--text-faint)]">
+                <p className="mono mt-0.5 flex flex-wrap text-[10px] text-[var(--text-faint)]">
                   {shortId(trace.id)} · {formatDuration(trace.latency_ms)} ·{" "}
                   {formatCost(trace.cost_usd)}
                   {trace.dataset_membership_count > 0
