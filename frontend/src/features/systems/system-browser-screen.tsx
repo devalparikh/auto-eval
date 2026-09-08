@@ -29,7 +29,7 @@ export function SystemBrowserScreen() {
         action={
           <div className="flex flex-wrap gap-2">
             <Link className="app-button secondary" href="/guide">
-              Setup guide
+              Import guide
             </Link>
             <Link className="app-button" href="/import">
               <UploadSimpleIcon size={14} />

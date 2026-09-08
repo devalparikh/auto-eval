@@ -135,7 +135,7 @@ describe("ImportScreen", () => {
       "No autoeval.json found",
     );
     expect(
-      screen.getByRole("link", { name: "Open the setup guide" }),
+      screen.getByRole("link", { name: "Open the import guide" }),
     ).toHaveAttribute("href", "/guide");
     expect(importApi.inspectManifest).not.toHaveBeenCalled();
   });

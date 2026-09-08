@@ -121,7 +121,7 @@ test("imports a manifest, edits an immutable graph version, and imports a prompt
   ).toBeVisible();
 });
 
-test("setup guide works in both themes, on mobile, and with reduced motion", async ({
+test("import guide works in both themes, on mobile, and with reduced motion", async ({
   page,
 }, testInfo) => {
   await page.emulateMedia({ reducedMotion: "reduce" });

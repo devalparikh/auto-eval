@@ -56,7 +56,7 @@ export function OnboardingGuide() {
   return (
     <>
       <PageHeader
-        title="Connect your agent"
+        title="Import guide"
         action={
           <Link href="/import" className="app-button">
             Import a system <ArrowRightIcon size={14} />
@@ -66,8 +66,7 @@ export function OnboardingGuide() {
       <div className={styles.guide}>
         <div className={styles.guideIntro}>
           <h2>
-            A small contract.
-            <br />A clear path to your first evaluation.
+            Prepare to import your agent into AutoEval
           </h2>
           <p>
             Describe the graph, connect its handlers, and bring it into
@@ -366,7 +365,7 @@ export function OnboardingGuide() {
             before a system becomes runnable.
           </p>
           <CodeBlock
-            title="Brief for your coding agent"
+            title="Ask your coding agent to onboard"
             code={codingAgentBrief}
             collapsible
           />

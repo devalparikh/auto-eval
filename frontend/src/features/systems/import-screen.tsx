@@ -82,7 +82,7 @@ export function ImportScreen({ systemKey }: { systemKey?: string }) {
     setError(null);
     if (!candidates.length) {
       setError(
-        "No autoeval.json found. Follow the setup guide to describe your graph, then select this folder again.",
+        "No autoeval.json found. Follow the import guide to describe your graph, then select this folder again.",
       );
     } else if (candidates.length === 1) {
       await inspectFile(candidates[0]);
@@ -147,11 +147,11 @@ export function ImportScreen({ systemKey }: { systemKey?: string }) {
             ? `Add a version to ${systemKey}. Saved versions stay unchanged.`
             : "Bring a graph from your folder or GitHub repository."
         }
-        action={
-          <Link className="app-button secondary" href="/guide">
-            Set up your agent <ArrowRightIcon size={14} />
-          </Link>
-        }
+        // action={
+        //   <Link className="app-button secondary" href="/guide">
+        //     Import guide <ArrowRightIcon size={14} />
+        //   </Link>
+        // }
       />
       <div className={styles.workspace}>
         <nav className={styles.stepRail} aria-label="Import progress">
@@ -531,12 +531,12 @@ export function ImportScreen({ systemKey }: { systemKey?: string }) {
                 <div>
                   <h3>No manifest yet?</h3>
                   <p>
-                    Follow the visual guide, or give its adapter brief to your
+                    Follow the guide, or give its adapter brief to your
                     coding agent.
                   </p>
                 </div>
                 <Link href="/guide" className={styles.inlineLink}>
-                  Set it up yourself <ArrowRightIcon size={14} />
+                  Import guide <ArrowRightIcon size={14} />
                 </Link>
               </div>
               {!systemKey ? (
@@ -551,7 +551,7 @@ export function ImportScreen({ systemKey }: { systemKey?: string }) {
                     )
                   }
                 >
-                  Try a runnable example <ArrowRightIcon size={14} />
+                  Try an example <ArrowRightIcon size={14} />
                 </button>
               ) : null}
             </>
@@ -560,7 +560,7 @@ export function ImportScreen({ systemKey }: { systemKey?: string }) {
             <div role="alert" className={styles.error}>
               <p>{error}</p>
               {error.includes("No autoeval.json") ? (
-                <Link href="/guide">Open the setup guide</Link>
+                <Link href="/guide">Open the import guide</Link>
               ) : null}
             </div>
           ) : null}

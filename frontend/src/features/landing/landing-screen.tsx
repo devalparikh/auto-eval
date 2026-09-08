@@ -32,7 +32,7 @@ const GITHUB_URL = "https://github.com/devalparikh/auto-eval";
 const steps = [
   {
     index: "01",
-    title: "Connect your agent",
+    title: "Import guide",
     description:
       "Register the graph, handlers, scoring code, and provider adapters that already live in your package.",
   },
