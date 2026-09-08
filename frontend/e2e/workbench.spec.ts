@@ -328,7 +328,7 @@ test("trace details and dataset review reflow around long structured requests", 
   }
   await page.getByRole("button", { name: "Add to dataset" }).click();
   const dialog = page.getByRole("dialog", { name: "Review dataset example" });
-  await expect(dialog.getByLabel("Expected output (JSON)")).toBeVisible();
+  await expect(dialog.getByRole("textbox", { name: "JSON object", exact: true })).toBeVisible();
   for (const width of [1440, 768, 390]) {
     await page.setViewportSize({ width, height: 900 });
     await expect.poll(() => dialog.evaluate(element => element.scrollWidth - element.clientWidth)).toBeLessThanOrEqual(1);
@@ -398,7 +398,7 @@ test("runs Q&A against a server-resolved synthetic portfolio snapshot", async ({
   await expect(
     page.getByRole("link", { name: "Inspect full trace" }),
   ).toBeVisible();
-  await page.getByRole("button", { name: "Expand" }).click();
+  await page.getByRole("button", { name: "Expand", exact: true }).click();
   await expect(page.getByText("candidate-001").first()).toBeVisible();
 });
 

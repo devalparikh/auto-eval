@@ -3,6 +3,7 @@ from collections.abc import Iterable
 from autoeval_api.config import Settings
 from autoeval_api.inference.base import InferenceProvider, ModelDescriptor
 from autoeval_api.inference.cli import CliInferenceProvider
+from autoeval_api.inference.lmstudio import LMStudioInferenceProvider
 from autoeval_api.inference.mock import MockInferenceProvider
 from autoeval_api.inference.openrouter import OpenRouterInferenceProvider
 
@@ -44,5 +45,6 @@ def _default_providers(settings: Settings) -> list[InferenceProvider]:
     return [
         MockInferenceProvider(),
         OpenRouterInferenceProvider(settings),
+        LMStudioInferenceProvider(settings),
         CliInferenceProvider(settings),
     ]

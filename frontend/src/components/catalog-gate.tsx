@@ -25,7 +25,7 @@ export function CatalogGate({
   const catalog = useCatalog();
   const system = systemByKey(catalog.data, systemKey);
 
-  if (catalog.loading) {
+  if (catalog.loading && !catalog.data) {
     return (
       <>
         {title ? <PageHeader title={title} /> : null}

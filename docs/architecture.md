@@ -76,6 +76,13 @@ Routes validate HTTP input and translate domain errors. Services own domain quer
 
 ## Implemented extension points
 
+- `services/system_imports.py` inspects and atomically imports the versioned
+  `autoeval.json` contract from browser-selected files or fixed GitHub hosts.
+  It executes no imported code. Portable handlers use the existing runner;
+  registered plugins provide custom behavior. See [agent-onboarding.md](agent-onboarding.md).
+- `inference/lmstudio.py` provides opt-in, backend-configured loopback inference.
+  Its model catalog is deterministic and requires no startup network request.
+
 - `inference/base.py` defines the provider contract. `InferenceProviderRegistry.register` adds an adapter without changing the runner. OpenRouter model capabilities live in the typed, deterministic `inference/model_catalog.py` rather than being fetched at process startup.
 - LLM span output records allowlisted inference metadata, including OpenRouter's returned resolved model ID and request ID, alongside requested model provenance on the parent trace.
 - `graph/definition.py` owns the graph blueprint. A stored or requested definition is parsed there once — at version creation and at the start of a run — and every layer below that boundary reads `node.kind` and `node.runtime_input_policy` off the model rather than re-deriving the JSON shape. `schemas.py` embeds the same models, so the request contract and the runtime cannot drift.

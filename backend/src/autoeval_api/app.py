@@ -19,6 +19,7 @@ from autoeval_api.api.routes import (
     node_snapshots,
     portfolio_snapshots,
     runtime_input_snapshots,
+    system_imports,
     traces,
     versions,
 )
@@ -34,6 +35,7 @@ from autoeval_api.inference.registry import (
 from autoeval_api.market_data import default_runtime_input_registry
 from autoeval_api.services.evaluations import EvaluationService
 from autoeval_api.services.scoring import ScoringRegistry, default_scoring_registry
+from autoeval_api.services.system_imports import SystemImportService
 
 
 def _infer_engine_from_session_factory(
@@ -67,6 +69,7 @@ def create_application(
     scoring_registry: ScoringRegistry | None = None,
     runner: AgentGraphRunner | None = None,
     evaluation_service: EvaluationService | None = None,
+    system_import_service: SystemImportService | None = None,
 ) -> FastAPI:
     settings = settings or get_settings()
 
@@ -93,6 +96,10 @@ def create_application(
     )
     evaluation_service = evaluation_service or EvaluationService(
         session_factory, runner, scoring_registry
+    )
+    system_import_service = system_import_service or SystemImportService(
+        runner.node_registry,
+        runner.runtime_input_registry,
     )
 
     @asynccontextmanager
@@ -125,6 +132,7 @@ def create_application(
     app.state.runner = runner
     app.state.provider_registry = provider_registry
     app.state.evaluation_service = evaluation_service
+    app.state.system_import_service = system_import_service
     app.state.session_factory = session_factory
     app.state.settings = settings
     app.state.engine = resolved_engine
@@ -145,6 +153,7 @@ def create_application(
     app.include_router(node_snapshots.router)
     app.include_router(portfolio_snapshots.router)
     app.include_router(runtime_input_snapshots.router)
+    app.include_router(system_imports.router)
     app.include_router(versions.router)
     app.include_router(traces.router)
     app.include_router(datasets.router)

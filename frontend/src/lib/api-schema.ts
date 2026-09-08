@@ -379,6 +379,57 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/system-imports/commit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Commit System Import */
+        post: operations["commit_system_import_api_system_imports_commit_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/system-imports/handlers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Effective Handlers */
+        get: operations["effective_handlers_api_system_imports_handlers_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/system-imports/inspect": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Inspect System Import */
+        post: operations["inspect_system_import_api_system_imports_inspect_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/traces": {
         parameters: {
             query?: never;
@@ -646,6 +697,17 @@ export interface components {
             /** Version */
             version?: number | null;
         };
+        /** AutoEvalManifest */
+        AutoEvalManifest: {
+            graph: components["schemas"]["AgentGraphDefinition"];
+            prompt: components["schemas"]["ManifestPrompt"];
+            /**
+             * Schema Version
+             * @constant
+             */
+            schema_version: 1;
+            system: components["schemas"]["ManifestSystem"];
+        };
         /** CatalogResponse */
         CatalogResponse: {
             /** Agent Systems */
@@ -852,6 +914,15 @@ export interface components {
             /** Version */
             version: number;
         };
+        /** EffectiveHandlersResponse */
+        EffectiveHandlersResponse: {
+            /** Deterministic */
+            deterministic: string[];
+            /** Llm */
+            llm: string[];
+            /** System Key */
+            system_key: string | null;
+        };
         /** EvalItemResultResponse */
         EvalItemResultResponse: {
             /** Actual */
@@ -938,6 +1009,37 @@ export interface components {
         HTTPValidationError: {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
+        };
+        /** ImportSource */
+        ImportSource: {
+            /** Display Path */
+            display_path?: string | null;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "local" | "github";
+        };
+        /** ManifestPrompt */
+        ManifestPrompt: {
+            /** Content */
+            content: string;
+        };
+        /** ManifestSystem */
+        ManifestSystem: {
+            /**
+             * Description
+             * @default
+             */
+            description: string;
+            /** Input Template */
+            input_template?: {
+                [key: string]: unknown;
+            };
+            /** Key */
+            key: string;
+            /** Name */
+            name: string;
         };
         /** ModelOption */
         ModelOption: {
@@ -1500,6 +1602,105 @@ export interface components {
             source_kind: string;
             /** Source Trace Id */
             source_trace_id: string | null;
+        };
+        /** SystemImportCommitRequest */
+        SystemImportCommitRequest: {
+            /** Expected Digest */
+            expected_digest: string;
+            /** Expected Graph Version */
+            expected_graph_version: number;
+            /** Expected Prompt Version */
+            expected_prompt_version: number;
+            /** Expected System Id */
+            expected_system_id?: string | null;
+            /** Expected System Key */
+            expected_system_key: string;
+            manifest: components["schemas"]["AutoEvalManifest"];
+            source?: components["schemas"]["ImportSource"] | null;
+        };
+        /** SystemImportCompatibility */
+        SystemImportCompatibility: {
+            /**
+             * Evaluation Scoring
+             * @enum {string}
+             */
+            evaluation_scoring: "exact_json" | "registered";
+            /** Handlers */
+            handlers: string[];
+            /** Runnable */
+            runnable: boolean;
+        };
+        /** SystemImportCounts */
+        SystemImportCounts: {
+            /** Deterministic Nodes */
+            deterministic_nodes: number;
+            /** Edges */
+            edges: number;
+            /** Llm Nodes */
+            llm_nodes: number;
+            /** Nodes */
+            nodes: number;
+        };
+        /** SystemImportInspectRequest */
+        SystemImportInspectRequest: {
+            /** Github Url */
+            github_url?: string | null;
+            manifest?: components["schemas"]["AutoEvalManifest"] | null;
+            source?: components["schemas"]["ImportSource"] | null;
+        };
+        /** SystemImportPreview */
+        SystemImportPreview: {
+            compatibility: components["schemas"]["SystemImportCompatibility"];
+            counts: components["schemas"]["SystemImportCounts"];
+            /** Creates System */
+            creates_system: boolean;
+            /** Digest */
+            digest: string;
+            /** Existing System Id */
+            existing_system_id: string | null;
+            /** Graph Version Created */
+            graph_version_created: boolean;
+            manifest: components["schemas"]["AutoEvalManifest"];
+            /** Next Graph Version */
+            next_graph_version: number;
+            /** Next Prompt Version */
+            next_prompt_version: number;
+            /** Prompt Version Created */
+            prompt_version_created: boolean;
+            source: components["schemas"]["ImportSource"];
+            /** Target Graph Version */
+            target_graph_version: number;
+            /** Target Prompt Version */
+            target_prompt_version: number;
+            /** Warnings */
+            warnings: string[];
+        };
+        /** SystemImportResult */
+        SystemImportResult: {
+            /** Agent System Id */
+            agent_system_id: string;
+            /** Created System */
+            created_system: boolean;
+            /** Dataset Id */
+            dataset_id: string | null;
+            /** Dataset Version Id */
+            dataset_version_id: string | null;
+            /** Digest */
+            digest: string;
+            /** Graph Version */
+            graph_version: number;
+            /** Graph Version Created */
+            graph_version_created: boolean;
+            /** Graph Version Id */
+            graph_version_id: string;
+            /** Prompt Id */
+            prompt_id: string;
+            /** Prompt Version */
+            prompt_version: number;
+            /** Prompt Version Created */
+            prompt_version_created: boolean;
+            /** Prompt Version Id */
+            prompt_version_id: string;
         };
         /** TraceDatasetTargetsResponse */
         TraceDatasetTargetsResponse: {
@@ -2462,6 +2663,103 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RuntimeInputSnapshotDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    commit_system_import_api_system_imports_commit_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SystemImportCommitRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SystemImportResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    effective_handlers_api_system_imports_handlers_get: {
+        parameters: {
+            query?: {
+                system_key?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EffectiveHandlersResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    inspect_system_import_api_system_imports_inspect_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SystemImportInspectRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SystemImportPreview"];
                 };
             };
             /** @description Validation Error */

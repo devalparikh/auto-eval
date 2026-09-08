@@ -2,6 +2,7 @@
 
 import { DatabaseIcon, GitBranchIcon, TextTIcon } from "@phosphor-icons/react";
 import { useState } from "react";
+import Link from "next/link";
 import { CatalogGate } from "@/components/catalog-gate";
 import { PageHeader } from "@/components/page-header";
 import { ErrorState } from "@/components/states";
@@ -18,19 +19,25 @@ type ArtifactKind = "graph" | "prompt" | "snapshot";
 export function SystemsScreen({
   systemKey,
   initialSnapshotId,
+  initialGraphVersionId,
+  initialPromptVersionId,
 }: {
   systemKey: string;
   initialSnapshotId?: string;
+  initialGraphVersionId?: string;
+  initialPromptVersionId?: string;
 }) {
   return (
     <CatalogGate systemKey={systemKey}>
       {({ catalog, system }) => (
         <SystemsWorkbench
-          key={system.id}
+          key={`${system.id}:${initialGraphVersionId ?? ""}:${initialPromptVersionId ?? ""}`}
           catalog={catalog}
           system={system}
           systemKey={systemKey}
           initialSnapshotId={initialSnapshotId}
+          initialGraphVersionId={initialGraphVersionId}
+          initialPromptVersionId={initialPromptVersionId}
         />
       )}
     </CatalogGate>
@@ -42,11 +49,15 @@ function SystemsWorkbench({
   system,
   systemKey,
   initialSnapshotId,
+  initialGraphVersionId,
+  initialPromptVersionId,
 }: {
   catalog: Catalog;
   system: AgentSystemSummary;
   systemKey: string;
   initialSnapshotId?: string;
+  initialGraphVersionId?: string;
+  initialPromptVersionId?: string;
 }) {
   const { reload: reloadCatalog } = useCatalog();
   const prompts = catalog.prompts.filter(
@@ -55,9 +66,18 @@ function SystemsWorkbench({
   const [activeKind, setActiveKind] = useState<ArtifactKind>(
     initialSnapshotId ? "snapshot" : "graph",
   );
-  const [requestedGraphVersionId, setGraphVersionId] = useState("");
-  const [requestedPromptId, setPromptId] = useState("");
-  const [requestedPromptVersionId, setPromptVersionId] = useState("");
+  const [requestedGraphVersionId, setGraphVersionId] = useState(
+    system.versions.find((version) => version.id === initialGraphVersionId)
+      ?.id ?? "",
+  );
+  const [requestedPromptId, setPromptId] = useState(
+    prompts.find((prompt) =>
+      prompt.versions.some((version) => version.id === initialPromptVersionId),
+    )?.id ?? "",
+  );
+  const [requestedPromptVersionId, setPromptVersionId] = useState(
+    initialPromptVersionId ?? "",
+  );
   const [requestedSnapshotId, setSnapshotId] = useState(
     initialSnapshotId ?? "",
   );
@@ -133,7 +153,17 @@ function SystemsWorkbench({
 
   return (
     <>
-      <PageHeader title={`${system.name} artifacts`} />
+      <PageHeader
+        title={`${system.name} artifacts`}
+        action={
+          <Link
+            className="app-button secondary"
+            href={`/import?system=${encodeURIComponent(system.key)}`}
+          >
+            Import version
+          </Link>
+        }
+      />
       <section className="grid gap-4 p-4 md:p-7 xl:grid-cols-[220px_minmax(0,1fr)]">
         <nav
           aria-label="What to view"
@@ -174,6 +204,7 @@ function SystemsWorkbench({
             <VersionEditor
               key={`graph-${graphVersionId}-${graphDetail.data?.content_hash ?? "loading"}`}
               kind="graph"
+              systemKey={systemKey}
               title={system.name}
               description={system.description}
               icon={<GitBranchIcon size={16} />}

@@ -503,6 +503,33 @@
         "title": "ArtifactSummary",
         "type": "object"
       },
+      "AutoEvalManifest": {
+        "additionalProperties": false,
+        "properties": {
+          "graph": {
+            "$ref": "#/components/schemas/AgentGraphDefinition"
+          },
+          "prompt": {
+            "$ref": "#/components/schemas/ManifestPrompt"
+          },
+          "schema_version": {
+            "const": 1,
+            "title": "Schema Version",
+            "type": "integer"
+          },
+          "system": {
+            "$ref": "#/components/schemas/ManifestSystem"
+          }
+        },
+        "required": [
+          "schema_version",
+          "system",
+          "graph",
+          "prompt"
+        ],
+        "title": "AutoEvalManifest",
+        "type": "object"
+      },
       "CatalogResponse": {
         "properties": {
           "agent_systems": {
@@ -1021,6 +1048,43 @@
         "title": "DatasetVersionSummary",
         "type": "object"
       },
+      "EffectiveHandlersResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "deterministic": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Deterministic",
+            "type": "array"
+          },
+          "llm": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Llm",
+            "type": "array"
+          },
+          "system_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "System Key"
+          }
+        },
+        "required": [
+          "system_key",
+          "deterministic",
+          "llm"
+        ],
+        "title": "EffectiveHandlersResponse",
+        "type": "object"
+      },
       "EvalItemResultResponse": {
         "properties": {
           "actual": {
@@ -1209,6 +1273,85 @@
           }
         },
         "title": "HTTPValidationError",
+        "type": "object"
+      },
+      "ImportSource": {
+        "additionalProperties": false,
+        "properties": {
+          "display_path": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Display Path"
+          },
+          "kind": {
+            "enum": [
+              "local",
+              "github"
+            ],
+            "title": "Kind",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind"
+        ],
+        "title": "ImportSource",
+        "type": "object"
+      },
+      "ManifestPrompt": {
+        "additionalProperties": false,
+        "properties": {
+          "content": {
+            "maxLength": 100000,
+            "minLength": 1,
+            "title": "Content",
+            "type": "string"
+          }
+        },
+        "required": [
+          "content"
+        ],
+        "title": "ManifestPrompt",
+        "type": "object"
+      },
+      "ManifestSystem": {
+        "additionalProperties": false,
+        "properties": {
+          "description": {
+            "default": "",
+            "maxLength": 10000,
+            "title": "Description",
+            "type": "string"
+          },
+          "input_template": {
+            "additionalProperties": true,
+            "title": "Input Template",
+            "type": "object"
+          },
+          "key": {
+            "pattern": "^[a-z][a-z0-9-]{1,119}$",
+            "title": "Key",
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "name"
+        ],
+        "title": "ManifestSystem",
         "type": "object"
       },
       "ModelOption": {
@@ -2491,6 +2634,332 @@
           "created_at"
         ],
         "title": "RuntimeInputSnapshotSummary",
+        "type": "object"
+      },
+      "SystemImportCommitRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "expected_digest": {
+            "pattern": "^[a-f0-9]{64}$",
+            "title": "Expected Digest",
+            "type": "string"
+          },
+          "expected_graph_version": {
+            "minimum": 1.0,
+            "title": "Expected Graph Version",
+            "type": "integer"
+          },
+          "expected_prompt_version": {
+            "minimum": 1.0,
+            "title": "Expected Prompt Version",
+            "type": "integer"
+          },
+          "expected_system_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expected System Id"
+          },
+          "expected_system_key": {
+            "pattern": "^[a-z][a-z0-9-]{1,119}$",
+            "title": "Expected System Key",
+            "type": "string"
+          },
+          "manifest": {
+            "$ref": "#/components/schemas/AutoEvalManifest"
+          },
+          "source": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ImportSource"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "manifest",
+          "expected_digest",
+          "expected_system_key",
+          "expected_graph_version",
+          "expected_prompt_version"
+        ],
+        "title": "SystemImportCommitRequest",
+        "type": "object"
+      },
+      "SystemImportCompatibility": {
+        "additionalProperties": false,
+        "properties": {
+          "evaluation_scoring": {
+            "enum": [
+              "exact_json",
+              "registered"
+            ],
+            "title": "Evaluation Scoring",
+            "type": "string"
+          },
+          "handlers": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Handlers",
+            "type": "array"
+          },
+          "runnable": {
+            "title": "Runnable",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "runnable",
+          "evaluation_scoring",
+          "handlers"
+        ],
+        "title": "SystemImportCompatibility",
+        "type": "object"
+      },
+      "SystemImportCounts": {
+        "additionalProperties": false,
+        "properties": {
+          "deterministic_nodes": {
+            "title": "Deterministic Nodes",
+            "type": "integer"
+          },
+          "edges": {
+            "title": "Edges",
+            "type": "integer"
+          },
+          "llm_nodes": {
+            "title": "Llm Nodes",
+            "type": "integer"
+          },
+          "nodes": {
+            "title": "Nodes",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "nodes",
+          "edges",
+          "llm_nodes",
+          "deterministic_nodes"
+        ],
+        "title": "SystemImportCounts",
+        "type": "object"
+      },
+      "SystemImportInspectRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "github_url": {
+            "anyOf": [
+              {
+                "maxLength": 2000,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Github Url"
+          },
+          "manifest": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AutoEvalManifest"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "source": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ImportSource"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "title": "SystemImportInspectRequest",
+        "type": "object"
+      },
+      "SystemImportPreview": {
+        "additionalProperties": false,
+        "properties": {
+          "compatibility": {
+            "$ref": "#/components/schemas/SystemImportCompatibility"
+          },
+          "counts": {
+            "$ref": "#/components/schemas/SystemImportCounts"
+          },
+          "creates_system": {
+            "title": "Creates System",
+            "type": "boolean"
+          },
+          "digest": {
+            "title": "Digest",
+            "type": "string"
+          },
+          "existing_system_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Existing System Id"
+          },
+          "graph_version_created": {
+            "title": "Graph Version Created",
+            "type": "boolean"
+          },
+          "manifest": {
+            "$ref": "#/components/schemas/AutoEvalManifest"
+          },
+          "next_graph_version": {
+            "title": "Next Graph Version",
+            "type": "integer"
+          },
+          "next_prompt_version": {
+            "title": "Next Prompt Version",
+            "type": "integer"
+          },
+          "prompt_version_created": {
+            "title": "Prompt Version Created",
+            "type": "boolean"
+          },
+          "source": {
+            "$ref": "#/components/schemas/ImportSource"
+          },
+          "target_graph_version": {
+            "title": "Target Graph Version",
+            "type": "integer"
+          },
+          "target_prompt_version": {
+            "title": "Target Prompt Version",
+            "type": "integer"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Warnings",
+            "type": "array"
+          }
+        },
+        "required": [
+          "digest",
+          "manifest",
+          "source",
+          "warnings",
+          "existing_system_id",
+          "next_graph_version",
+          "next_prompt_version",
+          "target_graph_version",
+          "target_prompt_version",
+          "graph_version_created",
+          "prompt_version_created",
+          "creates_system",
+          "counts",
+          "compatibility"
+        ],
+        "title": "SystemImportPreview",
+        "type": "object"
+      },
+      "SystemImportResult": {
+        "additionalProperties": false,
+        "properties": {
+          "agent_system_id": {
+            "title": "Agent System Id",
+            "type": "string"
+          },
+          "created_system": {
+            "title": "Created System",
+            "type": "boolean"
+          },
+          "dataset_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dataset Id"
+          },
+          "dataset_version_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dataset Version Id"
+          },
+          "digest": {
+            "title": "Digest",
+            "type": "string"
+          },
+          "graph_version": {
+            "title": "Graph Version",
+            "type": "integer"
+          },
+          "graph_version_created": {
+            "title": "Graph Version Created",
+            "type": "boolean"
+          },
+          "graph_version_id": {
+            "title": "Graph Version Id",
+            "type": "string"
+          },
+          "prompt_id": {
+            "title": "Prompt Id",
+            "type": "string"
+          },
+          "prompt_version": {
+            "title": "Prompt Version",
+            "type": "integer"
+          },
+          "prompt_version_created": {
+            "title": "Prompt Version Created",
+            "type": "boolean"
+          },
+          "prompt_version_id": {
+            "title": "Prompt Version Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "agent_system_id",
+          "graph_version_id",
+          "graph_version",
+          "graph_version_created",
+          "prompt_id",
+          "prompt_version_id",
+          "prompt_version",
+          "prompt_version_created",
+          "dataset_id",
+          "dataset_version_id",
+          "created_system",
+          "digest"
+        ],
+        "title": "SystemImportResult",
         "type": "object"
       },
       "TraceDatasetTargetsResponse": {
@@ -4301,6 +4770,129 @@
           }
         },
         "summary": "Runtime Input Snapshot"
+      }
+    },
+    "/api/system-imports/commit": {
+      "post": {
+        "operationId": "commit_system_import_api_system_imports_commit_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SystemImportCommitRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SystemImportResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Commit System Import"
+      }
+    },
+    "/api/system-imports/handlers": {
+      "get": {
+        "operationId": "effective_handlers_api_system_imports_handlers_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "system_key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[a-z][a-z0-9-]{1,119}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "System Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EffectiveHandlersResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Effective Handlers"
+      }
+    },
+    "/api/system-imports/inspect": {
+      "post": {
+        "operationId": "inspect_system_import_api_system_imports_inspect_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SystemImportInspectRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SystemImportPreview"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Inspect System Import"
       }
     },
     "/api/traces": {

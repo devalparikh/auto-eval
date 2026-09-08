@@ -308,6 +308,77 @@ describe("RunWorkbench", () => {
     ).toHaveAttribute("href", "/systems/research-agent/traces/trace-12345678");
   });
 
+  it.each([false, true])(
+    "runs linked older graph and prompt versions (keyed: %s)",
+    async (keyed) => {
+      const oldGraph = {
+        id: "graph-1",
+        version: 1,
+        created_at: "2026-08-01T12:00:00Z",
+      };
+      const oldPrompt = {
+        id: "prompt-old",
+        version: 1,
+        created_at: oldGraph.created_at,
+      };
+      const linkedSystem = {
+        ...system,
+        versions: [...system.versions, oldGraph],
+      };
+      const linkedCatalog = {
+        ...catalog,
+        agent_systems: [linkedSystem],
+        prompts: [
+          {
+            ...catalog.prompts[0],
+            versions: [...catalog.prompts[0].versions, oldPrompt],
+          },
+        ],
+      };
+      vi.mocked(api.agentVersion).mockResolvedValue({
+        ...legacyGraph,
+        ...oldGraph,
+        definition: {
+          ...legacyGraph.definition,
+          nodes: [
+            {
+              ...legacyGraph.definition.nodes[0],
+              ...(keyed ? { prompt_key: catalog.prompts[0].key } : {}),
+            },
+          ],
+        },
+      });
+      vi.mocked(api.runTrace).mockResolvedValueOnce(completedTrace);
+      render(
+        <RunWorkbench
+          catalog={linkedCatalog}
+          system={linkedSystem}
+          systemKey={system.key}
+          initialGraphVersionId={oldGraph.id}
+          initialPromptVersionId={oldPrompt.id}
+        />,
+      );
+      const run = screen.getByRole("button", { name: "Run inference" });
+      await waitFor(() => expect(run).toBeEnabled());
+      fireEvent.click(run);
+      await waitFor(() =>
+        expect(api.runTrace).toHaveBeenCalledWith(
+          expect.objectContaining({
+            agent_system_version_id: oldGraph.id,
+            prompt_version_id: oldPrompt.id,
+            ...(keyed
+              ? {
+                  prompt_version_ids: {
+                    [catalog.prompts[0].key]: oldPrompt.id,
+                  },
+                }
+              : {}),
+          }),
+        ),
+      );
+    },
+  );
+
   it("rejects non-object JSON before calling the API", async () => {
     render(
       <RunWorkbench catalog={catalog} system={system} systemKey={system.key} />,

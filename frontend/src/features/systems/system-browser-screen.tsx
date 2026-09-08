@@ -1,6 +1,10 @@
 "use client";
 
-import { ArrowRightIcon, GitBranchIcon } from "@phosphor-icons/react";
+import {
+  ArrowRightIcon,
+  GitBranchIcon,
+  UploadSimpleIcon,
+} from "@phosphor-icons/react";
 import Link from "next/link";
 import { PageHeader } from "@/components/page-header";
 import { EmptyState, ErrorState, LoadingState } from "@/components/states";
@@ -20,7 +24,20 @@ export function SystemBrowserScreen() {
   );
   return (
     <>
-      <PageHeader title="Agent systems" />
+      <PageHeader
+        title="Agent systems"
+        action={
+          <div className="flex flex-wrap gap-2">
+            <Link className="app-button secondary" href="/guide">
+              Setup guide
+            </Link>
+            <Link className="app-button" href="/import">
+              <UploadSimpleIcon size={14} />
+              Import system
+            </Link>
+          </div>
+        }
+      />
       <section className="grid gap-4 p-4 md:grid-cols-2 md:p-7">
         {catalog.loading ? <LoadingState rows={8} /> : null}
         {catalog.error ? (
@@ -29,7 +46,7 @@ export function SystemBrowserScreen() {
         {!catalog.loading && catalog.data?.agent_systems.length === 0 ? (
           <EmptyState
             title="No agent systems"
-            message="Systems are set up in the backend."
+            message="Import a system from a folder or GitHub repository to start your first run."
           />
         ) : null}
         {products.map((flows) => {

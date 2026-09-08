@@ -7,7 +7,7 @@ import { CatalogGate } from "@/components/catalog-gate";
 import { JsonViewer } from "@/components/json-viewer";
 import { PageHeader } from "@/components/page-header";
 import { Select } from "@/components/select";
-import { LoadingState } from "@/components/states";
+import { ErrorState, LoadingState } from "@/components/states";
 import { StatusBadge } from "@/components/status-badge";
 import { Modal } from "@/components/modal";
 import {
@@ -34,17 +34,48 @@ import { playPreferredUiSound } from "@/lib/sound";
 import type { AgentSystemSummary, Catalog, Trace } from "@/lib/types";
 import { useApiResource } from "@/lib/use-api-resource";
 
-export function RunScreen({ systemKey }: { systemKey: string }) {
+export function RunScreen({
+  systemKey,
+  initialGraphVersionId,
+  initialPromptVersionId,
+}: {
+  systemKey: string;
+  initialGraphVersionId?: string;
+  initialPromptVersionId?: string;
+}) {
   return (
     <CatalogGate systemKey={systemKey} title="Run inference">
-      {({ catalog, system }) => (
-        <RunWorkbench
-          key={system.id}
-          catalog={catalog}
-          system={system}
-          systemKey={systemKey}
-        />
-      )}
+      {({ catalog, system }) => {
+        const graphExists =
+          !initialGraphVersionId ||
+          system.versions.some(
+            (version) => version.id === initialGraphVersionId,
+          );
+        const promptExists =
+          !initialPromptVersionId ||
+          catalog.prompts.some(
+            (prompt) =>
+              prompt.agent_system_id === system.id &&
+              prompt.versions.some(
+                (version) => version.id === initialPromptVersionId,
+              ),
+          );
+        if (!graphExists || !promptExists) {
+          return (
+            <ErrorState message="The linked graph or prompt version is unavailable for this system. Open Run from the navigation to select available versions." />
+          );
+        }
+        return (
+          <RunWorkbench
+            key={`${system.id}:${initialGraphVersionId ?? ""}:${initialPromptVersionId ?? ""}`}
+            catalog={catalog}
+            system={system}
+            systemKey={systemKey}
+            initialGraphVersionId={initialGraphVersionId}
+            initialPromptVersionId={initialPromptVersionId}
+          />
+        );
+      }}
     </CatalogGate>
   );
 }
@@ -53,10 +84,14 @@ export function RunWorkbench({
   catalog,
   system,
   systemKey,
+  initialGraphVersionId,
+  initialPromptVersionId,
 }: {
   catalog: Catalog;
   system: AgentSystemSummary;
   systemKey: string;
+  initialGraphVersionId?: string;
+  initialPromptVersionId?: string;
 }) {
   const graphs = graphVersions(catalog, systemKey);
   const prompts = promptVersions(catalog, systemKey);
@@ -71,7 +106,7 @@ export function RunWorkbench({
     ),
   );
   const [selectedGraphVersionId, setSelectedGraphVersionId] = useState(
-    graphs[0]?.id ?? "",
+    initialGraphVersionId ?? graphs[0]?.id ?? "",
   );
   const [selectedModelId, setSelectedModelId] = useState(models[0]?.id ?? "");
   const [submitting, setSubmitting] = useState(false);
@@ -221,6 +256,13 @@ export function RunWorkbench({
                     <Select
                       id={`run-prompt-${key}`}
                       name={`promptVersion:${key}`}
+                      defaultValue={
+                        prompt?.versions.some(
+                          (version) => version.id === initialPromptVersionId,
+                        )
+                          ? initialPromptVersionId
+                          : undefined
+                      }
                       disabled={submitting || !prompt?.versions.length}
                       required
                     >
@@ -238,6 +280,7 @@ export function RunWorkbench({
                   <Select
                     id="run-prompt-version"
                     name="promptVersion"
+                    defaultValue={initialPromptVersionId}
                     disabled={submitting || prompts.length === 0}
                     required
                   >

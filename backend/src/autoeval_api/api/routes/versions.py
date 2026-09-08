@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, Request, status
 
 from autoeval_api.api.dependencies import SessionDependency, get_or_404
 from autoeval_api.models import (
@@ -26,10 +26,14 @@ router = APIRouter()
 def add_agent_version(
     agent_system_id: str,
     payload: CreateAgentVersionRequest,
+    request: Request,
     session: SessionDependency,
 ) -> AgentVersionDetail:
     agent_system = get_or_404(session, AgentSystemRecord, agent_system_id, "Agent system")
     try:
+        request.app.state.system_import_service.validate_graph(
+            session, agent_system.key, payload.definition, agent_system
+        )
         version = create_agent_version(session, agent_system, payload.definition)
     except ValueError as error:
         raise HTTPException(status_code=409, detail=str(error)) from error

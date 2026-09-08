@@ -10,7 +10,7 @@ AutoEval is a local-first workspace for building, tracing, versioning, and evalu
 - Trustworthy trace-to-dataset provenance with idempotent promotion and reverse membership
 - Runtime and evaluation trace origins recorded as separate facts from dataset membership
 - Evaluation runs across multiple models with exact match, accuracy, macro precision, recall, F1, cost, and latency
-- Capability-aware OpenRouter and deterministic mock inference providers behind the same interface
+- Capability-aware OpenRouter, local LM Studio, and deterministic mock inference providers behind the same interface
 - Optional, disabled-by-default local CLI provider boundary
 - Seeded Incident Triage and Portfolio Analyst product flows
 - Deterministic portfolio allocation, concentration, bucket, liquidity, and scenario analysis
@@ -34,6 +34,16 @@ Open [http://localhost:3000](http://localhost:3000). The API runs at [http://loc
 OpenRouter is optional. Add `OPENROUTER_API_KEY` to `.env`, then choose an OpenRouter model on a system's **Run** or **Evaluations** page. The adapter posts to the fixed API endpoint `https://openrouter.ai/api/v1/chat/completions`; `OPENROUTER_APP_URL=http://localhost:3000` is only the optional application-attribution referrer, not the API base URL. The mock models require no network or secrets.
 
 The checked-in model catalog currently includes GPT-5.6 **Luna** (not “Luma”), DeepSeek V4 Flash, and NVIDIA Nemotron 3 Ultra (free). Model request parameters are capability-driven. The free Nemotron route is restricted to inputs explicitly marked synthetic because its provider policy is not appropriate for confidential portfolio data.
+
+LM Studio is optional and off by default. Start the server and load a model from LM Studio's **Developer** tab, or use its CLI. Then list the identifiers exposed by the [OpenAI-compatible API](https://lmstudio.ai/docs/developer/openai-compat):
+
+```bash
+lms server start
+lms load
+curl http://127.0.0.1:1234/v1/models
+```
+
+Set `ENABLE_LM_STUDIO=true` and add one or more comma-separated identifiers to `LM_STUDIO_MODELS` in `.env`. Keep `LM_STUDIO_BASE_URL=http://127.0.0.1:1234/v1` unless the local server uses another loopback port. If LM Studio requires authentication, add its token as `LM_STUDIO_API_TOKEN`. Restart AutoEval, then choose the resulting `lmstudio/<identifier>` model on a **Run** or **Evaluations** page. AutoEval never discovers or loads models during startup. LM Studio requests stay on the configured loopback address, do not follow redirects or use proxy environment variables, and record API cost as $0. Token counts come only from LM Studio's response.
 
 Live portfolio option chains are optional. The initial adapter uses Tradier's fixed official API endpoints and never accepts a request-supplied URL. To enable it, set `OPTIONS_MARKET_DATA_PROVIDER=tradier-sandbox` or `tradier-production` and add `TRADIER_API_TOKEN`. The sandbox uses 15-minute delayed stock/options data and does not provide Greeks; production brokerage accounts receive real-time quotes, while Tradier documents Greeks as hourly. With the default `unconfigured` provider, real-portfolio refreshes fail clearly without making a network request; synthetic demos remain key-free.
 

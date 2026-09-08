@@ -918,6 +918,23 @@ def _create_integrity_triggers(connection) -> None:
         connection.execute(text(statement))
 
 
+def _apply_version_ten(connection) -> None:
+    if not _table_exists(connection, "agent_systems"):
+        return
+    _add_column_if_missing(
+        connection,
+        "agent_systems",
+        "input_template",
+        "JSON NOT NULL DEFAULT '{}'",
+    )
+    _add_column_if_missing(
+        connection,
+        "agent_systems",
+        "import_metadata",
+        "JSON NOT NULL DEFAULT '{}'",
+    )
+
+
 # Ordered by version: index 0 is version 1, and a version is recorded as applied
 # only after its function returns. Append new migrations; never reorder or edit
 # one that has shipped.
@@ -931,6 +948,7 @@ MIGRATIONS: tuple[Migration, ...] = (
     _apply_version_seven,
     _apply_version_eight,
     _apply_version_nine,
+    _apply_version_ten,
 )
 
 MIGRATION_VERSION = len(MIGRATIONS)

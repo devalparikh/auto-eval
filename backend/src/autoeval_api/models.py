@@ -58,6 +58,8 @@ class AgentSystemRecord(Base):
     key: Mapped[str] = mapped_column(String(120), unique=True, index=True)
     name: Mapped[str] = mapped_column(String(200))
     description: Mapped[str] = mapped_column(Text, default="")
+    input_template: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    import_metadata: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
 
 

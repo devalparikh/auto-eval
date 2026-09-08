@@ -11,6 +11,8 @@ export default async function ArtifactsPage({
   searchParams: Promise<{
     snapshot?: string | string[];
     runtimeSnapshot?: string | string[];
+    graphVersion?: string | string[];
+    promptVersion?: string | string[];
   }>;
 }) {
   const { systemKey } = await params;
@@ -23,6 +25,14 @@ export default async function ArtifactsPage({
     <SystemsScreen
       systemKey={systemKey}
       initialSnapshotId={snapshotId}
+      initialGraphVersionId={
+        typeof query.graphVersion === "string" ? query.graphVersion : undefined
+      }
+      initialPromptVersionId={
+        typeof query.promptVersion === "string"
+          ? query.promptVersion
+          : undefined
+      }
     />
   );
 }

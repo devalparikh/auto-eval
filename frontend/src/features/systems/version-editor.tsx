@@ -1,11 +1,17 @@
 "use client";
 
 import { ArrowsOutIcon } from "@phosphor-icons/react";
-import { useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Modal } from "@/components/modal";
 import { Select } from "@/components/select";
 import { LoadingState } from "@/components/states";
-import { AgentGraph, isGraphDefinition } from "@/features/systems/agent-graph";
+import { AgentGraph } from "@/features/systems/agent-graph";
+import { GraphEditor } from "@/features/systems/graph-editor";
+import {
+  graphDefinitionFromSource,
+  graphDefinitionToSource,
+  validateGraphDefinition,
+} from "@/features/systems/graph-editor-model";
 import { formatDate } from "@/lib/format";
 import { playPreferredUiSound } from "@/lib/sound";
 import type { VersionSummary } from "@/lib/types";
@@ -26,6 +32,7 @@ export function VersionEditor({
   selectedRecordId,
   onRecordChange,
   associations = [],
+  systemKey,
 }: {
   kind: "graph" | "prompt";
   title: string;
@@ -42,14 +49,54 @@ export function VersionEditor({
   selectedRecordId?: string;
   onRecordChange?: (value: string) => void;
   associations?: Array<{ nodeId: string; label: string }>;
+  systemKey?: string;
 }) {
   const [draft, setDraft] = useState(content);
-  const [graphView, setGraphView] = useState<"graph" | "json">("graph");
+  const [graphView, setGraphView] = useState<"graph" | "edit" | "source">(
+    "graph",
+  );
   const [saving, setSaving] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const dirty = draft !== content;
+  const parsedGraph = useMemo(
+    () => (kind === "graph" ? graphDefinitionFromSource(draft) : null),
+    [draft, kind],
+  );
+  const graphDefinition = parsedGraph?.ok ? parsedGraph.definition : null;
+  const graphParseMessage =
+    parsedGraph && !parsedGraph.ok ? parsedGraph.message : null;
+  const graphIssues = useMemo(
+    () => (graphDefinition ? validateGraphDefinition(graphDefinition) : []),
+    [graphDefinition],
+  );
+
+  useEffect(() => {
+    if (!dirty) return;
+    const preventUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+    };
+    window.addEventListener("beforeunload", preventUnload);
+    return () => window.removeEventListener("beforeunload", preventUnload);
+  }, [dirty]);
+
+  function canDiscardDraft() {
+    return (
+      !dirty || window.confirm("Discard the unsaved changes to this version?")
+    );
+  }
 
   async function save() {
+    if (kind === "graph") {
+      if (!parsedGraph?.ok) {
+        setError(parsedGraph?.message ?? "Graph definition is invalid.");
+        return;
+      }
+      if (graphIssues.length) {
+        setError("Fix the graph issues before saving a new version.");
+        return;
+      }
+    }
     setSaving(true);
     setError(null);
     try {
@@ -69,11 +116,6 @@ export function VersionEditor({
   }
 
   const selected = versions.find((version) => version.id === selectedVersionId);
-  const parsedGraph = parseJson(draft);
-  const graphDefinition =
-    parsedGraph.ok && isGraphDefinition(parsedGraph.value)
-      ? parsedGraph.value
-      : null;
   return (
     <article className="version-editor overflow-hidden rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface)]">
       <div className="flex items-start justify-between gap-4 border-b border-[var(--border)] px-5 py-4">
@@ -94,7 +136,9 @@ export function VersionEditor({
               aria-label="Prompt family"
               containerClassName="version-select"
               value={selectedRecordId}
-              onChange={(event) => onRecordChange(event.target.value)}
+              onChange={(event) => {
+                if (canDiscardDraft()) onRecordChange(event.target.value);
+              }}
             >
               {records.map((record) => (
                 <option key={record.id} value={record.id}>
@@ -107,7 +151,9 @@ export function VersionEditor({
             aria-label={`${kind} version`}
             containerClassName="version-select"
             value={selectedVersionId}
-            onChange={(event) => onVersionChange(event.target.value)}
+            onChange={(event) => {
+              if (canDiscardDraft()) onVersionChange(event.target.value);
+            }}
           >
             {versions.map((version) => (
               <option key={version.id} value={version.id}>
@@ -169,14 +215,22 @@ export function VersionEditor({
                   disabled={!graphDefinition}
                   onClick={() => setGraphView("graph")}
                 >
-                  Graph
+                  Preview
                 </button>
                 <button
                   type="button"
-                  aria-pressed={graphView === "json"}
-                  onClick={() => setGraphView("json")}
+                  aria-pressed={graphView === "edit"}
+                  disabled={!graphDefinition}
+                  onClick={() => setGraphView("edit")}
                 >
-                  JSON
+                  Edit graph
+                </button>
+                <button
+                  type="button"
+                  aria-pressed={graphView === "source"}
+                  onClick={() => setGraphView("source")}
+                >
+                  Source
                 </button>
               </div>
               {graphView === "graph" && graphDefinition ? (
@@ -192,14 +246,26 @@ export function VersionEditor({
             </div>
             {graphView === "graph" && graphDefinition ? (
               <AgentGraph definition={graphDefinition} />
+            ) : graphView === "edit" && graphDefinition ? (
+              <GraphEditor
+                definition={graphDefinition}
+                systemKey={systemKey}
+                onChange={(definition) => {
+                  setDraft(graphDefinitionToSource(definition));
+                  setError(null);
+                }}
+              />
             ) : (
               <textarea
                 aria-label="Graph definition"
-                aria-invalid={!parsedGraph.ok}
+                aria-invalid={!parsedGraph?.ok || graphIssues.length > 0}
                 aria-describedby="graph-editor-help"
                 className="app-textarea mono version-source-editor text-[10px] leading-5"
                 value={draft}
-                onChange={(event) => setDraft(event.target.value)}
+                onChange={(event) => {
+                  setDraft(event.target.value);
+                  setError(null);
+                }}
                 spellCheck={false}
               />
             )}
@@ -225,13 +291,21 @@ export function VersionEditor({
               className="text-[10px] text-[var(--text-muted)]"
             >
               {kind === "graph" && !graphDefinition
-                ? "The current source is not a valid agent graph definition."
-                : "Saving creates a new immutable version."}
+                ? (graphParseMessage ??
+                  "The current source is not a valid agent graph definition.")
+                : kind === "graph" && graphIssues.length
+                  ? `Fix ${graphIssues.length} graph ${graphIssues.length === 1 ? "issue" : "issues"} before saving.`
+                  : "Saving creates a new immutable version."}
             </p>
           </div>
           <button
             className="app-button"
-            disabled={saving || loading || draft === content}
+            disabled={
+              saving ||
+              loading ||
+              !dirty ||
+              (kind === "graph" && (!graphDefinition || graphIssues.length > 0))
+            }
             onClick={save}
           >
             {saving ? "Saving..." : "Save new version"}
@@ -250,16 +324,6 @@ export function VersionEditor({
       ) : null}
     </article>
   );
-}
-
-function parseJson(
-  value: string,
-): { ok: true; value: unknown } | { ok: false } {
-  try {
-    return { ok: true, value: JSON.parse(value) as unknown };
-  } catch {
-    return { ok: false };
-  }
 }
 
 function VersionMeta({

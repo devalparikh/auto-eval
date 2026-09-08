@@ -424,7 +424,7 @@ class AgentGraphRunner:
             return projected
         metadata = {
             key: response.metadata[key]
-            for key in ("request_id", "resolved_model", "deterministic")
+            for key in ("request_id", "resolved_model", "deterministic", "usage_reported")
             if response.metadata.get(key) is not None
         }
         return {**projected, "_inference": metadata} if metadata else projected

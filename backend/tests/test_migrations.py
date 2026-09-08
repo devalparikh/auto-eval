@@ -72,12 +72,16 @@ def test_legacy_database_is_scoped_and_backfilled(tmp_path) -> None:
         runtime_snapshot_mapping = connection.execute(
             text("SELECT runtime_input_snapshot_ids FROM traces WHERE id = 'trace'")
         ).scalar_one()
+        import_defaults = connection.execute(
+            text("SELECT input_template, import_metadata FROM agent_systems WHERE id = 'system'")
+        ).one()
 
     assert prompt_owner == "system"
+    assert import_defaults == ("{}", "{}")
     assert dataset_owner == "system"
     assert trace_origin == ("evaluation", "run", "item")
     assert "uq_dataset_version_source_trace" in indexes
-    assert migration_versions == [1, 2, 3, 4, 5, 6, 7, 8, 9]
+    assert migration_versions == [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
     assert {
         "id",
         "agent_system_id",
@@ -213,7 +217,7 @@ def test_version_eight_backfills_identity_without_breaking_immutable_triggers(
     assert runtime_catalog_metadata == (
         '{"output_contract":"options_chain","contract_count":0,"freshness":{"status":"fresh"}}'
     )
-    assert versions == list(range(1, 10))
+    assert versions == list(range(1, 11))
 
     with (
         pytest.raises(DatabaseError, match="portfolio_snapshot_immutable"),

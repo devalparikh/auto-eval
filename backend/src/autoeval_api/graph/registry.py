@@ -69,6 +69,21 @@ class NodeHandlerRegistry:
     def scoped(self, system_key: str) -> "ScopedNodeHandlerRegistry":
         return ScopedNodeHandlerRegistry(self, system_key)
 
+    def effective_handler_names(self, system_key: str | None = None) -> dict[str, list[str]]:
+        def names(registry: dict[tuple[str | None, str], Callable]) -> list[str]:
+            return sorted(
+                {
+                    name
+                    for registered_system, name in registry
+                    if registered_system is None or registered_system == system_key
+                }
+            )
+
+        return {
+            "deterministic": names(self._deterministic),
+            "llm": names(self._llm_output),
+        }
+
     @staticmethod
     def _register(
         registry: dict[tuple[str | None, str], Callable],
@@ -103,6 +118,25 @@ def default_node_handler_registry() -> NodeHandlerRegistry:
     from autoeval_api.agent_systems.registry import builtin_system_plugins
 
     registry = NodeHandlerRegistry()
+    register_portable_handlers(registry)
     for plugin in builtin_system_plugins():
         plugin.register_handlers(registry)
     return registry
+
+
+def register_portable_handlers(registry: NodeHandlerRegistry) -> None:
+    registry.register_deterministic("input", portable_input)
+    registry.register_llm_output("llm_response", portable_llm_response)
+    registry.register_deterministic("output", portable_output)
+
+
+def portable_input(state: dict[str, Any]) -> dict[str, Any]:
+    return {"input": state.get("input", {})}
+
+
+def portable_llm_response(_state: dict[str, Any], response: InferenceResponse) -> dict[str, Any]:
+    return {"response": response.output}
+
+
+def portable_output(state: dict[str, Any]) -> dict[str, Any]:
+    return {"output": state.get("response", state.get("input", {}))}

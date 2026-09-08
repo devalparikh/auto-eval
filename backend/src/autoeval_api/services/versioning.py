@@ -39,7 +39,7 @@ def create_agent_version(
     payload = parsed.model_dump(mode="json")
 
     _validate_graph_prompt_keys(session, agent_system, parsed)
-    _validate_graph_resource_policies(session, agent_system, parsed)
+    validate_graph_resource_policies(session, agent_system, parsed)
 
     content_hash = hash_json(payload)
     duplicate = (
@@ -105,7 +105,7 @@ def create_prompt_version(
     return version
 
 
-def _validate_graph_resource_policies(
+def validate_graph_resource_policies(
     session: Session,
     consumer: AgentSystemRecord,
     definition: AgentGraphDefinition,
@@ -251,6 +251,7 @@ def agent_system_summary(session: Session, system: AgentSystemRecord) -> AgentSy
         .all()
     )
     spec = system_spec(system.key)
+    imported = bool(system.import_metadata)
     return AgentSystemSummary(
         id=system.id,
         key=system.key,
@@ -261,7 +262,7 @@ def agent_system_summary(session: Session, system: AgentSystemRecord) -> AgentSy
         description=system.description,
         versions=[_version_summary(item) for item in versions],
         default_model_ids=list(spec.default_model_ids),
-        input_template=spec.input_template,
+        input_template=system.input_template if imported else spec.input_template,
         dataset_editor=spec.dataset_editor,
         input_editor=spec.input_editor,
         primary_metric=spec.primary_metric,

@@ -16,8 +16,7 @@ import type {
   TraceDatasetTargets,
 } from "@/lib/types";
 
-export const API_URL =
-  process.env.NEXT_PUBLIC_API_URL ?? "/api/backend/api";
+export const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "/api/backend/api";
 
 type RequestOptions = Omit<RequestInit, "body"> & { body?: unknown };
 
@@ -38,14 +37,41 @@ export async function apiRequest<T>(
     cache: "no-store",
   });
   if (!response.ok) {
-    const payload = (await response.json().catch(() => null)) as {
-      detail?: string;
-    } | null;
-    throw new Error(
-      payload?.detail ?? `Request failed with status ${response.status}`,
-    );
+    const payload: unknown = await response.json().catch(() => null);
+    throw new Error(requestErrorMessage(payload, response.status));
   }
   return response.json() as Promise<T>;
+}
+
+function requestErrorMessage(payload: unknown, status: number): string {
+  if (payload && typeof payload === "object" && "detail" in payload) {
+    const detail = payload.detail;
+    if (typeof detail === "string") return detail;
+    if (Array.isArray(detail)) {
+      const messages = detail.slice(0, 8).flatMap((item: unknown) => {
+        if (
+          !item ||
+          typeof item !== "object" ||
+          !("msg" in item) ||
+          typeof item.msg !== "string"
+        )
+          return [];
+        const location =
+          "loc" in item && Array.isArray(item.loc)
+            ? item.loc
+                .filter(
+                  (part: unknown) =>
+                    typeof part === "string" || typeof part === "number",
+                )
+                .filter((part) => part !== "body")
+                .join(".")
+            : "";
+        return [location ? `${location}: ${item.msg}` : item.msg];
+      });
+      if (messages.length) return messages.join("; ");
+    }
+  }
+  return `Request failed with status ${status}`;
 }
 
 export const api = {
