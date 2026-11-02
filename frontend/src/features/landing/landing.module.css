@@ -279,11 +279,47 @@
   text-decoration: none;
   white-space: nowrap;
   cursor: pointer;
+  position: relative;
+  isolation: isolate;
   transition:
-    background-color 160ms ease,
-    border-color 160ms ease,
-    color 160ms ease,
-    transform 180ms cubic-bezier(0.16, 1, 0.3, 1);
+    background-color 320ms ease,
+    border-color 320ms ease,
+    color 320ms ease,
+    transform 320ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* The hover shadow fades a pre-rendered layer: animating box-shadow repaints
+   every frame and steps visibly on a large blur. */
+.primaryAction::after,
+.secondaryAction::after,
+.finalPrimary::after,
+.finalSecondary::after {
+  position: absolute;
+  z-index: -1;
+  inset: -1px;
+  border-radius: inherit;
+  box-shadow:
+    0 1px 2px rgb(0 0 0 / 0.14),
+    0 8px 24px rgb(0 0 0 / 0.16);
+  content: "";
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 320ms ease;
+}
+
+.primaryAction::after,
+.finalPrimary::after {
+  box-shadow:
+    0 1px 2px color-mix(in srgb, var(--landing-accent) 24%, transparent),
+    0 10px 28px color-mix(in srgb, var(--landing-accent) 30%, transparent);
+}
+
+.primaryAction:hover::after,
+.secondaryAction:hover::after,
+.finalPrimary:hover::after,
+.finalSecondary:hover::after {
+  opacity: 1;
+  transition-duration: 140ms;
 }
 
 .primaryAction kbd,
@@ -335,6 +371,7 @@
 .finalPrimary:hover,
 .finalSecondary:hover {
   transform: translateY(-1px);
+  transition-duration: 140ms;
 }
 
 .primaryAction:hover {
@@ -360,7 +397,8 @@
 .secondaryAction:active,
 .finalPrimary:active,
 .finalSecondary:active {
-  transform: translateY(1px);
+  transform: translateY(0) scale(0.985);
+  transition-duration: 80ms;
 }
 
 /* Hero */
@@ -373,6 +411,13 @@
   max-width: 15ch;
   font-size: clamp(3rem, 5.8vw, 4.7rem);
   line-height: 1.02;
+}
+
+.heroCopy .actionNote {
+  margin-top: 0.85rem;
+  color: var(--landing-faint);
+  font-size: 0.82rem;
+  line-height: 1.5;
 }
 
 .heroRow {
@@ -559,7 +604,7 @@
   position: relative;
   border-left: 1px solid var(--landing-line);
   --eyebrow-bar: var(--landing-faint);
-  transition: background-color 180ms ease;
+  transition: background-color 320ms ease;
 }
 
 .step:first-child {
@@ -568,6 +613,7 @@
 
 .step:hover {
   background: color-mix(in srgb, var(--landing-ink) 3%, transparent);
+  transition-duration: 140ms;
 }
 
 .stepInner {
@@ -796,9 +842,41 @@
   grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
+.cardShell {
+  position: relative;
+  isolation: isolate;
+  display: flex;
+  min-width: 0;
+  border-radius: 24px;
+}
+
+.cardShell::before {
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  border-radius: inherit;
+  box-shadow:
+    0 1px 2px rgb(0 0 0 / 0.07),
+    0 10px 26px rgb(0 0 0 / 0.1),
+    0 28px 64px rgb(0 0 0 / 0.14);
+  content: "";
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 420ms ease;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .cardShell:hover::before {
+    opacity: 1;
+    transition-duration: 200ms;
+  }
+}
+
 .card {
   position: relative;
   display: flex;
+  min-width: 0;
+  flex: 1;
   min-height: 404px;
   flex-direction: column;
   overflow: hidden;
@@ -2311,7 +2389,7 @@
   .faqItem:hover::before,
   .faqItem:focus-within::before {
     opacity: 1;
-    transition-duration: 0ms;
+    transition-duration: 140ms;
   }
 
   .faqItem:hover summary > span {
@@ -3224,7 +3302,7 @@
 .chartTooltip[data-vendor="openai"] {
   --point: var(--preview-copy);
 }
-.chartTooltip[data-vendor="google"] {
+.chartTooltip[data-vendor="graph"] {
   --point: var(--landing-blue);
 }
 .chartTooltip[data-vendor="finetune"] {
@@ -3408,8 +3486,8 @@
 .chartLegend span[data-vendor="openai"] {
   --point: var(--preview-copy);
 }
-.chartPoint[data-vendor="google"],
-.chartLegend span[data-vendor="google"] {
+.chartPoint[data-vendor="graph"],
+.chartLegend span[data-vendor="graph"] {
   --point: var(--landing-blue);
 }
 .chartPoint[data-vendor="finetune"],
@@ -4058,5 +4136,25 @@
   .editor pre span[data-typing="true"],
   .dockTyping {
     clip-path: none !important;
+  }
+}
+
+/* Eases open where the browser can animate to an automatic height, and simply
+   opens where it cannot. */
+@supports (interpolate-size: allow-keywords) {
+  .faqItem {
+    interpolate-size: allow-keywords;
+  }
+
+  .faqItem::details-content {
+    height: 0;
+    overflow: clip;
+    transition:
+      height 280ms cubic-bezier(0.22, 1, 0.36, 1),
+      content-visibility 280ms allow-discrete;
+  }
+
+  .faqItem[open]::details-content {
+    height: auto;
   }
 }

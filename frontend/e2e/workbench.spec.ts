@@ -60,7 +60,7 @@ test("renders the landing page without first-load fade gaps", async ({
   await expect(
     page
       .getByLabel("Interactive AutoEval workflow")
-      .getByText("128 × 6 models"),
+      .getByText("128 × 6 candidates"),
   ).toBeVisible();
   await expect(
     page.getByRole("heading", { name: "Use the agent you already have." }),
@@ -246,8 +246,8 @@ test("keeps shell geometry stable across primary navigation", async ({
   async function recordShellWidth() {
     widths.push(
       await page
-        .locator(".shell-header")
-        .evaluate((header) => Math.round(header.getBoundingClientRect().width)),
+        .locator(".shell-sidebar")
+        .evaluate((sidebar) => Math.round(sidebar.getBoundingClientRect().width)),
     );
     await expect(page.locator("#main-content")).toHaveCount(1);
   }
@@ -264,36 +264,47 @@ test("keeps shell geometry stable across primary navigation", async ({
   await expect(page.locator(".route-content")).toHaveCSS("opacity", "1");
 });
 
-test("uses stable geometry and layered feedback for row hover", async ({
-  page,
-}) => {
+test("glides one highlight across table rows on hover", async ({ page }) => {
   await page.goto(`${incidentRoot}/results`);
-  const row = page.locator(".data-row").first();
-  await expect(row).toBeVisible();
+  const rows = page.locator("main .data-row");
+  await expect(rows.nth(1)).toBeVisible();
+  const pill = page.locator("main .glide-pill").first();
+  await expect(pill).toHaveAttribute("data-visible", "false");
 
-  const before = await row.evaluate((element) => ({
-    actionTransform: getComputedStyle(
-      element.querySelector(".data-row-affordance")!,
-    ).transform,
-    washOpacity: Number.parseFloat(
-      getComputedStyle(element, "::before").opacity,
+  const firstRow = rows.first();
+  const affordance = () =>
+    firstRow.evaluate(
+      (element) =>
+        getComputedStyle(element.querySelector(".data-row-affordance")!)
+          .transform,
+    );
+  const restingAffordance = await affordance();
+
+  const pillTop = () =>
+    pill.evaluate((element) => element.getBoundingClientRect().top);
+  const rowTop = (index: number) =>
+    rows
+      .nth(index)
+      .evaluate((element) => element.getBoundingClientRect().top);
+
+  await firstRow.hover();
+  await expect(pill).toHaveAttribute("data-visible", "true");
+  await expect
+    .poll(async () => Math.abs((await pillTop()) - (await rowTop(0))))
+    .toBeLessThan(1);
+  await expect.poll(affordance).not.toBe(restingAffordance);
+
+  await rows.nth(1).hover();
+  await expect
+    .poll(async () => Math.abs((await pillTop()) - (await rowTop(1))))
+    .toBeLessThan(1);
+
+  // The rows do not also fade on their own.
+  expect(
+    await firstRow.evaluate((element) =>
+      Number.parseFloat(getComputedStyle(element, "::before").opacity),
     ),
-  }));
-
-  await row.hover();
-  await page.waitForTimeout(30);
-  const hovered = await row.evaluate((element) => ({
-    actionTransform: getComputedStyle(
-      element.querySelector(".data-row-affordance")!,
-    ).transform,
-    washOpacity: Number.parseFloat(
-      getComputedStyle(element, "::before").opacity,
-    ),
-  }));
-
-  expect(before.washOpacity).toBe(0);
-  expect(hovered.washOpacity).toBeGreaterThan(0.7);
-  expect(hovered.actionTransform).not.toBe(before.actionTransform);
+  ).toBe(0);
 });
 
 test("inspect a trace and its graph", async ({ page }) => {
@@ -455,19 +466,19 @@ test("run the seeded evaluation workflow", async ({ page }) => {
   test.setTimeout(45_000);
   await page.goto(`${incidentRoot}/evaluations`);
   await expect(page.getByRole("heading", { name: /Evaluate/i })).toBeVisible();
-  await page.getByRole("button", { name: "Start evaluation" }).click();
+  await page.getByRole("button", { name: "Run benchmark", exact: true }).click();
   await expect(page.getByText(/^Run [a-f0-9]{8}$/)).toBeVisible();
   await expect(page.getByRole("link", { name: "View results" })).toBeVisible({
     timeout: 30_000,
   });
   await page.getByRole("link", { name: "View results" }).click();
-  await expect(page.getByText("Model comparison")).toBeVisible();
+  await expect(page.getByText("Model and graph comparison")).toBeVisible();
 });
 
 test("results render model metrics and scatter plot", async ({ page }) => {
   await page.goto(`${incidentRoot}/results`);
   await expect(page.getByRole("heading", { name: /results/i })).toBeVisible();
-  await expect(page.getByText("Model comparison")).toBeVisible();
+  await expect(page.getByText("Model and graph comparison")).toBeVisible();
   await expect(
     page.getByRole("img", { name: "Scatter chart of accuracy by total cost" }),
   ).toBeVisible();

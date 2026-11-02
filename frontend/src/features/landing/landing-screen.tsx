@@ -32,27 +32,27 @@ const GITHUB_URL = "https://github.com/devalparikh/auto-eval";
 const steps = [
   {
     index: "01",
-    title: "Import guide",
+    title: "Import your agent",
     description:
-      "Register the graph, handlers, scoring code, and provider adapters that already live in your package.",
+      "Register your graph, handlers, and scoring from one manifest.",
   },
   {
     index: "02",
     title: "Run and inspect the trace",
     description:
-      "Every node, model call, input, output, token count, cost, and timing lands in one run.",
+      "See every node, model call, input, output, cost, and timing in one place.",
   },
   {
     index: "03",
     title: "Save the useful cases",
     description:
-      "Promote reviewed traces into a draft dataset, then finalize it once the cases are worth locking.",
+      "Turn reviewed traces into a dataset, then finalize it to lock the test.",
   },
   {
     index: "04",
-    title: "Test every model",
+    title: "Test every model and graph change",
     description:
-      "Run the locked cases against each candidate and compare quality, cost, and latency.",
+      "Run the same locked cases against each one. Compare quality, cost, and latency.",
   },
 ];
 
@@ -87,41 +87,53 @@ const provenanceCards = [
   {
     title: "Content hashes",
     description:
-      "Graphs and prompts are versioned by content. The same bytes resolve to the same version, so nothing is edited in place.",
+      "Graphs and prompts are versioned by content. Nothing is edited in place.",
     visual: <HashVisual />,
   },
   {
     title: "Locked datasets",
     description:
-      "Only a finalized dataset version can start an evaluation. Finalizing freezes the cases every candidate will be measured on.",
+      "Finalizing freezes the cases every candidate is measured on.",
     visual: <LockVisual />,
   },
   {
     title: "Pinned snapshots",
     description:
-      "External data is captured once and frozen with the case. Rerun it next month and it sees the same inputs, so a score change means the model changed, not the world.",
+      "External data is captured once and frozen with the case. A score change next month means your agent changed, not the world.",
     visual: <SnapshotVisual />,
   },
   {
     title: "Keys stay in the backend",
     description:
-      "Provider credentials are read from the server environment only. Nothing secret ships to the browser bundle.",
+      "Provider credentials stay in the server environment and never reach the browser.",
     visual: <KeysVisual />,
   },
 ];
 
 const faqs = [
   [
+    "Do I need an API key?",
+    "Not to start. The included agents run on mock models. Add an OpenRouter key for hosted models, or LM Studio for local ones.",
+  ],
+  [
+    "Can I compare graph versions as well as models?",
+    "Yes. Select any mix of graph versions and models on one finalized dataset. Results show the change in accuracy, cost, and latency against the earliest version.",
+  ],
+  [
+    "Can I benchmark my own fine-tuned model?",
+    "Yes, through LM Studio. Load the model, list it in LM_STUDIO_MODELS, and it appears beside hosted models.",
+  ],
+  [
+    "Can I fine-tune a model in AutoEval?",
+    "Yes, on Apple Silicon. Custom models fine-tunes a base model on a finalized dataset and produces a downloadable adapter. Adapters cannot be selected in a benchmark yet.",
+  ],
+  [
     "Do I need a specific agent framework?",
     "No. Add a code integration with your graph, handlers, scoring, and trace rules. AutoEval runs what you register.",
   ],
   [
-    "Can I compare models and providers?",
-    "Yes. One provider interface runs the same finalized dataset against every model you select, then lines up quality, cost, and latency.",
-  ],
-  [
     "Can a finalized dataset change?",
-    "No. Finalizing locks the dataset. Each evaluation also records the exact graph, prompt, model, and snapshots it used, so a result can always be traced back.",
+    "No. Each evaluation also records the exact graph, prompt, model, and snapshots it used, so every result traces back to what ran.",
   ],
   [
     "Is AutoEval hosted?",
@@ -136,7 +148,7 @@ const footerColumns = [
       ["Workflow", "#workflow"],
       ["Trace inspection", "#trace"],
       ["Bring your agent", "#modular"],
-      ["Model comparison", "#compare"],
+      ["Benchmarks", "#compare"],
       ["Provenance", "#provenance"],
     ],
   },
@@ -172,8 +184,12 @@ export function LandingScreen() {
           <div className={styles.heroRow}>
             <LandingReveal mode="load" delay={0.08} className={styles.heroCopy}>
               <p>
-                Record every node and model call, keep the runs worth testing,
-                and compare models against the same locked dataset.
+                See every node and model call. Save real runs as tests.
+                Benchmark each model, prompt, and graph change on quality, cost,
+                and latency.
+              </p>
+              <p className={styles.actionNote}>
+                Runs locally. Included agents need no API key.
               </p>
             </LandingReveal>
             <LandingReveal mode="load" delay={0.16} className={styles.actions}>
@@ -182,7 +198,7 @@ export function LandingScreen() {
                 className={styles.primaryAction}
                 data-sound="navigate"
               >
-                open autoeval <kbd aria-hidden="true">O</kbd>
+                start benchmarking <kbd aria-hidden="true">B</kbd>
               </Link>
               <a href="#workflow" className={styles.secondaryAction}>
                 <span aria-hidden="true">›</span> see the workflow{" "}
@@ -227,12 +243,12 @@ export function LandingScreen() {
               <Highlight tone="coral">a repeatable test.</Highlight>
             </h2>
             <p>
-              A reviewed trace becomes a dataset item with its graph, prompt,
-              model, and runtime data attached, so it reruns exactly as it
-              happened.
+              Save a reviewed trace as a test case. Its input, expected answer,
+              and runtime data are locked, so every model and graph version
+              faces the same test.
             </p>
             <Link href="/systems" className={styles.textLink}>
-              <span aria-hidden="true">›</span> open an included system
+              <span aria-hidden="true">›</span> try an included agent
             </Link>
           </LandingReveal>
         </section>
@@ -265,8 +281,8 @@ export function LandingScreen() {
             </h2>
             <p>
               Every run is recorded node by node: inputs, outputs, model calls,
-              token counts, cost, and timing. Failures arrive with the context
-              that produced them.
+              tokens, cost, and timing. Failures keep the context that caused
+              them.
             </p>
             <Link href="/systems" className={styles.textLink}>
               <span aria-hidden="true">›</span> inspect a sample trace
@@ -314,13 +330,15 @@ export function LandingScreen() {
               <LandingReveal
                 key={card.title}
                 delay={index * 0.06}
-                className={styles.card}
+                className={styles.cardShell}
               >
-                <div className={styles.cardCopy}>
-                  <h3>{card.title}</h3>
-                  <p>{card.description}</p>
+                <div className={styles.card}>
+                  <div className={styles.cardCopy}>
+                    <h3>{card.title}</h3>
+                    <p>{card.description}</p>
+                  </div>
+                  <div className={styles.cardVisual}>{card.visual}</div>
                 </div>
-                <div className={styles.cardVisual}>{card.visual}</div>
               </LandingReveal>
             ))}
           </div>
@@ -333,18 +351,19 @@ export function LandingScreen() {
           aria-labelledby="compare-title"
         >
           <LandingReveal className={styles.sectionHead}>
-            <span className={styles.eyebrow}>Model comparison</span>
+            <span className={styles.eyebrow}>Benchmarks</span>
             <h2 id="compare-title">
-              Compare every model
+              Benchmark every change
               <br />
               <Highlight tone="blue">against the same truth.</Highlight>
             </h2>
             <p>
-              Point a finalized dataset at each candidate. Open any total score
-              to see where a model passed, failed, slowed down, or cost more.
+              Run a finalized dataset across models and graph versions,
+              including your own local fine-tunes. See what improved, what
+              regressed, and what it cost.
             </p>
             <Link href="/systems" className={styles.textLink}>
-              <span aria-hidden="true">›</span> start a comparison
+              <span aria-hidden="true">›</span> start a benchmark
             </Link>
           </LandingReveal>
         </section>
@@ -355,8 +374,8 @@ export function LandingScreen() {
             <LandingReveal className={styles.previewPlacement} delay={0.08}>
               <ProductPreview
                 initialStage="evaluate"
-                label="Interactive model comparison preview"
-                tablistLabel="Model comparison workflow steps"
+                label="Interactive benchmark preview"
+                tablistLabel="Benchmark workflow steps"
                 idPrefix="model-comparison"
               />
             </LandingReveal>
@@ -387,13 +406,15 @@ export function LandingScreen() {
               <LandingReveal
                 key={card.title}
                 delay={index * 0.06}
-                className={`${styles.card} ${styles.cardCompact}`}
+                className={styles.cardShell}
               >
-                <div className={styles.cardCopy}>
-                  <h3>{card.title}</h3>
-                  <p>{card.description}</p>
+                <div className={`${styles.card} ${styles.cardCompact}`}>
+                  <div className={styles.cardCopy}>
+                    <h3>{card.title}</h3>
+                    <p>{card.description}</p>
+                  </div>
+                  <div className={styles.cardVisual}>{card.visual}</div>
                 </div>
-                <div className={styles.cardVisual}>{card.visual}</div>
               </LandingReveal>
             ))}
           </div>
@@ -435,9 +456,9 @@ export function LandingScreen() {
           <span className={styles.ticks} aria-hidden="true" />
           <LandingReveal className={styles.finalContent}>
             <h2 id="landing-cta-title">
-              Run it. Trace it.
+              Know which change
               <br />
-              Turn it into a test.
+              actually helped.
             </h2>
             <div className={styles.finalActions}>
               <Link
@@ -445,7 +466,7 @@ export function LandingScreen() {
                 className={styles.finalPrimary}
                 data-sound="navigate"
               >
-                open autoeval <kbd aria-hidden="true">O</kbd>
+                start benchmarking <kbd aria-hidden="true">B</kbd>
               </Link>
               <a
                 href={GITHUB_URL}

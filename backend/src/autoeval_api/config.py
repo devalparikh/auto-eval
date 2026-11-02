@@ -36,6 +36,8 @@ class Settings(BaseSettings):
     enable_cli_providers: bool = Field(default=False, alias="ENABLE_CLI_PROVIDERS")
     cli_timeout_seconds: int = 90
     cli_output_limit_bytes: int = 1_000_000
+    training_artifacts_dir: Path = Path(".autoeval/models")
+    training_timeout_seconds: int = Field(default=21_600, ge=60, le=86_400)
     options_market_data_provider: Literal[
         "unconfigured", "tradier-sandbox", "tradier-production"
     ] = Field(default="unconfigured", alias="OPTIONS_MARKET_DATA_PROVIDER")

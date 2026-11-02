@@ -2,52 +2,63 @@ import { ArrowRightIcon } from "@phosphor-icons/react";
 import Link from "next/link";
 import { StatusBadge } from "@/components/status-badge";
 import { systemPath } from "@/features/systems/system-path";
-import { formatDate, shortId } from "@/lib/format";
+import { shortId } from "@/lib/format";
 import type { EvalRun } from "@/lib/types";
 
 export function RunStatusPanel({
-  run,
+  runs,
+  graphNumbers,
   systemKey,
 }: {
-  run: EvalRun | null;
+  runs: EvalRun[];
+  graphNumbers: Map<string, number>;
   systemKey: string;
 }) {
-  if (!run) {
-    return (
-      <aside className="rounded-[var(--radius)] border border-dashed border-[var(--border-strong)] p-5">
-        <h2 className="text-[13px] font-semibold">Run status</h2>
-        <p className="mt-2 text-[11px] leading-5 text-[var(--text-muted)]">
-          Start an evaluation to follow its progress and compare the models.
-        </p>
-      </aside>
-    );
-  }
+  if (!runs.length) return null;
+  const finished = runs.every((run) =>
+    ["complete", "failed"].includes(run.status),
+  );
+  const completed = runs.find((run) => run.status === "complete");
 
   return (
-    <aside className="self-start overflow-hidden rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface)]">
-      <div className="flex items-center justify-between border-b border-[var(--border)] px-4 py-3">
-        <h2 className="text-[12px] font-semibold">Run {shortId(run.id)}</h2>
-        <StatusBadge status={run.status} />
-      </div>
-      <div className="grid gap-3 p-4 text-[11px]">
-        <StatusRow label="Models" value={`${run.model_ids.length}`} />
-        <StatusRow label="Started" value={formatDate(run.created_at)} />
-        <StatusRow
-          label="Completed results"
-          value={`${run.results.length}/${run.model_ids.length}`}
-        />
-        {run.error ? <p className="text-[var(--danger)]">{run.error}</p> : null}
-        {run.status === "complete" ? (
-          <Link href={systemPath(systemKey, "results")} className="app-button mt-2">
+    <aside className="self-start overflow-hidden surface-card">
+      {runs.map((run) => {
+        const graphVersion = graphNumbers.get(run.agent_system_version_id);
+        return (
+          <section
+            key={run.id}
+            className="border-b border-[var(--border)] last:border-b-0"
+          >
+            <div className="flex items-center justify-between gap-3 px-4 pt-3">
+              <h2 className="text-[12px] font-semibold">Run {shortId(run.id)}</h2>
+              <StatusBadge status={run.status} />
+            </div>
+            <div className="grid gap-2 px-4 pt-2 pb-3 text-[11px]">
+              {graphVersion !== undefined ? (
+                <StatusRow label="Graph" value={`v${graphVersion}`} />
+              ) : null}
+              <StatusRow
+                label="Models finished"
+                value={`${run.results.length}/${run.model_ids.length}`}
+              />
+              {run.error ? (
+                <p className="text-[var(--danger)]">{run.error}</p>
+              ) : null}
+            </div>
+          </section>
+        );
+      })}
+      {finished && completed ? (
+        <div className="grid p-4">
+          <Link
+            href={`${systemPath(systemKey, "results")}?${new URLSearchParams({ dataset: completed.dataset_version_id })}`}
+            className="app-button"
+          >
             View results
             <ArrowRightIcon size={14} />
           </Link>
-        ) : (
-          <p className="mt-2 text-[10px] text-[var(--text-muted)]">
-            Results appear here as each model completes.
-          </p>
-        )}
-      </div>
+        </div>
+      ) : null}
     </aside>
   );
 }

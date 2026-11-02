@@ -7,9 +7,10 @@ AutoEval is a local-first workspace for building, tracing, versioning, and evalu
 - Immutable LangGraph and prompt versions with content hashes
 - End-to-end traces with per-node inputs, outputs, latency, token usage, and cost
 - Draft datasets that accept reviewed trace examples, then become immutable when finalized
+- Custom models with local MLX LoRA training on finalized datasets and downloadable adapters
 - Trustworthy trace-to-dataset provenance with idempotent promotion and reverse membership
 - Runtime and evaluation trace origins recorded as separate facts from dataset membership
-- Evaluation runs across multiple models with exact match, accuracy, macro precision, recall, F1, cost, and latency
+- Evaluation runs across multiple models and graph versions with exact match, accuracy, macro precision, recall, F1, cost, and latency, plus each graph version's change against the earliest one
 - Capability-aware OpenRouter, local LM Studio, and deterministic mock inference providers behind the same interface
 - Optional, disabled-by-default local CLI provider boundary
 - Seeded Incident Triage and Portfolio Analyst product flows
@@ -17,6 +18,7 @@ AutoEval is a local-first workspace for building, tracing, versioning, and evalu
 - Immutable server-owned portfolio snapshots plus covered-call screening over locked fixtures or refreshed option data
 - A dedicated system run page that persists every execution as a trace
 - In-place schema migrations and SQLite foreign-key enforcement
+- A sidebar with collapsible list panes and a `⌘K` command menu for pages, traces, datasets, and models
 - FastAPI unit and integration tests plus frontend unit and Playwright test harnesses
 
 ## Local setup
@@ -49,6 +51,12 @@ Live portfolio option chains are optional. The initial adapter uses Tradier's fi
 
 Portfolio Q&A selects indexed state through the graph node's server-owned resource policy, never through business input: a direct run can resolve the current snapshot for a stable portfolio identity, while a dataset or evaluation locks the exact resolved snapshot ID. Live option-chain refresh is also separate from business input. Direct runs default `capture_node_outputs` to false; they still record bounded live-observation metadata on the span, but persist the normalized observation only when capture is explicitly enabled. Trace-to-dataset promotion rejects any used live observation that was not captured, while evaluations replay locked IDs without calling the network. Generic portfolio questions need no options snapshot; covered-call questions with no locked observation fail closed. Every observation records source, mode, registered provider, schema version, as-of/fetch time, quote freshness/delay, separate Greeks provenance, and contract count without persisting vendor references or putting the full chain into graph state, model input, or traces. `AUTOEVAL_MARKET_DATA_TIMEOUT_SECONDS`, `AUTOEVAL_MARKET_DATA_MAX_SYMBOLS`, `AUTOEVAL_MARKET_DATA_MAX_EXPIRATIONS_PER_SYMBOL`, `AUTOEVAL_MARKET_DATA_MAX_CONTRACTS`, and `AUTOEVAL_MARKET_DATA_MAX_RESPONSE_BYTES` bound the adapter. When earnings timing is unknown and `earnings_blackout` is enabled, the deterministic policy rejects the candidate instead of assuming no event. See [runtime-input-snapshots.md](docs/runtime-input-snapshots.md) for the replay contract.
 
+For local fine-tuning, open **Custom models** and install the optional training
+dependencies with `.venv/bin/python -m pip install -e 'backend[training]'` on an
+Apple Silicon Mac. Select a base model and finalized dataset, review the training
+example, then start training. See [custom-models.md](docs/custom-models.md) for
+the data format, setup, lifecycle, and adapter export.
+
 ## Tests
 
 ```bash
@@ -70,6 +78,7 @@ backend/src/autoeval_api/
   agent_systems/  Built-in agent definitions, handlers, scoring, seed data
   graph/          Generic LangGraph topology, registries, trace-aware runner
   inference/      Provider contract, adapters, and provider registry
+  training/       Dataset preparation and optional local MLX training
   services/       Queries and workflows for each product domain
   app.py          Application composition and dependency injection
   main.py         Thin ASGI export

@@ -9,7 +9,7 @@ from autoeval_api.api.dependencies import (
 )
 from autoeval_api.models import DatasetRecord, DatasetVersionRecord, EvalRunRecord
 from autoeval_api.schemas import CreateEvalRunRequest, EvalRunResponse
-from autoeval_api.services.evaluations import eval_run_response, list_eval_runs
+from autoeval_api.services.evaluations import EvaluationConflict, eval_run_response, list_eval_runs
 
 router = APIRouter()
 
@@ -72,7 +72,12 @@ async def create_eval_run(
             prompt_version,
             payload.model_ids,
             prompt_versions,
+            finalize_dataset=payload.finalize_dataset,
+            expected_dataset_revision=payload.expected_dataset_revision,
+            request_id=payload.request_id,
         )
+    except EvaluationConflict as error:
+        raise HTTPException(status_code=409, detail=str(error)) from error
     except (ValueError, RuntimeError) as error:
         raise HTTPException(status_code=400, detail=str(error)) from error
     if payload.run_in_background:

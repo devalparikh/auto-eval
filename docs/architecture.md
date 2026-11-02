@@ -43,6 +43,11 @@ flowchart LR
 - `DatasetVersion` is mutable only while its status is `draft`.
 - Finalizing a dataset version is one-way. Further edits require a new draft version.
 - Evaluation runs accept only final dataset versions.
+- A benchmark across graph versions is one evaluation run per version on the same dataset version. Runs execute one at a time, because SQLite takes one writer and every run shares the event loop. Results measures each later version against the earliest for the same model.
+- Benchmark submission can explicitly finalize a draft and create its run in one
+  transaction. A content revision rejects stale draft selections before locking;
+  a request ID makes retries return the original run. Execution failures leave
+  the dataset finalized.
 - Prompts and datasets belong to one agent system; cross-system selections are rejected.
 - Trace execution origin and trace-to-dataset membership are independent provenance facts.
 
@@ -64,6 +69,7 @@ autoeval_api/
     seed.py                 built-in seed composition
   graph/                    parsed graph definition, generic topology, node registry, runner
   inference/                provider contract, adapters, registry
+  training/                 finalized-data export and optional local MLX executor
   market_data/              registered runtime capabilities and Tradier options adapter
   services/                 domain workflows, queries, serialization, scoring
   models.py                 persistence records
@@ -107,6 +113,7 @@ frontend/src/
     catalog/            catalog projections
     traces/             trace list, run flow, DAG, inspector, review flow
     datasets/           draft editing and finalization
+    custom-models/      local fine-tuning recipes, lifecycle, and adapters
     evaluations/        model selection, launch, and polling
     run/                one-off pinned inference and latest trace result
     results/            tables, row projection, and cost/accuracy chart
@@ -118,6 +125,11 @@ Keep domain behavior in its feature directory. Promote a component to `component
 
 `lib/api-schema.ts` is generated from the backend's OpenAPI document by `make api-types` and is never edited by hand; `lib/api-contract.ts` holds type-level assertions that keep `lib/types.ts` honest against it.
 
+Custom models pin finalized dataset content and a training recipe. The service
+owns job state; the optional MLX executor owns hardware checks and worker
+processes. See [custom-models.md](custom-models.md) for the data format, setup,
+artifact contract, and path to future hardware/cloud executors.
+
 ## Selection and output behavior
 
 - A request or evaluation may omit graph and prompt version IDs. Resolution is always scoped to the selected system; omitting the system retains Incident Triage as the compatibility default.
@@ -127,6 +139,7 @@ Keep domain behavior in its feature directory. Promote a component to `component
 ## Local MVP boundaries
 
 - SQLite and the in-process evaluation task are suitable for local, single-process use only.
+- `sqlite://` shares one connection across threads through `StaticPool`, and parallel requests segfault it inside SQLAlchemy. It is for serial, in-process tests only. Anything serving concurrent requests, including Playwright, uses a file database.
 - There is no authentication or authorization. Keep both servers on loopback.
 - Trace capture and outbound inference are separate policy boundaries. Non-synthetic portfolio traces remove identity-like fields, exact shares, symbols, and raw dollar values; provider calls receive only an explicit typed model context. Synthetic fixtures may retain richer local trace output for evaluation and inspection.
 - Provider secrets live only in the backend environment. CLI providers are disabled by default and cross a high-trust local execution boundary when enabled.

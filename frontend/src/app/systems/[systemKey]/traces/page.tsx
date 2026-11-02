@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { TracesScreen } from "@/features/traces/traces-screen";
+import { TraceSelectionPrompt } from "@/features/traces/traces-workspace";
 
 export const metadata: Metadata = { title: "Traces" };
 
@@ -9,5 +9,5 @@ export default async function TracesPage({
   params: Promise<{ systemKey: string }>;
 }) {
   const { systemKey } = await params;
-  return <TracesScreen systemKey={systemKey} />;
+  return <TraceSelectionPrompt systemKey={systemKey} />;
 }

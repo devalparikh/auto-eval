@@ -1,3 +1,6 @@
+import asyncio
+import hashlib
+import json
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
@@ -31,6 +34,7 @@ from autoeval_api.schemas import (
     EvalModelResultResponse,
     EvalRunResponse,
 )
+from autoeval_api.services.datasets import dataset_content_revision, finalize_dataset_version
 from autoeval_api.services.node_resources import resolve_node_resource
 from autoeval_api.services.scoring import MetricSuite, ScoringRegistry, default_scoring_registry
 from autoeval_api.services.versioning import resolve_graph_prompt_versions
@@ -47,6 +51,10 @@ class EvaluationContext:
     agent_system_key: str
 
 
+class EvaluationConflict(ValueError):
+    pass
+
+
 class EvaluationService:
     def __init__(
         self,
@@ -57,8 +65,107 @@ class EvaluationService:
         self.session_factory = session_factory
         self.runner = runner
         self.scoring_registry = scoring_registry or default_scoring_registry()
+        # A benchmark starts one run per graph version. SQLite takes one writer and every
+        # run shares this event loop, so queued runs wait their turn instead of contending.
+        self._execution_lock = asyncio.Lock()
 
     def create_run(
+        self,
+        session: Session,
+        dataset_version: DatasetVersionRecord,
+        graph_version: AgentSystemVersionRecord,
+        prompt_version: PromptVersionRecord,
+        model_ids: list[str],
+        prompt_versions: dict[str, PromptVersionRecord] | None = None,
+        *,
+        finalize_dataset: bool = False,
+        expected_dataset_revision: str | None = None,
+        request_id: str | None = None,
+    ) -> EvalRunRecord:
+        """Finalize and enqueue atomically; a retry returns the original run."""
+        try:
+            if finalize_dataset or request_id:
+                # Acquire SQLite's writer lock before reading the draft or retry key.
+                # Final versions are never updated. Other databases lock the version row.
+                if session.get_bind().dialect.name == "sqlite":
+                    session.execute(
+                        update(DatasetVersionRecord)
+                        .where(
+                            DatasetVersionRecord.id == dataset_version.id,
+                            DatasetVersionRecord.status == DatasetStatus.DRAFT,
+                        )
+                        .values(status=DatasetVersionRecord.status)
+                    )
+                session.refresh(dataset_version, with_for_update=True)
+            resolved_prompts = (
+                prompt_versions
+                if prompt_versions is not None
+                else resolve_graph_prompt_versions(session, graph_version)
+            )
+            request_hash = hashlib.sha256(
+                json.dumps(
+                    {
+                        "dataset": dataset_version.id,
+                        "graph": graph_version.id,
+                        "prompt": prompt_version.id,
+                        "prompts": {key: value.id for key, value in resolved_prompts.items()},
+                        "models": sorted(set(model_ids)),
+                        "finalize": finalize_dataset,
+                        "revision": expected_dataset_revision,
+                    },
+                    sort_keys=True,
+                ).encode()
+            ).hexdigest()
+            if request_id:
+                existing = session.query(EvalRunRecord).filter_by(request_id=request_id).first()
+                if existing is not None:
+                    if existing.request_hash != request_hash:
+                        raise EvaluationConflict(
+                            "This benchmark request was already used with different inputs."
+                        )
+                    session.commit()
+                    return existing
+            if finalize_dataset:
+                if not expected_dataset_revision:
+                    raise EvaluationConflict("Review the dataset before finalizing it.")
+                items = (
+                    session.query(DatasetItemRecord)
+                    .filter_by(dataset_version_id=dataset_version.id)
+                    .populate_existing()
+                    .all()
+                )
+                if dataset_content_revision(items) != expected_dataset_revision:
+                    raise EvaluationConflict(
+                        "The dataset changed since you loaded it. "
+                        "Refresh and review the dataset before starting the benchmark."
+                    )
+                if not items:
+                    raise ValueError("Add at least one example before starting a benchmark.")
+                system = session.get(AgentSystemRecord, graph_version.agent_system_id)
+                if system is None:
+                    raise ValueError("Evaluation agent system is no longer available")
+                for item in items:
+                    self._require_locked_runtime_inputs(graph_version, item, system.key)
+                    self._require_locked_node_resources(session, graph_version, item)
+                dataset = session.get(DatasetRecord, dataset_version.dataset_id)
+                if dataset is None:
+                    raise ValueError("Evaluation dataset is no longer available")
+                self.scoring_registry.for_dataset(dataset.key)
+                if dataset_version.status == DatasetStatus.DRAFT:
+                    finalize_dataset_version(session, dataset_version, commit=False)
+            run = self._create_run(
+                session, dataset_version, graph_version, prompt_version, model_ids, resolved_prompts
+            )
+            run.request_id = request_id
+            run.request_hash = request_hash if request_id else None
+            session.commit()
+            session.refresh(run)
+            return run
+        except Exception:
+            session.rollback()
+            raise
+
+    def _create_run(
         self,
         session: Session,
         dataset_version: DatasetVersionRecord,
@@ -104,11 +211,13 @@ class EvaluationService:
             model_ids=list(dict.fromkeys(model_ids)),
         )
         session.add(run)
-        session.commit()
-        session.refresh(run)
         return run
 
     async def execute(self, run_id: str) -> None:
+        async with self._execution_lock:
+            await self._execute(run_id)
+
+    async def _execute(self, run_id: str) -> None:
         session = self.session_factory()
         try:
             claimed = session.execute(

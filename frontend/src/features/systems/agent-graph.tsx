@@ -2,7 +2,8 @@
 
 import type { Edge, Node, NodeProps } from "@xyflow/react";
 import { useMemo, useState } from "react";
-import { GraphCanvas } from "@/components/graph-canvas";
+import { GraphCanvas, useIsGraphNodeSelected } from "@/components/graph-canvas";
+import { SmoothHeight } from "@/components/smooth-height";
 import { GraphLegend, GraphNodeCard } from "@/features/graph/graph-node-card";
 import {
   graphHeightClass,
@@ -18,17 +19,13 @@ import type { GraphDefinition } from "@/lib/types";
 
 type AgentNodeData = {
   view: GraphNodeView;
-  selected: boolean;
 };
 
 const nodeTypes = { agentNode: AgentNode };
 const inlineFitOptions = { padding: 0.2, minZoom: 0.1, maxZoom: 0.88 };
 const fullscreenFitOptions = { padding: 0.16, minZoom: 0.1, maxZoom: 1 };
 
-export function buildAgentGraph(
-  definition: GraphDefinition,
-  selectedNodeId?: string,
-): {
+export function buildAgentGraph(definition: GraphDefinition): {
   nodes: Node<AgentNodeData>[];
   edges: Edge[];
 } {
@@ -49,7 +46,7 @@ export function buildAgentGraph(
       initialWidth: 216,
       initialHeight: 100,
       ariaLabel: view.ariaLabel,
-      data: { view, selected: node.id === selectedNodeId },
+      data: { view },
     };
   });
   const edges = definition.edges.map((edge) => ({
@@ -105,19 +102,23 @@ export function AgentGraph({
   }
 
   const { nodes, edges } = useMemo(
-    () => buildAgentGraph(definition, selectedNodeId),
-    [definition, selectedNodeId],
+    () => buildAgentGraph(definition),
+    [definition],
   );
   const selectedView =
     nodes.find((node) => node.id === selectedNodeId)?.data.view ?? null;
 
   const details = (
-    <div className="min-w-0 border border-[var(--border-strong)]">
-      {selectedView ? (
-        <GraphNodeDetails view={selectedView} />
-      ) : (
-        <GraphNodeDetailsEmpty />
-      )}
+    <div className="node-details-panel min-w-0">
+      <SmoothHeight>
+        <div key={selectedNodeId} className="swap-in">
+          {selectedView ? (
+            <GraphNodeDetails view={selectedView} />
+          ) : (
+            <GraphNodeDetailsEmpty />
+          )}
+        </div>
+      </SmoothHeight>
     </div>
   );
 
@@ -131,19 +132,19 @@ export function AgentGraph({
       >
         <GraphCanvas
           ariaLabel="Agent graph structure"
-          className={`border border-[var(--border-strong)] ${
+          className={
             fullscreen
               ? "h-[calc(100dvh-12rem)]"
               : graphHeightClass(graphRowCount(nodes))
-          }`}
+          }
           nodes={nodes}
           edges={edges}
           nodeTypes={nodeTypes}
           fitViewOptions={fullscreen ? fullscreenFitOptions : inlineFitOptions}
           minZoom={0.1}
           maxZoom={1.5}
-          elementsSelectable
-          onNodeClick={(_, node) => setSelectedNodeId(node.id)}
+          selectedNodeId={selectedNodeId}
+          onSelectNode={setSelectedNodeId}
           zoomOnScroll={fullscreen}
         />
         {fullscreen ? (
@@ -158,6 +159,7 @@ export function AgentGraph({
   );
 }
 
-function AgentNode({ data }: NodeProps<Node<AgentNodeData>>) {
-  return <GraphNodeCard view={data.view} selected={data.selected} width={212} />;
+function AgentNode({ id, data }: NodeProps<Node<AgentNodeData>>) {
+  const selected = useIsGraphNodeSelected(id);
+  return <GraphNodeCard view={data.view} selected={selected} width={212} />;
 }

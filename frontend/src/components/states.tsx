@@ -2,7 +2,7 @@ import { WarningCircleIcon } from "@phosphor-icons/react";
 
 export function LoadingState({ rows = 5 }: { rows?: number }) {
   return (
-    <div aria-label="Loading" className="space-y-2 p-5">
+    <div aria-label="Loading" className="loading-state space-y-2 p-5">
       {Array.from({ length: rows }).map((_, index) => (
         <div key={index} className="skeleton h-11 w-full" />
       ))}

@@ -1,59 +1,110 @@
 .workspace {
-  display: grid;
-  grid-template-columns: 200px minmax(0, 1fr);
-  gap: 32px;
-  max-width: 1240px;
-  margin: 0 auto;
-  padding: 36px 28px 64px;
+  max-width: 900px;
+  padding: 12px var(--page-gutter) 40px;
+}
+.importMenu {
+  display: flex;
+  height: 100%;
+  flex-direction: column;
+  padding: 16px 12px 16px 8px;
+}
+.menuLabel {
+  margin: 0;
+  color: var(--text-faint);
+  padding: 12px 8px 6px;
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
 }
 .stepRail {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  padding-top: 8px;
+  gap: 1px;
 }
 .stepRail > div {
   display: flex;
+  min-height: 30px;
   align-items: center;
-  gap: 12px;
-  padding: 12px 8px;
-  font-size: 12px;
+  gap: 10px;
+  padding: 0 8px;
   color: var(--text-muted);
+  font-size: 12.5px;
 }
 .stepRail > div[aria-current] {
   color: var(--text);
+  font-weight: 500;
 }
 .stepNumber {
   display: grid;
-  place-items: center;
-  width: 23px;
-  height: 23px;
-  border: 1px solid var(--border-strong);
-  border-radius: 50%;
-  font: 10px var(--font-mono);
+  width: 18px;
+  height: 18px;
   flex-shrink: 0;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--card-inset);
+  font: 9.5px var(--font-mono);
+  transition:
+    background-color 260ms ease,
+    color 260ms ease;
 }
 [aria-current] > .stepNumber {
   background: var(--accent-soft);
-  border-color: var(--accent);
   color: var(--accent);
 }
 [data-complete="true"] > .stepNumber {
-  border-color: var(--success);
+  background: var(--success-soft);
   color: var(--success);
 }
-.stepRail > p {
-  font-size: 11px;
-  line-height: 1.8;
-  padding: 16px 8px;
+.sourceList {
+  display: grid;
+  gap: 1px;
+}
+.sourceList button {
+  display: flex;
+  width: 100%;
+  min-height: 30px;
+  align-items: center;
+  gap: 10px;
+  border-radius: 9px;
   color: var(--text-muted);
+  cursor: pointer;
+  padding: 0 8px;
+  font-size: 12.5px;
+  text-align: left;
+  transition:
+    background-color var(--hover-out) ease,
+    color var(--hover-out) ease;
+}
+.sourceList button:hover:not(:disabled) {
+  background: var(--shell-hover);
+  color: var(--text);
+  transition-duration: var(--hover-in);
+}
+.sourceList button[aria-pressed="true"] {
+  background: var(--card);
+  color: var(--text);
+  font-weight: 500;
+}
+.sourceList button:disabled {
+  cursor: wait;
+  opacity: 0.5;
+}
+.menuHelp {
+  margin-top: auto;
+  padding: 16px 8px 0;
+}
+.menuHelp p {
+  margin: 0 0 8px;
+  color: var(--text-muted);
+  font-size: 11.5px;
+  line-height: 1.5;
 }
 .mainPanel {
   min-width: 0;
-  border: 1px solid var(--border);
   border-radius: var(--radius);
   padding: 28px;
-  background: var(--surface);
+  background: var(--card);
 }
 .panelHeader {
   display: flex;
@@ -77,45 +128,13 @@
   max-width: 65ch;
   margin-top: 8px;
 }
-.sourceTabs {
-  display: flex;
-  border-bottom: 1px solid var(--border);
-  margin-bottom: 24px;
-  gap: 24px;
-}
-.sourceTabs button {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  position: relative;
-  padding: 12px 0;
-  color: var(--text-muted);
-  font-size: 12px;
-  cursor: pointer;
-}
-.sourceTabs button[aria-pressed="true"] {
-  color: var(--text);
-}
-.sourceTabs button[aria-pressed="true"]::after {
-  content: "";
-  position: absolute;
-  height: 2px;
-  background: var(--text);
-  bottom: -1px;
-  left: 0;
-  right: 0;
-}
-.sourceTabs button:disabled {
-  cursor: wait;
-  opacity: 0.5;
-}
 .dropzone {
   display: flex;
   align-items: center;
   flex-direction: column;
   justify-content: center;
   border: 1px dashed var(--border-strong);
-  border-radius: 8px;
+  border-radius: var(--radius-inset);
   min-height: 278px;
   text-align: center;
   padding: 24px 16px;
@@ -166,25 +185,6 @@
 .sourceForm textarea {
   font-size: 11px;
   line-height: 1.8;
-}
-.helpRow {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 20px;
-  padding: 24px 0;
-  margin-top: 4px;
-}
-.helpRow h3 {
-  font-size: 12px;
-  font-weight: 500;
-}
-.helpRow p {
-  max-width: 45ch;
-  font-size: 11px;
-  color: var(--text-muted);
-  line-height: 1.8;
-  margin-top: 4px;
 }
 .inlineLink {
   display: inline-flex;
@@ -366,14 +366,18 @@
   display: flex;
   align-items: flex-start;
   gap: 14px;
-  padding: 18px 16px;
-  border-radius: 6px;
+  padding: 16px;
+  border-radius: var(--radius-inset);
   text-align: left;
   cursor: pointer;
-  transition: background 180ms;
+  transition: background var(--hover-out) ease;
+}
+.guideSteps button:hover {
+  background: var(--shell-hover);
+  transition-duration: var(--hover-in);
 }
 .guideSteps button[aria-pressed="true"] {
-  background: var(--surface-muted);
+  background: var(--card);
 }
 .guideSteps button > span:first-child {
   font: 10px/1.7 var(--font-mono);
@@ -396,9 +400,8 @@
 }
 .guideScene {
   min-width: 0;
-  border: 1px solid var(--border);
-  background: var(--surface);
-  border-radius: 10px;
+  background: var(--card);
+  border-radius: var(--radius);
   overflow: hidden;
 }
 .sceneChrome {
@@ -431,8 +434,8 @@
   display: grid;
   gap: 12px;
   padding: 22px;
-  border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: var(--radius-inset);
+  background: var(--card);
   font: 11px/1.7 var(--font-mono);
 }
 .fileTree > span {
@@ -460,8 +463,8 @@
 .miniNode {
   flex: 1;
   min-width: 0;
-  border: 1px solid var(--border-strong);
-  border-radius: 6px;
+  border-radius: var(--radius-inset);
+  background: var(--card);
   padding: 14px 10px;
 }
 .miniNode small {
@@ -567,18 +570,6 @@
   line-height: 1.8;
 }
 @media (max-width: 960px) {
-  .workspace {
-    grid-template-columns: 1fr;
-    gap: 18px;
-  }
-  .stepRail {
-    flex-direction: row;
-    padding: 0;
-    flex-wrap: wrap;
-  }
-  .stepRail > p {
-    display: none;
-  }
   .walkthrough {
     grid-template-columns: 220px minmax(0, 1fr);
     gap: 16px;
@@ -588,35 +579,14 @@
   }
 }
 @media (max-width: 700px) {
-  .workspace,
   .guide {
     padding: 24px 16px 48px;
   }
   .mainPanel {
     padding: 20px 16px;
   }
-  .sourceTabs {
-    gap: 16px;
-  }
-  .sourceTabs button {
-    font-size: 11px;
-    gap: 6px;
-  }
-  .helpRow {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 10px;
-  }
   .reviewDetails {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-  .stepRail {
-    gap: 2px;
-  }
-  .stepRail > div {
-    font-size: 10px;
-    gap: 6px;
-    padding: 6px;
   }
   .walkthrough {
     grid-template-columns: 1fr;

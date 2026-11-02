@@ -583,6 +583,53 @@
         "title": "CreateAgentVersionRequest",
         "type": "object"
       },
+      "CreateCustomModelRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "base_model": {
+            "maxLength": 200,
+            "minLength": 3,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*/[A-Za-z0-9][A-Za-z0-9._-]*$",
+            "title": "Base Model",
+            "type": "string"
+          },
+          "base_revision": {
+            "default": "main",
+            "maxLength": 120,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._/-]*$",
+            "title": "Base Revision",
+            "type": "string"
+          },
+          "dataset_version_id": {
+            "title": "Dataset Version Id",
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "system_prompt": {
+            "default": "Return the expected JSON output for the provided input.",
+            "maxLength": 16000,
+            "minLength": 1,
+            "title": "System Prompt",
+            "type": "string"
+          },
+          "training_config": {
+            "$ref": "#/components/schemas/TrainingConfig"
+          }
+        },
+        "required": [
+          "name",
+          "dataset_version_id",
+          "base_model"
+        ],
+        "title": "CreateCustomModelRequest",
+        "type": "object"
+      },
       "CreateDatasetVersionRequest": {
         "additionalProperties": false,
         "properties": {
@@ -619,6 +666,23 @@
             "title": "Dataset Version Id",
             "type": "string"
           },
+          "expected_dataset_revision": {
+            "anyOf": [
+              {
+                "pattern": "^[a-f0-9]{64}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expected Dataset Revision"
+          },
+          "finalize_dataset": {
+            "default": false,
+            "title": "Finalize Dataset",
+            "type": "boolean"
+          },
           "model_ids": {
             "items": {
               "type": "string"
@@ -647,6 +711,19 @@
             "title": "Prompt Version Ids",
             "type": "object"
           },
+          "request_id": {
+            "anyOf": [
+              {
+                "maxLength": 80,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Request Id"
+          },
           "run_in_background": {
             "default": true,
             "title": "Run In Background",
@@ -674,6 +751,187 @@
           "content"
         ],
         "title": "CreatePromptVersionRequest",
+        "type": "object"
+      },
+      "CustomModelResponse": {
+        "properties": {
+          "agent_system_id": {
+            "title": "Agent System Id",
+            "type": "string"
+          },
+          "archived": {
+            "title": "Archived",
+            "type": "boolean"
+          },
+          "base_model": {
+            "title": "Base Model",
+            "type": "string"
+          },
+          "base_revision": {
+            "title": "Base Revision",
+            "type": "string"
+          },
+          "completed_steps": {
+            "title": "Completed Steps",
+            "type": "integer"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "dataset_hash": {
+            "title": "Dataset Hash",
+            "type": "string"
+          },
+          "dataset_version_id": {
+            "title": "Dataset Version Id",
+            "type": "string"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "executor": {
+            "const": "local_mlx",
+            "title": "Executor",
+            "type": "string"
+          },
+          "finished_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finished At"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "log_tail": {
+            "title": "Log Tail",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "recipe_hash": {
+            "title": "Recipe Hash",
+            "type": "string"
+          },
+          "resolved_revision": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resolved Revision"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started At"
+          },
+          "status": {
+            "enum": [
+              "draft",
+              "queued",
+              "running",
+              "complete",
+              "failed",
+              "cancelled"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "system_prompt": {
+            "title": "System Prompt",
+            "type": "string"
+          },
+          "train_count": {
+            "title": "Train Count",
+            "type": "integer"
+          },
+          "training_config": {
+            "$ref": "#/components/schemas/TrainingConfig"
+          },
+          "training_loss": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Training Loss"
+          },
+          "validation_count": {
+            "title": "Validation Count",
+            "type": "integer"
+          },
+          "validation_loss": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Validation Loss"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "archived",
+          "agent_system_id",
+          "dataset_version_id",
+          "base_model",
+          "base_revision",
+          "resolved_revision",
+          "executor",
+          "system_prompt",
+          "training_config",
+          "dataset_hash",
+          "recipe_hash",
+          "train_count",
+          "validation_count",
+          "status",
+          "completed_steps",
+          "training_loss",
+          "validation_loss",
+          "log_tail",
+          "error",
+          "created_at",
+          "started_at",
+          "finished_at"
+        ],
+        "title": "CustomModelResponse",
         "type": "object"
       },
       "DatasetItemInput": {
@@ -943,6 +1201,10 @@
       },
       "DatasetVersionDetail": {
         "properties": {
+          "content_revision": {
+            "title": "Content Revision",
+            "type": "string"
+          },
           "created_at": {
             "format": "date-time",
             "title": "Created At",
@@ -996,6 +1258,7 @@
           "created_at",
           "finalized_at",
           "dataset_id",
+          "content_revision",
           "items"
         ],
         "title": "DatasetVersionDetail",
@@ -3419,6 +3682,195 @@
         "title": "TraceSpanResponse",
         "type": "object"
       },
+      "TrainingBaseModel": {
+        "properties": {
+          "description": {
+            "title": "Description",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "label",
+          "description"
+        ],
+        "title": "TrainingBaseModel",
+        "type": "object"
+      },
+      "TrainingConfig": {
+        "additionalProperties": false,
+        "properties": {
+          "batch_size": {
+            "default": 1,
+            "maximum": 16.0,
+            "minimum": 1.0,
+            "title": "Batch Size",
+            "type": "integer"
+          },
+          "learning_rate": {
+            "default": 1e-05,
+            "maximum": 0.01,
+            "minimum": 1e-07,
+            "title": "Learning Rate",
+            "type": "number"
+          },
+          "lora_rank": {
+            "default": 8,
+            "maximum": 64.0,
+            "minimum": 1.0,
+            "title": "Lora Rank",
+            "type": "integer"
+          },
+          "max_seq_length": {
+            "default": 2048,
+            "maximum": 8192.0,
+            "minimum": 128.0,
+            "title": "Max Seq Length",
+            "type": "integer"
+          },
+          "seed": {
+            "default": 42,
+            "maximum": 2147483647.0,
+            "minimum": 0.0,
+            "title": "Seed",
+            "type": "integer"
+          },
+          "steps": {
+            "default": 100,
+            "maximum": 10000.0,
+            "minimum": 1.0,
+            "title": "Steps",
+            "type": "integer"
+          }
+        },
+        "title": "TrainingConfig",
+        "type": "object"
+      },
+      "TrainingDataPreview": {
+        "properties": {
+          "dataset_hash": {
+            "title": "Dataset Hash",
+            "type": "string"
+          },
+          "duplicate_count": {
+            "title": "Duplicate Count",
+            "type": "integer"
+          },
+          "sample": {
+            "items": {
+              "$ref": "#/components/schemas/TrainingMessage"
+            },
+            "title": "Sample",
+            "type": "array"
+          },
+          "train_count": {
+            "title": "Train Count",
+            "type": "integer"
+          },
+          "validation_count": {
+            "title": "Validation Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "dataset_hash",
+          "train_count",
+          "validation_count",
+          "duplicate_count",
+          "sample"
+        ],
+        "title": "TrainingDataPreview",
+        "type": "object"
+      },
+      "TrainingMessage": {
+        "properties": {
+          "content": {
+            "title": "Content",
+            "type": "string"
+          },
+          "role": {
+            "enum": [
+              "system",
+              "user",
+              "assistant"
+            ],
+            "title": "Role",
+            "type": "string"
+          }
+        },
+        "required": [
+          "role",
+          "content"
+        ],
+        "title": "TrainingMessage",
+        "type": "object"
+      },
+      "TrainingRuntime": {
+        "properties": {
+          "available": {
+            "title": "Available",
+            "type": "boolean"
+          },
+          "base_models": {
+            "items": {
+              "$ref": "#/components/schemas/TrainingBaseModel"
+            },
+            "title": "Base Models",
+            "type": "array"
+          },
+          "executor": {
+            "const": "local_mlx",
+            "default": "local_mlx",
+            "title": "Executor",
+            "type": "string"
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          },
+          "setup_command": {
+            "default": ".venv/bin/python -m pip install -e 'backend[training]'",
+            "title": "Setup Command",
+            "type": "string"
+          }
+        },
+        "required": [
+          "available",
+          "reason",
+          "base_models"
+        ],
+        "title": "TrainingRuntime",
+        "type": "object"
+      },
+      "UpdateCustomModelRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "archived": {
+            "default": false,
+            "title": "Archived",
+            "type": "boolean"
+          },
+          "name": {
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "title": "UpdateCustomModelRequest",
+        "type": "object"
+      },
       "UpdateDatasetItemRequest": {
         "additionalProperties": false,
         "properties": {
@@ -3846,6 +4298,343 @@
           }
         },
         "summary": "Catalog"
+      }
+    },
+    "/api/custom-models": {
+      "get": {
+        "operationId": "list_models_api_custom_models_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/CustomModelResponse"
+                  },
+                  "title": "Response List Models Api Custom Models Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List Models",
+        "tags": [
+          "custom-models"
+        ]
+      },
+      "post": {
+        "operationId": "create_model_api_custom_models_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateCustomModelRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CustomModelResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Model",
+        "tags": [
+          "custom-models"
+        ]
+      }
+    },
+    "/api/custom-models/preview": {
+      "post": {
+        "operationId": "preview_api_custom_models_preview_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateCustomModelRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrainingDataPreview"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Preview",
+        "tags": [
+          "custom-models"
+        ]
+      }
+    },
+    "/api/custom-models/runtime": {
+      "get": {
+        "operationId": "runtime_api_custom_models_runtime_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrainingRuntime"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Runtime",
+        "tags": [
+          "custom-models"
+        ]
+      }
+    },
+    "/api/custom-models/{model_id}": {
+      "get": {
+        "operationId": "get_model_api_custom_models__model_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "model_id",
+            "required": true,
+            "schema": {
+              "title": "Model Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CustomModelResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Model",
+        "tags": [
+          "custom-models"
+        ]
+      },
+      "put": {
+        "operationId": "update_model_api_custom_models__model_id__put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "model_id",
+            "required": true,
+            "schema": {
+              "title": "Model Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateCustomModelRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CustomModelResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Model",
+        "tags": [
+          "custom-models"
+        ]
+      }
+    },
+    "/api/custom-models/{model_id}/artifacts": {
+      "get": {
+        "operationId": "artifacts_api_custom_models__model_id__artifacts_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "model_id",
+            "required": true,
+            "schema": {
+              "title": "Model Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Artifacts",
+        "tags": [
+          "custom-models"
+        ]
+      }
+    },
+    "/api/custom-models/{model_id}/cancel": {
+      "post": {
+        "operationId": "cancel_model_api_custom_models__model_id__cancel_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "model_id",
+            "required": true,
+            "schema": {
+              "title": "Model Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CustomModelResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Cancel Model",
+        "tags": [
+          "custom-models"
+        ]
+      }
+    },
+    "/api/custom-models/{model_id}/train": {
+      "post": {
+        "operationId": "train_model_api_custom_models__model_id__train_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "model_id",
+            "required": true,
+            "schema": {
+              "title": "Model Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CustomModelResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Train Model",
+        "tags": [
+          "custom-models"
+        ]
       }
     },
     "/api/dataset-items/{item_id}": {

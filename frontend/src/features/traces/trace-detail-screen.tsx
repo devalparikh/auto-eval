@@ -7,6 +7,7 @@ import { CatalogGate } from "@/components/catalog-gate";
 import { PageHeader } from "@/components/page-header";
 import { JsonViewer } from "@/components/json-viewer";
 import { Select } from "@/components/select";
+import { SmoothHeight } from "@/components/smooth-height";
 import { ErrorState, LoadingState } from "@/components/states";
 import { StatusBadge } from "@/components/status-badge";
 import { AddToDatasetModal } from "@/features/traces/add-to-dataset-modal";
@@ -25,7 +26,9 @@ export function TraceDetailScreen({
   traceId: string;
   systemKey: string;
 }) {
-  const trace = useApiResource(() => api.trace(traceId), [traceId]);
+  const trace = useApiResource(() => api.trace(traceId), [traceId], {
+    cacheKey: `trace:${traceId}`,
+  });
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [datasetModalOpen, setDatasetModalOpen] = useState(false);
 
@@ -74,11 +77,11 @@ export function TraceDetailScreen({
               </button>
             }
           />
-          <section className="border-b border-[var(--border)] bg-[var(--surface)] px-4 py-3 md:px-7">
-            <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
+          <section className="px-4 pt-3 pb-1 md:px-7">
+            <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
               <Link
                 href={systemPath(systemKey, "traces")}
-                className="flex items-center gap-1.5 text-[12px] font-medium text-[var(--text-muted)] hover:text-[var(--text)]"
+                className="trace-back-link flex items-center gap-1.5 text-[12px] font-medium text-[var(--text-muted)] hover:text-[var(--text)]"
               >
                 <ArrowLeftIcon size={13} />
                 All traces
@@ -105,13 +108,12 @@ export function TraceDetailScreen({
                 label="Model"
                 value={currentTrace.model_id.split("/").slice(-1)[0]}
               />
-              <Metric
-                label="Save live data"
-                value={currentTrace.capture_node_outputs === undefined ? "not recorded" : currentTrace.capture_node_outputs ? "enabled for this run" : "off for this run"}
-              />
+              {currentTrace.capture_node_outputs ? (
+                <Metric label="Live data" value="saved for replay" />
+              ) : null}
             </div>
           </section>
-          <details className="min-w-0 border-b border-[var(--border)] bg-[var(--surface)] px-4 py-3 md:px-7">
+          <details className="min-w-0 px-4 py-2.5 md:px-7">
             <summary className="cursor-pointer text-[12px] text-[var(--text-muted)]">Request and run details</summary>
             <div className="mt-3 grid min-w-0 gap-3 md:grid-cols-2">
             <ProvenanceBlock
@@ -153,9 +155,9 @@ export function TraceDetailScreen({
             </div>
             </div>
           </details>
-          <div className="grid min-h-0 min-w-0 grid-cols-[minmax(0,1fr)]">
-            <section className="min-w-0 border-b border-[var(--border)]">
-              <div className="flex min-h-11 flex-wrap items-center justify-between gap-2 border-b border-[var(--border)] bg-[var(--surface)] px-4 py-2">
+          <div className="grid min-h-0 min-w-0 grid-cols-[minmax(0,1fr)] gap-3 px-4 pb-7 md:px-7">
+            <section className="surface-card min-w-0 overflow-hidden">
+              <div className="flex min-h-11 flex-wrap items-center justify-between gap-2 px-4 py-2.5">
                 <h2 className="text-[12px] font-semibold">Execution graph</h2>
                 <div className="flex min-w-0 max-w-full items-center gap-2">
                   <label htmlFor="trace-selected-node" className="shrink-0 text-[11px] text-[var(--text-muted)]">Inspect node</label>
@@ -170,17 +172,25 @@ export function TraceDetailScreen({
                 onSelect={setSelectedNodeId}
               />
             </section>
-            <TraceInspector
-              span={activeSpan}
-              node={activeNode}
-              entry={
-                Boolean(activeNodeId) && definition?.entry_point === activeNodeId
-              }
-              output={
-                Boolean(activeNodeId) && definition?.output_node === activeNodeId
-              }
-              systemKey={systemKey}
-            />
+            <div className="node-details-panel min-w-0">
+              <SmoothHeight>
+                <div key={activeNodeId} className="swap-in">
+                  <TraceInspector
+                    span={activeSpan}
+                    node={activeNode}
+                    entry={
+                      Boolean(activeNodeId) &&
+                      definition?.entry_point === activeNodeId
+                    }
+                    output={
+                      Boolean(activeNodeId) &&
+                      definition?.output_node === activeNodeId
+                    }
+                    systemKey={systemKey}
+                  />
+                </div>
+              </SmoothHeight>
+            </div>
           </div>
           <AddToDatasetModal
             open={datasetModalOpen}

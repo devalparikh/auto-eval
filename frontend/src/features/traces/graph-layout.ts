@@ -6,7 +6,6 @@ import { snapshotUse } from "@/features/traces/snapshot-use";
 
 export type TraceNodeData = {
   view: GraphNodeView;
-  selected: boolean;
   status: string;
   latency: number;
   cost: number;
@@ -16,10 +15,7 @@ export type TraceNodeData = {
   dataLabel: string | null;
 };
 
-export function buildTraceGraph(
-  trace: Trace,
-  selectedNodeId: string | null,
-): { nodes: Node<TraceNodeData>[]; edges: Edge[] } {
+export function buildTraceGraph(trace: Trace): { nodes: Node<TraceNodeData>[]; edges: Edge[] } {
   const definition = trace.graph_definition;
   if (!definition) return { nodes: [], edges: [] };
 
@@ -43,7 +39,6 @@ export function buildTraceGraph(
       ariaLabel: view.ariaLabel,
       data: {
         view,
-        selected: selectedNodeId === node.id,
         status: span?.status ?? "queued",
         latency: span?.latency_ms ?? 0,
         cost: span?.cost_usd ?? 0,

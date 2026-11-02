@@ -1,3 +1,5 @@
+import hashlib
+import json
 from typing import Any
 
 from sqlalchemy import func
@@ -267,7 +269,7 @@ def update_dataset_item(
 
 
 def finalize_dataset_version(
-    session: Session, version: DatasetVersionRecord
+    session: Session, version: DatasetVersionRecord, *, commit: bool = True
 ) -> DatasetVersionRecord:
     require_draft(version)
     dataset = _dataset_for_version(session, version)
@@ -288,8 +290,9 @@ def finalize_dataset_version(
     version.status = DatasetStatus.FINAL
     version.finalized_at = utc_now()
     session.add(version)
-    session.commit()
-    session.refresh(version)
+    if commit:
+        session.commit()
+        session.refresh(version)
     return version
 
 
@@ -339,8 +342,27 @@ def dataset_version_detail(session: Session, version: DatasetVersionRecord) -> D
     return DatasetVersionDetail(
         **summary.model_dump(),
         dataset_id=version.dataset_id,
+        content_revision=dataset_content_revision(items),
         items=[DatasetItemResponse.model_validate(item, from_attributes=True) for item in items],
     )
+
+
+def dataset_content_revision(items: list[DatasetItemRecord]) -> str:
+    """Pin reviewed content, including bindings and same-count edits, across tabs."""
+    content = [
+        {
+            "id": item.id,
+            "input": item.input,
+            "expected": item.expected,
+            "runtime_input_snapshot_ids": item.runtime_input_snapshot_ids or {},
+            "node_resource_selections": item.node_resource_selections or {},
+            "source_trace_id": item.source_trace_id,
+        }
+        for item in sorted(items, key=lambda item: item.id)
+    ]
+    return hashlib.sha256(
+        json.dumps(content, sort_keys=True, separators=(",", ":")).encode()
+    ).hexdigest()
 
 
 def _dataset_for_version(

@@ -72,7 +72,6 @@ describe("run graph node types", () => {
         edges: [],
       },
       {},
-      resourceNode.id,
     ).nodes[0]?.data.view;
     expect(missing?.badges).toContain("Needs saved input");
     expect(missing?.dataFlow.onRun).toBe(
@@ -98,14 +97,12 @@ describe("run graph node types", () => {
       edges: [{ source: "calculate", target: "explain" }],
     } satisfies GraphDefinition;
 
-    const graph = buildRunGraphPreview(definition, {}, "calculate");
+    const graph = buildRunGraphPreview(definition, {});
 
     expect(graph.nodes[0]?.position).toEqual({ x: 0, y: 0 });
     expect(graph.nodes[0]?.initialWidth).toBe(204);
     expect(graph.nodes[0]?.initialHeight).toBe(96);
     expect(graph.nodes[1]?.position.x).toBeGreaterThan(0);
-    expect(graph.nodes[0]?.data.selected).toBe(true);
-    expect(graph.nodes[1]?.data.selected).toBe(false);
     expect(graph.nodes[0]?.data.view.type).toBe("logic");
     expect(graph.nodes[0]?.ariaLabel).toContain("Start");
     expect(graph.nodes[0]?.ariaLabel).toContain("then explain");

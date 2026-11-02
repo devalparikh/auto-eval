@@ -83,7 +83,7 @@ export function GraphNodeDetails({
   return (
     <section
       aria-label={`${view.label} details`}
-      className="min-w-0 bg-[var(--surface)]"
+      className="min-w-0"
     >
       <header className="flex items-start justify-between gap-4 border-b border-[var(--border)] px-4 py-3">
         <div className="flex min-w-0 items-start gap-2.5">

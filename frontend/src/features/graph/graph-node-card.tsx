@@ -2,7 +2,6 @@
 
 import {
   BracketsCurlyIcon,
-  CheckIcon,
   CloudArrowDownIcon,
   DatabaseIcon,
   WaveformIcon,
@@ -48,11 +47,11 @@ export function GraphNodeCard({
       style={{
         width,
         background: `color-mix(in srgb, var(--surface-raised) 94%, ${accent})`,
-        borderColor: selected
-          ? "var(--accent)"
-          : `color-mix(in srgb, var(--border-strong) 78%, ${accent})`,
+        borderColor: `color-mix(in srgb, var(--border-strong) 78%, ${accent})`,
       }}
-      className="graph-node-card relative rounded-[8px] border p-3 shadow-[0_14px_40px_rgba(0,0,0,0.22)]"
+      // `nopan`: React Flow only adds this to draggable nodes. Without it, a
+      // click that drifts by a pixel starts panning the canvas instead.
+      className="graph-node-card nopan relative rounded-[10px] border p-3"
     >
       <Handle
         type="target"
@@ -75,13 +74,13 @@ export function GraphNodeCard({
           </span>
           <span
             style={{ color: accent }}
-            className="mono mt-0.5 inline-flex max-w-full items-center rounded-[4px] border border-[var(--border)] px-1.5 py-0 text-[8px] font-medium leading-[10px] tracking-[0.04em]"
+            className="mono mt-0.5 inline-flex max-w-full items-center rounded-[4px] border border-[var(--border)] px-1.5 py-0 text-[9px] font-medium leading-[12px] tracking-[0.02em]"
           >
             {view.typeLabel}
           </span>
         </span>
       </div>
-      <p className="mono mt-2 truncate text-[8px] text-[var(--text-faint)]">
+      <p className="mono mt-2 truncate text-[9px] text-[var(--text-faint)]">
         {view.summary}
       </p>
       {view.badges.length ? (
@@ -89,7 +88,7 @@ export function GraphNodeCard({
           {view.badges.map((badge) => (
             <span
               key={badge}
-              className="rounded-[4px] border border-[var(--border)] px-1.5 py-0.5 text-[8px] text-[var(--text-muted)]"
+              className="rounded-[4px] border border-[var(--border)] px-1.5 py-0.5 text-[9px] text-[var(--text-muted)]"
             >
               {badge}
             </span>
@@ -100,15 +99,6 @@ export function GraphNodeCard({
         <div className="mt-2 border-t border-[var(--border)] pt-2">
           {footer}
         </div>
-      ) : null}
-      {selected ? (
-        <span
-          aria-hidden
-          style={{ color: accent }}
-          className="absolute -right-1.5 -top-1.5 grid size-4 place-items-center rounded-full border border-[var(--border-strong)] bg-[var(--surface-raised)] shadow-[0_2px_8px_rgba(0,0,0,0.22)]"
-        >
-          <CheckIcon size={9} weight="bold" />
-        </span>
       ) : null}
       <Handle
         type="source"

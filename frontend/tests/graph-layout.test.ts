@@ -49,7 +49,7 @@ describe("trace graph layout", () => {
       graph_definition: definition,
       spans: [{ node_id: "left", status: "complete", latency_ms: 12, cost_usd: 0.01 }],
     } as Trace;
-    const graph = buildTraceGraph(trace, "left");
+    const graph = buildTraceGraph(trace);
     expect(graph.nodes.find((node) => node.id === "left")?.position).toEqual({ x: 278, y: 0 });
     expect(graph.nodes.find((node) => node.id === "right")?.position).toEqual({ x: 278, y: 190 });
     expect(graph.nodes.find((node) => node.id === "left")?.initialWidth).toBe(208);
@@ -57,7 +57,6 @@ describe("trace graph layout", () => {
     expect(graph.nodes.find((node) => node.id === "left")?.data).toMatchObject({
       latency: 12,
       cost: 0.01,
-      selected: true,
     });
   });
 
@@ -67,7 +66,7 @@ describe("trace graph layout", () => {
       graph_definition: definition,
       spans: [],
     } as unknown as Trace;
-    const graph = buildTraceGraph(trace, null);
+    const graph = buildTraceGraph(trace);
     const types = Object.fromEntries(
       graph.nodes.map((node) => [node.id, node.data.view.type]),
     );
@@ -88,7 +87,7 @@ describe("trace graph layout", () => {
       graph_definition: definition,
       spans: [],
     } as unknown as Trace;
-    const graph = buildTraceGraph(trace, null);
+    const graph = buildTraceGraph(trace);
     const badges = Object.fromEntries(
       graph.nodes.map((node) => [node.id, node.data.view.badges]),
     );

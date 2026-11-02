@@ -5,9 +5,17 @@ export const metadata: Metadata = { title: "Results" };
 
 export default async function ResultsPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ systemKey: string }>;
+  searchParams: Promise<{ dataset?: string | string[] }>;
 }) {
   const { systemKey } = await params;
-  return <ResultsScreen systemKey={systemKey} />;
+  const { dataset } = await searchParams;
+  return (
+    <ResultsScreen
+      systemKey={systemKey}
+      initialDatasetVersionId={typeof dataset === "string" ? dataset : undefined}
+    />
+  );
 }

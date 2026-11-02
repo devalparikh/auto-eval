@@ -2,7 +2,8 @@
 
 import type { Edge, Node, NodeProps } from "@xyflow/react";
 import { useMemo, type ReactNode } from "react";
-import { GraphCanvas } from "@/components/graph-canvas";
+import { GraphCanvas, useIsGraphNodeSelected } from "@/components/graph-canvas";
+import { SmoothHeight } from "@/components/smooth-height";
 import { GraphLegend, GraphNodeCard } from "@/features/graph/graph-node-card";
 import {
   graphHeightClass,
@@ -18,7 +19,6 @@ import type { GraphDefinition, NodeResourceSelection } from "@/lib/types";
 
 type RunPreviewNodeData = {
   view: GraphNodeView;
-  selected: boolean;
 };
 
 const nodeTypes = { runPreviewNode: RunPreviewNode };
@@ -35,7 +35,6 @@ const previewFitOptions = {
 export function buildRunGraphPreview(
   definition: GraphDefinition,
   resourceSelections: Record<string, NodeResourceSelection>,
-  selectedNodeId?: string | null,
 ): { nodes: Node<RunPreviewNodeData>[]; edges: Edge[] } {
   const levels = graphLevels(definition.nodes, definition.edges);
   const levelCounts = new Map<number, number>();
@@ -66,7 +65,7 @@ export function buildRunGraphPreview(
       initialWidth: nodeWidth,
       initialHeight: nodeHeight,
       ariaLabel: view.ariaLabel,
-      data: { view, selected: definitionNode.id === selectedNodeId },
+      data: { view },
     };
   });
   const edges = definition.edges.map((edge) => ({
@@ -95,8 +94,8 @@ export function RunGraphPreview({
   onSelectNode: (nodeId: string) => void;
 }) {
   const { nodes, edges } = useMemo(
-    () => buildRunGraphPreview(definition, resourceSelections, selectedNodeId),
-    [definition, resourceSelections, selectedNodeId],
+    () => buildRunGraphPreview(definition, resourceSelections),
+    [definition, resourceSelections],
   );
   const maximumX = Math.max(0, ...nodes.map((node) => node.position.x));
   const maximumY = Math.max(0, ...nodes.map((node) => node.position.y));
@@ -114,46 +113,45 @@ export function RunGraphPreview({
       <GraphLegend types={nodes.map((node) => node.data.view.type)} />
       <GraphCanvas
         ariaLabel="Selected graph execution preview"
-        className={`border border-[var(--border)] ${graphHeightClass(graphRowCount(nodes))}`}
+        className={graphHeightClass(graphRowCount(nodes))}
         nodes={nodes}
         edges={edges}
         nodeTypes={nodeTypes}
         fitViewOptions={previewFitOptions}
         minZoom={0.12}
         maxZoom={1.4}
-        elementsSelectable
-        onNodeClick={(_, node) => onSelectNode(node.id)}
+        selectedNodeId={selectedNodeId}
+        onSelectNode={onSelectNode}
         translateExtent={[
           [-320, -260],
           [maximumX + nodeWidth + 320, maximumY + nodeHeight + 260],
         ]}
       />
-      <div className="min-w-0 border border-[var(--border)]">
-        {selectedView ? (
-          <GraphNodeDetails view={selectedView}>
-            {keepsOptionalCopy ? (
-              <p className="px-4 py-3 text-[10px] leading-5 text-[var(--text-muted)]">
-                {captureNodeOutputs
-                  ? "If this node uses live data, this run saves it for replay."
-                  : "If this node uses live data, this trace cannot be added to a dataset."}
-              </p>
-            ) : null}
-            {selectedNodeContent}
-          </GraphNodeDetails>
-        ) : (
-          <GraphNodeDetailsEmpty />
-        )}
+      <div className="node-details-panel min-w-0">
+        <SmoothHeight>
+          <div key={selectedNodeId} className="swap-in">
+            {selectedView ? (
+              <GraphNodeDetails view={selectedView}>
+                {keepsOptionalCopy ? (
+                  <p className="px-4 py-3 text-[10px] leading-5 text-[var(--text-muted)]">
+                    {captureNodeOutputs
+                      ? "If this node uses live data, this run saves it for replay."
+                      : "If this node uses live data, this trace cannot be added to a dataset."}
+                  </p>
+                ) : null}
+                {selectedNodeContent}
+              </GraphNodeDetails>
+            ) : (
+              <GraphNodeDetailsEmpty />
+            )}
+          </div>
+        </SmoothHeight>
       </div>
     </div>
   );
 }
 
-function RunPreviewNode({ data }: NodeProps<Node<RunPreviewNodeData>>) {
-  return (
-    <GraphNodeCard
-      view={data.view}
-      selected={data.selected}
-      width={nodeWidth}
-    />
-  );
+function RunPreviewNode({ id, data }: NodeProps<Node<RunPreviewNodeData>>) {
+  const selected = useIsGraphNodeSelected(id);
+  return <GraphNodeCard view={data.view} selected={selected} width={nodeWidth} />;
 }

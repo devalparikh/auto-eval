@@ -6,6 +6,7 @@ import {
   UploadSimpleIcon,
 } from "@phosphor-icons/react";
 import Link from "next/link";
+import { HoverGlide } from "@/components/hover-glide";
 import { PageHeader } from "@/components/page-header";
 import { EmptyState, ErrorState, LoadingState } from "@/components/states";
 import { systemPath } from "@/features/systems/system-path";
@@ -27,19 +28,14 @@ export function SystemBrowserScreen() {
       <PageHeader
         title="Agent systems"
         action={
-          <div className="flex flex-wrap gap-2">
-            <Link className="app-button secondary" href="/guide">
-              Import guide
-            </Link>
-            <Link className="app-button" href="/import">
-              <UploadSimpleIcon size={14} />
-              Import system
-            </Link>
-          </div>
+          <Link className="app-button" href="/import">
+            <UploadSimpleIcon size={14} />
+            Import system
+          </Link>
         }
       />
       <section className="grid gap-4 p-4 md:grid-cols-2 md:p-7">
-        {catalog.loading ? <LoadingState rows={8} /> : null}
+        {catalog.loading && !catalog.data ? <LoadingState rows={8} /> : null}
         {catalog.error ? (
           <ErrorState message={catalog.error} retry={catalog.reload} />
         ) : null}
@@ -66,11 +62,11 @@ export function SystemBrowserScreen() {
           return (
             <article
               key={product.product_key}
-              className="rounded-[var(--radius)] grid min-h-[190px] content-between border border-[var(--border)] bg-[var(--surface)] p-5"
+              className="surface-card grid min-h-[190px] content-between p-5"
             >
               <div>
                 <div className="flex items-center justify-between gap-4">
-                  <span className="grid size-9 place-items-center border border-[var(--border-strong)] text-[var(--accent)]">
+                  <span className="grid size-9 place-items-center rounded-[12px] bg-[var(--card-inset)] text-[var(--text-muted)]">
                     <GitBranchIcon size={17} />
                   </span>
                   <span className="mono text-[9px] text-[var(--text-faint)]">
@@ -83,7 +79,7 @@ export function SystemBrowserScreen() {
                 <p className="mt-2 max-w-[58ch] text-[11px] leading-5 text-[var(--text-muted)]">
                   {product.description}
                 </p>
-                <div className="mt-5 grid gap-2">
+                <HoverGlide className="mt-5 grid gap-1" radius={12}>
                   {flows
                     .toSorted((left, right) =>
                       left.flow_key.localeCompare(right.flow_key),
@@ -92,7 +88,7 @@ export function SystemBrowserScreen() {
                       <Link
                         key={flow.id}
                         href={systemPath(flow.key)}
-                        className="data-row group flex items-center justify-between border border-[var(--border)] px-3 py-2 no-underline"
+                        className="data-row group flex items-center justify-between rounded-[12px] px-3 py-2 no-underline"
                       >
                         <span className="text-[11px] font-medium">
                           {flow.flow_name}
@@ -103,7 +99,7 @@ export function SystemBrowserScreen() {
                         />
                       </Link>
                     ))}
-                </div>
+                </HoverGlide>
               </div>
               <p className="mono mt-6 text-[9px] text-[var(--text-faint)]">
                 {graphVersionCount} graph versions · {promptCount ?? 0} prompts

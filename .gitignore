@@ -1,6 +1,7 @@
 .DS_Store
 .env
 .venv/
+.autoeval/
 __pycache__/
 .pytest_cache/
 .ruff_cache/

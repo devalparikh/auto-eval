@@ -4,6 +4,7 @@ import { DatabaseIcon, GitBranchIcon, TextTIcon } from "@phosphor-icons/react";
 import { useState } from "react";
 import Link from "next/link";
 import { CatalogGate } from "@/components/catalog-gate";
+import { HoverGlide } from "@/components/hover-glide";
 import { PageHeader } from "@/components/page-header";
 import { ErrorState } from "@/components/states";
 import { graphPromptAssociations } from "@/features/systems/graph-prompts";
@@ -94,14 +95,17 @@ function SystemsWorkbench({
   const graphDetail = useApiResource(
     graphVersionId ? () => api.agentVersion(graphVersionId) : null,
     [graphVersionId],
+    { cacheKey: `graph-version:${graphVersionId}` },
   );
   const promptDetail = useApiResource(
     promptVersionId ? () => api.promptVersion(promptVersionId) : null,
     [promptVersionId],
+    { cacheKey: `prompt-version:${promptVersionId}` },
   );
   const snapshots = useApiResource(
     () => api.nodeSnapshots({ productKey: system.product_key }),
     [system.product_key],
+    { cacheKey: `node-snapshots:${system.product_key}` },
   );
   const snapshotId =
     (snapshots.data ?? []).find(
@@ -112,6 +116,7 @@ function SystemsWorkbench({
   const snapshotDetail = useApiResource(
     snapshotId ? () => api.nodeSnapshot(snapshotId) : null,
     [snapshotId],
+    { cacheKey: `node-snapshot:${snapshotId}` },
   );
   const promptAssociations = graphPromptAssociations(
     graphDetail.data?.definition ?? null,
@@ -165,9 +170,11 @@ function SystemsWorkbench({
         }
       />
       <section className="grid gap-4 p-4 md:p-7 xl:grid-cols-[220px_minmax(0,1fr)]">
-        <nav
+        <HoverGlide
+          as="nav"
           aria-label="What to view"
-          className="rounded-[var(--radius)] h-fit overflow-hidden border border-[var(--border)] bg-[var(--surface)]"
+          className="surface-card h-fit overflow-hidden"
+          rowSelector="button"
         >
           <div className="border-b border-[var(--border)] px-4 py-3">
             <p className="mono text-[9px] lowercase tracking-[0.12em] text-[var(--text-faint)]">
@@ -180,7 +187,7 @@ function SystemsWorkbench({
               type="button"
               aria-pressed={activeKind === kind}
               onClick={() => setActiveKind(kind)}
-              className="flex w-full items-center gap-3 border-b border-[var(--border)] px-4 py-3 text-left last:border-b-0 hover:bg-[var(--surface-muted)] aria-pressed:bg-[var(--accent-soft)]"
+              className="flex w-full items-center gap-3 border-b border-[var(--border)] px-4 py-3 text-left last:border-b-0 aria-pressed:bg-[var(--accent-soft)]"
             >
               <Icon
                 size={15}
@@ -198,7 +205,7 @@ function SystemsWorkbench({
               </span>
             </button>
           ))}
-        </nav>
+        </HoverGlide>
         <div className="min-w-0">
           {activeKind === "graph" ? (
             <VersionEditor

@@ -288,6 +288,22 @@ waveform bars and the sonner toast animations, neither of which we need.
 
 ---
 
+## T3 Code — app chrome
+
+Read from `apps/web/src/components/ui/sidebar.tsx` and
+`chat/ProviderModelPicker.tsx` in `pingdotgg/t3code`, not a rendered page.
+
+| Thing | Observed | Ours |
+|---|---|---|
+| Sidebar width | 256px, icon mode 48px | 232px, 56px: more compact, as asked |
+| Row | 32px, `text-sm`, muted until hover | 30px, 12.5px |
+| Edge rail | 16px hit strip, 2px line on hover, click toggles | 12px strip, same line |
+| Persistence | `sidebar_state` cookie | `autoeval-sidebar` cookie |
+| Model picker | Search first, provider grouping, "A, B, 2 more" | Same, with search only from 8 options |
+
+The one deliberate addition is the gliding hover highlight, because Cursor's web
+sidebar was called out as lacking a smooth hover.
+
 ## Mapping: reference → ours
 
 | Reference detail | Ours | Lives in |

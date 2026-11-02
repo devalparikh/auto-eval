@@ -56,7 +56,7 @@ describe("ImportScreen", () => {
   it("requires review before commit and submits the inspected version expectations", async () => {
     render(<ImportScreen />);
     fireEvent.click(
-      screen.getByRole("button", { name: /Try a runnable example/ }),
+      screen.getByRole("button", { name: /Try an example/ }),
     );
     expect(await screen.findByText("Graph preview")).toBeVisible();
     expect(importApi.commit).not.toHaveBeenCalled();
@@ -114,7 +114,7 @@ describe("ImportScreen", () => {
     );
     render(<ImportScreen />);
     fireEvent.click(
-      screen.getByRole("button", { name: /Try a runnable example/ }),
+      screen.getByRole("button", { name: /Try an example/ }),
     );
     fireEvent.click(
       await screen.findByRole("button", { name: "Import system" }),

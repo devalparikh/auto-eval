@@ -935,6 +935,22 @@ def _apply_version_ten(connection) -> None:
     )
 
 
+def _apply_version_eleven(connection) -> None:
+    from autoeval_api.models import CustomModelRecord
+
+    CustomModelRecord.__table__.create(connection, checkfirst=True)
+
+
+def _apply_version_twelve(connection) -> None:
+    if not _table_exists(connection, "eval_runs"):
+        return
+    _add_column_if_missing(connection, "eval_runs", "request_id", "VARCHAR(80)")
+    _add_column_if_missing(connection, "eval_runs", "request_hash", "VARCHAR(64)")
+    connection.execute(
+        text("CREATE UNIQUE INDEX IF NOT EXISTS uq_eval_run_request_id ON eval_runs (request_id)")
+    )
+
+
 # Ordered by version: index 0 is version 1, and a version is recorded as applied
 # only after its function returns. Append new migrations; never reorder or edit
 # one that has shipped.
@@ -949,6 +965,8 @@ MIGRATIONS: tuple[Migration, ...] = (
     _apply_version_eight,
     _apply_version_nine,
     _apply_version_ten,
+    _apply_version_eleven,
+    _apply_version_twelve,
 )
 
 MIGRATION_VERSION = len(MIGRATIONS)

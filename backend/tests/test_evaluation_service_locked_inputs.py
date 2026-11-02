@@ -4,6 +4,8 @@ Constructs `AgentSystemVersionRecord`/`DatasetItemRecord` directly (unattached
 to a session) since the method under test only reads their attributes.
 """
 
+import asyncio
+
 import pytest
 
 from autoeval_api.agent_systems.portfolio_query.market_observation import MARKET_DATA_NODE_ID
@@ -79,3 +81,24 @@ def test_unknown_agent_system_key_also_fails_closed() -> None:
 
     with pytest.raises(RuntimeError, match="missing locked runtime-input snapshots"):
         EvaluationService._require_locked_runtime_inputs(graph_version, item, "does-not-exist")
+
+
+def test_queued_runs_execute_one_at_a_time() -> None:
+    service = EvaluationService(session_factory=lambda: None, runner=None)  # type: ignore[arg-type]
+    running = 0
+    peak = 0
+
+    async def fake_execute(run_id: str) -> None:
+        nonlocal running, peak
+        running += 1
+        peak = max(peak, running)
+        await asyncio.sleep(0)
+        running -= 1
+
+    service._execute = fake_execute  # type: ignore[method-assign]
+
+    async def run_all() -> None:
+        await asyncio.gather(*(service.execute(f"run-{index}") for index in range(3)))
+
+    asyncio.run(run_all())
+    assert peak == 1

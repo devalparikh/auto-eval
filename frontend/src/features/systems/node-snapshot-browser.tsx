@@ -7,6 +7,7 @@ import {
 } from "@phosphor-icons/react";
 import Link from "next/link";
 import { useMemo, useState } from "react";
+import { HoverGlide } from "@/components/hover-glide";
 import { JsonViewer } from "@/components/json-viewer";
 import { ErrorState, LoadingState } from "@/components/states";
 import { systemPath } from "@/features/systems/system-path";
@@ -61,7 +62,7 @@ export function NodeSnapshotBrowser({
   if (loading && snapshots.length === 0) return <LoadingState rows={10} />;
   if (snapshots.length === 0) {
     return (
-      <div className="rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface)] p-7">
+      <div className="surface-card p-7">
         <p className="text-[12px] font-semibold">No snapshots yet</p>
         <p className="mt-1 max-w-[58ch] text-[10px] leading-5 text-[var(--text-muted)]">
           A snapshot appears here once a node saves its output.
@@ -71,7 +72,7 @@ export function NodeSnapshotBrowser({
   }
 
   return (
-    <section className="overflow-hidden rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface)]">
+    <section className="overflow-hidden surface-card">
       <header className="flex flex-wrap items-start justify-between gap-4 border-b border-[var(--border)] px-5 py-4">
         <div>
           <h2 className="text-[13px] font-semibold">Snapshots</h2>
@@ -85,9 +86,11 @@ export function NodeSnapshotBrowser({
       </header>
 
       <div className="grid min-h-[620px] lg:grid-cols-[230px_280px_minmax(0,1fr)]">
-        <nav
+        <HoverGlide
+          as="nav"
           aria-label="Nodes with snapshots"
           className="border-b border-[var(--border)] lg:border-r lg:border-b-0"
+          rowSelector="button"
         >
           <RailLabel>Nodes</RailLabel>
           {groups.map((group) => {
@@ -106,7 +109,7 @@ export function NodeSnapshotBrowser({
                   const firstSnapshot = group.snapshots[0];
                   if (firstSnapshot) onSnapshotChange(firstSnapshot.id);
                 }}
-                className="flex w-full items-start gap-3 border-b border-[var(--border)] px-4 py-3 text-left hover:bg-[var(--surface-muted)] aria-pressed:bg-[var(--accent-soft)]"
+                className="flex w-full items-start gap-3 border-b border-[var(--border)] px-4 py-3 text-left aria-pressed:bg-[var(--accent-soft)]"
               >
                 <Icon
                   size={14}
@@ -127,18 +130,18 @@ export function NodeSnapshotBrowser({
               </button>
             );
           })}
-        </nav>
+        </HoverGlide>
 
         <div className="border-b border-[var(--border)] lg:border-r lg:border-b-0">
           <RailLabel>Snapshots</RailLabel>
-          <div className="max-h-[620px] overflow-y-auto">
+          <HoverGlide className="max-h-[620px] overflow-y-auto" rowSelector="button">
             {(selectedGroup?.snapshots ?? []).map((snapshot) => (
               <button
                 key={snapshot.id}
                 type="button"
                 aria-pressed={snapshot.id === selectedSnapshotId}
                 onClick={() => onSnapshotChange(snapshot.id)}
-                className="block w-full border-b border-[var(--border)] px-4 py-3 text-left hover:bg-[var(--surface-muted)] aria-pressed:bg-[var(--accent-soft)]"
+                className="block w-full border-b border-[var(--border)] px-4 py-3 text-left aria-pressed:bg-[var(--accent-soft)]"
               >
                 <span className="flex items-center justify-between gap-3">
                   <span className="truncate text-[10px] font-medium">
@@ -166,7 +169,7 @@ export function NodeSnapshotBrowser({
                 </span>
               </button>
             ))}
-          </div>
+          </HoverGlide>
         </div>
 
         <div className="min-w-0">

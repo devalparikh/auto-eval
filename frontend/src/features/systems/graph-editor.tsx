@@ -19,6 +19,7 @@ import {
   type ReactFlowInstance,
 } from "@xyflow/react";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { GraphSelectionProvider, useIsGraphNodeSelected, withActiveEdges } from "@/components/graph-canvas";
 import { Select } from "@/components/select";
 import { GraphNodeCard } from "@/features/graph/graph-node-card";
 import { graphNodeView, type GraphNodeView } from "@/features/graph/node-view";
@@ -42,7 +43,6 @@ type HandlerCatalog = {
 
 type EditorNodeData = {
   view: GraphNodeView;
-  selected: boolean;
 };
 
 type EditorFlowNode = Node<EditorNodeData, "editorNode">;
@@ -67,8 +67,8 @@ export function GraphEditor({
   );
   const [handlerCatalog, setHandlerCatalog] =
     useState<HandlerCatalog>(fallbackHandlers);
-  const [nodePositions, setNodePositions] = useState<
-    Record<string, { x: number; y: number }>
+  const [nodeLayout, setNodeLayout] = useState<
+    Record<string, Pick<EditorFlowNode, "position" | "measured">>
   >({});
   const flowRef = useRef<ReactFlowInstance<EditorFlowNode> | null>(null);
   const topologyKey = `${definition.nodes.map((node) => node.id).join("|")}:${definition.edges
@@ -116,22 +116,23 @@ export function GraphEditor({
     : definition.entry_point || definition.nodes[0]?.id || "";
   const flowNodes = useMemo(
     () =>
-      buildEditorNodes(definition, effectiveSelectedNodeId).map((node) => ({
+      buildEditorNodes(definition).map((node) => ({
         ...node,
-        position: nodePositions[node.id] ?? node.position,
+        ...nodeLayout[node.id],
       })),
-    [definition, effectiveSelectedNodeId, nodePositions],
+    [definition, nodeLayout],
   );
   const selectedNode =
     definition.nodes.find((node) => node.id === effectiveSelectedNodeId) ??
     null;
-  const edges = definition.edges.map((edge) => ({
+  const baseEdges = definition.edges.map((edge) => ({
     id: `${edge.source}-${edge.target}`,
     source: edge.source,
     target: edge.target,
     type: "smoothstep",
     style: { stroke: "var(--border-strong)", strokeWidth: 1.5 },
   }));
+  const edges = withActiveEdges(baseEdges, effectiveSelectedNodeId);
 
   function changeNode(nodeId: string, patch: Partial<EditableGraphNode>) {
     const nextId = patch.id ?? nodeId;
@@ -189,8 +190,9 @@ export function GraphEditor({
       </div>
 
       <div className="grid min-w-0 gap-3 xl:grid-cols-[minmax(0,1fr)_340px] xl:items-start">
-        <div className="min-w-0 overflow-hidden border border-[var(--border-strong)] bg-[var(--canvas)]">
+        <div className="graph-canvas min-w-0">
           <div className="h-[420px] min-w-0">
+            <GraphSelectionProvider value={effectiveSelectedNodeId}>
             <ReactFlow<EditorFlowNode>
               aria-label="Editable agent graph"
               nodes={flowNodes}
@@ -198,9 +200,12 @@ export function GraphEditor({
               nodeTypes={nodeTypes}
               onNodesChange={(changes: NodeChange<EditorFlowNode>[]) => {
                 const changed = applyNodeChanges(changes, flowNodes);
-                setNodePositions(
+                setNodeLayout(
                   Object.fromEntries(
-                    changed.map((node) => [node.id, node.position]),
+                    changed.map(({ id, position, measured }) => [
+                      id,
+                      { position, measured },
+                    ]),
                   ),
                 );
               }}
@@ -235,10 +240,11 @@ export function GraphEditor({
                 className="!overflow-hidden !rounded-[8px] !border-[var(--border-strong)] !bg-[var(--surface-raised)] !shadow-none"
               />
             </ReactFlow>
+            </GraphSelectionProvider>
           </div>
         </div>
 
-        <div className="min-w-0 border border-[var(--border-strong)] bg-[var(--surface)]">
+        <div className="node-details-panel min-w-0">
           {selectedNode ? (
             <NodeInspector
               key={selectedNode.id}
@@ -639,7 +645,6 @@ function EditorField({
 
 function buildEditorNodes(
   definition: EditableGraphDefinition,
-  selectedNodeId: string,
 ): EditorFlowNode[] {
   const levels = graphLevels(definition.nodes, definition.edges);
   const levelCounts = new Map<number, number>();
@@ -658,13 +663,12 @@ function buildEditorNodes(
       initialWidth: 216,
       initialHeight: 100,
       ariaLabel: `${view.ariaLabel}. Select to edit.`,
-      data: { view, selected: node.id === selectedNodeId },
+      data: { view },
     };
   });
 }
 
-function EditorNodeCard({ data }: NodeProps<EditorFlowNode>) {
-  return (
-    <GraphNodeCard view={data.view} selected={data.selected} width={212} />
-  );
+function EditorNodeCard({ id, data }: NodeProps<EditorFlowNode>) {
+  const selected = useIsGraphNodeSelected(id);
+  return <GraphNodeCard view={data.view} selected={selected} width={212} />;
 }

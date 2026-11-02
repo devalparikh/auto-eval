@@ -2,7 +2,7 @@
 
 import type { Node, NodeProps } from "@xyflow/react";
 import { useMemo } from "react";
-import { GraphCanvas } from "@/components/graph-canvas";
+import { GraphCanvas, useIsGraphNodeSelected } from "@/components/graph-canvas";
 import { StatusBadge } from "@/components/status-badge";
 import { GraphLegend, GraphNodeCard } from "@/features/graph/graph-node-card";
 import { graphHeightClass, graphRowCount } from "@/features/graph/layout";
@@ -26,8 +26,8 @@ export function TraceGraph({
   onSelect: (nodeId: string) => void;
 }) {
   const { nodes, edges } = useMemo(
-    () => buildTraceGraph(trace, selectedNodeId),
-    [selectedNodeId, trace],
+    () => buildTraceGraph(trace),
+    [trace],
   );
   const legendTypes = useMemo(
     () => nodes.map((node) => node.data.view.type),
@@ -36,7 +36,7 @@ export function TraceGraph({
 
   return (
     <div className="min-w-0">
-      <div className="border-b border-[var(--border)] bg-[var(--surface)] px-4 py-2.5">
+      <div className="px-4 pb-2.5">
         <GraphLegend types={legendTypes} />
       </div>
       <GraphCanvas
@@ -48,18 +48,19 @@ export function TraceGraph({
         fitViewOptions={traceFitOptions}
         minZoom={0.16}
         maxZoom={1.4}
-        elementsSelectable
-        onNodeClick={(_, node) => onSelect(node.id)}
+        selectedNodeId={selectedNodeId}
+        onSelectNode={onSelect}
       />
     </div>
   );
 }
 
-function TraceNode({ data }: NodeProps<Node<TraceNodeData>>) {
+function TraceNode({ id, data }: NodeProps<Node<TraceNodeData>>) {
+  const selected = useIsGraphNodeSelected(id);
   return (
     <GraphNodeCard
       view={data.view}
-      selected={data.selected}
+      selected={selected}
       width={208}
       footer={
         <div className="grid gap-2 text-[10px] text-[var(--text-muted)]">

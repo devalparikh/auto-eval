@@ -31,7 +31,7 @@ export function SnapshotArtifact({
   const summary =
     snapshots.find((snapshot) => snapshot.id === selectedSnapshotId) ?? detail;
   return (
-    <article className="overflow-hidden rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface)]">
+    <article className="overflow-hidden surface-card">
       <div className="flex flex-wrap items-start justify-between gap-4 border-b border-[var(--border)] px-5 py-4">
         <div>
           <h2 className="text-[13px] font-semibold">Portfolio state</h2>

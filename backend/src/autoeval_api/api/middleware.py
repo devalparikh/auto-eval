@@ -65,7 +65,9 @@ class RequestGuardMiddleware:
                 message = messages[message_index]
                 message_index += 1
                 return message
-            return {"type": "http.request", "body": b"", "more_body": False}
+            # The body is already validated. Preserve real disconnect events for
+            # streaming/file responses instead of spinning on synthetic messages.
+            return await receive()
 
         await self.app(scope, replay_receive, send)
 

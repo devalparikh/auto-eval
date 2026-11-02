@@ -51,9 +51,9 @@ const stages = [
     crumb: "evaluations / 024",
     title: "Evaluation",
     value: "comparison / 024",
-    description: "Run the same locked cases against each model.",
+    description: "Run the same locked cases against each model and graph version.",
     meta: "six candidates",
-    prompt: "Run failure-modes v4 against every candidate, including ft-v3.",
+    prompt: "Run failure-modes v4 on graph v7 and v8, including ft-v3.",
   },
 ] as const;
 
@@ -803,21 +803,22 @@ const candidates = [
     latency: "0.6s",
   },
   {
-    name: "Gemini 3 Flash",
-    vendor: "google",
-    score: 84,
-    cost: 0.003,
-    passed: 108,
-    tokens: "870",
-    latency: "0.5s",
+    name: "Sonnet 5 · graph v8",
+    vendor: "graph",
+    graph: "v8",
+    score: 96,
+    cost: 0.014,
+    passed: 123,
+    tokens: "1,020",
+    latency: "1.0s",
   },
 ] as const;
 
 const vendorLabels: Record<string, string> = {
   anthropic: "Anthropic",
   openai: "OpenAI",
-  google: "Google",
   finetune: "Fine-tuned (yours)",
+  graph: "Your graph change",
 };
 
 const caseRows = [
@@ -867,7 +868,7 @@ function EvaluationScene({ running, reduceMotion }: SceneProps) {
         </div>
         <div>
           <span>CASES</span>
-          <b>128 × 6 models</b>
+          <b>128 × 6 candidates</b>
         </div>
       </div>
       <div className={styles.chart} aria-hidden="true">
@@ -1047,7 +1048,9 @@ function EvaluationScene({ running, reduceMotion }: SceneProps) {
                   </div>
                 </dl>
                 <footer>
-                  comparison / 024 · failure-modes v4 · graph v7 · prompt v12
+                  comparison / 024 · failure-modes v4 · graph{" "}
+                  {"graph" in hoveredCandidate ? hoveredCandidate.graph : "v7"} ·
+                  prompt v12
                 </footer>
               </motion.div>
             ) : null}

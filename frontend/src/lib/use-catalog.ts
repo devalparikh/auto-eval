@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useSyncExternalStore } from "react";
 import { api } from "@/lib/api";
 import type { Catalog } from "@/lib/types";
 
@@ -10,7 +10,9 @@ type CatalogState = {
   loading: boolean;
 };
 
-let state: CatalogState = { data: null, error: null, loading: true };
+const initialState: CatalogState = { data: null, error: null, loading: true };
+
+let state = initialState;
 let inFlight: Promise<void> | null = null;
 let requestSequence = 0;
 const listeners = new Set<() => void>();
@@ -18,6 +20,13 @@ const listeners = new Set<() => void>();
 function setState(next: CatalogState) {
   state = next;
   listeners.forEach((listener) => listener());
+}
+
+function subscribe(listener: () => void) {
+  listeners.add(listener);
+  return () => {
+    listeners.delete(listener);
+  };
 }
 
 /** One shared fetch and one shared cache for the catalog, across every screen. */
@@ -49,17 +58,20 @@ function fetchCatalog(force = false): Promise<void> {
 }
 
 export function useCatalog() {
-  const [, forceRender] = useState(0);
+  // The sidebar and a screen hydrate at different moments, so the response can
+  // arrive between one's render and its subscribing. useSyncExternalStore
+  // re-reads the store on subscribe, so that screen cannot miss the update and
+  // sit on its skeleton. The server snapshot keeps hydration consistent.
+  const current = useSyncExternalStore(
+    subscribe,
+    () => state,
+    () => initialState,
+  );
 
   useEffect(() => {
-    const listener = () => forceRender((count) => count + 1);
-    listeners.add(listener);
     if (!state.data) {
       void fetchCatalog();
     }
-    return () => {
-      listeners.delete(listener);
-    };
   }, []);
 
   const reload = useCallback(async () => {
@@ -67,9 +79,9 @@ export function useCatalog() {
   }, []);
 
   return {
-    data: state.data,
-    error: state.error,
-    loading: state.loading,
+    data: current.data,
+    error: current.error,
+    loading: current.loading,
     reload,
   };
 }

@@ -1,9 +1,18 @@
+import { mkdtempSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { defineConfig, devices } from "@playwright/test";
 
 const apiPort = process.env.AUTOEVAL_E2E_API_PORT ?? "8011";
 const webPort = process.env.AUTOEVAL_E2E_WEB_PORT ?? "3011";
 const apiUrl = `http://localhost:${apiPort}`;
 const webUrl = `http://localhost:${webPort}`;
+
+// A file database, as `make dev` uses. `sqlite://` shares one connection across
+// the API's threads, and parallel workers segfault it inside SQLAlchemy.
+const databaseUrl =
+  process.env.AUTOEVAL_E2E_DATABASE_URL ??
+  `sqlite:///${join(mkdtempSync(join(tmpdir(), "autoeval-e2e-")), "e2e.db")}`;
 
 export default defineConfig({
   testDir: "./e2e",
@@ -21,7 +30,7 @@ export default defineConfig({
       reuseExistingServer: false,
       env: {
         AUTOEVAL_ENV: "test",
-        AUTOEVAL_DATABASE_URL: "sqlite://",
+        AUTOEVAL_DATABASE_URL: databaseUrl,
         AUTOEVAL_WEB_ORIGINS: webUrl,
         AUTOEVAL_ALLOWED_HOSTS: "localhost,127.0.0.1,testserver",
         ENABLE_CLI_PROVIDERS: "false",
@@ -32,7 +41,7 @@ export default defineConfig({
       },
     },
     {
-      command: `npm run build && npm run start -- --port ${webPort}`,
+      command: `npm run build && npm run start -- --hostname 127.0.0.1 --port ${webPort}`,
       url: webUrl,
       reuseExistingServer: false,
       env: {

@@ -13,24 +13,52 @@ import {
   YAxis,
 } from "recharts";
 import { EmptyState } from "@/components/states";
-import type { ResultRow } from "@/features/results/result-rows";
-import { formatCost, formatDuration, formatPercent } from "@/lib/format";
+import {
+  distinctGraphVersions,
+  graphVersionOf,
+  modelName,
+  type ResultRow,
+  type VersionNumbers,
+} from "@/features/results/result-rows";
+import { formatCost, formatDuration, formatPercent, shortId } from "@/lib/format";
 
 type ChartPoint = {
   name: string;
+  graphVersion: number | null;
+  runId: string;
   cost: number;
   accuracy: number;
   latency: number;
 };
 
+const seriesColors = [
+  "var(--accent)",
+  "var(--node-live)",
+  "var(--node-saved)",
+  "var(--success)",
+  "var(--text-muted)",
+];
+
 /**
  * Accuracy against total cost. The shaded region marks the "most attractive
  * quadrant": at least median accuracy for at most median cost.
  */
-export function CostAccuracyChart({ rows }: { rows: ResultRow[] }) {
+export function CostAccuracyChart({
+  rows,
+  numbers,
+}: {
+  rows: ResultRow[];
+  numbers: VersionNumbers;
+}) {
   const reduceMotion = useReducedMotion();
+  const graphVersions = distinctGraphVersions(rows, numbers);
+  const comparesGraphs = graphVersions.length > 1;
   const points: ChartPoint[] = rows.map((row) => ({
-    name: row.model_id.split("/").slice(-1)[0],
+    name: comparesGraphs
+      ? `${modelName(row.model_id)} · v${graphVersionOf(row, numbers)}`
+      : modelName(row.model_id),
+    graphVersion: graphVersionOf(row, numbers),
+    runId: row.run.id,
     cost: row.metrics.total_cost_usd,
     accuracy: row.metrics.accuracy,
     latency: row.metrics.average_latency_ms,
@@ -52,14 +80,29 @@ export function CostAccuracyChart({ rows }: { rows: ResultRow[] }) {
   ).length;
 
   return (
-    <div className="min-h-[420px] overflow-hidden rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface)]">
+    <div className="min-h-[420px] overflow-hidden surface-card">
       <div className="flex flex-wrap items-start justify-between gap-3 border-b border-[var(--border)] px-4 py-3">
         <div>
           <h2 className="text-[13px] font-semibold">Accuracy vs. cost</h2>
-          <p className="mt-0.5 text-[10px] text-[var(--text-muted)]">
-            The shaded region holds results at or above the median accuracy
-            for at most the median cost.
-          </p>
+          {comparesGraphs ? (
+            <ul className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1">
+              {graphVersions.map((version, index) => (
+                <li
+                  key={version}
+                  className="flex items-center gap-1.5 text-[10px] text-[var(--text-muted)]"
+                >
+                  <span
+                    aria-hidden="true"
+                    className="size-2 rounded-full"
+                    style={{
+                      background: seriesColors[index % seriesColors.length],
+                    }}
+                  />
+                  Graph v{version}
+                </li>
+              ))}
+            </ul>
+          ) : null}
         </div>
         {points.length ? (
           <span className="mono inline-flex items-center gap-2 rounded-full bg-[var(--success-soft)] px-2 py-0.5 text-[10px] text-[var(--success)]">
@@ -79,7 +122,7 @@ export function CostAccuracyChart({ rows }: { rows: ResultRow[] }) {
           role="img"
           aria-label="Scatter chart of accuracy by total cost"
         >
-          <ResponsiveContainer width="100%" height="100%">
+          <ResponsiveContainer width="100%" height="100%" debounce={120}>
             <ScatterChart margin={{ top: 18, right: 28, bottom: 22, left: 4 }}>
               <CartesianGrid stroke="var(--border)" strokeDasharray="3 4" />
               <ReferenceArea
@@ -133,22 +176,31 @@ export function CostAccuracyChart({ rows }: { rows: ResultRow[] }) {
                 content={<ChartTooltip />}
                 cursor={{ stroke: "var(--border-strong)", strokeDasharray: "3 4" }}
               />
-              <Scatter
-                data={points}
-                fill="var(--accent)"
-                isAnimationActive={!reduceMotion}
-                animationDuration={520}
-                animationEasing="ease-out"
-              >
-                <LabelList
-                  dataKey="name"
-                  position="right"
-                  offset={10}
-                  fill="var(--text)"
-                  fontSize={10}
-                  fontFamily="var(--font-mono)"
-                />
-              </Scatter>
+              {(comparesGraphs ? graphVersions : [null]).map(
+                (version, index) => (
+                  <Scatter
+                    key={version ?? "all"}
+                    data={
+                      comparesGraphs
+                        ? points.filter((point) => point.graphVersion === version)
+                        : points
+                    }
+                    fill={seriesColors[index % seriesColors.length]}
+                    isAnimationActive={!reduceMotion}
+                    animationDuration={520}
+                    animationEasing="ease-out"
+                  >
+                    <LabelList
+                      dataKey="name"
+                      position="right"
+                      offset={10}
+                      fill="var(--text)"
+                      fontSize={10}
+                      fontFamily="var(--font-mono)"
+                    />
+                  </Scatter>
+                ),
+              )}
             </ScatterChart>
           </ResponsiveContainer>
         </div>
@@ -169,6 +221,10 @@ function ChartTooltip({
   return (
     <div className="rounded-[10px] border border-[var(--border-strong)] bg-[var(--surface-raised)] p-3 shadow-lg">
       <p className="text-[11px] font-semibold">{point.name}</p>
+      <p className="mono mt-1 text-[9px] text-[var(--text-faint)]">
+        Run {shortId(point.runId)}
+        {point.graphVersion === null ? "" : ` · graph v${point.graphVersion}`}
+      </p>
       <p className="mono mt-2 text-[10px] text-[var(--text-muted)]">
         Accuracy {formatPercent(point.accuracy)}
       </p>

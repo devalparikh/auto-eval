@@ -106,6 +106,127 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/custom-models": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Models */
+        get: operations["list_models_api_custom_models_get"];
+        put?: never;
+        /** Create Model */
+        post: operations["create_model_api_custom_models_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/custom-models/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Preview */
+        post: operations["preview_api_custom_models_preview_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/custom-models/runtime": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Runtime */
+        get: operations["runtime_api_custom_models_runtime_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/custom-models/{model_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Model */
+        get: operations["get_model_api_custom_models__model_id__get"];
+        /** Update Model */
+        put: operations["update_model_api_custom_models__model_id__put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/custom-models/{model_id}/artifacts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Artifacts */
+        get: operations["artifacts_api_custom_models__model_id__artifacts_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/custom-models/{model_id}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Cancel Model */
+        post: operations["cancel_model_api_custom_models__model_id__cancel_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/custom-models/{model_id}/train": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Train Model */
+        post: operations["train_model_api_custom_models__model_id__train_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/dataset-items/{item_id}": {
         parameters: {
             query?: never;
@@ -723,6 +844,26 @@ export interface components {
         CreateAgentVersionRequest: {
             definition: components["schemas"]["AgentGraphDefinition"];
         };
+        /** CreateCustomModelRequest */
+        CreateCustomModelRequest: {
+            /** Base Model */
+            base_model: string;
+            /**
+             * Base Revision
+             * @default main
+             */
+            base_revision: string;
+            /** Dataset Version Id */
+            dataset_version_id: string;
+            /** Name */
+            name: string;
+            /**
+             * System Prompt
+             * @default Return the expected JSON output for the provided input.
+             */
+            system_prompt: string;
+            training_config?: components["schemas"]["TrainingConfig"];
+        };
         /** CreateDatasetVersionRequest */
         CreateDatasetVersionRequest: {
             /** Clone From Version Id */
@@ -734,6 +875,13 @@ export interface components {
             agent_system_version_id?: string | null;
             /** Dataset Version Id */
             dataset_version_id: string;
+            /** Expected Dataset Revision */
+            expected_dataset_revision?: string | null;
+            /**
+             * Finalize Dataset
+             * @default false
+             */
+            finalize_dataset: boolean;
             /** Model Ids */
             model_ids: string[];
             /** Prompt Version Id */
@@ -742,6 +890,8 @@ export interface components {
             prompt_version_ids?: {
                 [key: string]: string;
             };
+            /** Request Id */
+            request_id?: string | null;
             /**
              * Run In Background
              * @default true
@@ -752,6 +902,65 @@ export interface components {
         CreatePromptVersionRequest: {
             /** Content */
             content: string;
+        };
+        /** CustomModelResponse */
+        CustomModelResponse: {
+            /** Agent System Id */
+            agent_system_id: string;
+            /** Archived */
+            archived: boolean;
+            /** Base Model */
+            base_model: string;
+            /** Base Revision */
+            base_revision: string;
+            /** Completed Steps */
+            completed_steps: number;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Dataset Hash */
+            dataset_hash: string;
+            /** Dataset Version Id */
+            dataset_version_id: string;
+            /** Error */
+            error: string | null;
+            /**
+             * Executor
+             * @constant
+             */
+            executor: "local_mlx";
+            /** Finished At */
+            finished_at: string | null;
+            /** Id */
+            id: string;
+            /** Log Tail */
+            log_tail: string;
+            /** Name */
+            name: string;
+            /** Recipe Hash */
+            recipe_hash: string;
+            /** Resolved Revision */
+            resolved_revision: string | null;
+            /** Started At */
+            started_at: string | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "draft" | "queued" | "running" | "complete" | "failed" | "cancelled";
+            /** System Prompt */
+            system_prompt: string;
+            /** Train Count */
+            train_count: number;
+            training_config: components["schemas"]["TrainingConfig"];
+            /** Training Loss */
+            training_loss: number | null;
+            /** Validation Count */
+            validation_count: number;
+            /** Validation Loss */
+            validation_loss: number | null;
         };
         /** DatasetItemInput */
         DatasetItemInput: {
@@ -876,6 +1085,8 @@ export interface components {
         };
         /** DatasetVersionDetail */
         DatasetVersionDetail: {
+            /** Content Revision */
+            content_revision: string;
             /**
              * Created At
              * Format: date-time
@@ -1882,6 +2093,101 @@ export interface components {
             /** Trace Id */
             trace_id: string;
         };
+        /** TrainingBaseModel */
+        TrainingBaseModel: {
+            /** Description */
+            description: string;
+            /** Id */
+            id: string;
+            /** Label */
+            label: string;
+        };
+        /** TrainingConfig */
+        TrainingConfig: {
+            /**
+             * Batch Size
+             * @default 1
+             */
+            batch_size: number;
+            /**
+             * Learning Rate
+             * @default 0.00001
+             */
+            learning_rate: number;
+            /**
+             * Lora Rank
+             * @default 8
+             */
+            lora_rank: number;
+            /**
+             * Max Seq Length
+             * @default 2048
+             */
+            max_seq_length: number;
+            /**
+             * Seed
+             * @default 42
+             */
+            seed: number;
+            /**
+             * Steps
+             * @default 100
+             */
+            steps: number;
+        };
+        /** TrainingDataPreview */
+        TrainingDataPreview: {
+            /** Dataset Hash */
+            dataset_hash: string;
+            /** Duplicate Count */
+            duplicate_count: number;
+            /** Sample */
+            sample: components["schemas"]["TrainingMessage"][];
+            /** Train Count */
+            train_count: number;
+            /** Validation Count */
+            validation_count: number;
+        };
+        /** TrainingMessage */
+        TrainingMessage: {
+            /** Content */
+            content: string;
+            /**
+             * Role
+             * @enum {string}
+             */
+            role: "system" | "user" | "assistant";
+        };
+        /** TrainingRuntime */
+        TrainingRuntime: {
+            /** Available */
+            available: boolean;
+            /** Base Models */
+            base_models: components["schemas"]["TrainingBaseModel"][];
+            /**
+             * Executor
+             * @default local_mlx
+             * @constant
+             */
+            executor: "local_mlx";
+            /** Reason */
+            reason: string;
+            /**
+             * Setup Command
+             * @default .venv/bin/python -m pip install -e 'backend[training]'
+             */
+            setup_command: string;
+        };
+        /** UpdateCustomModelRequest */
+        UpdateCustomModelRequest: {
+            /**
+             * Archived
+             * @default false
+             */
+            archived: boolean;
+            /** Name */
+            name: string;
+        };
         /** UpdateDatasetItemRequest */
         UpdateDatasetItemRequest: {
             /** Expected */
@@ -2118,6 +2424,269 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CatalogResponse"];
+                };
+            };
+        };
+    };
+    list_models_api_custom_models_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomModelResponse"][];
+                };
+            };
+        };
+    };
+    create_model_api_custom_models_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateCustomModelRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomModelResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    preview_api_custom_models_preview_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateCustomModelRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TrainingDataPreview"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    runtime_api_custom_models_runtime_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TrainingRuntime"];
+                };
+            };
+        };
+    };
+    get_model_api_custom_models__model_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                model_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomModelResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_model_api_custom_models__model_id__put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                model_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateCustomModelRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomModelResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    artifacts_api_custom_models__model_id__artifacts_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                model_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    cancel_model_api_custom_models__model_id__cancel_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                model_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomModelResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    train_model_api_custom_models__model_id__train_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                model_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomModelResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

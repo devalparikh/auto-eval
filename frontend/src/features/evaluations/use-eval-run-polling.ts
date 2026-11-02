@@ -14,23 +14,32 @@ export function useEvalRunPolling(
   loadRun: EvalRunLoader = api.evalRun,
   intervalMs = 900,
 ) {
-  const [run, setRun] = useState<EvalRun | null>(null);
+  const [runs, setRuns] = useState<EvalRun[]>([]);
+  const pendingIds = runs
+    .filter(isEvalRunPending)
+    .map((run) => run.id)
+    .join(",");
 
   useEffect(() => {
-    if (!isEvalRunPending(run)) return;
-    const runId = run!.id;
+    if (!pendingIds) return;
+    const ids = pendingIds.split(",");
     let cancelled = false;
     let timer: number | undefined;
 
     async function poll() {
-      try {
-        const next = await loadRun(runId);
-        if (!cancelled) setRun(next);
-      } catch {
-        // A later poll can recover from a short API interruption.
-      } finally {
-        if (!cancelled) timer = window.setTimeout(poll, intervalMs);
-      }
+      // A rejected poll keeps its last known state; a later one can recover
+      // from a short API interruption.
+      const results = await Promise.allSettled(ids.map((id) => loadRun(id)));
+      if (cancelled) return;
+      const updates = new Map(
+        results.flatMap((result) =>
+          result.status === "fulfilled"
+            ? [[result.value.id, result.value] as const]
+            : [],
+        ),
+      );
+      setRuns((current) => current.map((run) => updates.get(run.id) ?? run));
+      timer = window.setTimeout(poll, intervalMs);
     }
 
     timer = window.setTimeout(poll, intervalMs);
@@ -38,7 +47,7 @@ export function useEvalRunPolling(
       cancelled = true;
       if (timer) window.clearTimeout(timer);
     };
-  }, [intervalMs, loadRun, run]);
+  }, [intervalMs, loadRun, pendingIds]);
 
-  return { run, setRun };
+  return { runs, setRuns };
 }

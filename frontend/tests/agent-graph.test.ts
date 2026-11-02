@@ -88,12 +88,6 @@ describe("agent graph", () => {
     }
   });
 
-  it("marks the selected node", () => {
-    const graph = buildAgentGraph(definition, "answer");
-    expect(graph.nodes[0]?.data.selected).toBe(false);
-    expect(graph.nodes[1]?.data.selected).toBe(true);
-  });
-
   it("rejects arbitrary JSON as a graph definition", () => {
     expect(isGraphDefinition({ nodes: [] })).toBe(false);
     expect(isGraphDefinition(definition)).toBe(true);

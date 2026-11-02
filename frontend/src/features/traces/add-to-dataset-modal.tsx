@@ -15,7 +15,6 @@ import { systemPath } from "@/features/systems/system-path";
 import { SavedInputRefs } from "@/features/systems/saved-input-refs";
 import { RuntimeSnapshotRefs } from "@/features/systems/runtime-snapshot-refs";
 import { api } from "@/lib/api";
-import { textPreview } from "@/lib/format";
 import type { NodeResourceSelection } from "@/lib/types";
 import { useApiResource } from "@/lib/use-api-resource";
 

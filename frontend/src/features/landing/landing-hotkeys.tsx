@@ -13,7 +13,7 @@ function isTypingTarget(target: EventTarget | null) {
 
 /**
  * Single-key shortcuts that mirror the kbd chips on the landing buttons:
- * O opens the app, W scrolls to the workflow, G opens the repository.
+ * B opens the app, W scrolls to the workflow, G opens the repository.
  */
 export function LandingHotkeys() {
   const router = useRouter();
@@ -24,7 +24,7 @@ export function LandingHotkeys() {
       if (event.repeat || isTypingTarget(event.target)) return;
 
       switch (event.key.toLowerCase()) {
-        case "o":
+        case "b":
           event.preventDefault();
           router.push("/systems");
           break;

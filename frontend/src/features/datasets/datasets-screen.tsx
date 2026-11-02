@@ -2,6 +2,7 @@
 
 import { LockIcon, PencilSimpleIcon, PlusIcon } from "@phosphor-icons/react";
 import { useState } from "react";
+import { HoverGlide } from "@/components/hover-glide";
 import { PageHeader } from "@/components/page-header";
 import { Select } from "@/components/select";
 import { EmptyState, ErrorState, LoadingState } from "@/components/states";
@@ -164,7 +165,7 @@ export function DatasetsScreen({ systemKey }: { systemKey: string }) {
           </div>
         </div>
         {actionError ? <ErrorState message={actionError} /> : null}
-        <div className="overflow-hidden rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface)]">
+        <HoverGlide className="overflow-hidden surface-card">
           <div className="grid grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_90px_34px] gap-3 border-b border-[var(--border)] px-4 py-2.5 text-[11px] font-semibold text-[var(--text-muted)] max-md:grid-cols-[minmax(0,1fr)_76px_30px]">
             <span>Input</span>
             <span className="max-md:hidden">Expected</span>
@@ -239,7 +240,7 @@ export function DatasetsScreen({ systemKey }: { systemKey: string }) {
               )}
             </button>
           ))}
-        </div>
+        </HoverGlide>
       </section>
       <EditDatasetItemModal
         item={editingItem}

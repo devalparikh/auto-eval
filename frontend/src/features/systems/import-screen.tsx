@@ -7,11 +7,14 @@ import {
   FileCodeIcon,
   FolderOpenIcon,
   GithubLogoIcon,
+  SparkleIcon,
   UploadSimpleIcon,
 } from "@phosphor-icons/react";
 import Link from "next/link";
 import { useRef, useState, type DragEvent } from "react";
+import { HoverGlide } from "@/components/hover-glide";
 import { PageHeader } from "@/components/page-header";
+import { SplitPane } from "@/components/split-pane";
 import { AgentGraph, isGraphDefinition } from "@/features/systems/agent-graph";
 import {
   importApi,
@@ -26,12 +29,21 @@ import {
 } from "@/features/systems/import-files";
 import { starterManifest } from "@/features/systems/import-starter";
 import { systemPath } from "@/features/systems/system-path";
+import { countOf } from "@/lib/format";
 import { useCatalog } from "@/lib/use-catalog";
 import styles from "./onboarding.module.css";
 
 type SourceMode = "folder" | "github" | "json";
 
-export function ImportScreen({ systemKey }: { systemKey?: string }) {
+const importSteps = ["Choose source", "Review graph", "Ready to run"];
+
+export function ImportScreen({
+  systemKey,
+  initialPaneCollapsed = false,
+}: {
+  systemKey?: string;
+  initialPaneCollapsed?: boolean;
+}) {
   const { reload } = useCatalog();
   const [mode, setMode] = useState<SourceMode>("folder");
   const [files, setFiles] = useState<ManifestFile[]>([]);
@@ -138,45 +150,97 @@ export function ImportScreen({ systemKey }: { systemKey?: string }) {
     setBusy(false);
   }
 
+  const currentStep = result ? 2 : preview ? 1 : 0;
+
+  const menu = (
+    <div className={styles.importMenu}>
+      <p className={styles.menuLabel}>Progress</p>
+      <nav className={styles.stepRail} aria-label="Import progress">
+        {importSteps.map((label, index) => (
+          <div
+            key={label}
+            aria-current={index === currentStep ? "step" : undefined}
+            data-complete={index < currentStep}
+          >
+            <span className={styles.stepNumber}>
+              {index < currentStep ? <CheckIcon size={11} /> : index + 1}
+            </span>
+            {label}
+          </div>
+        ))}
+      </nav>
+      {currentStep === 0 ? (
+        <>
+          <p className={styles.menuLabel}>Source</p>
+          <div
+            className={styles.sourceList}
+            role="group"
+            aria-label="Import source"
+          >
+            {(
+              [
+                ["folder", "Local folder", FolderOpenIcon],
+                ["github", "GitHub", GithubLogoIcon],
+                ["json", "Paste manifest", FileCodeIcon],
+              ] as const
+            ).map(([value, label, Icon]) => (
+              <button
+                key={value}
+                type="button"
+                aria-pressed={mode === value}
+                disabled={busy}
+                onClick={() => {
+                  setMode(value);
+                  setError(null);
+                }}
+              >
+                <Icon size={15} aria-hidden="true" />
+                {label}
+              </button>
+            ))}
+            {!systemKey ? (
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() =>
+                  inspect(
+                    () => importApi.inspectManifest(starterManifest),
+                    "Support summary starter",
+                  )
+                }
+              >
+                <SparkleIcon size={15} aria-hidden="true" />
+                Try an example
+              </button>
+            ) : null}
+          </div>
+        </>
+      ) : null}
+      <div className={styles.menuHelp}>
+        <p>No manifest yet? Follow the guide or hand its brief to a coding agent.</p>
+        <Link href="/guide" className={styles.inlineLink}>
+          Import guide <ArrowRightIcon size={13} />
+        </Link>
+      </div>
+    </div>
+  );
+
   return (
-    <>
+    <SplitPane
+      id="import"
+      label="Import menu"
+      initialCollapsed={initialPaneCollapsed}
+      pane={menu}
+    >
       <PageHeader
         title={systemKey ? "Import a version" : "Import an agent system"}
         description={
           systemKey
             ? `Add a version to ${systemKey}. Saved versions stay unchanged.`
-            : "Bring a graph from your folder or GitHub repository."
+            : undefined
         }
-        // action={
-        //   <Link className="app-button secondary" href="/guide">
-        //     Import guide <ArrowRightIcon size={14} />
-        //   </Link>
-        // }
       />
       <div className={styles.workspace}>
-        <nav className={styles.stepRail} aria-label="Import progress">
-          {["Choose source", "Review graph", "Ready to run"].map(
-            (label, index) => {
-              const current = result ? 2 : preview ? 1 : 0;
-              return (
-                <div
-                  key={label}
-                  aria-current={index === current ? "step" : undefined}
-                  data-complete={index < current}
-                >
-                  <span className={styles.stepNumber}>
-                    {index < current ? <CheckIcon size={13} /> : index + 1}
-                  </span>
-                  {label}
-                </div>
-              );
-            },
-          )}
-          <p>
-            One manifest.
-            <br />A version you can reproduce.
-          </p>
-        </nav>
         <section className={styles.mainPanel} aria-busy={busy}>
           {result && preview ? (
             <div className={styles.success}>
@@ -224,8 +288,8 @@ export function ImportScreen({ systemKey }: { systemKey?: string }) {
                   <span className="mono">{sourceLabel}</span>
                 </span>
                 <span className="mono">
-                  {preview.counts.nodes} nodes · {preview.counts.llm_nodes}{" "}
-                  model calls
+                  {countOf(preview.counts.nodes, "node")} ·{" "}
+                  {countOf(preview.counts.llm_nodes, "model call")}
                 </span>
               </div>
               {isGraphDefinition(preview.manifest.graph) ? (
@@ -319,33 +383,6 @@ export function ImportScreen({ systemKey }: { systemKey?: string }) {
                   </p>
                 </div>
               </div>
-              <div
-                className={styles.sourceTabs}
-                role="group"
-                aria-label="Import source"
-              >
-                {(
-                  [
-                    ["folder", "Local folder", FolderOpenIcon],
-                    ["github", "GitHub", GithubLogoIcon],
-                    ["json", "Paste manifest", FileCodeIcon],
-                  ] as const
-                ).map(([value, label, Icon]) => (
-                  <button
-                    key={value}
-                    type="button"
-                    aria-pressed={mode === value}
-                    disabled={busy}
-                    onClick={() => {
-                      setMode(value);
-                      setError(null);
-                    }}
-                  >
-                    <Icon size={16} />
-                    {label}
-                  </button>
-                ))}
-              </div>
               {mode === "folder" ? (
                 <>
                   <div
@@ -434,7 +471,7 @@ export function ImportScreen({ systemKey }: { systemKey?: string }) {
                     />
                   </div>
                   {files.length > 1 ? (
-                    <div className={styles.fileChoices}>
+                    <HoverGlide className={styles.fileChoices} radius={10}>
                       <h3>Choose a manifest</h3>
                       {files.map((item) => (
                         <button
@@ -449,7 +486,7 @@ export function ImportScreen({ systemKey }: { systemKey?: string }) {
                           <ArrowRightIcon size={14} />
                         </button>
                       ))}
-                    </div>
+                    </HoverGlide>
                   ) : null}
                 </>
               ) : mode === "github" ? (
@@ -527,33 +564,6 @@ export function ImportScreen({ systemKey }: { systemKey?: string }) {
                   </button>
                 </form>
               )}
-              <div className={styles.helpRow}>
-                <div>
-                  <h3>No manifest yet?</h3>
-                  <p>
-                    Follow the guide, or give its adapter brief to your
-                    coding agent.
-                  </p>
-                </div>
-                <Link href="/guide" className={styles.inlineLink}>
-                  Import guide <ArrowRightIcon size={14} />
-                </Link>
-              </div>
-              {!systemKey ? (
-                <button
-                  type="button"
-                  className={styles.inlineLink}
-                  disabled={busy}
-                  onClick={() =>
-                    inspect(
-                      () => importApi.inspectManifest(starterManifest),
-                      "Support summary starter",
-                    )
-                  }
-                >
-                  Try an example <ArrowRightIcon size={14} />
-                </button>
-              ) : null}
             </>
           )}
           {error ? (
@@ -566,7 +576,7 @@ export function ImportScreen({ systemKey }: { systemKey?: string }) {
           ) : null}
         </section>
       </div>
-    </>
+    </SplitPane>
   );
 }
 

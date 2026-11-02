@@ -3,6 +3,7 @@
 import { CloudArrowDownIcon } from "@phosphor-icons/react";
 import Link from "next/link";
 import { useState } from "react";
+import { HoverGlide } from "@/components/hover-glide";
 import { JsonViewer } from "@/components/json-viewer";
 import { ErrorState, LoadingState } from "@/components/states";
 import { systemPath } from "@/features/systems/system-path";
@@ -36,7 +37,7 @@ export function RuntimeInputSnapshotArtifact({
     snapshots.find((snapshot) => snapshot.id === selectedSnapshotId) ?? detail;
 
   return (
-    <article className="overflow-hidden rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface)]">
+    <article className="overflow-hidden surface-card">
       <div className="flex items-start gap-3 border-b border-[var(--border)] px-5 py-4">
         <CloudArrowDownIcon
           size={16}
@@ -62,9 +63,10 @@ export function RuntimeInputSnapshotArtifact({
       ) : null}
       {snapshots.length || detail ? (
         <div className="grid min-h-[520px] md:grid-cols-[250px_minmax(0,1fr)]">
-          <div
+          <HoverGlide
             className="border-b border-[var(--border)] md:border-r md:border-b-0"
             aria-label="Live data snapshots"
+            rowSelector="button"
           >
             {snapshots.map((snapshot) => (
               <button
@@ -72,7 +74,7 @@ export function RuntimeInputSnapshotArtifact({
                 type="button"
                 aria-pressed={snapshot.id === selectedSnapshotId}
                 onClick={() => onSnapshotChange(snapshot.id)}
-                className="block w-full border-b border-[var(--border)] px-4 py-3 text-left last:border-b-0 hover:bg-[var(--surface-muted)] aria-pressed:bg-[var(--accent-soft)]"
+                className="block w-full border-b border-[var(--border)] px-4 py-3 text-left last:border-b-0 aria-pressed:bg-[var(--accent-soft)]"
               >
                 <span className="block truncate text-[11px] font-medium">
                   {snapshot.label}
@@ -86,7 +88,7 @@ export function RuntimeInputSnapshotArtifact({
                 </span>
               </button>
             ))}
-          </div>
+          </HoverGlide>
           <div className="min-w-0">
             {loading || !summary || !detail ? (
               <LoadingState rows={8} />

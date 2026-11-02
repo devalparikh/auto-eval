@@ -90,9 +90,12 @@ Rules:
 - **Semantic colors carry meaning, not decoration.** Green means passed or
   frozen. Amber means working or draft. Blue means live or external. Red means
   failed or rejected. Grey means deterministic or inert.
-- Layering is surface on page, hairline border, and a 6% ink wash for panels
-  nested inside a card. Shadows appear only on things that genuinely float: the
-  product window, tooltips, the dock.
+- Layering is card on page and a 6% ink wash for panels nested inside a card.
+  In the app, as on the landing page, cards are flat: `.surface-card` has no
+  border and no resting shadow, only shade and a 24px radius. Inset panels use
+  `--card-inset` at 16px.
+- Shadows mark things that float (the product window, tooltips, dropdowns) and
+  things reacting to the pointer. A resting card has none.
 
 ## Type
 
@@ -129,7 +132,18 @@ of a card row.** That alignment is most of the perceived polish.
 label with a counter, the navigable items, and a status footer. Items are
 borderless with a soft fill when active, a state dot per item, and progress
 drawn as a thin bar down the active row's leading edge. Never give sidebar rows
-their own borders and shadows; the rail is one surface.
+their own borders and shadows; the rail is one surface. In the app this is
+`components/app-sidebar.tsx`: 232px, collapsing to 56px with `⌘B` or its edge,
+persisted in a cookie so the server renders the right width. Search sits above
+the system switcher because it does not belong to a system. The rows below the
+switcher are grouped by the workflow (Build, Test, Benchmark), or list the agent
+systems outside a system, and Models follows as a section of its own. Icons do
+not move while it collapses.
+
+**The split pane.** A list or menu beside the main content, for list-and-detail
+screens such as traces and import (`components/split-pane.tsx`). `⌘\` collapses
+it, and its contents keep their width so they slide out of view instead of
+reflowing. Under 1100px the screen chooses one column or a stack.
 
 **The window.** Chrome with three dots, a centered breadcrumb pill, and
 right-aligned tools. Inside, a real layout at reduced scale. Never a
@@ -147,6 +161,8 @@ Motion exists to explain a sequence, not to decorate.
 | Settle, draw, morph | `cubic-bezier(0.22, 1, 0.36, 1)` | 320–600ms |
 | Scroll reveal | `cubic-bezier(0.16, 1, 0.3, 1)` | 580–640ms |
 | Color and opacity only | `ease` | 160–260ms |
+| Hover in | `--hover-in`, `--ease-settle` for movement | 140ms |
+| Hover out | `--hover-out`, `--ease-settle` for movement | 320ms |
 
 ### Timing
 
@@ -211,6 +227,20 @@ creates waiting.
 9. **Motion is state, not decoration.** If an animation cannot be described as
    "this step finished, so this happened," cut it.
 
+### Hover and navigation
+
+- **Respond fast, settle slowly.** Set the long duration on the base rule and
+  the short one on `:hover`, so the way in is quick and the way out is gentle.
+- **Never animate `box-shadow`.** It repaints every frame and steps visibly on a
+  large blur. Render the shadow once on a pseudo-element and fade its opacity:
+  `.lift`, `.app-button::after`, `.graph-node-card::before`.
+- **One highlight glides across a list.** Wrap any list of rows in `HoverGlide`
+  (`components/hover-glide.tsx`). It moves a single highlight between rows on a
+  spring rather than fading each row on its own. Dropdowns do the same.
+- **Answer the click before the route.** Highlight the destination on click, and
+  show a cached screen immediately while it refreshes (`useApiResource`'s
+  `cacheKey`). A skeleton waits 140ms, so a fast response never shows one.
+
 ## Data visualization
 
 - Quality on Y, cost on X. Shade the "most attractive quadrant" bounded by the
@@ -258,9 +288,36 @@ badge visibly jumps as it swaps.
 
 ### Buttons
 
-Ink-filled with a coral hover, 6px radius in the app, 3px on the landing page.
-A `kbd` chip advertises a shortcut, and the shortcut is actually wired up. Do
-not print a shortcut you have not implemented.
+Ink-filled with a coral hover, 8px radius in the app, 3px on the landing page.
+Secondary buttons use `--card-inset`, which reads on both page and card. A `kbd`
+chip advertises a shortcut, and the shortcut is actually wired up. Do not print
+a shortcut you have not implemented.
+
+### Dropdowns
+
+`components/select.tsx`. `Select` draws a custom trigger and panel over a real
+`<select>`, which stays focused and owns the name, value, label, and change
+event, so forms, screen readers, and tests see a native control. Write ordinary
+`<option>` and `<optgroup>` children; `data-detail` adds a second line.
+`MultiSelect` stays open while choosing and summarizes as "A, B, 2 more". Lists
+of eight or more get a search field. The panel is portaled, so a card's
+`overflow: hidden` cannot clip it, and Escape stops at the dropdown rather than
+closing a surrounding modal.
+
+### Command menu
+
+`⌘K` anywhere, in `components/command-menu.tsx`. It is a native modal `<dialog>`,
+so the browser contains focus and restores it on close. Before typing it lists
+the current system's pages, the top-level pages, and actions. Search also covers
+systems, datasets, custom models, and the current system's traces. Nothing loads
+until it opens, so the landing page makes no API calls for it.
+
+### Graph nodes
+
+Selection lives in context (`useIsGraphNodeSelected`), not node data. Rebuilding
+node objects makes React Flow discard their measurements and re-measure the
+graph. Every card carries `nopan`, because React Flow adds it only to draggable
+nodes and a click that drifts by a pixel would otherwise pan the canvas.
 
 ## Voice
 
@@ -317,6 +374,9 @@ these are the ones that actually got shipped wrong.
 | Sidebar looks unpolished | Per-row borders and shadows | One surface, soft fill, state dots |
 | Large empty canvas | Diagram sized for a bigger area | Fill it with a real output panel |
 | "Why would it fork like that?" | Diagram not semantically true | Draw the actual topology |
+| Clicking a graph node "feels off" | Node objects rebuilt on select; clicks start a pan | Selection in context; `nopan` on the card |
+| Hover shadow looks stepped | Animating `box-shadow` | Fade a pre-rendered pseudo-element |
+| A screen stuck on its skeleton | Store update landed between render and subscribe | `useSyncExternalStore`, not `useEffect` |
 
 ## Checklist before shipping a surface
 

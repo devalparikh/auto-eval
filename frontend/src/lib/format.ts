@@ -43,3 +43,7 @@ export function textPreview(
   const fields = keys.slice(0, 3).map((key) => key.replaceAll("_", " ")).join(", ");
   return `${fallback} · ${fields}${keys.length > 3 ? ` +${keys.length - 3}` : ""}`;
 }
+
+export function countOf(count: number, noun: string): string {
+  return `${count} ${noun}${count === 1 ? "" : "s"}`;
+}

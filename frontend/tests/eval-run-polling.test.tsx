@@ -29,11 +29,36 @@ describe("evaluation polling", () => {
     vi.useFakeTimers();
     const loader = vi.fn().mockResolvedValue(evalRun("complete"));
     const { result } = renderHook(() => useEvalRunPolling(loader, 100));
-    act(() => result.current.setRun(evalRun("running")));
+    act(() => result.current.setRuns([evalRun("running")]));
     await act(async () => vi.advanceTimersByTimeAsync(100));
     expect(loader).toHaveBeenCalledOnce();
-    expect(result.current.run?.status).toBe("complete");
+    expect(result.current.runs[0]?.status).toBe("complete");
     await act(async () => vi.advanceTimersByTimeAsync(500));
     expect(loader).toHaveBeenCalledOnce();
+  });
+
+  it("polls only the runs still pending, and keeps a run whose poll failed", async () => {
+    vi.useFakeTimers();
+    const loader = vi.fn(async (id: string) => {
+      if (id === "flaky") throw new Error("interrupted");
+      return { ...evalRun("complete"), id };
+    });
+    const { result } = renderHook(() => useEvalRunPolling(loader, 100));
+    act(() =>
+      result.current.setRuns([
+        { ...evalRun("complete"), id: "done" },
+        { ...evalRun("running"), id: "active" },
+        { ...evalRun("queued"), id: "flaky" },
+      ]),
+    );
+    await act(async () => vi.advanceTimersByTimeAsync(100));
+    expect(loader.mock.calls.map(([id]) => id)).toEqual(["active", "flaky"]);
+    expect(result.current.runs.map((run) => run.status)).toEqual([
+      "complete",
+      "complete",
+      "queued",
+    ]);
+    await act(async () => vi.advanceTimersByTimeAsync(100));
+    expect(loader).toHaveBeenLastCalledWith("flaky");
   });
 });

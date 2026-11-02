@@ -254,6 +254,37 @@ class DatasetItemRecord(Base):
     )
 
 
+class CustomModelRecord(Base):
+    """One immutable training recipe and attempt; only display metadata is editable."""
+
+    __tablename__ = "custom_models"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    name: Mapped[str] = mapped_column(String(120))
+    archived: Mapped[bool] = mapped_column(Boolean, default=False)
+    agent_system_id: Mapped[str] = mapped_column(ForeignKey("agent_systems.id"), index=True)
+    dataset_version_id: Mapped[str] = mapped_column(ForeignKey("dataset_versions.id"))
+    base_model: Mapped[str] = mapped_column(String(200))
+    base_revision: Mapped[str] = mapped_column(String(120))
+    resolved_revision: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    executor: Mapped[str] = mapped_column(String(40), default="local_mlx")
+    system_prompt: Mapped[str] = mapped_column(Text)
+    training_config: Mapped[dict[str, Any]] = mapped_column(JSON)
+    dataset_hash: Mapped[str] = mapped_column(String(64))
+    recipe_hash: Mapped[str] = mapped_column(String(64))
+    train_count: Mapped[int] = mapped_column(Integer)
+    validation_count: Mapped[int] = mapped_column(Integer)
+    status: Mapped[str] = mapped_column(String(24), default="draft", index=True)
+    completed_steps: Mapped[int] = mapped_column(Integer, default=0)
+    training_loss: Mapped[float | None] = mapped_column(Float, nullable=True)
+    validation_loss: Mapped[float | None] = mapped_column(Float, nullable=True)
+    log_tail: Mapped[str] = mapped_column(Text, default="")
+    error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
 class TraceRecord(Base):
     __tablename__ = "traces"
 
@@ -328,6 +359,8 @@ class EvalRunRecord(Base):
     __tablename__ = "eval_runs"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    request_id: Mapped[str | None] = mapped_column(String(80), nullable=True, unique=True)
+    request_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
     status: Mapped[str] = mapped_column(String(20), default=RunStatus.QUEUED)
     dataset_version_id: Mapped[str] = mapped_column(ForeignKey("dataset_versions.id"), index=True)
     agent_system_version_id: Mapped[str] = mapped_column(

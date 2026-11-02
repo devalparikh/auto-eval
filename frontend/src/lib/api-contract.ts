@@ -22,6 +22,13 @@ import type {
   AgentSystemSummary,
   AgentVersionDetail,
   Catalog,
+  CreateCustomModel,
+  CustomModel,
+  TrainingConfig,
+  TrainingDataPreview,
+  TrainingMessage,
+  TrainingRuntime,
+  TrainingBaseModel,
   DatasetItem,
   DatasetMembership,
   DatasetSummary,
@@ -107,6 +114,14 @@ type Matches<Local, Schema> = [UnknownFields<Local, Schema>] extends [never]
   : { FIELD_MISSING_FROM_BACKEND: UnknownFields<Local, Schema> };
 
 type Assert<Check extends true> = Check;
+
+export type CustomModelMatches = Assert<Matches<CustomModel, Schemas["CustomModelResponse"]>>;
+export type CreateCustomModelMatches = Assert<Matches<CreateCustomModel, Schemas["CreateCustomModelRequest"]>>;
+export type TrainingConfigMatches = Assert<Matches<TrainingConfig, Schemas["TrainingConfig"]>>;
+export type TrainingRuntimeMatches = Assert<Matches<TrainingRuntime, Schemas["TrainingRuntime"]>>;
+export type TrainingBaseModelMatches = Assert<Matches<TrainingBaseModel, Schemas["TrainingBaseModel"]>>;
+export type TrainingDataPreviewMatches = Assert<Matches<TrainingDataPreview, Schemas["TrainingDataPreview"]>>;
+export type TrainingMessageMatches = Assert<Matches<TrainingMessage, Schemas["TrainingMessage"]>>;
 
 // --- Catalog -----------------------------------------------------------------
 

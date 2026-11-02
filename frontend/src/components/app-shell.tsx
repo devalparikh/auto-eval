@@ -4,21 +4,27 @@ import {
   ArrowUpRightIcon,
   CaretDownIcon,
   GithubLogoIcon,
+  ListIcon,
+  MagnifyingGlassIcon,
   MoonIcon,
-  SpeakerHighIcon,
-  SpeakerSlashIcon,
   SunIcon,
 } from "@phosphor-icons/react";
 import Link from "next/link";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { usePathname } from "next/navigation";
 import {
+  useCallback,
+  useEffect,
   useRef,
   useState,
   useSyncExternalStore,
   type MouseEvent,
   type ReactNode,
 } from "react";
+import { AppSidebar } from "@/components/app-sidebar";
+import { CommandMenu } from "@/components/command-menu";
+import { routeContentKey } from "@/components/sidebar-nav";
+import { SIDEBAR_COOKIE_NAME, type SidebarState } from "@/lib/sidebar";
 import { playUiSound, UI_SOUND_STORAGE_KEY, type UiSound } from "@/lib/sound";
 import { THEME_COOKIE_NAME, type ColorTheme } from "@/lib/theme";
 
@@ -29,8 +35,8 @@ const MARKETING_NAV_ITEMS = [
     key: "workflow",
     label: "workflow",
     href: "#workflow",
-    description: "Trace one run and turn the useful failures into repeatable tests.",
-    details: ["connect the agent", "inspect the trace", "save the cases", "compare models"],
+    description: "Trace one run, save the useful failures as tests, and benchmark every change.",
+    details: ["connect the agent", "inspect the trace", "save the cases", "benchmark changes"],
   },
   {
     key: "trace",
@@ -47,11 +53,11 @@ const MARKETING_NAV_ITEMS = [
     details: ["plugin manifest", "graph definition", "handlers and scoring", "trace policy"],
   },
   {
-    key: "compare",
-    label: "compare",
+    key: "benchmark",
+    label: "benchmark",
     href: "#compare",
-    description: "Run the same locked cases against every candidate and line up quality, cost, and latency.",
-    details: ["one finalized dataset", "every model", "per-case results", "cost and latency"],
+    description: "Run the same locked cases against every model and graph version, then line up quality, cost, and latency.",
+    details: ["one finalized dataset", "models and fine-tunes", "graph versions", "cost and latency"],
   },
   {
     key: "provenance",
@@ -74,20 +80,33 @@ type MarketingNavKey = (typeof MARKETING_NAV_ITEMS)[number]["key"];
 export function AppShell({
   children,
   initialTheme,
+  initialSidebar,
 }: {
   children: ReactNode;
   initialTheme: ColorTheme;
+  initialSidebar: SidebarState;
 }) {
   const pathname = usePathname();
-  const systemKey = systemKeyFromPath(pathname);
-  const navItems = scopedNavItems(systemKey);
+  const isLanding = pathname === "/";
   const [theme, setTheme] = useState(initialTheme);
-  const reduceMotion = useReducedMotion();
+  const [sidebar, setSidebar] = useState(initialSidebar);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const [commandMenuOpen, setCommandMenuOpen] = useState(false);
+  const contentKey = routeContentKey(pathname);
+  const [route, setRoute] = useState({ contentKey, navigated: false });
+  const sidebarRef = useRef<HTMLElement>(null);
+  const mobileNavButtonRef = useRef<HTMLButtonElement>(null);
   const soundEnabled = useSyncExternalStore(
     subscribeToSoundPreference,
     readSoundPreference,
     () => true,
   );
+
+  // The first paint is server-rendered and complete. Only a later route change
+  // has anything to ease in.
+  if (route.contentKey !== contentKey) {
+    setRoute({ contentKey, navigated: true });
+  }
 
   function toggleSound() {
     const next = !soundEnabled;
@@ -104,6 +123,54 @@ export function AppShell({
     if (soundEnabled) playUiSound("select");
   }
 
+  const toggleSidebar = useCallback(() => {
+    setSidebar((current) => {
+      const next = current === "collapsed" ? "expanded" : "collapsed";
+      document.cookie = `${SIDEBAR_COOKIE_NAME}=${next}; Path=/; Max-Age=31536000; SameSite=Lax`;
+      return next;
+    });
+  }, []);
+
+  const closeMobileNav = useCallback(() => setMobileNavOpen(false), []);
+  const closeCommandMenu = useCallback(() => setCommandMenuOpen(false), []);
+
+  useEffect(() => {
+    function onKeyDown(event: KeyboardEvent) {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
+        event.preventDefault();
+        setCommandMenuOpen((open) => !open);
+      }
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
+
+  useEffect(() => {
+    if (isLanding) return;
+    function onKeyDown(event: KeyboardEvent) {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "b") {
+        event.preventDefault();
+        toggleSidebar();
+      }
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [isLanding, toggleSidebar]);
+
+  useEffect(() => {
+    if (!mobileNavOpen) return;
+    sidebarRef.current?.querySelector<HTMLElement>("a, button")?.focus();
+    const returnFocusTo = mobileNavButtonRef.current;
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") setMobileNavOpen(false);
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+      returnFocusTo?.focus();
+    };
+  }, [mobileNavOpen]);
+
   function handleSound(event: MouseEvent<HTMLDivElement>) {
     if (!soundEnabled) return;
     const target = event.target instanceof Element ? event.target : null;
@@ -116,97 +183,93 @@ export function AppShell({
   }
 
   return (
-    <div className="app-shell" onClickCapture={handleSound}>
+    <div
+      className="app-shell"
+      data-surface={isLanding ? "landing" : "workbench"}
+      data-sidebar={sidebar}
+      onClickCapture={handleSound}
+    >
       <a className="skip-link" href="#main-content">
         Skip to content
       </a>
-      {pathname === "/" ? (
+      {isLanding ? (
         <MarketingHeader theme={theme} onToggleTheme={toggleTheme} />
       ) : (
-        <header className="shell-header">
-          <Link
-          href="/"
-          className="shell-brand"
-          aria-label="AutoEval home"
-          data-sound="navigate"
-        >
-          <span className="shell-brand-mark" aria-hidden="true">
-            a/e
-          </span>
-          <span className="shell-brand-name">AutoEval</span>
-          <span className="shell-brand-version">v0.1</span>
-        </Link>
-        <nav aria-label="Primary" className="shell-nav">
-          {navItems.map((item) => {
-            const active = item.exact
-              ? pathname === item.href
-              : pathname === item.href || pathname.startsWith(`${item.href}/`);
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                aria-current={active ? "page" : undefined}
-                className="shell-nav-link"
-                data-sound="navigate"
-              >
-                <span className="shell-nav-index" aria-hidden="true">
-                  {item.index}
-                </span>
-                {item.label}
-              </Link>
-            );
-          })}
-        </nav>
-        <div className="shell-controls">
-          <span className="shell-status" aria-label="Local workspace connected">
-            <span className="shell-status-dot" aria-hidden="true" />
-            loopback / local
-          </span>
-          <button
-            type="button"
-            className="shell-icon-button theme-toggle"
-            aria-label={`Use ${theme === "dark" ? "light" : "dark"} theme`}
-            title={`Use ${theme === "dark" ? "light" : "dark"} theme`}
-            onClick={toggleTheme}
-          >
-            {theme === "dark" ? <MoonIcon size={16} /> : <SunIcon size={16} />}
-          </button>
-          <button
-            type="button"
-            className="shell-icon-button sound-toggle"
-            aria-label={
-              soundEnabled
-                ? "Turn interface sounds off"
-                : "Turn interface sounds on"
-            }
-            aria-pressed={soundEnabled}
-            title={soundEnabled ? "Sounds on" : "Sounds off"}
-            onClick={toggleSound}
-          >
-            {soundEnabled ? (
-              <SpeakerHighIcon size={16} />
-            ) : (
-              <SpeakerSlashIcon size={16} />
-            )}
-          </button>
-        </div>
-        </header>
+        <>
+          <div className="shell-mobile-bar">
+            <button
+              ref={mobileNavButtonRef}
+              type="button"
+              className="shell-icon-button"
+              aria-label="Open navigation"
+              aria-expanded={mobileNavOpen}
+              onClick={() => setMobileNavOpen(true)}
+            >
+              <ListIcon size={18} aria-hidden="true" />
+            </button>
+            <Link
+              href="/"
+              className="shell-brand"
+              aria-label="AutoEval home"
+              data-sound="navigate"
+            >
+              <span className="shell-brand-mark" aria-hidden="true">
+                a/e
+              </span>
+              <span className="shell-brand-name">AutoEval</span>
+            </Link>
+            <button
+              type="button"
+              className="shell-icon-button"
+              aria-label="Open command menu"
+              onClick={() => setCommandMenuOpen(true)}
+            >
+              <MagnifyingGlassIcon size={17} aria-hidden="true" />
+            </button>
+          </div>
+          <div
+            className="shell-scrim"
+            data-open={mobileNavOpen}
+            aria-hidden="true"
+            onClick={closeMobileNav}
+          />
+          <AppSidebar
+            pathname={pathname}
+            collapsed={sidebar === "collapsed"}
+            mobileOpen={mobileNavOpen}
+            sidebarRef={sidebarRef}
+            theme={theme}
+            soundEnabled={soundEnabled}
+            onToggleCollapsed={toggleSidebar}
+            onCloseMobile={closeMobileNav}
+            onToggleTheme={toggleTheme}
+            onToggleSound={toggleSound}
+            onOpenCommandMenu={() => {
+              closeMobileNav();
+              setCommandMenuOpen(true);
+            }}
+          />
+        </>
       )}
+      {commandMenuOpen ? (
+        <CommandMenu
+          pathname={pathname}
+          theme={theme}
+          sidebarCollapsed={sidebar === "collapsed"}
+          onToggleTheme={toggleTheme}
+          onToggleSidebar={toggleSidebar}
+          onClose={closeCommandMenu}
+        />
+      ) : null}
       <main id="main-content" className="route-frame">
-        <motion.div
-          key={pathname}
-          className="route-content"
-          initial={
-            pathname !== "/" && !reduceMotion ? { opacity: 0.45 } : false
-          }
-          animate={{ opacity: 1 }}
-          transition={{
-            duration: reduceMotion ? 0 : 0.15,
-            ease: [0.4, 1, 0.6, 1],
-          }}
+        <div
+          key={contentKey}
+          className={`route-content ${
+            route.navigated && !isLanding ? "route-enter" : ""
+          }`}
         >
           {children}
-        </motion.div>
+        </div>
       </main>
     </div>
   );
@@ -460,40 +523,4 @@ function subscribeToSoundPreference(onChange: () => void) {
     window.removeEventListener("storage", onChange);
     window.removeEventListener(SOUND_PREFERENCE_EVENT, onChange);
   };
-}
-
-function systemKeyFromPath(pathname: string): string | null {
-  const match = pathname.match(/^\/systems\/([^/]+)/);
-  return match ? decodeURIComponent(match[1]) : null;
-}
-
-function scopedNavItems(systemKey: string | null) {
-  const workspace = {
-    href: "/systems",
-    label: "Workspaces",
-    index: "00",
-    exact: true,
-  };
-  if (!systemKey) return [workspace];
-  const root = `/systems/${encodeURIComponent(systemKey)}`;
-  return [
-    workspace,
-    { href: root, label: "Overview", index: "01", exact: true },
-    { href: `${root}/run`, label: "Run", index: "02", exact: false },
-    { href: `${root}/traces`, label: "Traces", index: "03", exact: false },
-    { href: `${root}/datasets`, label: "Datasets", index: "04", exact: false },
-    {
-      href: `${root}/evaluations`,
-      label: "Evaluate",
-      index: "05",
-      exact: false,
-    },
-    { href: `${root}/results`, label: "Results", index: "06", exact: false },
-    {
-      href: `${root}/artifacts`,
-      label: "Artifacts",
-      index: "07",
-      exact: false,
-    },
-  ];
 }

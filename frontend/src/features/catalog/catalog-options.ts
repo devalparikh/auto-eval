@@ -7,6 +7,28 @@ import type {
   VersionSummary,
 } from "@/lib/types";
 
+const providerNames: Record<string, string> = {
+  openrouter: "OpenRouter",
+  lmstudio: "LM Studio",
+  mock: "Mock",
+  cli: "CLI",
+};
+
+export type ModelChoice = {
+  value: string;
+  label: string;
+  group: string;
+};
+
+/** How every model selector labels and groups a model. */
+export function modelChoices(models: ModelOption[]): ModelChoice[] {
+  return models.map((model) => ({
+    value: model.id,
+    label: model.label,
+    group: providerNames[model.provider] ?? model.provider,
+  }));
+}
+
 export type DatasetVersionOption = {
   dataset: DatasetSummary;
   version: DatasetVersionSummary;

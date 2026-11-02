@@ -1,6 +1,10 @@
 import type {
   AgentVersionDetail,
   Catalog,
+  CreateCustomModel,
+  CustomModel,
+  TrainingDataPreview,
+  TrainingRuntime,
   DatasetItem,
   DatasetVersionDetail,
   EvalRun,
@@ -20,6 +24,13 @@ export const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "/api/backend/api";
 
 type RequestOptions = Omit<RequestInit, "body"> & { body?: unknown };
 
+export class ApiError extends Error {
+  constructor(message: string, public readonly status: number) {
+    super(message);
+    this.name = "ApiError";
+  }
+}
+
 export async function apiRequest<T>(
   path: string,
   options: RequestOptions = {},
@@ -38,7 +49,7 @@ export async function apiRequest<T>(
   });
   if (!response.ok) {
     const payload: unknown = await response.json().catch(() => null);
-    throw new Error(requestErrorMessage(payload, response.status));
+    throw new ApiError(requestErrorMessage(payload, response.status), response.status);
   }
   return response.json() as Promise<T>;
 }
@@ -75,6 +86,18 @@ function requestErrorMessage(payload: unknown, status: number): string {
 }
 
 export const api = {
+  customModels: () => apiRequest<CustomModel[]>("/custom-models"),
+  trainingRuntime: () => apiRequest<TrainingRuntime>("/custom-models/runtime"),
+  previewTraining: (body: CreateCustomModel) =>
+    apiRequest<TrainingDataPreview>("/custom-models/preview", { method: "POST", body }),
+  createCustomModel: (body: CreateCustomModel) =>
+    apiRequest<CustomModel>("/custom-models", { method: "POST", body }),
+  updateCustomModel: (id: string, body: { name: string; archived: boolean }) =>
+    apiRequest<CustomModel>(`/custom-models/${id}`, { method: "PUT", body }),
+  trainCustomModel: (id: string) =>
+    apiRequest<CustomModel>(`/custom-models/${id}/train`, { method: "POST" }),
+  cancelCustomModel: (id: string) =>
+    apiRequest<CustomModel>(`/custom-models/${id}/cancel`, { method: "POST" }),
   catalog: () => apiRequest<Catalog>("/catalog"),
   portfolioSnapshots: (agentSystemKey?: string, syntheticOnly = false) => {
     const params = new URLSearchParams();
@@ -207,6 +230,9 @@ export const api = {
     agent_system_version_id?: string;
     prompt_version_id?: string;
     prompt_version_ids?: Record<string, string>;
+    finalize_dataset?: boolean;
+    expected_dataset_revision?: string;
+    request_id?: string;
   }) => apiRequest<EvalRun>("/eval-runs", { method: "POST", body: payload }),
   agentVersion: (versionId: string) =>
     apiRequest<AgentVersionDetail>(`/agent-system-versions/${versionId}`),

@@ -14,6 +14,7 @@ from autoeval_api.api.middleware import RequestGuardMiddleware, SecurityHeadersM
 from autoeval_api.api.routes import (
     artifacts,
     catalog,
+    custom_models,
     datasets,
     evaluations,
     node_snapshots,
@@ -33,6 +34,7 @@ from autoeval_api.inference.registry import (
     default_provider_registry,
 )
 from autoeval_api.market_data import default_runtime_input_registry
+from autoeval_api.services.custom_models import CustomModelService
 from autoeval_api.services.evaluations import EvaluationService
 from autoeval_api.services.scoring import ScoringRegistry, default_scoring_registry
 from autoeval_api.services.system_imports import SystemImportService
@@ -70,6 +72,7 @@ def create_application(
     runner: AgentGraphRunner | None = None,
     evaluation_service: EvaluationService | None = None,
     system_import_service: SystemImportService | None = None,
+    custom_model_service: CustomModelService | None = None,
 ) -> FastAPI:
     settings = settings or get_settings()
 
@@ -101,6 +104,7 @@ def create_application(
         runner.node_registry,
         runner.runtime_input_registry,
     )
+    custom_model_service = custom_model_service or CustomModelService(session_factory, settings)
 
     @asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncIterator[None]:
@@ -119,7 +123,11 @@ def create_application(
             finally:
                 session.close()
             await ensure_demo_runs(session_factory, runner, scoring_registry)
-        yield
+        custom_model_service.recover_interrupted()
+        try:
+            yield
+        finally:
+            await custom_model_service.shutdown()
 
     app = FastAPI(
         title="AutoEval API",
@@ -133,6 +141,7 @@ def create_application(
     app.state.provider_registry = provider_registry
     app.state.evaluation_service = evaluation_service
     app.state.system_import_service = system_import_service
+    app.state.custom_model_service = custom_model_service
     app.state.session_factory = session_factory
     app.state.settings = settings
     app.state.engine = resolved_engine
@@ -149,6 +158,7 @@ def create_application(
     app.add_middleware(SecurityHeadersMiddleware)
 
     app.include_router(catalog.router)
+    app.include_router(custom_models.router)
     app.include_router(artifacts.router)
     app.include_router(node_snapshots.router)
     app.include_router(portfolio_snapshots.router)

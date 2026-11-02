@@ -12,6 +12,7 @@ import { StatusBadge } from "@/components/status-badge";
 import { Modal } from "@/components/modal";
 import {
   graphVersions,
+  modelChoices,
   promptVersions,
 } from "@/features/catalog/catalog-options";
 import {
@@ -122,6 +123,7 @@ export function RunWorkbench({
       ? () => api.agentVersion(selectedGraphVersionId)
       : null,
     [selectedGraphVersionId],
+    { cacheKey: `graph-version:${selectedGraphVersionId}` },
   );
   const graphDefinition = graphDetail.data?.definition ?? null;
   const selectedGraphVersion = graphs.find(
@@ -220,7 +222,7 @@ export function RunWorkbench({
       <PageHeader title={pageTitle} />
       <section className="grid gap-4 p-4 md:p-7">
         <form
-          className="min-w-0 overflow-hidden rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface)]"
+          className="min-w-0 overflow-hidden surface-card"
           aria-busy={submitting}
           onSubmit={submit}
         >
@@ -302,10 +304,16 @@ export function RunWorkbench({
                   required
                   onChange={(event) => setSelectedModelId(event.target.value)}
                 >
-                  {models.map((model) => (
-                    <option key={model.id} value={model.id}>
-                      {model.label}
-                    </option>
+                  {Object.entries(
+                    Object.groupBy(modelChoices(models), (choice) => choice.group),
+                  ).map(([group, choices]) => (
+                    <optgroup key={group} label={group}>
+                      {choices?.map((choice) => (
+                        <option key={choice.value} value={choice.value}>
+                          {choice.label}
+                        </option>
+                      ))}
+                    </optgroup>
                   ))}
                 </Select>
                 {selectedModel?.notice ? (
@@ -403,7 +411,7 @@ export function RunWorkbench({
             </section>
 
             {hasRefreshNodes ? (
-              <label className="rounded-[var(--radius)] flex cursor-pointer items-start gap-3 border border-[var(--border)] bg-[var(--surface-muted)] px-3 py-3">
+              <label className="flex cursor-pointer items-start gap-3 rounded-[var(--radius-inset)] bg-[var(--card-inset)] px-3 py-3">
                 <input
                   type="checkbox"
                   className="mt-0.5 accent-[var(--accent)]"
@@ -527,7 +535,7 @@ export function RunWorkbench({
         </form>
 
         <section
-          className="min-w-0 overflow-hidden rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface)]"
+          className="min-w-0 overflow-hidden surface-card"
           aria-live="polite"
           aria-busy={submitting}
         >

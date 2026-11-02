@@ -35,8 +35,10 @@
   --text: #f2f2ef;
   --text-muted: #9a9ea3;
   --text-faint: #6f7379;
-  --border: #1f1f1f;
-  --border-strong: #2f2f2f;
+  --card: #1a1a1a;
+  --card-inset: rgb(255 255 255 / 0.06);
+  --border: rgb(255 255 255 / 0.08);
+  --border-strong: rgb(255 255 255 / 0.15);
   --accent: #f07a65;
   --accent-strong: #f5907c;
   --accent-soft: #35201c;
@@ -73,8 +75,12 @@
   --node-saved-soft: #2c2217;
   --node-logic: #9a9ea3;
   --node-logic-soft: #1c1c1c;
-  --radius: 14px;
-  --page-gutter: clamp(1rem, 2.6vw, 2rem);
+  --shadow-raise:
+    0 1px 2px rgb(0 0 0 / 0.3), 0 6px 16px rgb(0 0 0 / 0.26),
+    0 18px 44px rgb(0 0 0 / 0.3);
+  --radius: 24px;
+  --radius-inset: 16px;
+  --page-gutter: clamp(1rem, 2.6vw, 1.75rem);
   --font-body:
     "Host Grotesk", "Avenir Next", Avenir, "Helvetica Neue", Helvetica, Arial,
     sans-serif;
@@ -85,6 +91,9 @@
     "SFMono-Regular", "Cascadia Code", "Roboto Mono", Menlo, Consolas, monospace;
   --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
   --ease-spring: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-settle: cubic-bezier(0.22, 1, 0.36, 1);
+  --hover-in: 140ms;
+  --hover-out: 320ms;
 }
 
 [data-theme="light"] {
@@ -97,8 +106,13 @@
   --text: #15171b;
   --text-muted: #5f646b;
   --text-faint: #8a8f96;
-  --border: #e7e6e2;
-  --border-strong: #d3d2cd;
+  --card: #f4f3f0;
+  --card-inset: rgb(21 23 27 / 0.05);
+  --border: rgb(21 23 27 / 0.1);
+  --border-strong: rgb(21 23 27 / 0.18);
+  --shadow-raise:
+    0 1px 2px rgb(21 23 27 / 0.06), 0 6px 16px rgb(21 23 27 / 0.07),
+    0 18px 44px rgb(21 23 27 / 0.09);
   --accent: #df654f;
   --accent-strong: #c9553f;
   --accent-soft: #fbe6e1;
@@ -245,74 +259,228 @@ label:has(input.sr-only:focus-visible) {
   background: var(--bg);
 }
 
-.shell-header {
+.app-shell[data-surface="workbench"] {
+  display: flex;
+  align-items: flex-start;
+}
+
+/* The sidebar is one flat surface: rows have no borders or shadows of their
+   own, and the icons stay put while the width changes. */
+.shell-sidebar {
+  --sidebar-width: 232px;
+  --row-height: 30px;
   position: sticky;
   top: 0;
   z-index: 30;
-  display: grid;
-  grid-template-columns: minmax(170px, 0.7fr) minmax(0, 1.8fr) minmax(
-      180px,
-      0.7fr
-    );
-  min-height: 58px;
-  align-items: stretch;
-  border-bottom: 1px solid var(--border);
-  background: var(--shell-bg);
-  backdrop-filter: blur(18px);
+  display: flex;
+  width: var(--sidebar-width);
+  height: 100dvh;
+  flex: 0 0 auto;
+  flex-direction: column;
+  background: var(--bg);
+  transition: width 260ms var(--ease-settle);
+}
+
+.shell-sidebar-head {
+  position: relative;
+  display: flex;
+  height: 52px;
+  flex: 0 0 auto;
+  align-items: center;
+  padding: 0 8px;
 }
 
 .shell-brand {
   display: flex;
   min-width: 0;
+  flex: 1;
   align-items: center;
-  gap: 0.75rem;
-  padding: 0 var(--page-gutter);
-  border-right: 1px solid var(--border);
+  gap: 0.6rem;
+  border-radius: 8px;
+  padding: 0 7px;
   color: var(--text);
   text-decoration: none;
+  transition: opacity 160ms ease;
 }
 
 .shell-brand-mark {
-  position: relative;
   display: grid;
-  width: 25px;
-  height: 25px;
+  width: 26px;
+  height: 26px;
   flex: 0 0 auto;
   place-items: center;
-  border: 1px solid var(--border-strong);
-  border-radius: 6px;
+  border-radius: 8px;
+  background: var(--card);
   color: var(--accent);
   font-family: var(--font-mono);
   font-size: 9px;
   letter-spacing: -0.08em;
-  transition:
-    border-color 160ms ease,
-    background-color 160ms ease;
+  transition: background-color var(--hover-out) ease;
 }
 
 .shell-brand:hover .shell-brand-mark {
-  border-color: var(--accent);
-  background: var(--accent-soft);
+  background: var(--surface-hover);
+  transition-duration: var(--hover-in);
 }
 
 .shell-brand-name {
-  font-size: 15px;
-  font-weight: 600;
-  letter-spacing: -0.035em;
+  font-size: 14px;
+  font-weight: 550;
+  letter-spacing: -0.03em;
 }
 
-.shell-brand-version {
-  color: var(--text-faint);
+/* Labels stay in the DOM when collapsed so every link keeps its accessible
+   name. Only their opacity and the row's width change. */
+.shell-nav-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  transition: opacity 180ms ease;
+}
+
+.shell-collapse-toggle {
+  flex: 0 0 auto;
+}
+
+.shell-switcher {
+  position: relative;
+  flex: 0 0 auto;
+  padding: 0 8px 8px;
+}
+
+.shell-switcher-trigger {
+  display: flex;
+  width: 100%;
+  height: 38px;
+  align-items: center;
+  gap: 0.55rem;
+  overflow: hidden;
+  border: 0;
+  border-radius: 12px;
+  background: var(--card);
+  color: var(--text);
+  cursor: pointer;
+  padding: 0 7px;
+  font-size: 12px;
+  font-weight: 500;
+  text-align: left;
+  transition: background-color var(--hover-out) ease;
+}
+
+.shell-switcher-trigger:hover,
+.shell-switcher-trigger[aria-expanded="true"] {
+  background: var(--surface-hover);
+  transition-duration: var(--hover-in);
+}
+
+.shell-switcher-mark {
+  display: grid;
+  width: 26px;
+  height: 26px;
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: 8px;
+  background: var(--card-inset);
+  color: var(--text-muted);
   font-family: var(--font-mono);
   font-size: 9px;
-  letter-spacing: 0.04em;
+}
+
+.shell-switcher-name {
+  flex: 1;
+}
+
+.shell-switcher-caret {
+  flex: 0 0 auto;
+  margin-right: 2px;
+  color: var(--text-faint);
+  transition: opacity 180ms ease;
+}
+
+/* Sized to its names, not the sidebar: it may extend past the sidebar's edge. */
+.shell-switcher-menu {
+  position: absolute;
+  z-index: 45;
+  top: calc(100% - 4px);
+  left: 8px;
+  display: grid;
+  width: max-content;
+  min-width: calc(100% - 16px);
+  max-width: min(340px, calc(100vw - 24px));
+  max-height: min(420px, 70dvh);
+  gap: 1px;
+  overflow-y: auto;
+  border-radius: var(--radius-inset);
+  background: var(--surface-raised);
+  box-shadow: var(--shadow-raise);
+  padding: 6px;
+  transform-origin: 50% 0;
+}
+
+[data-theme="light"] .shell-switcher-menu {
+  box-shadow:
+    var(--shadow-raise),
+    0 0 0 1px var(--border);
+}
+
+.shell-switcher-heading {
+  margin: 0;
+  overflow: hidden;
+  color: var(--text-faint);
+  padding: 9px 9px 5px;
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.1em;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.shell-switcher-item {
+  display: flex;
+  min-height: 30px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  border-radius: 9px;
+  color: var(--text-muted);
+  padding: 0 9px;
+  font-size: 12px;
+  text-decoration: none;
+  transition:
+    background-color var(--hover-out) ease,
+    color var(--hover-out) ease;
+}
+
+.shell-switcher-item:hover,
+.shell-switcher-item:focus-visible {
+  background: var(--card-inset);
+  color: var(--text);
+  transition-duration: var(--hover-in);
+}
+
+.shell-switcher-item[aria-current] {
+  color: var(--text);
+}
+
+.shell-switcher-empty {
+  margin: 0;
+  color: var(--text-muted);
+  padding: 8px 9px;
+  font-size: 12px;
 }
 
 .shell-nav {
+  position: relative;
   display: flex;
-  min-width: 0;
-  align-items: stretch;
-  overflow-x: auto;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding: 2px 8px 8px;
   scrollbar-width: none;
 }
 
@@ -320,73 +488,232 @@ label:has(input.sr-only:focus-visible) {
   display: none;
 }
 
-.shell-nav-link {
-  position: relative;
-  display: flex;
-  min-width: max-content;
-  flex: 1 0 auto;
-  align-items: center;
-  justify-content: center;
-  gap: 0.55rem;
-  padding: 0.75rem 1rem;
-  border-right: 1px solid var(--border);
-  color: var(--text-muted);
-  font-size: 11px;
-  font-weight: 550;
-  text-decoration: none;
-  transition:
-    color 150ms ease,
-    background-color 150ms ease;
+.shell-nav-top {
+  flex: 0 0 auto;
+  overflow: visible;
+  padding-top: 0;
+  padding-bottom: 10px;
 }
 
-.shell-nav-link::after {
+button.shell-nav-row {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+}
+
+kbd.shell-nav-count {
+  font-size: 9.5px;
+  letter-spacing: 0.02em;
+}
+
+/* One highlight glides between a list's rows. See components/hover-glide.tsx. */
+.glide-pill {
   position: absolute;
-  right: 0.8rem;
-  bottom: -1px;
-  left: 0.8rem;
+  z-index: 0;
+  top: 0;
+  background: var(--shell-active);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 260ms ease;
+}
+
+.glide-pill[data-visible="true"] {
+  opacity: 1;
+  transition-duration: 120ms;
+}
+
+.shell-nav .glide-pill {
+  background: var(--shell-hover);
+}
+
+.hover-glide {
+  position: relative;
+}
+
+.hover-glide > *:not(.glide-pill) {
+  position: relative;
+  z-index: 1;
+}
+
+/* The pill replaces each row's own wash, which stays for keyboard focus only. */
+.hover-glide .data-row:not(:focus-visible, :has(:focus-visible))::before {
+  opacity: 0;
+}
+
+.shell-nav-group {
+  display: grid;
+  gap: 1px;
+}
+
+.shell-nav-workspace {
+  margin-top: auto;
+  padding-top: 12px;
+}
+
+.shell-nav-heading {
+  position: relative;
+  height: 28px;
+  margin: 0;
+  overflow: hidden;
+  color: var(--text-faint);
+  padding: 12px 9px 0;
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.1em;
+  line-height: 1;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.shell-nav-heading > span {
+  transition: opacity 180ms ease;
+}
+
+.shell-nav-heading::after {
+  position: absolute;
+  top: 17px;
+  right: 10px;
+  left: 10px;
   height: 1px;
-  background: var(--accent);
+  background: var(--border);
   content: "";
   opacity: 0;
-  transform: scaleX(0.55);
+  transition: opacity 180ms ease;
+}
+
+.shell-nav-row {
+  position: relative;
+  isolation: isolate;
+  display: flex;
+  height: var(--row-height);
+  align-items: center;
+  gap: 0.6rem;
+  overflow: hidden;
+  border-radius: 9px;
+  color: var(--text-muted);
+  padding: 0 12px;
+  font-size: 12.5px;
+  font-weight: 450;
+  text-decoration: none;
+  transition: color var(--hover-out) ease;
+}
+
+.shell-nav-row:hover {
+  color: var(--text);
+  transition-duration: var(--hover-in);
+}
+
+.shell-nav-row[aria-current="page"] {
+  color: var(--text);
+  font-weight: 500;
+}
+
+.shell-nav-row:focus-visible {
+  outline-offset: -1px;
+}
+
+.shell-nav-active {
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  border-radius: inherit;
+  background: var(--card);
+}
+
+.shell-nav-icon {
+  flex: 0 0 auto;
   transition:
-    opacity 160ms ease,
-    transform 200ms var(--ease-out);
+    color var(--hover-out) ease,
+    scale 180ms var(--ease-settle);
 }
 
-.shell-nav-link:hover {
-  background: var(--shell-hover);
-  color: var(--text);
+.shell-nav-row[aria-current="page"] .shell-nav-icon {
+  color: var(--accent);
 }
 
-.shell-nav-link[aria-current="page"] {
-  background: var(--shell-active);
-  color: var(--text);
+.shell-nav-row:active .shell-nav-icon {
+  scale: 0.9;
 }
 
-.shell-nav-link[aria-current="page"]::after {
-  opacity: 1;
-  transform: scaleX(1);
-}
-
-.shell-nav-index {
+.shell-nav-count {
+  margin-left: auto;
   color: var(--text-faint);
   font-family: var(--font-mono);
-  font-size: 8px;
+  font-size: 10px;
+  transition: opacity 180ms ease;
 }
 
-.shell-controls {
+.shell-nav-pending {
+  position: absolute;
+  top: 7px;
+  bottom: 7px;
+  left: 3px;
+  width: 2px;
+  border-radius: 2px;
+  background: var(--accent);
+  opacity: 0;
+  transform: scaleY(0.4);
+  transition:
+    opacity 160ms ease,
+    transform 240ms var(--ease-settle);
+}
+
+/* The delay keeps a fast navigation from flashing the bar at all. */
+.shell-nav-pending[data-pending="true"] {
+  opacity: 1;
+  transform: scaleY(1);
+  transition-delay: 120ms;
+}
+
+.shell-tooltip {
+  position: fixed;
+  z-index: 50;
+  top: 0;
+  left: 64px;
   display: flex;
+  height: 28px;
   align-items: center;
-  justify-content: flex-end;
-  gap: 0.8rem;
-  padding: 0 var(--page-gutter);
+  border-radius: 8px;
+  background: var(--surface-raised);
+  box-shadow: var(--shadow-raise);
+  color: var(--text);
+  opacity: 0;
+  padding: 0 10px;
+  font-size: 11.5px;
+  pointer-events: none;
+  white-space: nowrap;
+  transition: opacity 180ms ease;
+}
+
+.shell-tooltip[data-visible="true"] {
+  opacity: 1;
+  transition-duration: 100ms;
+}
+
+.shell-sidebar-foot {
+  display: flex;
+  min-height: 44px;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.25rem;
+  padding: 4px 8px 8px 19px;
+}
+
+.shell-sidebar-actions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 1px;
 }
 
 .shell-status {
   display: flex;
+  min-width: 0;
   align-items: center;
-  gap: 0.45rem;
+  gap: 0.55rem;
   color: var(--text-faint);
   font-family: var(--font-mono);
   font-size: 9px;
@@ -396,41 +723,141 @@ label:has(input.sr-only:focus-visible) {
 .shell-status-dot {
   width: 5px;
   height: 5px;
+  flex: 0 0 auto;
   border-radius: 50%;
   background: var(--success);
   box-shadow: 0 0 0 3px var(--status-ring);
 }
 
+.shell-status[data-offline="true"] .shell-status-dot {
+  background: var(--danger);
+  box-shadow: none;
+}
+
 .shell-icon-button {
   display: grid;
-  width: 34px;
-  height: 34px;
+  width: 30px;
+  height: 30px;
   flex: 0 0 auto;
   place-items: center;
-  border: 1px solid transparent;
-  border-radius: 2px;
+  border: 0;
+  border-radius: 9px;
   background: transparent;
   color: var(--text-muted);
   cursor: pointer;
   transition:
-    border-color 150ms ease,
-    background-color 150ms ease,
-    color 150ms ease,
-    transform 120ms var(--ease-out);
+    background-color var(--hover-out) ease,
+    color var(--hover-out) ease,
+    scale 160ms var(--ease-settle);
 }
 
 .shell-icon-button:hover {
-  border-color: var(--border-strong);
-  background: var(--surface-muted);
+  background: var(--shell-active);
   color: var(--text);
+  transition-duration: var(--hover-in), var(--hover-in), 160ms;
 }
 
 .shell-icon-button:active {
-  transform: scale(0.94);
+  scale: 0.92;
+}
+
+/* A click target along the sidebar's edge, as in T3 Code. */
+.shell-rail {
+  position: absolute;
+  top: 0;
+  right: -6px;
+  bottom: 0;
+  width: 12px;
+  border: 0;
+  background: transparent;
+  cursor: col-resize;
+  padding: 0;
+}
+
+.shell-rail::after {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 5px;
+  width: 2px;
+  background: var(--border-strong);
+  content: "";
+  opacity: 0;
+  transition: opacity var(--hover-out) ease;
+}
+
+.shell-rail:hover::after {
+  opacity: 1;
+  transition-duration: var(--hover-in);
+}
+
+.shell-mobile-bar,
+.shell-scrim {
+  display: none;
+}
+
+@media (min-width: 781px) {
+  .app-shell[data-sidebar="collapsed"] .shell-sidebar {
+    --sidebar-width: 56px;
+  }
+
+  .app-shell[data-sidebar="collapsed"] .shell-nav-label,
+  .app-shell[data-sidebar="collapsed"] .shell-nav-count,
+  .app-shell[data-sidebar="collapsed"] .shell-nav-heading > span,
+  .app-shell[data-sidebar="collapsed"] .shell-switcher-caret {
+    opacity: 0;
+  }
+
+  .app-shell[data-sidebar="collapsed"] .shell-nav-heading::after {
+    opacity: 1;
+  }
+
+  /* The toggle sits exactly over the brand mark and takes its place on hover,
+     so collapsing never moves the rows beneath it. */
+  .app-shell[data-sidebar="collapsed"] .shell-collapse-toggle {
+    position: absolute;
+    top: 11px;
+    left: 13px;
+    opacity: 0;
+  }
+
+  .app-shell[data-sidebar="collapsed"] .shell-sidebar-head:hover .shell-collapse-toggle,
+  .app-shell[data-sidebar="collapsed"] .shell-collapse-toggle:focus-visible {
+    opacity: 1;
+  }
+
+  .app-shell[data-sidebar="collapsed"] .shell-sidebar-head:hover .shell-brand,
+  .app-shell[data-sidebar="collapsed"]
+    .shell-sidebar-head:has(.shell-collapse-toggle:focus-visible)
+    .shell-brand {
+    opacity: 0;
+  }
+
+  .app-shell[data-sidebar="collapsed"] .shell-switcher-menu {
+    top: 0;
+    left: calc(100% + 4px);
+    min-width: 240px;
+    transform-origin: 0 0;
+  }
+
+  .app-shell[data-sidebar="collapsed"] .shell-sidebar-foot {
+    flex-direction: column;
+    padding: 4px 13px 10px;
+  }
+
+  .app-shell[data-sidebar="collapsed"] .shell-sidebar-actions {
+    flex-direction: column;
+    order: -1;
+  }
 }
 
 .route-frame {
   min-width: 0;
+  flex: 1;
+  min-height: 100dvh;
+}
+
+.app-shell[data-surface="landing"] .route-frame {
   min-height: calc(100dvh - 58px);
 }
 
@@ -438,44 +865,84 @@ label:has(input.sr-only:focus-visible) {
   min-height: inherit;
 }
 
+/* Flat surfaces, measured from x.ai/bot: no border or shadow, just shade and
+   rounding. See docs/design-references.md. */
+.surface-card {
+  border-radius: var(--radius);
+  background: var(--card);
+}
+
+/* A hover shadow fades a pre-rendered layer rather than animating box-shadow,
+   which repaints every frame and visibly steps on large blurs. */
+.lift {
+  position: relative;
+  isolation: isolate;
+  transition: transform var(--hover-out) var(--ease-settle);
+}
+
+.lift::after {
+  position: absolute;
+  z-index: -2;
+  inset: 0;
+  border-radius: inherit;
+  box-shadow: var(--shadow-raise);
+  content: "";
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--hover-out) ease;
+}
+
+@media (hover: hover) {
+  .lift:hover {
+    transform: translateY(-1px);
+    transition-duration: var(--hover-in);
+  }
+
+  .lift:hover::after {
+    opacity: 1;
+    transition-duration: var(--hover-in);
+  }
+}
+
 .page-header {
   display: flex;
-  min-height: 88px;
+  min-height: 60px;
   align-items: center;
   justify-content: space-between;
   gap: 2rem;
-  border-bottom: 1px solid var(--border);
-  padding: 1.15rem var(--page-gutter) 1.25rem;
+  padding: 1.1rem var(--page-gutter) 0;
 }
 
 .page-header-title {
   margin: 0;
   font-family: var(--font-host-grotesk), var(--font-body);
-  font-size: clamp(1.45rem, 2.3vw, 1.85rem);
+  font-size: 1.25rem;
   font-weight: 500;
-  letter-spacing: -0.035em;
-  line-height: 1.05;
+  letter-spacing: -0.03em;
+  line-height: 1.15;
 }
 
 .page-header-description {
   overflow-wrap: anywhere;
   max-width: 62ch;
-  margin: 0.45rem 0 0;
+  margin: 0.3rem 0 0;
   color: var(--text-muted);
   font-size: 12px;
-  line-height: 1.55;
+  line-height: 1.5;
   text-wrap: pretty;
 }
 
 .app-button {
+  position: relative;
+  isolation: isolate;
   display: inline-flex;
-  min-height: 38px;
+  min-height: 34px;
   align-items: center;
   justify-content: center;
   gap: 8px;
   border: 1px solid var(--text);
-  border-radius: 6px;
-  padding: 0 14px;
+  border-radius: 8px;
+  padding: 0 13px;
   background: var(--text);
   color: var(--bg);
   font-size: 12px;
@@ -484,44 +951,68 @@ label:has(input.sr-only:focus-visible) {
   text-decoration: none;
   white-space: nowrap;
   cursor: pointer;
-  box-shadow: 0 0 0 0 var(--accent-shadow);
   transition:
-    transform 140ms var(--ease-out),
-    box-shadow 180ms ease,
-    background-color 160ms ease,
-    border-color 160ms ease,
-    color 160ms ease;
+    transform var(--hover-out) var(--ease-settle),
+    background-color var(--hover-out) ease,
+    border-color var(--hover-out) ease,
+    color var(--hover-out) ease;
 }
 
-.app-button:hover {
+.app-button::after {
+  position: absolute;
+  z-index: -1;
+  inset: -1px;
+  border-radius: inherit;
+  box-shadow:
+    0 1px 2px var(--accent-shadow),
+    0 8px 24px var(--accent-shadow);
+  content: "";
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--hover-out) ease;
+}
+
+.app-button:hover:not(:disabled) {
   border-color: var(--accent);
   background: var(--accent);
   color: #171717;
-  box-shadow: 0 8px 28px var(--accent-shadow);
   transform: translateY(-1px);
+  transition-duration: var(--hover-in);
 }
 
-.app-button:active {
-  box-shadow: none;
-  transform: translateY(0) scale(0.985);
+.app-button:hover:not(:disabled)::after {
+  opacity: 1;
+  transition-duration: var(--hover-in);
+}
+
+.app-button:active:not(:disabled) {
+  transform: scale(0.985);
+  transition-duration: 80ms;
+}
+
+.app-button:active:not(:disabled)::after {
+  opacity: 0;
 }
 
 .app-button:disabled {
   cursor: not-allowed;
   opacity: 0.38;
-  box-shadow: none;
-  transform: none;
 }
 
 .app-button.secondary {
-  border-color: var(--border-strong);
-  background: transparent;
+  border-color: transparent;
+  background: var(--card-inset);
   color: var(--text);
 }
 
-.app-button.secondary:hover {
-  border-color: var(--text-faint);
-  background: var(--surface-muted);
+.app-button.secondary::after {
+  box-shadow: var(--shadow-raise);
+}
+
+.app-button.secondary:hover:not(:disabled) {
+  border-color: transparent;
+  background: color-mix(in srgb, var(--text) 11%, transparent);
+  color: var(--text);
 }
 
 .app-button.danger {
@@ -550,19 +1041,19 @@ label:has(input.sr-only:focus-visible) {
 .app-select,
 .app-textarea {
   width: 100%;
-  border: 1px solid var(--border-strong);
-  border-radius: 8px;
-  background: var(--control-bg);
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: var(--card-inset);
   color: var(--text);
   transition:
-    border-color 150ms ease,
-    background-color 150ms ease,
-    box-shadow 150ms ease;
+    border-color var(--hover-out) ease,
+    background-color var(--hover-out) ease,
+    box-shadow var(--hover-out) ease;
 }
 
 .app-input,
 .app-select {
-  min-height: 40px;
+  min-height: 36px;
   padding: 0 11px;
 }
 
@@ -579,37 +1070,212 @@ label:has(input.sr-only:focus-visible) {
   min-width: 0;
 }
 
-.select-control-icon {
+/* The native select stays in place, focusable and labelled, under the trigger
+   it drives. See components/select.tsx. */
+.select-native {
   position: absolute;
-  top: 50%;
-  right: 0.85rem;
-  color: var(--text-faint);
+  inset: 0;
+  height: 100%;
+  opacity: 0;
   pointer-events: none;
-  transform: translateY(-50%);
-  transition:
-    color 150ms ease,
-    transform 180ms var(--ease-out);
 }
 
-.select-control:hover .select-control-icon,
-.select-control:focus-within .select-control-icon {
+.select-trigger {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  min-height: 36px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  border: 0;
+  border-radius: 10px;
+  background: var(--card-inset);
   color: var(--text);
+  cursor: pointer;
+  padding: 0 9px 0 11px;
+  font-size: 12.5px;
+  text-align: left;
+  transition: background-color var(--hover-out) ease;
 }
 
-.select-control:focus-within .select-control-icon {
-  transform: translateY(-50%) rotate(180deg);
+.select-trigger:hover:not(:disabled),
+.select-trigger[data-open="true"] {
+  background: color-mix(in srgb, var(--text) 10%, transparent);
+  transition-duration: var(--hover-in);
+}
+
+.select-control:has(.select-native:focus-visible) .select-trigger {
+  outline: 1px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.select-control:has(.select-native[aria-invalid="true"]) .select-trigger {
+  outline: 1px solid var(--danger);
+  outline-offset: 2px;
+}
+
+.select-trigger-label {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.select-trigger-label[data-placeholder="true"] {
+  color: var(--text-faint);
+}
+
+.select-control-icon {
+  flex: 0 0 auto;
+  color: var(--text-faint);
 }
 
 .select-control[data-disabled="true"] {
   opacity: 0.46;
 }
 
-.select-control[data-disabled="true"] .app-select {
+.select-control[data-disabled="true"] .select-trigger {
   cursor: not-allowed;
 }
 
-.app-select[aria-invalid="true"] {
-  border-color: var(--danger);
+.dropdown-panel {
+  position: fixed;
+  z-index: 60;
+  display: flex;
+  width: max-content;
+  max-width: min(420px, calc(100vw - 16px));
+  flex-direction: column;
+  overflow: hidden;
+  border-radius: 14px;
+  background: var(--surface-raised);
+  box-shadow:
+    var(--shadow-raise),
+    0 0 0 1px var(--border);
+}
+
+.dropdown-search {
+  display: flex;
+  height: 36px;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 0.5rem;
+  border-bottom: 1px solid var(--border);
+  color: var(--text-faint);
+  padding: 0 11px;
+}
+
+.dropdown-search input {
+  min-width: 0;
+  flex: 1;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font-size: 12.5px;
+  outline: none;
+}
+
+.dropdown-search input::placeholder {
+  color: var(--text-faint);
+}
+
+.dropdown-list {
+  position: relative;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 4px;
+  scrollbar-width: thin;
+}
+
+.dropdown-highlight {
+  position: absolute;
+  top: 0;
+  right: 4px;
+  left: 4px;
+  border-radius: 9px;
+  background: var(--card-inset);
+  pointer-events: none;
+  transition:
+    transform 170ms var(--ease-settle),
+    height 170ms var(--ease-settle),
+    opacity 120ms ease;
+}
+
+.dropdown-group {
+  color: var(--text-faint);
+  padding: 10px 9px 4px;
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.dropdown-group:first-of-type {
+  padding-top: 5px;
+}
+
+.dropdown-option {
+  position: relative;
+  display: flex;
+  min-height: 30px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  border-radius: 9px;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 5px 9px;
+  font-size: 12.5px;
+  transition: color 120ms ease;
+}
+
+.dropdown-option[data-active="true"],
+.dropdown-option[aria-selected="true"] {
+  color: var(--text);
+}
+
+.dropdown-option[aria-disabled="true"] {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+
+.dropdown-option-text {
+  display: grid;
+  min-width: 0;
+}
+
+.dropdown-option-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dropdown-option-detail {
+  color: var(--text-faint);
+  font-size: 10.5px;
+  line-height: 1.35;
+}
+
+.dropdown-check {
+  flex: 0 0 auto;
+  opacity: 0;
+  transform: scale(0.7);
+  transition:
+    opacity 120ms ease,
+    transform 200ms var(--ease-settle);
+}
+
+.dropdown-check[data-visible="true"] {
+  opacity: 1;
+  transform: none;
+}
+
+.dropdown-empty {
+  margin: 0;
+  color: var(--text-muted);
+  padding: 8px 9px;
+  font-size: 12px;
 }
 
 .app-textarea {
@@ -656,16 +1322,16 @@ label:has(input.sr-only:focus-visible) {
 }
 
 .app-input:hover,
-.app-select:hover,
 .app-textarea:hover {
-  border-color: var(--control-border-hover);
+  background: color-mix(in srgb, var(--text) 9%, transparent);
+  transition-duration: var(--hover-in);
 }
 
 .app-input:focus,
 .app-select:focus,
 .app-textarea:focus {
   border-color: var(--accent);
-  background: var(--control-focus-bg);
+  background: var(--card-inset);
   box-shadow: 0 0 0 3px var(--focus-shadow);
   outline: none;
 }
@@ -859,9 +1525,8 @@ label:has(input.sr-only:focus-visible) {
 
 .dataset-overview {
   overflow: hidden;
-  border: 1px solid var(--border);
   border-radius: var(--radius);
-  background: var(--surface);
+  background: var(--card);
 }
 
 .dataset-overview-main {
@@ -892,7 +1557,7 @@ label:has(input.sr-only:focus-visible) {
   gap: 1rem;
   padding: 0.65rem 1rem;
   border-top: 1px solid var(--border);
-  background: var(--surface-muted);
+  background: var(--card-inset);
 }
 
 .dataset-state-copy {
@@ -930,26 +1595,572 @@ label:has(input.sr-only:focus-visible) {
   fill: currentColor !important;
 }
 
-.graph-node-card {
+.react-flow__edge-path {
   transition:
-    background-color 160ms ease,
-    border-color 160ms ease,
-    box-shadow 160ms ease,
-    outline-color 160ms ease;
+    stroke 220ms ease,
+    stroke-width 220ms ease;
 }
 
-.graph-node-card[data-selected="true"],
-.react-flow__node.selected .graph-node-card {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
+.graph-edge-active .react-flow__edge-path {
+  stroke: var(--accent) !important;
+  stroke-width: 2 !important;
+}
+
+/* Hover shadow and selection ring are separate pre-rendered layers. Only their
+   opacity and transform animate, so nothing in the graph repaints or reflows. */
+.graph-node-card {
+  isolation: isolate;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.14);
+  cursor: pointer;
+  transition:
+    transform var(--hover-out) var(--ease-settle),
+    border-color var(--hover-out) ease;
+}
+
+.graph-node-card::before {
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  border-radius: inherit;
+  box-shadow: var(--shadow-raise);
+  content: "";
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--hover-out) ease;
+}
+
+.graph-node-card::after {
+  position: absolute;
+  inset: -4px;
+  border: 1.5px solid var(--accent);
+  border-radius: 13px;
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 13%, transparent);
+  content: "";
+  opacity: 0;
+  pointer-events: none;
+  transform: scale(0.985);
+  transition:
+    opacity 180ms ease,
+    transform 300ms var(--ease-settle);
+}
+
+@media (hover: hover) {
+  .graph-node-card:hover {
+    transform: translateY(-1px);
+    transition-duration: var(--hover-in);
+  }
+
+  .graph-node-card:hover::before {
+    opacity: 1;
+    transition-duration: var(--hover-in);
+  }
+}
+
+.graph-node-card:active {
+  transform: scale(0.992);
+  transition-duration: 80ms;
+}
+
+.graph-node-card[data-selected="true"]::before {
+  opacity: 1;
+}
+
+.graph-node-card[data-selected="true"]::after {
+  opacity: 1;
+  transform: none;
+}
+
+.react-flow__node:focus-visible {
+  outline: none;
+}
+
+.react-flow__node:focus-visible .graph-node-card::after {
+  opacity: 1;
+  transform: none;
+}
+
+.graph-canvas {
+  overflow: hidden;
+  border-radius: var(--radius-inset);
+  background: var(--canvas);
+}
+
+.node-details-panel {
+  overflow: hidden;
+  border-radius: var(--radius);
+  background: var(--card);
+}
+
+/* `clip` rather than `hidden`: it does not create a scroll container, and the
+   margin keeps focus rings near the edge visible. */
+.smooth-height {
+  overflow: clip;
+  overflow-clip-margin: 4px;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .swap-in {
+    animation: fadeIn 180ms ease both;
+  }
+}
+
+.workflow-step {
+  display: flex;
+  height: 100%;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  color: inherit;
+  padding: 16px 18px 14px;
+  text-decoration: none;
+}
+
+.workflow-step-mark {
+  display: grid;
+  width: 20px;
+  height: 20px;
+  margin-bottom: 8px;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--card-inset);
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 10px;
+}
+
+.workflow-step-mark[data-done="true"] {
+  background: var(--success-soft);
+  color: var(--success);
+}
+
+.workflow-step[data-next="true"] .workflow-step-mark {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.workflow-step-title {
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+}
+
+.workflow-step-detail {
+  color: var(--text-muted);
+  font-size: 11.5px;
+  line-height: 1.45;
+}
+
+.workflow-step-status {
+  display: inline-flex;
+  min-height: 14px;
+  align-items: center;
+  gap: 4px;
+  margin-top: auto;
+  padding-top: 10px;
+  color: var(--text-faint);
+  font-family: var(--font-mono);
+  font-size: 10px;
+}
+
+.workflow-step[data-next="true"] .workflow-step-status {
+  color: var(--accent);
+}
+
+/* The ⌘K menu. A native modal dialog supplies the top layer and focus containment. */
+.command-menu {
+  position: fixed;
+  inset: min(16vh, 9rem) 0 auto;
+  width: min(600px, calc(100% - 2rem));
+  margin-inline: auto;
+  overflow: hidden;
+  border: 0;
+  border-radius: var(--radius-inset);
+  background: var(--surface-raised);
   box-shadow:
-    0 0 0 4px color-mix(in srgb, var(--accent) 12%, transparent),
-    0 18px 45px rgb(0 0 0 / 0.3);
+    var(--shadow-raise),
+    0 0 0 1px var(--border);
+  color: var(--text);
+  padding: 0;
 }
 
-.react-flow__node:focus-visible .graph-node-card {
-  outline: 2px solid var(--accent);
-  outline-offset: 3px;
+.command-menu::backdrop {
+  background: rgb(0 0 0 / 0.42);
+  backdrop-filter: blur(4px);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .command-menu[open] {
+    animation: routeEnter 180ms var(--ease-settle) both;
+  }
+}
+
+.command-input {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  border-bottom: 1px solid var(--border);
+  color: var(--text-faint);
+  padding: 0.85rem 1rem;
+}
+
+.command-input input {
+  min-width: 0;
+  flex: 1;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font-size: 14px;
+  outline: none;
+}
+
+.command-input input::placeholder {
+  color: var(--text-faint);
+}
+
+.command-menu kbd {
+  display: inline-grid;
+  min-width: 18px;
+  height: 18px;
+  place-items: center;
+  border-radius: 5px;
+  background: var(--card-inset);
+  color: var(--text-muted);
+  padding: 0 4px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+}
+
+.command-list {
+  position: relative;
+  max-height: min(55dvh, 430px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 6px;
+  scrollbar-width: thin;
+}
+
+.command-section {
+  color: var(--text-faint);
+  padding: 10px 10px 5px;
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.command-row {
+  position: relative;
+  display: flex;
+  width: 100%;
+  min-height: 36px;
+  align-items: center;
+  gap: 0.7rem;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 7px 10px;
+  font-size: 13px;
+  text-align: left;
+  text-decoration: none;
+  transition: color 120ms ease;
+}
+
+.command-row[aria-selected="true"] {
+  color: var(--text);
+}
+
+.command-row > svg {
+  flex: 0 0 auto;
+}
+
+.command-row-text {
+  display: grid;
+  min-width: 0;
+  flex: 1;
+}
+
+.command-row-text > span,
+.command-row-text small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.command-row-text small {
+  color: var(--text-faint);
+  font-size: 11px;
+}
+
+.command-row-enter {
+  flex: 0 0 auto;
+  color: var(--text-faint);
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+
+.command-row[aria-selected="true"] .command-row-enter {
+  opacity: 1;
+}
+
+.command-empty {
+  margin: 0;
+  color: var(--text-muted);
+  padding: 1.75rem 1rem;
+  font-size: 13px;
+  text-align: center;
+}
+
+.command-footer {
+  display: flex;
+  gap: 1rem;
+  border-top: 1px solid var(--border);
+  color: var(--text-faint);
+  padding: 0.6rem 1rem;
+  font-size: 11px;
+}
+
+.command-footer > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+@media (max-width: 600px) {
+  .command-menu {
+    inset-block-start: 1rem;
+  }
+
+  .command-input input {
+    font-size: 16px;
+  }
+
+  .command-footer {
+    display: none;
+  }
+}
+
+.segmented {
+  display: inline-flex;
+  gap: 2px;
+  border-radius: 10px;
+  background: var(--card);
+  padding: 2px;
+}
+
+.segmented button {
+  min-height: 24px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 0 8px;
+  font-size: 11px;
+  transition:
+    background-color var(--hover-out) ease,
+    color var(--hover-out) ease;
+}
+
+.segmented button:hover {
+  color: var(--text);
+  transition-duration: var(--hover-in);
+}
+
+.segmented button[aria-pressed="true"] {
+  background: var(--surface-hover);
+  color: var(--text);
+}
+
+/* A list or menu beside the main content. It collapses to nothing and its
+   contents keep their width, so they slide out of view instead of reflowing. */
+.split-pane {
+  --pane-width: 304px;
+  display: flex;
+  min-height: inherit;
+  align-items: flex-start;
+}
+
+.split-pane-side {
+  position: sticky;
+  top: 0;
+  width: var(--pane-width);
+  height: 100dvh;
+  flex: 0 0 auto;
+  overflow: hidden;
+  transition: width 260ms var(--ease-settle);
+}
+
+.split-pane[data-collapsed="true"] .split-pane-side {
+  width: 0;
+}
+
+.split-pane-side-inner {
+  display: flex;
+  width: var(--pane-width);
+  height: 100%;
+  flex-direction: column;
+  padding-left: 4px;
+}
+
+.split-pane-main {
+  position: relative;
+  min-width: 0;
+  flex: 1;
+}
+
+.split-pane-toggle {
+  position: absolute;
+  z-index: 2;
+  top: 15px;
+  left: 12px;
+}
+
+.split-pane-main .page-header {
+  padding-left: 3.25rem;
+}
+
+.split-pane-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 1.1rem 0.75rem 0.6rem 0.5rem;
+}
+
+.split-pane-title {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 500;
+  letter-spacing: -0.03em;
+  line-height: 1.15;
+}
+
+.split-pane-subtitle {
+  margin: 0.3rem 0 0;
+  color: var(--text-muted);
+  font-size: 11.5px;
+  line-height: 1.45;
+}
+
+.split-pane-tools {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0 0.75rem 0.5rem 0.5rem;
+}
+
+.split-pane-list {
+  display: grid;
+  min-height: 0;
+  flex: 1;
+  align-content: start;
+  gap: 2px;
+  overflow-y: auto;
+  padding: 0 0.5rem 0.75rem 0;
+  scrollbar-width: thin;
+}
+
+.trace-row {
+  display: grid;
+  gap: 4px;
+  border-radius: 14px;
+  padding: 10px 10px 9px;
+}
+
+.trace-row[aria-current="page"] {
+  background: var(--card);
+}
+
+.trace-row-head {
+  display: flex;
+  min-width: 0;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.trace-row-title {
+  display: -webkit-box;
+  min-width: 0;
+  overflow: hidden;
+  font-size: 12.5px;
+  font-weight: 500;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.trace-row-meta,
+.trace-row-foot {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  gap: 0 0.5rem;
+  color: var(--text-faint);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+}
+
+.trace-row-foot {
+  flex-wrap: nowrap;
+  justify-content: space-between;
+}
+
+.trace-row-foot time {
+  flex: 0 0 auto;
+}
+
+.trace-back-link {
+  display: none;
+}
+
+/* Too narrow for two columns: show one, chosen by the screen. */
+@media (max-width: 1100px) {
+  .split-pane {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .split-pane-toggle {
+    display: none;
+  }
+
+  .split-pane-main .page-header {
+    padding-left: var(--page-gutter);
+  }
+
+  .split-pane-side,
+  .split-pane[data-collapsed="true"] .split-pane-side {
+    position: static;
+    width: 100%;
+    height: auto;
+  }
+
+  .split-pane-side-inner {
+    width: 100%;
+    padding-inline: var(--page-gutter);
+  }
+
+  .split-pane-head,
+  .split-pane-tools,
+  .split-pane-list {
+    padding-right: 0;
+    padding-left: 0;
+  }
+
+  .split-pane[data-narrow="main"] .split-pane-side,
+  .split-pane[data-narrow="pane"] .split-pane-main {
+    display: none;
+  }
+
+  .trace-back-link {
+    display: flex;
+  }
 }
 
 .data-row {
@@ -964,23 +2175,24 @@ label:has(input.sr-only:focus-visible) {
   position: absolute;
   z-index: -1;
   inset: 0;
+  border-radius: inherit;
   background: var(--surface-hover);
   content: "";
   opacity: 0;
   pointer-events: none;
-  transition: opacity 150ms ease-out;
+  transition: opacity var(--hover-out) ease;
 }
 
 .data-row-affordance {
   transition:
-    color 180ms ease,
-    transform 180ms cubic-bezier(0.34, 1.56, 0.64, 1);
+    color var(--hover-out) ease,
+    transform var(--hover-out) var(--ease-settle);
 }
 
 .data-row:focus-visible::before,
 .data-row:focus-within::before {
   opacity: 0.72;
-  transition-duration: 0s;
+  transition-duration: var(--hover-in);
 }
 
 .data-row:focus-visible .data-row-affordance,
@@ -992,12 +2204,13 @@ label:has(input.sr-only:focus-visible) {
 @media (hover: hover) {
   .data-row:hover::before {
     opacity: 0.72;
-    transition-duration: 0s;
+    transition-duration: var(--hover-in);
   }
 
   .data-row:hover .data-row-affordance {
     color: var(--accent);
     transform: translateX(2px);
+    transition-duration: var(--hover-in);
   }
 }
 
@@ -1025,6 +2238,37 @@ label:has(input.sr-only:focus-visible) {
   animation: livePulse 1.8s ease-in-out infinite;
 }
 
+@media (prefers-reduced-motion: no-preference) {
+  /* Fast responses never show the skeleton; slow ones ease into it. */
+  .loading-state {
+    animation: fadeIn 200ms ease 140ms both;
+  }
+
+  .route-enter {
+    animation: routeEnter 200ms var(--ease-settle) both;
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+}
+
+/* Ending on `transform: none` keeps fixed-position modals inside the route
+   anchored to the viewport once the entrance finishes. */
+@keyframes routeEnter {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
 @keyframes skeleton {
   to {
     background-position-x: -240%;
@@ -1049,68 +2293,80 @@ label:has(input.sr-only:focus-visible) {
   }
 }
 
-@media (max-width: 1040px) {
-  .shell-header {
-    grid-template-columns: minmax(150px, 0.55fr) minmax(0, 1.8fr) auto;
-  }
-
-  .shell-status {
-    display: none;
-  }
-
-  .shell-controls {
-    padding: 0 0.75rem;
-  }
-}
-
 @media (max-width: 780px) {
   body {
     font-size: 13px;
   }
 
-  .app-shell {
-    background: var(--bg);
+  .app-shell[data-surface="workbench"] {
+    display: block;
   }
 
-  .shell-header {
+  .shell-mobile-bar {
     position: sticky;
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    min-height: 104px;
+    z-index: 20;
+    top: 0;
+    display: flex;
+    height: 48px;
+    align-items: center;
+    gap: 0.25rem;
+    background: color-mix(in srgb, var(--bg) 92%, transparent);
+    backdrop-filter: blur(16px);
+    padding: 0 8px;
   }
 
-  .shell-brand {
-    min-height: 54px;
-    border-right: 0;
+  .shell-scrim {
+    position: fixed;
+    z-index: 35;
+    inset: 0;
+    display: block;
+    background: rgb(0 0 0 / 0.5);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 260ms ease;
   }
 
-  .shell-controls {
-    grid-row: 1;
-    grid-column: 2;
-    min-height: 54px;
+  .shell-scrim[data-open="true"] {
+    opacity: 1;
+    pointer-events: auto;
   }
 
-  .shell-nav {
-    grid-row: 2;
-    grid-column: 1 / -1;
-    min-height: 50px;
-    border-top: 1px solid var(--border);
+  .shell-sidebar {
+    --sidebar-width: min(280px, 86vw);
+    position: fixed;
+    z-index: 40;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    height: auto;
+    box-shadow: var(--shadow-raise);
+    transform: translateX(-104%);
+    visibility: hidden;
+    transition:
+      transform 280ms var(--ease-settle),
+      visibility 0s linear 280ms;
   }
 
-  .shell-nav-link {
-    min-height: 49px;
-    padding-inline: 1.15rem;
+  .shell-sidebar[data-mobile-open="true"] {
+    transform: none;
+    visibility: visible;
+    transition:
+      transform 280ms var(--ease-settle),
+      visibility 0s;
+  }
+
+  .shell-collapse-toggle,
+  .shell-rail,
+  .shell-tooltip {
+    display: none;
   }
 
   .route-frame {
-    min-height: calc(100dvh - 104px);
+    min-height: calc(100dvh - 48px);
   }
 
   .page-header {
-    min-height: 96px;
     align-items: flex-start;
-    padding-top: 1.1rem;
-    padding-bottom: 1.1rem;
   }
 
   .page-header-description {
@@ -1119,14 +2375,6 @@ label:has(input.sr-only:focus-visible) {
 }
 
 @media (max-width: 520px) {
-  .shell-brand-version {
-    display: none;
-  }
-
-  .shell-nav-index {
-    display: none;
-  }
-
   .page-header {
     flex-direction: column;
     gap: 0.9rem;

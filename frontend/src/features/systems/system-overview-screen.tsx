@@ -1,105 +1,165 @@
 "use client";
 
-import {
-  ArrowRightIcon,
-  DatabaseIcon,
-  FlaskIcon,
-  GitBranchIcon,
-  PlayIcon,
-  PulseIcon,
-} from "@phosphor-icons/react";
+import { ArrowRightIcon, CheckIcon } from "@phosphor-icons/react";
 import Link from "next/link";
 import { CatalogGate } from "@/components/catalog-gate";
 import { PageHeader } from "@/components/page-header";
+import { finalDatasetVersions } from "@/features/catalog/catalog-options";
+import { AgentGraph } from "@/features/systems/agent-graph";
 import { systemPath } from "@/features/systems/system-path";
-
-const sections = [
-  ["run", "Run", "Send one request through the graph", PlayIcon],
-  ["traces", "Traces", "Every run, step by step", PulseIcon],
-  ["datasets", "Datasets", "Saved examples to evaluate against", DatabaseIcon],
-  [
-    "evaluations",
-    "Evaluate",
-    "Compare models on the same examples",
-    FlaskIcon,
-  ],
-  ["artifacts", "Artifacts", "Graph, prompts, and snapshots", GitBranchIcon],
-] as const;
+import { api } from "@/lib/api";
+import { countOf } from "@/lib/format";
+import type { AgentSystemSummary, Catalog } from "@/lib/types";
+import { useApiResource } from "@/lib/use-api-resource";
 
 export function SystemOverviewScreen({ systemKey }: { systemKey: string }) {
   return (
     <CatalogGate systemKey={systemKey}>
-      {({ catalog, system }) => {
-        const datasets = catalog.datasets.filter(
-          (dataset) => dataset.agent_system_id === system.id,
-        );
-        return (
-          <>
-            <PageHeader title={system.name} description={system.description} />
-            <section className="grid gap-4 p-4 md:p-7 xl:grid-cols-[minmax(0,1.4fr)_minmax(300px,0.6fr)]">
-              <div className="grid gap-3 md:grid-cols-2">
-                {sections.map(([section, title, description, Icon]) => (
-                  <Link
-                    key={section}
-                    href={systemPath(systemKey, section)}
-                    className="rounded-[var(--radius)] data-row flex min-h-[128px] items-start justify-between gap-5 border border-[var(--border)] bg-[var(--surface)] p-4 no-underline"
-                  >
-                    <div>
-                      <Icon size={16} className="text-[var(--accent)]" />
-                      <h2 className="mt-5 text-[13px] font-semibold">
-                        {title}
-                      </h2>
-                      <p className="mt-1 text-[10px] leading-5 text-[var(--text-muted)]">
-                        {description}
-                      </p>
-                    </div>
-                    <ArrowRightIcon
-                      size={14}
-                      className="data-row-affordance text-[var(--text-faint)]"
-                    />
-                  </Link>
-                ))}
-              </div>
-              <aside className="rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface)] p-5">
-                <p className="mono text-[9px] lowercase tracking-[0.12em] text-[var(--text-faint)]">
-                  In this system
-                </p>
-                <dl className="mt-5 grid gap-4 text-[11px]">
-                  <Inventory
-                    label="Graph versions"
-                    value={system.versions.length}
-                  />
-                  <Inventory
-                    label="Prompts"
-                    value={
-                      catalog.prompts.filter(
-                        (item) => item.agent_system_id === system.id,
-                      ).length
-                    }
-                  />
-                  <Inventory label="Datasets" value={datasets.length} />
-                  <Inventory
-                    label="Dataset versions"
-                    value={datasets.reduce(
-                      (total, dataset) => total + dataset.versions.length,
-                      0,
-                    )}
-                  />
-                </dl>
-              </aside>
-            </section>
-          </>
-        );
-      }}
+      {({ catalog, system }) => (
+        <>
+          <PageHeader title={system.name} description={system.description} />
+          <div className="grid gap-4 p-4 md:p-7">
+            <SystemWorkflow
+              key={system.id}
+              catalog={catalog}
+              system={system}
+              systemKey={systemKey}
+            />
+            <LatestGraph key={`graph-${system.id}`} system={system} />
+          </div>
+        </>
+      )}
     </CatalogGate>
   );
 }
 
-function Inventory({ label, value }: { label: string; value: number }) {
+function SystemWorkflow({
+  catalog,
+  system,
+  systemKey,
+}: {
+  catalog: Catalog;
+  system: AgentSystemSummary;
+  systemKey: string;
+}) {
+  const traces = useApiResource(() => api.traces(system.id), [system.id], {
+    cacheKey: `traces:${system.id}`,
+  });
+  const finalVersions = finalDatasetVersions(catalog, systemKey);
+  const newestFinal = finalVersions[0]?.version.id;
+  const runsQuery = newestFinal
+    ? `?${new URLSearchParams({ dataset_version_id: newestFinal })}`
+    : "";
+  const runs = useApiResource(
+    () => (runsQuery ? api.evalRuns(runsQuery) : Promise.resolve([])),
+    [runsQuery],
+    { cacheKey: runsQuery ? `eval-runs:${runsQuery}` : null },
+  );
+
+  const caseCount = catalog.datasets
+    .filter((dataset) => dataset.agent_system_id === system.id)
+    .flatMap((dataset) => dataset.versions)
+    .reduce((total, version) => total + version.item_count, 0);
+  const traceCount = traces.data?.length ?? 0;
+  const runCount = runs.data?.length ?? 0;
+  const resultCount =
+    runs.data?.filter((run) => run.results.length > 0).length ?? 0;
+  const known = traces.data !== null && runs.data !== null;
+
+  const steps = [
+    {
+      section: "run",
+      title: "Run the agent",
+      detail: "Send a request. Every node is recorded as a trace.",
+      status: known ? countOf(traceCount, "trace") : "",
+      done: traceCount > 0,
+    },
+    {
+      section: "datasets",
+      title: "Lock real cases",
+      detail: "Save good traces with their expected answer, then finalize.",
+      status: finalVersions.length
+        ? `${finalVersions.length} finalized`
+        : caseCount
+          ? `${countOf(caseCount, "case")} in draft`
+          : "",
+      done: finalVersions.length > 0,
+    },
+    {
+      section: "evaluations",
+      title: "Benchmark a change",
+      detail: "Score graph versions and models on the same locked cases.",
+      status: known && runCount ? countOf(runCount, "run") : "",
+      done: runCount > 0,
+    },
+    {
+      section: "results",
+      title: "Compare results",
+      detail: "See what improved quality, cost, and latency.",
+      status: "",
+      done: resultCount > 0,
+    },
+  ];
+  const nextIndex = known ? steps.findIndex((step) => !step.done) : -1;
+
   return (
-    <div className="flex items-center justify-between border-b border-[var(--border)] pb-3 last:border-b-0">
-      <dt className="text-[var(--text-muted)]">{label}</dt>
-      <dd className="mono font-semibold">{value}</dd>
-    </div>
+    <section aria-label="Workflow">
+      <ol className="grid gap-2 md:grid-cols-2 xl:grid-cols-4">
+        {steps.map((step, index) => (
+          <li key={step.section} className="min-w-0">
+            <Link
+              href={systemPath(systemKey, step.section)}
+              className="workflow-step lift surface-card"
+              data-next={index === nextIndex}
+            >
+              <span className="workflow-step-mark" data-done={step.done}>
+                {step.done ? <CheckIcon size={11} weight="bold" /> : index + 1}
+              </span>
+              <span className="workflow-step-title">{step.title}</span>
+              <span className="workflow-step-detail">{step.detail}</span>
+              <span className="workflow-step-status">
+                {index === nextIndex ? (
+                  <>
+                    Next <ArrowRightIcon size={11} aria-hidden="true" />
+                  </>
+                ) : (
+                  step.status
+                )}
+              </span>
+            </Link>
+          </li>
+        ))}
+      </ol>
+      {known && nextIndex === -1 ? (
+        <p className="mt-3 text-[12px] text-[var(--text-muted)]">
+          Change the graph or a prompt in{" "}
+          <Link
+            className="underline underline-offset-4"
+            href={systemPath(systemKey, "artifacts")}
+          >
+            Graph &amp; prompts
+          </Link>
+          , then benchmark again.
+        </p>
+      ) : null}
+    </section>
+  );
+}
+
+function LatestGraph({ system }: { system: AgentSystemSummary }) {
+  const latest = system.versions[0];
+  const graph = useApiResource(
+    latest ? () => api.agentVersion(latest.id) : null,
+    [latest?.id],
+    { cacheKey: latest ? `graph-version:${latest.id}` : null },
+  );
+  if (!graph.data) return null;
+  return (
+    <section className="surface-card min-w-0 p-4">
+      <h2 className="mb-3 text-[13px] font-semibold">
+        Graph <span className="mono font-normal">v{latest?.version}</span>
+      </h2>
+      <AgentGraph definition={graph.data.definition} />
+    </section>
   );
 }

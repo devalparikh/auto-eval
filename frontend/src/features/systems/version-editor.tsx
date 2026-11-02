@@ -117,7 +117,7 @@ export function VersionEditor({
 
   const selected = versions.find((version) => version.id === selectedVersionId);
   return (
-    <article className="version-editor overflow-hidden rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface)]">
+    <article className="version-editor overflow-hidden surface-card">
       <div className="flex items-start justify-between gap-4 border-b border-[var(--border)] px-5 py-4">
         <div className="flex min-w-0 gap-3">
           <div className="grid size-8 shrink-0 place-items-center rounded-[8px] bg-[var(--accent-soft)] text-[var(--accent)]">
@@ -177,7 +177,7 @@ export function VersionEditor({
       </div>
       <div className="p-4">
         {kind === "prompt" ? (
-          <div className="rounded-[var(--radius)] mb-3 border border-[var(--border)] bg-[var(--surface-muted)] px-3 py-2.5">
+          <div className="mb-3 rounded-[var(--radius-inset)] bg-[var(--card-inset)] px-3 py-2.5">
             <p className="text-[10px] font-medium">
               {associations.length
                 ? `Used by ${associations.length} node${associations.length === 1 ? "" : "s"} in the selected graph`

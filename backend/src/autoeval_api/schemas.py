@@ -2,7 +2,7 @@ from datetime import datetime
 from enum import StrEnum
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 # The graph blueprint is owned by the graph layer; the request and response
 # contracts below embed those models rather than restating their shape.
@@ -11,6 +11,107 @@ from autoeval_api.graph.definition import AgentGraphDefinition, NodeResourceSele
 
 class StrictModel(BaseModel):
     model_config = ConfigDict(extra="forbid")
+
+
+class TrainingConfig(StrictModel):
+    steps: int = Field(default=100, ge=1, le=10_000)
+    batch_size: int = Field(default=1, ge=1, le=16)
+    learning_rate: float = Field(default=0.00001, ge=0.0000001, le=0.01)
+    max_seq_length: int = Field(default=2048, ge=128, le=8192)
+    lora_rank: int = Field(default=8, ge=1, le=64)
+    seed: int = Field(default=42, ge=0, le=2_147_483_647)
+
+
+class CreateCustomModelRequest(StrictModel):
+    name: str = Field(min_length=1, max_length=120)
+    dataset_version_id: str
+    base_model: str = Field(
+        min_length=3,
+        max_length=200,
+        pattern=r"^[A-Za-z0-9][A-Za-z0-9._-]*/[A-Za-z0-9][A-Za-z0-9._-]*$",
+    )
+    base_revision: str = Field(
+        default="main", min_length=1, max_length=120, pattern=r"^[A-Za-z0-9][A-Za-z0-9._/-]*$"
+    )
+    system_prompt: str = Field(
+        default="Return the expected JSON output for the provided input.",
+        min_length=1,
+        max_length=16_000,
+    )
+    training_config: TrainingConfig = Field(default_factory=TrainingConfig)
+
+    @field_validator("name", "system_prompt")
+    @classmethod
+    def require_text(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("Must contain text")
+        return value.strip()
+
+
+class UpdateCustomModelRequest(StrictModel):
+    name: str = Field(min_length=1, max_length=120)
+    archived: bool = False
+
+    @field_validator("name")
+    @classmethod
+    def require_text(cls, value: str) -> str:
+        return CreateCustomModelRequest.require_text(value)
+
+
+class TrainingBaseModel(BaseModel):
+    id: str
+    label: str
+    description: str
+
+
+class TrainingRuntime(BaseModel):
+    executor: Literal["local_mlx"] = "local_mlx"
+    available: bool
+    reason: str
+    setup_command: str = ".venv/bin/python -m pip install -e 'backend[training]'"
+    base_models: list[TrainingBaseModel]
+
+
+class TrainingMessage(BaseModel):
+    role: Literal["system", "user", "assistant"]
+    content: str
+
+
+class TrainingDataPreview(BaseModel):
+    dataset_hash: str
+    train_count: int
+    validation_count: int
+    duplicate_count: int
+    sample: list[TrainingMessage]
+
+
+class CustomModelResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    name: str
+    archived: bool
+    agent_system_id: str
+    dataset_version_id: str
+    base_model: str
+    base_revision: str
+    resolved_revision: str | None
+    executor: Literal["local_mlx"]
+    system_prompt: str
+    training_config: TrainingConfig
+    dataset_hash: str
+    recipe_hash: str
+    train_count: int
+    validation_count: int
+    status: Literal["draft", "queued", "running", "complete", "failed", "cancelled"]
+    completed_steps: int
+    training_loss: float | None
+    validation_loss: float | None
+    log_tail: str
+    error: str | None
+    created_at: datetime
+    started_at: datetime | None
+    finished_at: datetime | None
 
 
 class VersionSummary(BaseModel):
@@ -362,6 +463,7 @@ class DatasetItemResponse(BaseModel):
 
 class DatasetVersionDetail(DatasetVersionSummary):
     dataset_id: str
+    content_revision: str
     items: list[DatasetItemResponse]
 
 
@@ -396,6 +498,9 @@ class CreateEvalRunRequest(StrictModel):
     prompt_version_id: str | None = None
     prompt_version_ids: dict[str, str] = Field(default_factory=dict, max_length=80)
     run_in_background: bool = True
+    finalize_dataset: bool = False
+    expected_dataset_revision: str | None = Field(default=None, pattern=r"^[a-f0-9]{64}$")
+    request_id: str | None = Field(default=None, min_length=1, max_length=80)
 
 
 class EvalModelResultResponse(BaseModel):

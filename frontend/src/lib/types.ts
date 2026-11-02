@@ -65,6 +65,68 @@ export type Catalog = {
   models: ModelOption[];
 };
 
+export type TrainingConfig = {
+  steps: number;
+  batch_size: number;
+  learning_rate: number;
+  max_seq_length: number;
+  lora_rank: number;
+  seed: number;
+};
+
+export type CreateCustomModel = {
+  name: string;
+  dataset_version_id: string;
+  base_model: string;
+  base_revision: string;
+  system_prompt: string;
+  training_config: TrainingConfig;
+};
+
+export type TrainingBaseModel = { id: string; label: string; description: string };
+
+export type TrainingRuntime = {
+  executor: "local_mlx";
+  available: boolean;
+  reason: string;
+  setup_command: string;
+  base_models: TrainingBaseModel[];
+};
+
+export type TrainingMessage = {
+  role: "system" | "user" | "assistant";
+  content: string;
+};
+
+export type TrainingDataPreview = {
+  dataset_hash: string;
+  train_count: number;
+  validation_count: number;
+  duplicate_count: number;
+  sample: TrainingMessage[];
+};
+
+export type CustomModel = CreateCustomModel & {
+  id: string;
+  archived: boolean;
+  agent_system_id: string;
+  resolved_revision: string | null;
+  executor: "local_mlx";
+  dataset_hash: string;
+  recipe_hash: string;
+  train_count: number;
+  validation_count: number;
+  status: "draft" | "queued" | "running" | "complete" | "failed" | "cancelled";
+  completed_steps: number;
+  training_loss: number | null;
+  validation_loss: number | null;
+  log_tail: string;
+  error: string | null;
+  created_at: string;
+  started_at: string | null;
+  finished_at: string | null;
+};
+
 export type PortfolioSnapshotSummary = {
   id: string;
   agent_system_id: string;
@@ -334,6 +396,7 @@ export type DatasetItem = {
 
 export type DatasetVersionDetail = DatasetVersionSummary & {
   dataset_id: string;
+  content_revision: string;
   items: DatasetItem[];
 };
 
@@ -379,6 +442,7 @@ export type EvalRun = {
   dataset_version_id: string;
   agent_system_version_id: string;
   prompt_version_id: string;
+  prompt_version_ids?: Record<string, string>;
   model_ids: string[];
   error: string | null;
   created_at: string;

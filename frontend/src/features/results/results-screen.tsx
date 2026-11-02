@@ -10,16 +10,28 @@ import {
   systemByKey,
 } from "@/features/catalog/catalog-options";
 import { CostAccuracyChart } from "@/features/results/cost-accuracy-chart";
-import { buildResultRows } from "@/features/results/result-rows";
+import {
+  buildResultRows,
+  sortResultRows,
+  versionNumbers,
+} from "@/features/results/result-rows";
 import { ResultsTable } from "@/features/results/results-table";
 import { api } from "@/lib/api";
 import { useApiResource } from "@/lib/use-api-resource";
 import { useCatalog } from "@/lib/use-catalog";
 
-export function ResultsScreen({ systemKey }: { systemKey: string }) {
+export function ResultsScreen({
+  systemKey,
+  initialDatasetVersionId = "",
+}: {
+  systemKey: string;
+  initialDatasetVersionId?: string;
+}) {
   const catalog = useCatalog();
   const system = systemByKey(catalog.data, systemKey);
-  const [requestedDatasetVersionId, setDatasetVersionId] = useState("");
+  const [requestedDatasetVersionId, setDatasetVersionId] = useState(
+    initialDatasetVersionId,
+  );
   const [graphVersionId, setGraphVersionId] = useState("");
   const [promptVersionId, setPromptVersionId] = useState("");
   const datasets = finalDatasetVersions(catalog.data, systemKey);
@@ -38,17 +50,18 @@ export function ResultsScreen({ systemKey }: { systemKey: string }) {
   const runs = useApiResource(
     () => (query ? api.evalRuns(query) : Promise.resolve([])),
     [query],
+    { cacheKey: query ? `eval-runs:${query}` : null },
   );
-  const rows = buildResultRows(runs.data);
+  const numbers = versionNumbers(catalog.data, system?.id);
+  const rows = sortResultRows(buildResultRows(runs.data), numbers);
 
   return (
     <>
       <PageHeader
         title={`${system?.name ?? "Agent system"} results`}
-        description="Model quality, cost, and latency on one dataset."
       />
       <section className="grid gap-4 p-4 md:p-7">
-        <div className="grid gap-3 rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface)] p-4 md:grid-cols-3">
+        <div className="grid gap-3 surface-card p-4 md:grid-cols-3">
           <FilterField label="Dataset version">
             <Select
               value={datasetVersionId}
@@ -61,7 +74,7 @@ export function ResultsScreen({ systemKey }: { systemKey: string }) {
               ))}
             </Select>
           </FilterField>
-          <FilterField label="Agent system version">
+          <FilterField label="Graph version">
             <Select
               value={graphVersionId}
               onChange={(event) => setGraphVersionId(event.target.value)}
@@ -91,12 +104,13 @@ export function ResultsScreen({ systemKey }: { systemKey: string }) {
         <div className="grid gap-4 2xl:grid-cols-[minmax(0,1.25fr)_minmax(420px,0.75fr)]">
           <ResultsTable
             rows={rows}
+            numbers={numbers}
             systemKey={systemKey}
             loading={runs.loading}
             error={runs.error}
             retry={runs.reload}
           />
-          <CostAccuracyChart rows={rows} />
+          <CostAccuracyChart rows={rows} numbers={numbers} />
         </div>
       </section>
     </>
