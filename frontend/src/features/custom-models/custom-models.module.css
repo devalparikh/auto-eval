@@ -3,6 +3,24 @@
   gap: 12px;
   padding: 12px var(--page-gutter) 32px;
 }
+/* The detail area with no model to show: one centered prompt, the same spot an
+   error takes when there is nothing true to show. The top padding clears the
+   pane toggle. */
+.prompt {
+  display: grid;
+  width: min(100%, 600px);
+  min-height: 60dvh;
+  align-content: center;
+  justify-items: center;
+  margin: 0 auto;
+  padding: 64px var(--page-gutter) 32px;
+}
+.prompt > .runtime {
+  width: 100%;
+}
+.refreshError {
+  margin: 0 var(--page-gutter) 32px;
+}
 .runtime {
   display: grid;
   gap: 8px;

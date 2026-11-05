@@ -203,11 +203,12 @@
   cursor: wait;
   opacity: 0.5;
 }
+/* Flat like every other panel: the tint says "error", no colored edge. */
 .error {
   margin-top: 22px;
   padding: 14px 16px;
-  background: color-mix(in srgb, var(--danger) 8%, transparent);
-  border-left: 2px solid var(--danger);
+  border-radius: var(--radius-inset);
+  background: var(--danger-soft);
   color: var(--danger);
   font-size: 12px;
   line-height: 1.8;

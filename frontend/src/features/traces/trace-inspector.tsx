@@ -81,7 +81,7 @@ export function TraceInspector({
           <p className="mt-1 max-w-[80ch] text-[12px] leading-5 text-[var(--text-muted)]">{usage.detail}</p>
           {span.snapshot_metadata &&
           Object.keys(span.snapshot_metadata).length ? (
-            <details className="mt-2 rounded-[8px] border border-[var(--border)] px-3 py-2">
+            <details className="mt-2 rounded-[12px] bg-[var(--card-inset)] px-3 py-2">
               <summary className="cursor-pointer text-[9px] font-medium text-[var(--text-muted)]">
                 Observation details
               </summary>
@@ -152,8 +152,8 @@ function NodeSnapshotUse({
 
   return (
     <InspectorSection label="Data used in this execution">
-      <div className="border border-[var(--border)]">
-        <div className="flex items-start justify-between gap-3 border-b border-[var(--border)] px-3 py-3">
+      <div className="overflow-hidden rounded-[var(--radius-inset)] bg-[var(--card-inset)]">
+        <div className="flex items-start justify-between gap-3 border-b border-[var(--border)] px-4 py-3">
           <span className="flex min-w-0 items-start gap-2">
             <DatabaseIcon
               size={13}
@@ -269,7 +269,7 @@ function InspectorSection({
 
 function JsonBlock({ value }: { value: Record<string, unknown> }) {
   return (
-    <pre tabIndex={0} className="mono max-h-[480px] min-w-0 max-w-full overflow-y-auto whitespace-pre-wrap rounded-[8px] border border-[var(--border)] bg-[var(--canvas)] p-3 text-[12px] leading-6 text-[var(--text-muted)] [overflow-wrap:anywhere]">
+    <pre tabIndex={0} className="mono max-h-[480px] min-w-0 max-w-full overflow-y-auto whitespace-pre-wrap rounded-[12px] bg-[var(--card-inset)] p-3 text-[12px] leading-6 text-[var(--text-muted)] [overflow-wrap:anywhere]">
       {JSON.stringify(value, null, 2)}
     </pre>
   );

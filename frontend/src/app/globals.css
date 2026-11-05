@@ -78,6 +78,10 @@
   --shadow-raise:
     0 1px 2px rgb(0 0 0 / 0.3), 0 6px 16px rgb(0 0 0 / 0.26),
     0 18px 44px rgb(0 0 0 / 0.3);
+  /* The pill a segmented control glides between its options. On dark it lifts
+     by tone alone; on light it is white with a hairline of shadow. */
+  --segmented-pill: color-mix(in srgb, var(--text) 13%, transparent);
+  --segmented-pill-shadow: none;
   --radius: 24px;
   --radius-inset: 16px;
   --page-gutter: clamp(1rem, 2.6vw, 1.75rem);
@@ -113,6 +117,9 @@
   --shadow-raise:
     0 1px 2px rgb(21 23 27 / 0.06), 0 6px 16px rgb(21 23 27 / 0.07),
     0 18px 44px rgb(21 23 27 / 0.09);
+  --segmented-pill: var(--surface-raised);
+  --segmented-pill-shadow:
+    0 1px 2px rgb(21 23 27 / 0.08), 0 0 1px rgb(21 23 27 / 0.06);
   --accent: #df654f;
   --accent-strong: #c9553f;
   --accent-soft: #fbe6e1;
@@ -932,6 +939,12 @@ kbd.shell-nav-count {
   text-wrap: pretty;
 }
 
+/* A state standing in for a whole screen sits on the header's grid, so it
+   lines up with the page and clears a split pane's toggle the same way. */
+.page-state {
+  padding: 1.1rem var(--page-gutter) 0;
+}
+
 .app-button {
   position: relative;
   isolation: isolate;
@@ -1358,15 +1371,6 @@ kbd.shell-nav-count {
   font-size: 10px;
 }
 
-.version-view-switch {
-  display: inline-flex;
-  padding: 2px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--surface-muted);
-}
-
-.version-view-switch button,
 .json-viewer-actions button {
   border: 0;
   background: transparent;
@@ -1378,32 +1382,16 @@ kbd.shell-nav-count {
     color 140ms ease;
 }
 
-.version-view-switch button {
-  min-height: 28px;
-  padding: 0 0.7rem;
-}
-
-.version-view-switch button:hover,
 .json-viewer-actions button:hover {
   color: var(--text);
 }
 
-.version-view-switch button[aria-pressed="true"] {
-  background: var(--surface-raised);
-  color: var(--text);
-  box-shadow: 0 0 0 1px var(--border-strong);
-}
-
-.version-view-switch button:disabled {
-  cursor: not-allowed;
-  opacity: 0.4;
-}
-
+/* An inset panel like the info view it toggles with: shade, no border. */
 .json-viewer {
   min-height: 440px;
   overflow: hidden;
-  border: 1px solid var(--border-strong);
-  background: var(--control-bg);
+  border-radius: var(--radius-inset);
+  background: var(--card-inset);
   color: var(--text-muted);
 }
 
@@ -1413,9 +1401,8 @@ kbd.shell-nav-count {
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
-  padding: 0 0.75rem;
+  padding: 0 0.75rem 0 1rem;
   border-bottom: 1px solid var(--border);
-  background: var(--surface-muted);
   color: var(--text-muted);
   font-family: var(--font-mono);
   font-size: 9px;
@@ -1436,7 +1423,7 @@ kbd.shell-nav-count {
   max-height: 400px;
   overflow: auto;
   padding: 0.65rem;
-  scrollbar-color: var(--border-strong) var(--control-bg);
+  scrollbar-color: var(--border-strong) transparent;
 }
 
 .json-branch {
@@ -1941,36 +1928,67 @@ kbd.shell-nav-count {
   }
 }
 
+/* Toggle buttons sharing one gliding pill (components/segmented-control.tsx).
+   Flat like a card: a tonal track and no border anywhere. The pill is a tone,
+   not ink, because ink is the primary button and a filter is not an action. */
 .segmented {
   display: inline-flex;
+  max-width: 100%;
+  flex: 0 1 auto;
+  align-items: center;
   gap: 2px;
-  border-radius: 10px;
-  background: var(--card);
-  padding: 2px;
+  border-radius: 999px;
+  background: var(--card-inset);
+  padding: 3px;
 }
 
 .segmented button {
-  min-height: 24px;
+  position: relative;
+  display: inline-flex;
+  min-height: 26px;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
   border: 0;
-  border-radius: 8px;
+  border-radius: 999px;
   background: transparent;
   color: var(--text-muted);
   cursor: pointer;
-  padding: 0 8px;
-  font-size: 11px;
-  transition:
-    background-color var(--hover-out) ease,
-    color var(--hover-out) ease;
+  padding: 0 12px;
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  line-height: 1;
+  white-space: nowrap;
+  transition: color 200ms ease;
 }
 
-.segmented button:hover {
-  color: var(--text);
-  transition-duration: var(--hover-in);
-}
-
+.segmented button:hover:not(:disabled),
 .segmented button[aria-pressed="true"] {
-  background: var(--surface-hover);
   color: var(--text);
+}
+
+.segmented button:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+
+.segmented button:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 3px;
+}
+
+.segmented-pill {
+  position: absolute;
+  inset: 0;
+  border-radius: 999px;
+  background: var(--segmented-pill);
+  box-shadow: var(--segmented-pill-shadow);
+  pointer-events: none;
+}
+
+.segmented-label {
+  position: relative;
 }
 
 /* A list or menu beside the main content. It collapses to nothing and its
@@ -2017,7 +2035,8 @@ kbd.shell-nav-count {
   left: 12px;
 }
 
-.split-pane-main .page-header {
+.split-pane-main .page-header,
+.split-pane-main .page-state {
   padding-left: 3.25rem;
 }
 
@@ -2130,7 +2149,8 @@ kbd.shell-nav-count {
     display: none;
   }
 
-  .split-pane-main .page-header {
+  .split-pane-main .page-header,
+  .split-pane-main .page-state {
     padding-left: var(--page-gutter);
   }
 

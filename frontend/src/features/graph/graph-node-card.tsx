@@ -26,6 +26,8 @@ const icons = {
 /**
  * The node card every graph screen draws. Colour, icon, and badge wording come
  * from the node view, so the same node looks the same wherever it appears.
+ * The type colour lives on the icon and label; the edge stays neutral so a
+ * graph reads as one family of flat cards rather than a set of coloured outlines.
  */
 export function GraphNodeCard({
   view,
@@ -47,11 +49,10 @@ export function GraphNodeCard({
       style={{
         width,
         background: `color-mix(in srgb, var(--surface-raised) 94%, ${accent})`,
-        borderColor: `color-mix(in srgb, var(--border-strong) 78%, ${accent})`,
       }}
       // `nopan`: React Flow only adds this to draggable nodes. Without it, a
       // click that drifts by a pixel starts panning the canvas instead.
-      className="graph-node-card nopan relative rounded-[10px] border p-3"
+      className="graph-node-card nopan relative rounded-[10px] border border-[var(--border)] p-3"
     >
       <Handle
         type="target"

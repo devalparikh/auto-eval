@@ -5,6 +5,7 @@ const tones: Record<string, string> = {
   queued: "status-running bg-[var(--accent-soft)] text-[var(--accent)]",
   draft: "bg-[var(--warning-soft)] text-[var(--warning)]",
   failed: "bg-[var(--danger-soft)] text-[var(--danger)]",
+  "check failed": "bg-[var(--danger-soft)] text-[var(--danger)]",
 };
 
 export function StatusBadge({ status }: { status: string }) {

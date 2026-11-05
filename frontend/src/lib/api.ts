@@ -20,10 +20,19 @@ import type {
   TraceDatasetTargets,
 } from "@/lib/types";
 
-export const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "/api/backend/api";
+// `||`, not `??`: an empty NEXT_PUBLIC_API_URL is a misconfiguration, not a
+// request for the site root. With "" every API path resolves against the app's
+// own pages, so /custom-models answers with HTML and /catalog with a 404 page.
+export const API_URL = process.env.NEXT_PUBLIC_API_URL || "/api/backend/api";
 
 type RequestOptions = Omit<RequestInit, "body"> & { body?: unknown };
 
+/**
+ * The API, or a proxy in front of it, answered with an error status. Failures
+ * where no answer arrived, or the answer was not the API's, are plain `Error`s:
+ * callers such as evaluation submission treat those as "the server may have
+ * acted" and keep the request for an exact retry.
+ */
 export class ApiError extends Error {
   constructor(message: string, public readonly status: number) {
     super(message);
@@ -31,27 +40,75 @@ export class ApiError extends Error {
   }
 }
 
+const notJson = Symbol("not JSON");
+
 export async function apiRequest<T>(
   path: string,
   options: RequestOptions = {},
 ): Promise<T> {
-  const response = await fetch(`${API_URL}${path}`, {
-    ...options,
-    headers: {
-      Accept: "application/json",
-      ...(options.body === undefined
-        ? {}
-        : { "Content-Type": "application/json" }),
-      ...options.headers,
-    },
-    body: options.body === undefined ? undefined : JSON.stringify(options.body),
-    cache: "no-store",
-  });
-  if (!response.ok) {
-    const payload: unknown = await response.json().catch(() => null);
-    throw new ApiError(requestErrorMessage(payload, response.status), response.status);
+  let response: Response;
+  try {
+    response = await fetch(`${API_URL}${path}`, {
+      ...options,
+      headers: {
+        Accept: "application/json",
+        ...(options.body === undefined
+          ? {}
+          : { "Content-Type": "application/json" }),
+        ...options.headers,
+      },
+      body:
+        options.body === undefined ? undefined : JSON.stringify(options.body),
+      cache: "no-store",
+    });
+  } catch {
+    // fetch rejects only when no response arrived at all.
+    throw new Error(
+      "Could not reach the AutoEval API. Check that the backend is running.",
+    );
   }
-  return response.json() as Promise<T>;
+  const text = await response.text();
+  const payload = parseJson(text);
+  if (!response.ok) {
+    throw new ApiError(
+      payload === notJson
+        ? unavailableMessage(response.status)
+        : requestErrorMessage(payload, response.status),
+      response.status,
+    );
+  }
+  if (payload === notJson) {
+    // A success that is not JSON came from something other than the API,
+    // usually the app's own pages behind a wrong base URL.
+    throw new Error(
+      `Expected data from the AutoEval API but received ${
+        text.trimStart().startsWith("<") ? "a web page" : "plain text"
+      }. Check that NEXT_PUBLIC_API_URL points to the backend.`,
+    );
+  }
+  return payload as T;
+}
+
+function parseJson(text: string): unknown {
+  try {
+    return JSON.parse(text) as unknown;
+  } catch {
+    return notJson;
+  }
+}
+
+/**
+ * The API answers its own errors in JSON, so an error without a JSON body came
+ * from a proxy or host in front of it, or from a crash before it could reply.
+ */
+function unavailableMessage(status: number): string {
+  if (status === 404) {
+    return `No AutoEval API answered at ${API_URL}. Check that the backend is running and NEXT_PUBLIC_API_URL points to it.`;
+  }
+  if (status >= 500) {
+    return `The AutoEval API failed with HTTP ${status}. Check that the backend is running, then read its logs.`;
+  }
+  return `The AutoEval API refused the request with HTTP ${status}.`;
 }
 
 function requestErrorMessage(payload: unknown, status: number): string {

@@ -1,9 +1,9 @@
 "use client";
 
 import { PlusIcon } from "@phosphor-icons/react";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { HoverGlide } from "@/components/hover-glide";
-import { PageHeader } from "@/components/page-header";
+import { SegmentedControl } from "@/components/segmented-control";
 import { SplitPane } from "@/components/split-pane";
 import { EmptyState, ErrorState, LoadingState } from "@/components/states";
 import { StatusBadge } from "@/components/status-badge";
@@ -14,6 +14,8 @@ import { useCatalog } from "@/lib/use-catalog";
 import { CreateModelModal } from "./create-model-modal";
 import { ModelDetails } from "./model-details";
 import styles from "./custom-models.module.css";
+
+type Visibility = "active" | "archived";
 
 export function CustomModelsScreen({
   initialModelId = null,
@@ -28,7 +30,8 @@ export function CustomModelsScreen({
   });
   const runtime = useApiResource(api.trainingRuntime);
   const [requestedId, setSelectedId] = useState(initialModelId);
-  const [showArchived, setShowArchived] = useState(false);
+  const [visibility, setVisibility] = useState<Visibility>("active");
+  const showArchived = visibility === "archived";
   const [creating, setCreating] = useState(false);
   const [source, setSource] = useState<CustomModel | null>(null);
   const [busy, setBusy] = useState(false);
@@ -68,11 +71,29 @@ export function CustomModelsScreen({
     }
   }
 
+  function startCreating() {
+    setSource(null);
+    setCreating(true);
+  }
+
+  function retryAll() {
+    void models.reload();
+    void catalog.reload();
+    void runtime.reload();
+  }
+
   const visible = (models.data ?? []).filter(
     (model) => model.archived === showArchived,
   );
   const selected =
     visible.find((model) => model.id === requestedId) ?? visible[0];
+  const canCreate = Boolean(catalog.data && runtime.data);
+  // One failure, one message. Without the models or the catalog there is
+  // nothing true to say about this screen, so the error stands in for it
+  // rather than sitting beside an empty state that claims there are no models.
+  const loadError = models.error ?? catalog.error;
+  const settling =
+    (!models.data && models.loading) || (!catalog.data && catalog.loading);
   const trainBlockedReason = !runtime.data
     ? null
     : !runtime.data.available
@@ -94,77 +115,73 @@ export function CustomModelsScreen({
           className="app-button"
           aria-label="New custom model"
           title="New custom model"
-          disabled={!catalog.data || !runtime.data}
-          onClick={() => {
-            setSource(null);
-            setCreating(true);
-          }}
+          disabled={!canCreate}
+          onClick={startCreating}
         >
           <PlusIcon size={13} weight="bold" />
           New
         </button>
       </header>
       <div className="split-pane-tools">
-        <div className="segmented" role="group" aria-label="Model visibility">
-          <button
-            type="button"
-            aria-pressed={!showArchived}
-            onClick={() => setShowArchived(false)}
-          >
-            Models
-          </button>
-          <button
-            type="button"
-            aria-pressed={showArchived}
-            onClick={() => setShowArchived(true)}
-          >
-            Archived
-          </button>
-        </div>
-        <span className="mono text-[10px] text-[var(--text-faint)]">
-          {visible.length}
-        </span>
+        <SegmentedControl
+          aria-label="Model visibility"
+          value={visibility}
+          onChange={setVisibility}
+          options={[
+            { value: "active", label: "Models" },
+            { value: "archived", label: "Archived" },
+          ]}
+        />
+        {models.data ? (
+          <span className="mono text-[10px] text-[var(--text-faint)]">
+            {visible.length}
+          </span>
+        ) : null}
       </div>
-      <HoverGlide
-        as="nav"
-        className="split-pane-list"
-        aria-label="Custom models"
-        radius={14}
-      >
-        {visible.map((model) => (
-          <button
-            key={model.id}
-            type="button"
-            className={`${styles.modelRow} data-row`}
-            aria-current={selected?.id === model.id ? "true" : undefined}
-            onClick={() => {
-              setSelectedId(model.id);
-              setError(null);
-            }}
-          >
-            <span className={styles.modelRowHead}>
-              <span>{model.name}</span>
-              <StatusBadge status={model.status} />
-            </span>
-            <small>{model.base_model.split("/").at(-1)}</small>
-          </button>
-        ))}
-      </HoverGlide>
+      {!models.data && models.loading ? (
+        <LoadingState rows={4} />
+      ) : (
+        <HoverGlide
+          as="nav"
+          className="split-pane-list"
+          aria-label="Custom models"
+          radius={14}
+        >
+          {visible.map((model) => (
+            <button
+              key={model.id}
+              type="button"
+              className={`${styles.modelRow} data-row`}
+              aria-current={selected?.id === model.id ? "true" : undefined}
+              onClick={() => {
+                setSelectedId(model.id);
+                setError(null);
+              }}
+            >
+              <span className={styles.modelRowHead}>
+                <span>{model.name}</span>
+                <StatusBadge status={model.status} />
+              </span>
+              <small>{model.base_model.split("/").at(-1)}</small>
+            </button>
+          ))}
+        </HoverGlide>
+      )}
     </>
   );
+
+  const runtimeStatus = runtime.data
+    ? runtime.data.available
+      ? "ready"
+      : "setup required"
+    : runtime.loading
+      ? "checking"
+      : "check failed";
 
   const environment = (
     <section className={styles.runtime} aria-label="Training environment">
       <div className={styles.runtimeLine}>
-        <StatusBadge
-          status={
-            runtime.loading
-              ? "checking"
-              : runtime.data?.available
-                ? "ready"
-                : "setup required"
-          }
-        />
+        <StatusBadge status={runtimeStatus} />
         <p>
           {runtime.data?.reason ??
             (runtime.loading
@@ -195,20 +212,20 @@ export function CustomModelsScreen({
     </section>
   );
 
-  return (
-    <SplitPane
-      id="custom-models"
-      label="Model list"
-      initialCollapsed={initialPaneCollapsed}
-      pane={list}
-    >
-      {selected && catalog.data ? (
+  let detail: ReactNode;
+  if (selected && catalog.data) {
+    detail = (
+      <>
         <ModelDetails
           key={selected.id}
           model={selected}
           catalog={catalog.data}
           busy={busy}
           trainBlockedReason={trainBlockedReason}
+          // A missing runtime is already explained, with its setup steps, by
+          // the environment bar above the details; saying it again there
+          // made one fact read four times.
+          trainBlockedHint={runtime.data?.available ? trainBlockedReason : null}
           canTrain={Boolean(runtime.data?.available) && !hasActive}
           environment={environment}
           actionError={error}
@@ -220,43 +237,66 @@ export function CustomModelsScreen({
             setCreating(true);
           }}
         />
-      ) : (
-        <>
-          <PageHeader
-            title={showArchived ? "Nothing archived" : "Create a custom model"}
+        {/* The details above are real but may be stale. */}
+        {loadError ? (
+          <ErrorState
+            title="Could not refresh"
+            message={loadError}
+            retry={retryAll}
+            className={styles.refreshError}
           />
-          <div className={styles.body}>
-            {environment}
-            {(!models.data && models.loading) ||
-            (!catalog.data && catalog.loading) ? (
-              <LoadingState rows={6} />
-            ) : (
-              <EmptyState
-                title={
-                  showArchived ? "No archived models" : "No custom models yet"
-                }
-                message={
-                  showArchived
-                    ? "Archived models keep their training history and adapters."
-                    : "Choose a base model and a finalized dataset, then review the examples before fine-tuning."
-                }
-              />
-            )}
-          </div>
-        </>
-      )}
-      {models.error || catalog.error || runtime.error ? (
-        <ErrorState
-          message={
-            models.error ?? catalog.error ?? runtime.error ?? "Request failed"
-          }
-          retry={() => {
-            void models.reload();
-            void catalog.reload();
-            void runtime.reload();
-          }}
+        ) : null}
+      </>
+    );
+  } else if (loadError) {
+    detail = (
+      <div className={styles.prompt}>
+        <ErrorState message={loadError} retry={retryAll} className="w-full" />
+      </div>
+    );
+  } else if (settling) {
+    // The list pane shows the skeleton; the detail has nothing to stand for.
+    detail = null;
+  } else if (showArchived) {
+    detail = (
+      <div className={styles.prompt}>
+        <EmptyState
+          title="No archived models"
+          message="Archived models keep their training history and adapters."
         />
-      ) : null}
+      </div>
+    );
+  } else {
+    detail = (
+      <div className={styles.prompt}>
+        <EmptyState
+          title="No custom models yet"
+          message="Choose a base model and a finalized dataset, then review the examples before fine-tuning."
+          action={
+            <button
+              type="button"
+              className="app-button secondary"
+              disabled={!canCreate}
+              onClick={startCreating}
+            >
+              <PlusIcon size={13} weight="bold" aria-hidden="true" />
+              Create a custom model
+            </button>
+          }
+        />
+        {environment}
+      </div>
+    );
+  }
+
+  return (
+    <SplitPane
+      id="custom-models"
+      label="Model list"
+      initialCollapsed={initialPaneCollapsed}
+      pane={list}
+    >
+      {detail}
       {creating && catalog.data && runtime.data && (
         <CreateModelModal
           catalog={catalog.data}
@@ -265,7 +305,7 @@ export function CustomModelsScreen({
           onClose={() => setCreating(false)}
           onCreated={(model) => {
             accept(model);
-            setShowArchived(false);
+            setVisibility("active");
             setCreating(false);
             setError(null);
           }}

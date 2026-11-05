@@ -37,7 +37,13 @@ export function CatalogGate({
     return (
       <>
         {title ? <PageHeader title={title} /> : null}
-        <ErrorState message={catalog.error} retry={catalog.reload} />
+        <div className="page-state">
+          <ErrorState
+            message={catalog.error}
+            retry={catalog.reload}
+            className=""
+          />
+        </div>
       </>
     );
   }
@@ -45,7 +51,13 @@ export function CatalogGate({
     return (
       <>
         {title ? <PageHeader title={title} /> : null}
-        <ErrorState message="Agent system not found" />
+        <div className="page-state">
+          <ErrorState
+            title="Agent system not found"
+            message={`No agent system has the key ${systemKey}. Choose one from All systems.`}
+            className=""
+          />
+        </div>
       </>
     );
   }

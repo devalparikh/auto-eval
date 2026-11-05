@@ -277,7 +277,7 @@ export function GraphEditor({
       {issues.length ? (
         <div
           role="alert"
-          className="flex items-start gap-2 border border-[color-mix(in_srgb,var(--danger)_48%,var(--border))] bg-[var(--danger-soft)] px-3 py-2.5 text-[10px] text-[var(--danger)]"
+          className="flex items-start gap-2 rounded-[12px] bg-[var(--danger-soft)] px-3 py-2.5 text-[10px] text-[var(--danger)]"
         >
           <WarningCircleIcon size={14} className="mt-px shrink-0" aria-hidden />
           <div>

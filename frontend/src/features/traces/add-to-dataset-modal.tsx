@@ -109,7 +109,7 @@ export function AddToDatasetModal({
           aria-busy={saving}
         >
           {targets.data?.memberships.length ? (
-            <div className="min-w-0 rounded-[8px] border border-[var(--border)] bg-[var(--surface-muted)] p-3">
+            <div className="min-w-0 rounded-[var(--radius-inset)] bg-[var(--card-inset)] p-3">
               <p className="text-[10px] font-semibold text-[var(--text-muted)]">
                 Already used as a source
               </p>
@@ -128,8 +128,8 @@ export function AddToDatasetModal({
             </div>
           ) : null}
           {targets.data?.evaluation_expected ? (
-            <div className="flex min-w-0 gap-2 rounded-[8px] border border-[var(--warning)] bg-[var(--warning-soft)] p-3 text-[10px] leading-5">
-              <WarningIcon size={14} className="mt-0.5 shrink-0" />
+            <div className="flex min-w-0 gap-2 rounded-[var(--radius-inset)] bg-[var(--card-inset)] p-3 text-[10px] leading-5 text-[var(--text-muted)]">
+              <WarningIcon size={14} className="mt-0.5 shrink-0 text-[var(--warning)]" />
               <span className="min-w-0">
                 This evaluation trace is prefilled from the original reviewed
                 expected value, never from the model&apos;s actual output.
@@ -303,7 +303,7 @@ function SnapshotSection({
   children: React.ReactNode;
 }) {
   return (
-    <section className="min-w-0 rounded-[10px] border border-[var(--border)] bg-[var(--surface-muted)] p-3">
+    <section className="min-w-0 rounded-[var(--radius-inset)] bg-[var(--card-inset)] p-3">
       <h3 className="field-label">{title}</h3>
       <p className="mt-1 mb-3 text-[10px] leading-5 text-[var(--text-muted)]">
         {hint}

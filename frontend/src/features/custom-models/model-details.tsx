@@ -14,6 +14,7 @@ export function ModelDetails({
   catalog,
   canTrain,
   trainBlockedReason,
+  trainBlockedHint,
   environment,
   actionError,
   busy,
@@ -23,7 +24,10 @@ export function ModelDetails({
   model: CustomModel;
   catalog: Catalog;
   canTrain: boolean;
+  /** Why "Start fine-tuning" is disabled, as the button's tooltip. */
   trainBlockedReason: string | null;
+  /** The same reason as a line in the details, when `environment` does not already say it. */
+  trainBlockedHint: string | null;
   environment: ReactNode;
   actionError: string | null;
   busy: boolean;
@@ -90,8 +94,8 @@ export function ModelDetails({
           </p>
         )}
         <article className={styles.detail} aria-label="Model details">
-      {model.status === "draft" && !model.archived && trainBlockedReason && (
-        <p className={styles.hint}>{trainBlockedReason}</p>
+      {model.status === "draft" && !model.archived && trainBlockedHint && (
+        <p className={styles.hint}>{trainBlockedHint}</p>
       )}
       <dl className={styles.facts}>
         <div>

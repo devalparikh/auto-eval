@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { JsonViewer } from "@/components/json-viewer";
+import { SegmentedControl } from "@/components/segmented-control";
 import { Select } from "@/components/select";
 import { ErrorState, LoadingState } from "@/components/states";
 import { formatDate } from "@/lib/format";
@@ -76,22 +77,15 @@ export function SnapshotArtifact({
       ) : null}
       <div className="p-4">
         <div className="version-view-toolbar">
-          <div className="version-view-switch" aria-label="Snapshot view">
-            <button
-              type="button"
-              aria-pressed={view === "info"}
-              onClick={() => setView("info")}
-            >
-              Info
-            </button>
-            <button
-              type="button"
-              aria-pressed={view === "content"}
-              onClick={() => setView("content")}
-            >
-              Content
-            </button>
-          </div>
+          <SegmentedControl
+            aria-label="Snapshot view"
+            value={view}
+            onChange={setView}
+            options={[
+              { value: "info", label: "Info" },
+              { value: "content", label: "Content" },
+            ]}
+          />
           <span>Read-only</span>
         </div>
         {loading ? (
@@ -103,7 +97,7 @@ export function SnapshotArtifact({
             Index a portfolio to create the first snapshot.
           </p>
         ) : view === "info" ? (
-          <dl className="grid gap-4 rounded-[10px] border border-[var(--border)] bg-[var(--surface-muted)] p-4 text-[11px] md:grid-cols-2">
+          <dl className="grid gap-4 rounded-[var(--radius-inset)] bg-[var(--card-inset)] p-4 text-[11px] md:grid-cols-2">
             <SnapshotFact label="Snapshot ID" value={detail.id} mono />
             <SnapshotFact
               label="Schema version"
@@ -122,7 +116,7 @@ export function SnapshotArtifact({
         ) : detail.content_available && detail.content ? (
           <JsonViewer label="Snapshot content" value={detail.content} />
         ) : (
-          <div className="rounded-[12px] border border-[var(--border)] bg-[var(--surface-muted)] p-5">
+          <div className="rounded-[var(--radius-inset)] bg-[var(--card-inset)] p-5">
             <p className="text-[11px] font-medium">Content is not available</p>
             <p className="mt-1 text-[10px] leading-5 text-[var(--text-muted)]">
               This snapshot shows details only, not its saved content.

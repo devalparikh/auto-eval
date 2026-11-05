@@ -6,11 +6,12 @@ import Link from "next/link";
 import { CatalogGate } from "@/components/catalog-gate";
 import { HoverGlide } from "@/components/hover-glide";
 import { PageHeader } from "@/components/page-header";
-import { ErrorState } from "@/components/states";
+import { EmptyState } from "@/components/states";
 import { graphPromptAssociations } from "@/features/systems/graph-prompts";
 import { NodeSnapshotBrowser } from "@/features/systems/node-snapshot-browser";
 import { VersionEditor } from "@/features/systems/version-editor";
 import { api } from "@/lib/api";
+import { countOf } from "@/lib/format";
 import type { AgentSystemSummary, Catalog } from "@/lib/types";
 import { useApiResource } from "@/lib/use-api-resource";
 import { useCatalog } from "@/lib/use-catalog";
@@ -135,13 +136,13 @@ function SystemsWorkbench({
     {
       kind: "graph" as const,
       label: "Graph",
-      detail: `${system.versions.length} versions`,
+      detail: countOf(system.versions.length, "version"),
       icon: GitBranchIcon,
     },
     {
       kind: "prompt" as const,
       label: "Prompts",
-      detail: `${prompts.length} prompts`,
+      detail: countOf(prompts.length, "prompt"),
       icon: TextTIcon,
     },
     ...(hasNodeSnapshots
@@ -149,7 +150,7 @@ function SystemsWorkbench({
           {
             kind: "snapshot" as const,
             label: "Snapshots",
-            detail: `${snapshots.data?.length ?? 0} snapshots`,
+            detail: countOf(snapshots.data?.length ?? 0, "snapshot"),
             icon: DatabaseIcon,
           },
         ]
@@ -170,36 +171,40 @@ function SystemsWorkbench({
         }
       />
       <section className="grid gap-4 p-4 md:p-7 xl:grid-cols-[220px_minmax(0,1fr)]">
+        {/* 10px of padding inside the 24px card makes 14px the concentric row radius.
+            overflow-hidden keeps the idle glide pill, still sized for a wider
+            layout after a resize, from widening the page. */}
         <HoverGlide
           as="nav"
           aria-label="What to view"
-          className="surface-card h-fit overflow-hidden"
+          className="surface-card grid h-fit grid-cols-[minmax(0,1fr)] gap-0.5 overflow-hidden p-2.5"
           rowSelector="button"
+          radius={14}
         >
-          <div className="border-b border-[var(--border)] px-4 py-3">
-            <p className="mono text-[9px] lowercase tracking-[0.12em] text-[var(--text-faint)]">
-              Show
-            </p>
-          </div>
+          <p className="mono px-3 pt-2.5 pb-2 text-[11px] uppercase tracking-[0.14em] text-[var(--text-faint)]">
+            Show
+          </p>
           {artifactKinds.map(({ kind, label, detail, icon: Icon }) => (
             <button
               key={kind}
               type="button"
               aria-pressed={activeKind === kind}
               onClick={() => setActiveKind(kind)}
-              className="flex w-full items-center gap-3 border-b border-[var(--border)] px-4 py-3 text-left last:border-b-0 aria-pressed:bg-[var(--accent-soft)]"
+              className="flex w-full items-center gap-3 rounded-[14px] px-3 py-2.5 text-left text-[var(--text-muted)] transition-colors duration-[var(--hover-out)] hover:text-[var(--text)] hover:duration-[var(--hover-in)] aria-pressed:bg-[var(--shell-active)] aria-pressed:text-[var(--text)]"
             >
               <Icon
                 size={15}
-                className={
+                className={`shrink-0 ${
                   activeKind === kind
                     ? "text-[var(--accent)]"
                     : "text-[var(--text-muted)]"
-                }
+                }`}
               />
               <span className="min-w-0">
-                <span className="block text-[11px] font-medium">{label}</span>
-                <span className="block text-[9px] text-[var(--text-faint)]">
+                <span className="block truncate text-[12.5px] font-medium">
+                  {label}
+                </span>
+                <span className="mono mt-0.5 block truncate text-[10px] text-[var(--text-faint)]">
                   {detail}
                 </span>
               </span>
@@ -268,7 +273,12 @@ function SystemsWorkbench({
               }}
             />
           ) : activeKind === "prompt" ? (
-            <ErrorState message="This system has no prompts yet." />
+            <div className="surface-card">
+              <EmptyState
+                title="No prompts yet"
+                message="Importing a version adds its prompt."
+              />
+            </div>
           ) : (
             <NodeSnapshotBrowser
               systemKey={systemKey}

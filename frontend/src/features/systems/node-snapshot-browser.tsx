@@ -9,6 +9,10 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import { HoverGlide } from "@/components/hover-glide";
 import { JsonViewer } from "@/components/json-viewer";
+import {
+  SegmentedControl,
+  type SegmentedOption,
+} from "@/components/segmented-control";
 import { ErrorState, LoadingState } from "@/components/states";
 import { systemPath } from "@/features/systems/system-path";
 import { formatDate, formatDuration, shortId } from "@/lib/format";
@@ -20,10 +24,10 @@ import type {
 
 type InspectorView = "overview" | "metadata" | "content";
 
-const inspectorViews: Array<{ id: InspectorView; label: string }> = [
-  { id: "overview", label: "Overview" },
-  { id: "metadata", label: "Details" },
-  { id: "content", label: "Content" },
+const inspectorViews: Array<SegmentedOption<InspectorView>> = [
+  { value: "overview", label: "Overview" },
+  { value: "metadata", label: "Details" },
+  { value: "content", label: "Content" },
 ];
 
 export function NodeSnapshotBrowser({
@@ -86,13 +90,15 @@ export function NodeSnapshotBrowser({
       </header>
 
       <div className="grid min-h-[620px] lg:grid-cols-[230px_280px_minmax(0,1fr)]">
-        <HoverGlide
-          as="nav"
-          aria-label="Nodes with snapshots"
-          className="border-b border-[var(--border)] lg:border-r lg:border-b-0"
-          rowSelector="button"
-        >
+        <div className="border-b border-[var(--border)] lg:border-r lg:border-b-0">
           <RailLabel>Nodes</RailLabel>
+          <HoverGlide
+            as="nav"
+            aria-label="Nodes with snapshots"
+            className="grid grid-cols-[minmax(0,1fr)] content-start gap-0.5 px-2 pb-2"
+            rowSelector="button"
+            radius={12}
+          >
           {groups.map((group) => {
             const active = group.key === selectedNodeKey;
             const Icon =
@@ -109,7 +115,7 @@ export function NodeSnapshotBrowser({
                   const firstSnapshot = group.snapshots[0];
                   if (firstSnapshot) onSnapshotChange(firstSnapshot.id);
                 }}
-                className="flex w-full items-start gap-3 border-b border-[var(--border)] px-4 py-3 text-left aria-pressed:bg-[var(--accent-soft)]"
+                className="flex w-full items-start gap-3 rounded-[12px] px-3 py-2.5 text-left aria-pressed:bg-[var(--shell-active)]"
               >
                 <Icon
                   size={14}
@@ -130,18 +136,23 @@ export function NodeSnapshotBrowser({
               </button>
             );
           })}
-        </HoverGlide>
+          </HoverGlide>
+        </div>
 
         <div className="border-b border-[var(--border)] lg:border-r lg:border-b-0">
           <RailLabel>Snapshots</RailLabel>
-          <HoverGlide className="max-h-[620px] overflow-y-auto" rowSelector="button">
+          <HoverGlide
+            className="grid max-h-[620px] grid-cols-[minmax(0,1fr)] content-start gap-0.5 overflow-y-auto px-2 pb-2"
+            rowSelector="button"
+            radius={12}
+          >
             {(selectedGroup?.snapshots ?? []).map((snapshot) => (
               <button
                 key={snapshot.id}
                 type="button"
                 aria-pressed={snapshot.id === selectedSnapshotId}
                 onClick={() => onSnapshotChange(snapshot.id)}
-                className="block w-full border-b border-[var(--border)] px-4 py-3 text-left aria-pressed:bg-[var(--accent-soft)]"
+                className="block w-full rounded-[12px] px-3 py-2.5 text-left aria-pressed:bg-[var(--shell-active)]"
               >
                 <span className="flex items-center justify-between gap-3">
                   <span className="truncate text-[10px] font-medium">
@@ -215,27 +226,18 @@ function SnapshotInspector({
         </div>
       </div>
       <div className="version-view-toolbar mx-4 mt-4">
-        <div
-          className="version-view-switch"
+        <SegmentedControl
           aria-label="Snapshot inspector view"
-        >
-          {inspectorViews.map(({ id, label }) => (
-            <button
-              key={id}
-              type="button"
-              aria-pressed={view === id}
-              onClick={() => onViewChange(id)}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
+          value={view}
+          onChange={onViewChange}
+          options={inspectorViews}
+        />
         <span>Read-only</span>
       </div>
 
       {view === "overview" ? (
         <div className="grid gap-5 p-4">
-          <dl className="grid grid-cols-2 border border-[var(--border)] text-[10px] xl:grid-cols-3">
+          <dl className="grid grid-cols-2 gap-x-4 gap-y-3 rounded-[var(--radius-inset)] bg-[var(--card-inset)] p-4 text-[10px] xl:grid-cols-3">
             <Fact label="Observed" value={formatDate(detail.observed_at)} />
             <Fact label="Saved" value={formatDate(detail.captured_at)} />
             <Fact label="Origin" value={snapshotOrigin(detail)} />
@@ -254,10 +256,10 @@ function SnapshotInspector({
           </dl>
 
           <section>
-            <h4 className="text-[9px] font-semibold lowercase tracking-[0.1em] text-[var(--text-faint)]">
+            <h4 className="mono text-[9.5px] uppercase tracking-[0.1em] text-[var(--text-faint)]">
               Where it was used
             </h4>
-            <div className="mt-2 rounded-[8px] border border-[var(--border)]">
+            <div className="mt-2 grid grid-cols-[minmax(0,1fr)] gap-0.5 rounded-[var(--radius-inset)] bg-[var(--card-inset)] p-1.5">
               {detail.usages.length ? (
                 detail.usages.map((usage) => (
                   <Link
@@ -266,7 +268,7 @@ function SnapshotInspector({
                       usage.agent_system_key || systemKey,
                       `traces/${usage.trace_id}`,
                     )}
-                    className="grid gap-2 border-b border-[var(--border)] px-3 py-3 last:border-b-0 hover:bg-[var(--surface-muted)] md:grid-cols-[1fr_auto_auto] md:items-center"
+                    className="grid gap-2 rounded-[11px] px-3 py-2.5 no-underline transition-colors duration-[var(--hover-out)] hover:bg-[var(--card-inset)] hover:duration-[var(--hover-in)] md:grid-cols-[1fr_auto_auto] md:items-center"
                   >
                     <span>
                       <span className="block text-[10px] font-medium">
@@ -285,7 +287,7 @@ function SnapshotInspector({
                   </Link>
                 ))
               ) : (
-                <p className="px-3 py-4 text-[10px] text-[var(--text-muted)]">
+                <p className="px-3 py-3 text-[10px] text-[var(--text-muted)]">
                   No run has used this snapshot yet.
                 </p>
               )}
@@ -318,7 +320,7 @@ function SnapshotInspector({
 
 function RailLabel({ children }: { children: string }) {
   return (
-    <p className="border-b border-[var(--border)] px-4 py-2.5 text-[8px] font-semibold lowercase tracking-[0.12em] text-[var(--text-faint)]">
+    <p className="mono px-5 pt-3.5 pb-2 text-[9.5px] uppercase tracking-[0.1em] text-[var(--text-faint)]">
       {children}
     </p>
   );
@@ -334,8 +336,8 @@ function Fact({
   mono?: boolean;
 }) {
   return (
-    <div className="min-w-0 border-r border-b border-[var(--border)] px-3 py-2.5">
-      <dt className="text-[8px] text-[var(--text-faint)]">{label}</dt>
+    <div className="min-w-0">
+      <dt className="text-[9px] text-[var(--text-faint)]">{label}</dt>
       <dd className={`mt-1 truncate font-medium ${mono ? "mono" : ""}`}>
         {value}
       </dd>

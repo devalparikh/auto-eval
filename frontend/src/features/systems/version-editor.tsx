@@ -3,6 +3,7 @@
 import { ArrowsOutIcon } from "@phosphor-icons/react";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Modal } from "@/components/modal";
+import { SegmentedControl } from "@/components/segmented-control";
 import { Select } from "@/components/select";
 import { LoadingState } from "@/components/states";
 import { AgentGraph } from "@/features/systems/agent-graph";
@@ -205,34 +206,24 @@ export function VersionEditor({
         ) : kind === "graph" ? (
           <>
             <div className="version-view-toolbar">
-              <div
-                className="version-view-switch"
+              <SegmentedControl
                 aria-label="Graph definition view"
-              >
-                <button
-                  type="button"
-                  aria-pressed={graphView === "graph"}
-                  disabled={!graphDefinition}
-                  onClick={() => setGraphView("graph")}
-                >
-                  Preview
-                </button>
-                <button
-                  type="button"
-                  aria-pressed={graphView === "edit"}
-                  disabled={!graphDefinition}
-                  onClick={() => setGraphView("edit")}
-                >
-                  Edit graph
-                </button>
-                <button
-                  type="button"
-                  aria-pressed={graphView === "source"}
-                  onClick={() => setGraphView("source")}
-                >
-                  Source
-                </button>
-              </div>
+                value={graphView}
+                onChange={setGraphView}
+                options={[
+                  {
+                    value: "graph",
+                    label: "Preview",
+                    disabled: !graphDefinition,
+                  },
+                  {
+                    value: "edit",
+                    label: "Edit graph",
+                    disabled: !graphDefinition,
+                  },
+                  { value: "source", label: "Source" },
+                ]}
+              />
               {graphView === "graph" && graphDefinition ? (
                 <button
                   type="button"

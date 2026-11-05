@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { HoverGlide } from "@/components/hover-glide";
 import { JsonViewer } from "@/components/json-viewer";
+import { SegmentedControl } from "@/components/segmented-control";
 import { ErrorState, LoadingState } from "@/components/states";
 import { systemPath } from "@/features/systems/system-path";
 import { formatDate, shortId } from "@/lib/format";
@@ -64,9 +65,10 @@ export function RuntimeInputSnapshotArtifact({
       {snapshots.length || detail ? (
         <div className="grid min-h-[520px] md:grid-cols-[250px_minmax(0,1fr)]">
           <HoverGlide
-            className="border-b border-[var(--border)] md:border-r md:border-b-0"
+            className="grid grid-cols-[minmax(0,1fr)] content-start gap-0.5 border-b border-[var(--border)] p-2 md:border-r md:border-b-0"
             aria-label="Live data snapshots"
             rowSelector="button"
+            radius={12}
           >
             {snapshots.map((snapshot) => (
               <button
@@ -74,7 +76,7 @@ export function RuntimeInputSnapshotArtifact({
                 type="button"
                 aria-pressed={snapshot.id === selectedSnapshotId}
                 onClick={() => onSnapshotChange(snapshot.id)}
-                className="block w-full border-b border-[var(--border)] px-4 py-3 text-left last:border-b-0 aria-pressed:bg-[var(--accent-soft)]"
+                className="block w-full rounded-[12px] px-3 py-2.5 text-left aria-pressed:bg-[var(--shell-active)]"
               >
                 <span className="block truncate text-[11px] font-medium">
                   {snapshot.label}
@@ -106,30 +108,20 @@ export function RuntimeInputSnapshotArtifact({
                 </div>
                 <div className="p-4">
                   <div className="version-view-toolbar">
-                    <div
-                      className="version-view-switch"
+                    <SegmentedControl
                       aria-label="Snapshot view"
-                    >
-                      <button
-                        type="button"
-                        aria-pressed={view === "info"}
-                        onClick={() => setView("info")}
-                      >
-                        Info
-                      </button>
-                      <button
-                        type="button"
-                        aria-pressed={view === "content"}
-                        onClick={() => setView("content")}
-                      >
-                        Content
-                      </button>
-                    </div>
+                      value={view}
+                      onChange={setView}
+                      options={[
+                        { value: "info", label: "Info" },
+                        { value: "content", label: "Content" },
+                      ]}
+                    />
                     <span>Read-only</span>
                   </div>
                   {view === "info" ? (
                     <div className="grid gap-4">
-                      <dl className="grid gap-4 rounded-[10px] border border-[var(--border)] bg-[var(--surface-muted)] p-4 text-[11px] md:grid-cols-2">
+                      <dl className="grid gap-4 rounded-[var(--radius-inset)] bg-[var(--card-inset)] p-4 text-[11px] md:grid-cols-2">
                         <SnapshotFact
                           label="Observed"
                           value={formatDate(detail.observed_at)}
@@ -189,7 +181,7 @@ export function RuntimeInputSnapshotArtifact({
                       value={detail.content}
                     />
                   ) : (
-                    <div className="rounded-[12px] border border-[var(--border)] bg-[var(--surface-muted)] p-5">
+                    <div className="rounded-[var(--radius-inset)] bg-[var(--card-inset)] p-5">
                       <p className="text-[11px] font-medium">
                         Content is not available
                       </p>

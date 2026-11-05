@@ -133,7 +133,7 @@ export function EditDatasetItemModal({
               Read only
             </span>
           </div>
-          <pre className="mono max-h-44 min-w-0 overflow-auto rounded-[8px] border border-[var(--border)] bg-[var(--surface-muted)] p-3 text-[10px] leading-5 wrap-anywhere whitespace-pre-wrap text-[var(--text-muted)]">
+          <pre className="mono max-h-44 min-w-0 overflow-auto rounded-[12px] bg-[var(--card-inset)] p-3 text-[10px] leading-5 wrap-anywhere whitespace-pre-wrap text-[var(--text-muted)]">
             {item ? formatInput(item.input) : null}
           </pre>
         </section>
@@ -246,7 +246,7 @@ function SnapshotSection({
   children: ReactNode;
 }) {
   return (
-    <section className="min-w-0 rounded-[10px] border border-[var(--border)] bg-[var(--surface-muted)] p-3">
+    <section className="min-w-0 rounded-[var(--radius-inset)] bg-[var(--card-inset)] p-3">
       <h3 className="field-label">{title}</h3>
       <p className="mt-1 mb-3 text-[10px] leading-5 text-[var(--text-muted)]">
         {hint}

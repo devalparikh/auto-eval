@@ -5,6 +5,10 @@ import Link from "next/link";
 import { useSelectedLayoutSegment } from "next/navigation";
 import { useState, type ReactNode } from "react";
 import { HoverGlide } from "@/components/hover-glide";
+import {
+  SegmentedControl,
+  type SegmentedOption,
+} from "@/components/segmented-control";
 import { SplitPane } from "@/components/split-pane";
 import { EmptyState, ErrorState, LoadingState } from "@/components/states";
 import { StatusBadge } from "@/components/status-badge";
@@ -23,10 +27,10 @@ import { useCatalog } from "@/lib/use-catalog";
 
 type OriginFilter = "all" | "runtime" | "evaluation";
 
-const originFilters: Array<{ key: OriginFilter; label: string }> = [
-  { key: "all", label: "All" },
-  { key: "runtime", label: "Runs" },
-  { key: "evaluation", label: "Evaluations" },
+const originFilters: Array<SegmentedOption<OriginFilter>> = [
+  { value: "all", label: "All" },
+  { value: "runtime", label: "Runs" },
+  { value: "evaluation", label: "Evaluations" },
 ];
 
 /**
@@ -88,6 +92,10 @@ function TraceList({
   const visible = (traces.data ?? []).filter(
     (trace) => origin === "all" || trace.origin_type === origin,
   );
+  // Without the catalog there is no system to ask for traces, and the empty
+  // list that follows would claim this system has never run.
+  const loading = (catalog.loading && !catalog.data) || traces.loading;
+  const loadError = catalog.error ?? traces.error;
 
   return (
     <>
@@ -109,32 +117,27 @@ function TraceList({
         </Link>
       </header>
       <div className="split-pane-tools">
-        <div
-          className="segmented"
-          role="group"
+        <SegmentedControl
           aria-label="Filter traces by origin"
-        >
-          {originFilters.map(({ key, label }) => (
-            <button
-              key={key}
-              type="button"
-              aria-pressed={origin === key}
-              onClick={() => setOrigin(key)}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
+          value={origin}
+          onChange={setOrigin}
+          options={originFilters}
+        />
         <span className="mono text-[10px] text-[var(--text-faint)]">
           {visible.length}
         </span>
       </div>
       <HoverGlide className="split-pane-list" radius={14}>
-        {traces.loading ? <LoadingState rows={8} /> : null}
-        {traces.error ? (
-          <ErrorState message={traces.error} retry={traces.reload} />
+        {loading ? <LoadingState rows={8} /> : null}
+        {!loading && loadError ? (
+          <ErrorState
+            message={loadError}
+            retry={() => {
+              void (catalog.error ? catalog.reload() : traces.reload());
+            }}
+          />
         ) : null}
-        {!traces.loading && !traces.error && visible.length === 0 ? (
+        {!loading && !loadError && visible.length === 0 ? (
           <EmptyState
             title="No traces here"
             message="Run this agent system to record its node-by-node execution."

@@ -391,7 +391,7 @@ export function RunWorkbench({
                     />
                   </div>
                 ) : (
-                  <div className="h-[350px] border border-[var(--border)] md:h-[380px]">
+                  <div className="h-[350px] overflow-hidden rounded-[var(--radius-inset)] bg-[var(--canvas)] md:h-[380px]">
                     <LoadingState rows={3} />
                   </div>
                 )}

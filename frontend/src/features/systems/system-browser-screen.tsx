@@ -10,6 +10,7 @@ import { HoverGlide } from "@/components/hover-glide";
 import { PageHeader } from "@/components/page-header";
 import { EmptyState, ErrorState, LoadingState } from "@/components/states";
 import { systemPath } from "@/features/systems/system-path";
+import { countOf } from "@/lib/format";
 import type { AgentSystemSummary } from "@/lib/types";
 import { useCatalog } from "@/lib/use-catalog";
 
@@ -34,17 +35,23 @@ export function SystemBrowserScreen() {
           </Link>
         }
       />
-      <section className="grid gap-4 p-4 md:grid-cols-2 md:p-7">
-        {catalog.loading && !catalog.data ? <LoadingState rows={8} /> : null}
-        {catalog.error ? (
-          <ErrorState message={catalog.error} retry={catalog.reload} />
-        ) : null}
-        {!catalog.loading && catalog.data?.agent_systems.length === 0 ? (
-          <EmptyState
-            title="No agent systems"
-            message="Import a system from a folder or GitHub repository to start your first run."
-          />
-        ) : null}
+      {/* States sit outside the card grid so they span the page instead of
+          taking one column of it. */}
+      {catalog.loading && !catalog.data ? <LoadingState rows={8} /> : null}
+      {catalog.error ? (
+        <ErrorState
+          message={catalog.error}
+          retry={catalog.reload}
+          className="mx-[var(--page-gutter)] mt-5"
+        />
+      ) : null}
+      {!catalog.loading && catalog.data?.agent_systems.length === 0 ? (
+        <EmptyState
+          title="No agent systems"
+          message="Import a system from a folder or GitHub repository to start your first run."
+        />
+      ) : null}
+      <section className="grid gap-4 p-4 empty:hidden md:grid-cols-2 md:p-7">
         {products.map((flows) => {
           const product =
             flows.find((flow) => flow.key === flow.product_key) ?? flows[0];
@@ -70,10 +77,10 @@ export function SystemBrowserScreen() {
                     <GitBranchIcon size={17} />
                   </span>
                   <span className="mono text-[9px] text-[var(--text-faint)]">
-                    {flows.length} {flows.length === 1 ? "flow" : "flows"}
+                    {countOf(flows.length, "flow")}
                   </span>
                 </div>
-                <h2 className="mt-7 text-[17px] font-semibold tracking-[-0.035em]">
+                <h2 className="mt-7 text-[17px] font-medium tracking-[-0.035em]">
                   {product.name}
                 </h2>
                 <p className="mt-2 max-w-[58ch] text-[11px] leading-5 text-[var(--text-muted)]">
@@ -102,8 +109,9 @@ export function SystemBrowserScreen() {
                 </HoverGlide>
               </div>
               <p className="mono mt-6 text-[9px] text-[var(--text-faint)]">
-                {graphVersionCount} graph versions · {promptCount ?? 0} prompts
-                · {datasetCount ?? 0} datasets
+                {countOf(graphVersionCount, "graph version")} ·{" "}
+                {countOf(promptCount ?? 0, "prompt")} ·{" "}
+                {countOf(datasetCount ?? 0, "dataset")}
               </p>
             </article>
           );
