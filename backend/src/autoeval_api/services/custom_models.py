@@ -157,7 +157,7 @@ class CustomModelService:
                             "executor": record.executor,
                             "train_count": record.train_count,
                             "validation_count": record.validation_count,
-                            "format": "input-expected-json-v1",
+                            "format": data.format,
                             "mlx_lm_version": "0.30.7",
                         },
                         indent=2,

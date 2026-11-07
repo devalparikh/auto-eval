@@ -73,8 +73,10 @@ class TrainingRuntime(BaseModel):
 
 
 class TrainingMessage(BaseModel):
-    role: Literal["system", "user", "assistant"]
-    content: str
+    role: Literal["system", "developer", "user", "assistant", "tool"]
+    content: str | None = None
+    tool_calls: list[dict[str, Any]] | None = None
+    tool_call_id: str | None = None
 
 
 class TrainingDataPreview(BaseModel):
@@ -83,6 +85,7 @@ class TrainingDataPreview(BaseModel):
     validation_count: int
     duplicate_count: int
     sample: list[TrainingMessage]
+    sample_tools: list[dict[str, Any]] = []
 
 
 class CustomModelResponse(BaseModel):
@@ -135,6 +138,7 @@ class AgentSystemSummary(BaseModel):
     dataset_editor: str = "json"
     input_editor: str = "json"
     primary_metric: str = "accuracy"
+    runtime: Literal["graph", "external_harness"] = "graph"
 
 
 class PromptSummary(BaseModel):

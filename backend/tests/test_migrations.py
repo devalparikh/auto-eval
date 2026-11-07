@@ -2,7 +2,7 @@ import pytest
 from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.exc import DatabaseError
 
-from autoeval_api.migrations import apply_migrations
+from autoeval_api.migrations import MIGRATION_VERSION, apply_migrations
 
 
 def test_legacy_database_is_scoped_and_backfilled(tmp_path) -> None:
@@ -81,7 +81,7 @@ def test_legacy_database_is_scoped_and_backfilled(tmp_path) -> None:
     assert dataset_owner == "system"
     assert trace_origin == ("evaluation", "run", "item")
     assert "uq_dataset_version_source_trace" in indexes
-    assert migration_versions == [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
+    assert migration_versions == list(range(1, MIGRATION_VERSION + 1))
     assert "custom_models" in table_names
     assert {
         "id",
@@ -218,7 +218,7 @@ def test_version_eight_backfills_identity_without_breaking_immutable_triggers(
     assert runtime_catalog_metadata == (
         '{"output_contract":"options_chain","contract_count":0,"freshness":{"status":"fresh"}}'
     )
-    assert versions == list(range(1, 13))
+    assert versions == list(range(1, MIGRATION_VERSION + 1))
 
     with (
         pytest.raises(DatabaseError, match="portfolio_snapshot_immutable"),

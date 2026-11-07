@@ -266,6 +266,7 @@ def agent_system_summary(session: Session, system: AgentSystemRecord) -> AgentSy
         dataset_editor=spec.dataset_editor,
         input_editor=spec.input_editor,
         primary_metric=spec.primary_metric,
+        runtime=system.import_metadata.get("runtime", "graph"),
     )
 
 

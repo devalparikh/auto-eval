@@ -314,6 +314,8 @@ class SystemImportService:
         system: AgentSystemRecord | None,
     ) -> None:
         """Use the same runnable-graph checks for imports and visual version edits."""
+        if system and system.import_metadata.get("runtime") == "external_harness":
+            raise ValueError("External harness systems cannot import graph versions")
         definition.validate_references()
         topological_sequence(definition)
         self._validate_reachability(definition)

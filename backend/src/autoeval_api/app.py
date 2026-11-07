@@ -17,6 +17,7 @@ from autoeval_api.api.routes import (
     custom_models,
     datasets,
     evaluations,
+    harnesses,
     node_snapshots,
     portfolio_snapshots,
     runtime_input_snapshots,
@@ -158,6 +159,7 @@ def create_application(
     app.add_middleware(SecurityHeadersMiddleware)
 
     app.include_router(catalog.router)
+    app.include_router(harnesses.router)
     app.include_router(custom_models.router)
     app.include_router(artifacts.router)
     app.include_router(node_snapshots.router)

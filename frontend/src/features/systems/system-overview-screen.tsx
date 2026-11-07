@@ -3,6 +3,7 @@
 import { ArrowRightIcon, CheckIcon } from "@phosphor-icons/react";
 import Link from "next/link";
 import { CatalogGate } from "@/components/catalog-gate";
+import { HarnessScreen } from "@/features/harnesses/harness-screen";
 import { PageHeader } from "@/components/page-header";
 import { finalDatasetVersions } from "@/features/catalog/catalog-options";
 import { AgentGraph } from "@/features/systems/agent-graph";
@@ -15,20 +16,24 @@ import { useApiResource } from "@/lib/use-api-resource";
 export function SystemOverviewScreen({ systemKey }: { systemKey: string }) {
   return (
     <CatalogGate systemKey={systemKey}>
-      {({ catalog, system }) => (
-        <>
-          <PageHeader title={system.name} description={system.description} />
-          <div className="grid gap-4 p-4 md:p-7">
-            <SystemWorkflow
-              key={system.id}
-              catalog={catalog}
-              system={system}
-              systemKey={systemKey}
-            />
-            <LatestGraph key={`graph-${system.id}`} system={system} />
-          </div>
-        </>
-      )}
+      {({ catalog, system }) =>
+        system.runtime === "external_harness" ? (
+          <HarnessScreen systemKey={systemKey} />
+        ) : (
+          <>
+            <PageHeader title={system.name} description={system.description} />
+            <div className="grid gap-4 p-4 md:p-7">
+              <SystemWorkflow
+                key={system.id}
+                catalog={catalog}
+                system={system}
+                systemKey={systemKey}
+              />
+              <LatestGraph key={`graph-${system.id}`} system={system} />
+            </div>
+          </>
+        )
+      }
     </CatalogGate>
   );
 }

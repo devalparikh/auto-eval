@@ -217,7 +217,9 @@ export function ImportScreen({
         </>
       ) : null}
       <div className={styles.menuHelp}>
-        <p>No manifest yet? Follow the guide or hand its brief to a coding agent.</p>
+        <p>
+          No manifest yet? Follow the guide or hand its brief to a coding agent.
+        </p>
         <Link href="/guide" className={styles.inlineLink}>
           Import guide <ArrowRightIcon size={13} />
         </Link>
@@ -377,6 +379,12 @@ export function ImportScreen({
               <div className={styles.panelHeader}>
                 <div>
                   <h2>Where does your agent live?</h2>
+                  <Link
+                    className="app-button secondary my-3"
+                    href="/harnesses/new"
+                  >
+                    Connect a coding harness
+                  </Link>
                   <p>
                     AutoEval reads <code>autoeval.json</code> to validate its
                     graph and registered handlers.

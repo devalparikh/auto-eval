@@ -44,9 +44,23 @@ export function systemKeyFromPath(pathname: string): string | null {
 /** The order is the workflow: build the agent, try it, then benchmark changes. */
 export function systemNavGroups(
   systemKey: string,
-  counts: { graphVersions?: number; datasets?: number } = {},
+  counts: { graphVersions?: number; datasets?: number; runtime?: string } = {},
 ): SidebarNavGroup[] {
   const root = `/systems/${encodeURIComponent(systemKey)}`;
+  if (counts.runtime === "external_harness")
+    return [
+      {
+        label: null,
+        items: [
+          {
+            href: root,
+            label: "Sessions & benchmarks",
+            icon: PulseIcon,
+            exact: true,
+          },
+        ],
+      },
+    ];
   return [
     {
       label: null,
@@ -101,8 +115,13 @@ export function isNavItemActive(
  * single record such as one trace has no counterpart, so it falls back to the
  * section's list.
  */
-export function pathForSystem(pathname: string, systemKey: string): string {
+export function pathForSystem(
+  pathname: string,
+  systemKey: string,
+  runtime?: string,
+): string {
   const root = `/systems/${encodeURIComponent(systemKey)}`;
+  if (runtime === "external_harness") return root;
   const section = pathname.match(/^\/systems\/[^/]+\/([^/]+)/)?.[1];
   return section ? `${root}/${section}` : root;
 }
@@ -110,7 +129,9 @@ export function pathForSystem(pathname: string, systemKey: string): string {
 export function systemInitials(name: string): string {
   const words = name.split(/[\s_-]+/).filter(Boolean);
   const initials =
-    words.length > 1 ? `${words[0][0]}${words[1][0]}` : (words[0] ?? "").slice(0, 2);
+    words.length > 1
+      ? `${words[0][0]}${words[1][0]}`
+      : (words[0] ?? "").slice(0, 2);
   return initials.toUpperCase();
 }
 
