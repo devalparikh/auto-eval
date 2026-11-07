@@ -35,6 +35,13 @@ test("connects a harness, reviews native conversations, and compares complete ta
     await page.getByRole("button", { name: "Save task" }).click();
     await expect(page.getByRole("status")).toContainText("Task saved");
     if (partition !== "benchmark") {
+      await expect(page.getByLabel("Record sessions for")).toHaveValue(task);
+      await expect(
+        page.locator("pre").filter({ hasText: "harness_proxy record" }),
+      ).toContainText(`--task ${task}`);
+      await expect(
+        page.locator("pre").filter({ hasText: "harness_proxy record" }),
+      ).toContainText(`--output .autoeval/${key}/captures.jsonl`);
       const response = await request.post(`${api}/harnesses/${key}/captures`, {
         data: {
           request_id: task,
@@ -59,10 +66,10 @@ test("connects a harness, reviews native conversations, and compares complete ta
       expect(response.status()).toBe(201);
     }
   }
-  await page.reload();
   await page
     .getByRole("button", { name: "Sessions & training", exact: true })
     .click();
+  await page.getByRole("button", { name: "Refresh captures" }).click();
   for (const task of ["training", "validation"]) {
     await page.getByRole("button", { name: task, exact: true }).click();
     await page.getByRole("button", { name: "Approve for training" }).click();
@@ -76,6 +83,7 @@ test("connects a harness, reviews native conversations, and compares complete ta
     page.getByRole("link", { name: "Create custom model" }),
   ).toBeVisible();
   await page.getByRole("button", { name: "Benchmark", exact: true }).click();
+  await expect(page.getByLabel("Use for")).toHaveValue("benchmark");
   await page
     .getByRole("button", { name: "Freeze all benchmark tasks" })
     .click();
@@ -111,6 +119,15 @@ test("connects a harness, reviews native conversations, and compares complete ta
   }
   await page.getByRole("button", { name: "Refresh results" }).click();
   await expect(page.getByText("100.0 pp", { exact: true })).toBeVisible();
+  const updated = await (await request.get(`${api}/harnesses/${key}`)).json();
+  const candidate = updated.runs.find(
+    (run: { label: string }) => run.label === "Candidate",
+  );
+  await page.getByLabel("Compare against").selectOption(candidate.id);
+  await expect(page.getByText("-100.0 pp", { exact: true })).toBeVisible();
+  await expect(
+    page.getByRole("columnheader", { name: "Change vs Candidate" }),
+  ).toBeVisible();
   for (const width of [1280, 390]) {
     await page.setViewportSize({ width, height: 900 });
     await expect
@@ -130,5 +147,6 @@ test("connects a harness, reviews native conversations, and compares complete ta
   await page.screenshot({
     path: testInfo.outputPath("harness-benchmark.png"),
     fullPage: true,
+    animations: "disabled",
   });
 });

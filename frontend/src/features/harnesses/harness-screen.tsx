@@ -53,6 +53,8 @@ export function HarnessScreen({ systemKey }: { systemKey: string }) {
   const [suiteName, setSuiteName] = useState("Coding benchmark");
   const [repetitions, setRepetitions] = useState(1);
   const [suiteId, setSuiteId] = useState("");
+  const [baselineId, setBaselineId] = useState("");
+  const [recordingTaskKey, setRecordingTaskKey] = useState("");
   const [runDetail, setRunDetail] = useState<Run | null>(null);
   const [training, setTraining] = useState<TrainingExport | null>(null);
   async function perform(action: () => Promise<unknown>, success = "Saved") {
@@ -78,10 +80,14 @@ export function HarnessScreen({ systemKey }: { systemKey: string }) {
   const workspace = resource.data;
   const activeSuite = suiteId || String(workspace.suites[0]?.id ?? "");
   const runs = workspace.runs.filter((run) => run.suite_id === activeSuite);
-  const baseline = runs[0];
-  const exampleTask =
-    workspace.tasks.find((task) => task.partition !== "benchmark")?.key ??
-    "my-task";
+  const baseline = runs.find((run) => run.id === baselineId) ?? runs[0];
+  const recordingTasks = workspace.tasks.filter(
+    (task) => task.partition !== "benchmark",
+  );
+  const recordingTask =
+    recordingTasks.find((task) => task.key === recordingTaskKey) ??
+    recordingTasks[0];
+  const captureFile = `.autoeval/${systemKey}/captures.jsonl`;
   return (
     <>
       <PageHeader
@@ -95,7 +101,11 @@ export function HarnessScreen({ systemKey }: { systemKey: string }) {
               className="app-button secondary"
               aria-pressed={tab === item}
               key={item}
-              onClick={() => setTab(item)}
+              onClick={() => {
+                setTab(item);
+                if (item === "Benchmark") setPartition("benchmark");
+                if (item === "Connect") setPartition("train");
+              }}
             >
               {item}
             </button>
@@ -131,7 +141,32 @@ export function HarnessScreen({ systemKey }: { systemKey: string }) {
               and tool results. Review sensitive content before approving any
               example.
             </p>
-            <Code>{`.venv/bin/python -m autoeval_api.harness_proxy record \\\n  --task ${exampleTask} --revision '<harness-version>' \\\n  --config harness-settings.json --capture-content`}</Code>
+            {recordingTask ? (
+              <>
+                <label className="grid gap-2">
+                  Record sessions for
+                  <Select
+                    aria-label="Record sessions for"
+                    className="app-input"
+                    value={recordingTask.key}
+                    onChange={(event) => setRecordingTaskKey(event.target.value)}
+                  >
+                    {recordingTasks.map((task) => (
+                      <option key={task.key} value={task.key}>
+                        {task.key} ·{" "}
+                        {task.partition === "train" ? "Training" : "Validation"}
+                      </option>
+                    ))}
+                  </Select>
+                </label>
+                <Code>{`.venv/bin/python -m autoeval_api.harness_proxy record \\\n  --task ${recordingTask.key} --revision '<harness-version>' \\\n  --config harness-settings.json --output ${captureFile} --capture-content`}</Code>
+              </>
+            ) : (
+              <p>
+                Create a training or validation task below to get its recording
+                command.
+              </p>
+            )}
             <h2>3. Point your harness at the recorder</h2>
             <Code>{connectionGuide(workspace.harness)}</Code>
             <p className="text-sm text-[var(--text-muted)]">
@@ -141,11 +176,13 @@ export function HarnessScreen({ systemKey }: { systemKey: string }) {
               streaming are supported; WebSocket sessions are not.
             </p>
             <h2>4. Sync and review</h2>
-            <Code>{`.venv/bin/python -m autoeval_api.harness_proxy sync \\\n  --system ${systemKey} --file .autoeval/captures.jsonl`}</Code>
+            <Code>{`.venv/bin/python -m autoeval_api.harness_proxy sync \\\n  --system ${systemKey} --file ${captureFile}`}</Code>
             <p className="text-sm text-[var(--text-muted)]">
-              Sync safely retries the same captures. Missing token usage stays
-              unknown. Incomplete responses, image payloads, and Responses calls
-              with missing history cannot be approved for training.
+              Each system has its own capture file. Stop the recorder before
+              switching systems or tasks, then start the command for your new
+              selection. Sync safely retries the same captures. Missing token
+              usage stays unknown. Incomplete responses, image payloads, and Responses
+              calls with missing history cannot be approved for training.
             </p>
           </section>
         )}
@@ -163,6 +200,7 @@ export function HarnessScreen({ systemKey }: { systemKey: string }) {
                   test_command:
                     partition === "benchmark" ? JSON.parse(testCommand) : [],
                 });
+                if (partition !== "benchmark") setRecordingTaskKey(taskKey);
                 setTaskKey("");
                 setPrompt("");
               }, "Task saved. Its partition and contents are now fixed.");
@@ -249,6 +287,13 @@ export function HarnessScreen({ systemKey }: { systemKey: string }) {
           <>
             <section className="surface-card grid gap-4 p-6">
               <h2>Review captures</h2>
+              <button
+                className="app-button secondary w-fit"
+                disabled={busy}
+                onClick={() => void resource.reload()}
+              >
+                Refresh captures
+              </button>
               <p className="text-sm text-[var(--text-muted)]">
                 Approve correct, useful assistant responses after inspecting the
                 full context and tool results. Approval does not prove that a
@@ -465,6 +510,8 @@ export function HarnessScreen({ systemKey }: { systemKey: string }) {
                       },
                     );
                     setSuiteId(result.id);
+                    setBaselineId("");
+                    setRunDetail(null);
                   }, "Benchmark frozen")
                 }
               >
@@ -480,7 +527,11 @@ export function HarnessScreen({ systemKey }: { systemKey: string }) {
                     aria-label="Benchmark"
                     className="app-input"
                     value={activeSuite}
-                    onChange={(e) => setSuiteId(e.target.value)}
+                    onChange={(e) => {
+                      setSuiteId(e.target.value);
+                      setBaselineId("");
+                      setRunDetail(null);
+                    }}
                   >
                     {workspace.suites.map((suite) => (
                       <option key={String(suite.id)} value={String(suite.id)}>
@@ -490,6 +541,24 @@ export function HarnessScreen({ systemKey }: { systemKey: string }) {
                     ))}
                   </Select>
                 </label>
+                {runs.length > 0 && (
+                  <label className="grid gap-2">
+                    Compare against
+                    <Select
+                      aria-label="Compare against"
+                      className="app-input"
+                      value={baseline?.id ?? ""}
+                      onChange={(event) => setBaselineId(event.target.value)}
+                    >
+                      {runs.map((run) => (
+                        <option key={run.id} value={run.id}>
+                          {run.label} · {run.model} ·{" "}
+                          {run.configuration_hash.slice(0, 8)}
+                        </option>
+                      ))}
+                    </Select>
+                  </label>
+                )}
                 <p className="text-sm text-[var(--text-muted)]">
                   Use the local runner on a trusted repository. It creates a
                   fresh checkout per attempt and feeds the task prompt to your
@@ -535,12 +604,12 @@ export function HarnessScreen({ systemKey }: { systemKey: string }) {
                   Refresh results
                 </button>
                 <div className="overflow-x-auto">
-                  <table className="w-full text-left text-sm">
+                  <table className="w-full min-w-[640px] text-left text-sm [&_td]:pr-4 [&_th]:pr-4">
                     <thead>
                       <tr>
                         <th>Candidate</th>
                         <th>Passed</th>
-                        <th>Change vs first run</th>
+                        <th>Change vs {baseline?.label ?? "baseline"}</th>
                         <th>Mean time</th>
                         <th>Cost</th>
                       </tr>

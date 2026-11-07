@@ -26,8 +26,13 @@ claim to reproduce its implementation.
 ```sh
 .venv/bin/python -m autoeval_api.harness_proxy record \
   --task my-task --revision 'pi@your-version' \
-  --config harness-settings.json --capture-content
+  --config harness-settings.json --output .autoeval/my-agent/captures.jsonl --capture-content
 ```
+
+The Connect tab lets you select a training or validation task and generates the
+recording command for that task. Keep a separate capture file for each system,
+as in the example above. Stop the recorder before switching systems or tasks,
+then start the new command.
 
 The settings file is hashed, not uploaded. Restart the recorder when switching
 tasks. Each recorder invocation has a session ID; each completed request gets a
@@ -44,8 +49,10 @@ not imported as successful captures; the recorder emits a content-free warning.
 
 ```sh
 .venv/bin/python -m autoeval_api.harness_proxy sync \
-  --system my-agent --file .autoeval/captures.jsonl
+  --system my-agent --file .autoeval/my-agent/captures.jsonl
 ```
+
+After syncing, open Sessions & training and select **Refresh captures**.
 
 Sync retries are idempotent by system/request ID and reject conflicting content.
 It stops at the first invalid row and retains the spool for retry. GET models
@@ -144,9 +151,11 @@ costs stay unknown. Model labels on submitted runs are declarations; use recorde
 resolved model IDs to audit actual routing. The runner saves a result file before
 submission so an upload can be retried from the UI without rerunning tasks.
 
-Use the first run as a baseline, change one factor at a time, and compare only
-runs from the same frozen suite. The UI reports pass-rate deltas in percentage
-points. Repeat stochastic runs; small deltas on small samples are not evidence
+The first run is the default baseline. Use **Compare against** to select any
+run from the same frozen suite. Change one factor at a time: hold the harness
+revision, configuration and limits fixed when comparing models; hold the model
+fixed when comparing harness settings. The UI reports pass-rate deltas in
+percentage points. Repeat stochastic runs; small deltas on small samples are not evidence
 of improvement. After tuning on a benchmark repeatedly, create a new untouched
 holdout for a final check. Keep final holdouts out of training and prompt tuning.
 

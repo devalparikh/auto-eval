@@ -19,6 +19,9 @@ export default defineConfig({
   use: {
     baseURL: webUrl,
     trace: "on-first-retry",
+    launchOptions: {
+      executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH || undefined,
+    },
   },
   projects: [
     { name: "chromium", use: { ...devices["Desktop Chrome"] } },

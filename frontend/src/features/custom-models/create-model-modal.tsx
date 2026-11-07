@@ -277,10 +277,9 @@ export function CreateModelModal({
             </div>
           </details>
           <p className={styles.hint}>
-            Training pairs the input JSON with the reviewed expected JSON. If
-            your dataset contains scoring labels, those labels become the
-            answer. It does not reproduce an agent’s graph or fetch external
-            context.
+            {harnessDataset
+              ? "Training uses captured conversations, tool definitions, and the approved assistant response. Choose a base model whose chat template supports the roles and tools in your examples."
+              : "Training pairs the input JSON with the reviewed expected JSON. If your dataset contains scoring labels, those labels become the answer. It does not reproduce an agent’s graph or fetch external context."}
           </p>
         </fieldset>
         {preview && (
