@@ -31,6 +31,7 @@ describe("withActiveEdges", () => {
 describe("sidebar navigation helpers", () => {
   it("keeps the section when switching systems", () => {
     expect(pathForSystem("/systems/a/run", "b")).toBe("/systems/b/run");
+    expect(pathForSystem("/systems/a/run", "b", "external_harness")).toBe("/systems/b");
     expect(pathForSystem("/systems/a", "b")).toBe("/systems/b");
   });
 

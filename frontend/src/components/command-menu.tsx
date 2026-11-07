@@ -85,7 +85,9 @@ export function CommandMenu({
     const results: CommandEntry[] = [];
     if (systemKey) {
       const heading = system?.name ?? "This system";
-      for (const group of systemNavGroups(systemKey)) {
+      for (const group of systemNavGroups(systemKey, {
+        runtime: system?.runtime,
+      })) {
         for (const item of group.items) {
           results.push({
             id: item.href,
@@ -246,9 +248,7 @@ export function CommandMenu({
       event.preventDefault();
       if (!visible.length) return;
       const step = event.key === "ArrowDown" ? 1 : -1;
-      setActiveIndex(
-        (activeIndex + step + visible.length) % visible.length,
-      );
+      setActiveIndex((activeIndex + step + visible.length) % visible.length);
       return;
     }
     if (event.key === "Enter") {

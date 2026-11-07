@@ -93,6 +93,7 @@ export function AppSidebar({
   const groups: SidebarNavGroup[] = [
     ...(systemKey
       ? systemNavGroups(systemKey, {
+          runtime: system?.runtime,
           graphVersions: system?.versions.length,
           datasets: system
             ? catalog.data?.datasets.filter(
@@ -115,10 +116,9 @@ export function AppSidebar({
 
   const activeHref =
     navigation.pendingHref ??
-    [
-      ...groups.flatMap((group) => group.items),
-      ...workspaceNavItems,
-    ].find((item) => isNavItemActive(item, pathname))?.href ??
+    [...groups.flatMap((group) => group.items), ...workspaceNavItems].find(
+      (item) => isNavItemActive(item, pathname),
+    )?.href ??
     null;
   const tooltipY = useSpring(0, tooltipGlide);
   const rowsKey = systemKey ? "system" : "workspace";
@@ -210,7 +210,9 @@ export function AppSidebar({
           className="shell-status"
           data-offline={Boolean(catalog.error)}
           aria-label={
-            catalog.error ? "Local API unreachable" : "Local workspace connected"
+            catalog.error
+              ? "Local API unreachable"
+              : "Local workspace connected"
           }
         >
           <span className="shell-status-dot" aria-hidden="true" />
@@ -432,7 +434,11 @@ function NavRow({
 function NavPending() {
   const { pending } = useLinkStatus();
   return (
-    <span className="shell-nav-pending" data-pending={pending} aria-hidden="true" />
+    <span
+      className="shell-nav-pending"
+      data-pending={pending}
+      aria-hidden="true"
+    />
   );
 }
 
@@ -550,9 +556,11 @@ function SystemSwitcher({
                     <Link
                       key={flow.id}
                       role="menuitem"
-                      href={pathForSystem(pathname, flow.key)}
+                      href={pathForSystem(pathname, flow.key, flow.runtime)}
                       className="shell-switcher-item"
-                      aria-current={flow.id === current?.id ? "true" : undefined}
+                      aria-current={
+                        flow.id === current?.id ? "true" : undefined
+                      }
                       data-sound="navigate"
                       onNavigate={() => {
                         setOpen(false);

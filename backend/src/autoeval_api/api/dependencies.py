@@ -118,6 +118,8 @@ def resolve_run_versions(
         system = resolve_agent_system(session, graph_version.agent_system_id)
     else:
         system = resolve_agent_system(session, agent_system_id)
+        if system.import_metadata.get("runtime") == "external_harness":
+            raise HTTPException(400, "Use this harness's external task benchmark runner")
         graph_version = resolve_graph_version(session, None, system.id)
     prompt_version = resolve_prompt_version(session, prompt_version_id, system.id)
     return system, graph_version, prompt_version

@@ -80,6 +80,16 @@ autoeval_api/
 
 Routes validate HTTP input and translate domain errors. Services own domain queries and workflows. The graph runner owns orchestration and span capture; `graph/trace_recorder.py` owns how trace and span rows are persisted, while the runner decides when. Agent-system packages own domain-specific definitions and behavior. `app.py` is the composition root for replacing those dependencies without teaching routes about concrete providers or handlers. The database engine is chosen in `app.py::create_application` — an explicit `engine` argument, or `db.py`'s module-level engine by default — and `db.py::create_schema(engine)` upgrades whichever engine it is given.
 
+## External harness systems
+
+Systems with `runtime=external_harness` use the session and benchmark workspace.
+Their model traffic goes through the optional local `harness_proxy` recorder;
+AutoEval never treats their tool loop as a LangGraph DAG. Immutable task records
+assign train, validation or benchmark partitions. Reviewed captures create
+finalized datasets consumed by the existing custom-model service with native
+messages and tools. Frozen suites and complete external trial matrices provide
+task pass rates. See [harnesses.md](harnesses.md) for boundaries and setup.
+
 ## Implemented extension points
 
 - `services/system_imports.py` inspects and atomically imports the versioned

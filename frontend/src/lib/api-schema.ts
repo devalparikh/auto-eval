@@ -364,6 +364,176 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/harnesses": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Connect */
+        post: operations["connect_api_harnesses_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/harnesses/{key}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Workspace */
+        get: operations["workspace_api_harnesses__key__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/harnesses/{key}/captures": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Capture */
+        post: operations["capture_api_harnesses__key__captures_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/harnesses/{key}/captures/{capture_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Capture Detail */
+        get: operations["capture_detail_api_harnesses__key__captures__capture_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/harnesses/{key}/captures/{capture_id}/review": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Review */
+        post: operations["review_api_harnesses__key__captures__capture_id__review_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/harnesses/{key}/runs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Run */
+        post: operations["run_api_harnesses__key__runs_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/harnesses/{key}/runs/{run_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Run Detail */
+        get: operations["run_detail_api_harnesses__key__runs__run_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/harnesses/{key}/suites": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Suite */
+        post: operations["suite_api_harnesses__key__suites_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/harnesses/{key}/tasks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Task */
+        post: operations["task_api_harnesses__key__tasks_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/harnesses/{key}/training-export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Training Export */
+        post: operations["training_export_api_harnesses__key__training_export_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/health": {
         parameters: {
             query?: never;
@@ -716,6 +886,12 @@ export interface components {
             primary_metric: string;
             /** Product Key */
             product_key: string;
+            /**
+             * Runtime
+             * @default graph
+             * @enum {string}
+             */
+            runtime: "graph" | "external_harness";
             /** Versions */
             versions: components["schemas"]["VersionSummary"][];
         };
@@ -829,6 +1005,14 @@ export interface components {
             schema_version: 1;
             system: components["schemas"]["ManifestSystem"];
         };
+        /** CaptureReview */
+        CaptureReview: {
+            /**
+             * Decision
+             * @enum {string}
+             */
+            decision: "approved" | "rejected";
+        };
         /** CatalogResponse */
         CatalogResponse: {
             /** Agent Systems */
@@ -839,6 +1023,18 @@ export interface components {
             models: components["schemas"]["ModelOption"][];
             /** Prompts */
             prompts: components["schemas"]["PromptSummary"][];
+        };
+        /** ConnectHarness */
+        ConnectHarness: {
+            /**
+             * Harness
+             * @enum {string}
+             */
+            harness: "claude-code" | "codex" | "hermes" | "opencode" | "pi" | "other";
+            /** Key */
+            key: string;
+            /** Name */
+            name: string;
         };
         /** CreateAgentVersionRequest */
         CreateAgentVersionRequest: {
@@ -1220,6 +1416,213 @@ export interface components {
         HTTPValidationError: {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
+        };
+        /** HarnessCapture */
+        HarnessCapture: {
+            /** Configuration Hash */
+            configuration_hash: string;
+            /** Cost Usd */
+            cost_usd?: number | null;
+            /** Harness Revision */
+            harness_revision: string;
+            /** Input Tokens */
+            input_tokens?: number | null;
+            /** Latency Ms */
+            latency_ms: number;
+            /** Model */
+            model: string;
+            /** Output Tokens */
+            output_tokens?: number | null;
+            /**
+             * Protocol
+             * @enum {string}
+             */
+            protocol: "chat" | "responses" | "anthropic";
+            /** Request */
+            request: {
+                [key: string]: unknown;
+            };
+            /** Request Id */
+            request_id: string;
+            /** Response */
+            response: {
+                [key: string]: unknown;
+            };
+            /**
+             * Schema Version
+             * @default 1
+             * @constant
+             */
+            schema_version: 1;
+            /** Session Id */
+            session_id: string;
+            /** Task Key */
+            task_key: string;
+        };
+        /** HarnessCaptureSummary */
+        HarnessCaptureSummary: {
+            /** Content Hash */
+            content_hash: string;
+            /** Id */
+            id: string;
+            /** Input Tokens */
+            input_tokens: number | null;
+            /** Model */
+            model: string;
+            /** Output Tokens */
+            output_tokens: number | null;
+            /** Partition */
+            partition: string;
+            /** Review */
+            review: string;
+            /** Session Id */
+            session_id: string;
+            /** Task Key */
+            task_key: string;
+        };
+        /** HarnessCaseResult */
+        HarnessCaseResult: {
+            /** Cost Usd */
+            cost_usd?: number | null;
+            /** Input Tokens */
+            input_tokens?: number | null;
+            /** Latency Ms */
+            latency_ms: number;
+            /** Output Tokens */
+            output_tokens?: number | null;
+            /** Repetition */
+            repetition: number;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "completed" | "error" | "timeout";
+            /** Task Key */
+            task_key: string;
+            /** Test Exit Code */
+            test_exit_code?: number | null;
+            /** Test Output Hash */
+            test_output_hash?: string | null;
+        };
+        /** HarnessReceipt */
+        HarnessReceipt: {
+            /** Content Hash */
+            content_hash: string;
+            /** Id */
+            id: string;
+        };
+        /** HarnessRun */
+        HarnessRun: {
+            /** Configuration Hash */
+            configuration_hash: string;
+            /** Harness Revision */
+            harness_revision: string;
+            /** Label */
+            label: string;
+            /** Model */
+            model: string;
+            /** Request Id */
+            request_id: string;
+            /** Results */
+            results: components["schemas"]["HarnessCaseResult"][];
+            /** Suite Id */
+            suite_id: string;
+        };
+        /** HarnessRunSummary */
+        HarnessRunSummary: {
+            /** Configuration Hash */
+            configuration_hash: string;
+            /** Content Hash */
+            content_hash: string;
+            /** Cost Usd */
+            cost_usd: number | null;
+            /** Failures */
+            failures: number;
+            /** Harness Revision */
+            harness_revision: string;
+            /** Id */
+            id: string;
+            /** Label */
+            label: string;
+            /** Mean Latency Ms */
+            mean_latency_ms: number;
+            /** Model */
+            model: string;
+            /** Pass Rate */
+            pass_rate: number;
+            /** Passed */
+            passed: number;
+            /** Suite Id */
+            suite_id: string;
+            /** Total */
+            total: number;
+        };
+        /** HarnessSuite */
+        HarnessSuite: {
+            /** Name */
+            name: string;
+            /**
+             * Repetitions
+             * @default 1
+             */
+            repetitions: number;
+            /** Task Keys */
+            task_keys: string[];
+        };
+        /** HarnessTask */
+        HarnessTask: {
+            /** Key */
+            key: string;
+            /**
+             * Partition
+             * @enum {string}
+             */
+            partition: "train" | "validation" | "benchmark";
+            /** Prompt */
+            prompt: string;
+            /**
+             * Repository Revision
+             * @default
+             */
+            repository_revision: string;
+            /** Test Command */
+            test_command?: string[];
+        };
+        /** HarnessTrainingExport */
+        HarnessTrainingExport: {
+            /** Content Hash */
+            content_hash: string;
+            /** Dataset Version Id */
+            dataset_version_id: string;
+            /** Train */
+            train: {
+                [key: string]: unknown;
+            }[];
+            /** Validation */
+            validation: {
+                [key: string]: unknown;
+            }[];
+        };
+        /** HarnessWorkspace */
+        HarnessWorkspace: {
+            /** Captures */
+            captures: components["schemas"]["HarnessCaptureSummary"][];
+            /** Harness */
+            harness: string;
+            /** Key */
+            key: string;
+            /** Name */
+            name: string;
+            /** Runs */
+            runs: components["schemas"]["HarnessRunSummary"][];
+            /** Suites */
+            suites: {
+                [key: string]: unknown;
+            }[];
+            /** System Id */
+            system_id: string;
+            /** Tasks */
+            tasks: components["schemas"]["HarnessTask"][];
         };
         /** ImportSource */
         ImportSource: {
@@ -2143,6 +2546,13 @@ export interface components {
             duplicate_count: number;
             /** Sample */
             sample: components["schemas"]["TrainingMessage"][];
+            /**
+             * Sample Tools
+             * @default []
+             */
+            sample_tools: {
+                [key: string]: unknown;
+            }[];
             /** Train Count */
             train_count: number;
             /** Validation Count */
@@ -2151,12 +2561,18 @@ export interface components {
         /** TrainingMessage */
         TrainingMessage: {
             /** Content */
-            content: string;
+            content?: string | null;
             /**
              * Role
              * @enum {string}
              */
-            role: "system" | "user" | "assistant";
+            role: "system" | "developer" | "user" | "assistant" | "tool";
+            /** Tool Call Id */
+            tool_call_id?: string | null;
+            /** Tool Calls */
+            tool_calls?: {
+                [key: string]: unknown;
+            }[] | null;
         };
         /** TrainingRuntime */
         TrainingRuntime: {
@@ -2978,6 +3394,341 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["EvalRunResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    connect_api_harnesses_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ConnectHarness"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HarnessWorkspace"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    workspace_api_harnesses__key__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                key: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HarnessWorkspace"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    capture_api_harnesses__key__captures_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                key: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["HarnessCapture"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HarnessReceipt"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    capture_detail_api_harnesses__key__captures__capture_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                key: string;
+                capture_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HarnessCapture"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    review_api_harnesses__key__captures__capture_id__review_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                key: string;
+                capture_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CaptureReview"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HarnessReceipt"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    run_api_harnesses__key__runs_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                key: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["HarnessRun"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HarnessReceipt"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    run_detail_api_harnesses__key__runs__run_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                key: string;
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HarnessRun"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    suite_api_harnesses__key__suites_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                key: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["HarnessSuite"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HarnessReceipt"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    task_api_harnesses__key__tasks_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                key: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["HarnessTask"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HarnessReceipt"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    training_export_api_harnesses__key__training_export_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                key: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HarnessTrainingExport"];
                 };
             };
             /** @description Validation Error */

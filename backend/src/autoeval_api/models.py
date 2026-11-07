@@ -405,3 +405,54 @@ class EvalItemResultRecord(Base):
     actual: Mapped[dict[str, Any]] = mapped_column(JSON)
     scores: Mapped[dict[str, Any]] = mapped_column(JSON)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+
+
+class HarnessTaskRecord(Base):
+    __tablename__ = "harness_tasks"
+    __table_args__ = (UniqueConstraint("agent_system_id", "key"),)
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    agent_system_id: Mapped[str] = mapped_column(ForeignKey("agent_systems.id"), index=True)
+    key: Mapped[str] = mapped_column(String(100))
+    content_hash: Mapped[str] = mapped_column(String(64))
+    document: Mapped[dict[str, Any]] = mapped_column(JSON)
+
+
+class HarnessCaptureRecord(Base):
+    __tablename__ = "harness_captures"
+    __table_args__ = (UniqueConstraint("agent_system_id", "request_id"),)
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    agent_system_id: Mapped[str] = mapped_column(ForeignKey("agent_systems.id"), index=True)
+    task_id: Mapped[str] = mapped_column(ForeignKey("harness_tasks.id"), index=True)
+    session_id: Mapped[str] = mapped_column(String(120), index=True)
+    context_hash: Mapped[str] = mapped_column(String(64), index=True)
+    provider_response_id: Mapped[str | None] = mapped_column(String(240), index=True, nullable=True)
+    request_id: Mapped[str] = mapped_column(String(120))
+    content_hash: Mapped[str] = mapped_column(String(64))
+    document: Mapped[dict[str, Any]] = mapped_column(JSON)
+    review: Mapped[str] = mapped_column(String(20), default="pending")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+
+
+class HarnessSuiteRecord(Base):
+    __tablename__ = "harness_suites"
+    __table_args__ = (UniqueConstraint("agent_system_id", "content_hash"),)
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    agent_system_id: Mapped[str] = mapped_column(ForeignKey("agent_systems.id"), index=True)
+    content_hash: Mapped[str] = mapped_column(String(64))
+    document: Mapped[dict[str, Any]] = mapped_column(JSON)
+
+
+class HarnessRunRecord(Base):
+    __tablename__ = "harness_runs"
+    __table_args__ = (UniqueConstraint("agent_system_id", "request_id"),)
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    agent_system_id: Mapped[str] = mapped_column(ForeignKey("agent_systems.id"), index=True)
+    suite_id: Mapped[str] = mapped_column(ForeignKey("harness_suites.id"), index=True)
+    request_id: Mapped[str] = mapped_column(String(120))
+    content_hash: Mapped[str] = mapped_column(String(64))
+    document: Mapped[dict[str, Any]] = mapped_column(JSON)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)

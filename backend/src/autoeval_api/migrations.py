@@ -951,6 +951,18 @@ def _apply_version_twelve(connection) -> None:
     )
 
 
+def _apply_version_thirteen(connection) -> None:
+    from autoeval_api.models import (
+        HarnessCaptureRecord,
+        HarnessRunRecord,
+        HarnessSuiteRecord,
+        HarnessTaskRecord,
+    )
+
+    for record in (HarnessTaskRecord, HarnessCaptureRecord, HarnessSuiteRecord, HarnessRunRecord):
+        record.__table__.create(connection, checkfirst=True)
+
+
 # Ordered by version: index 0 is version 1, and a version is recorded as applied
 # only after its function returns. Append new migrations; never reorder or edit
 # one that has shipped.
@@ -967,6 +979,7 @@ MIGRATIONS: tuple[Migration, ...] = (
     _apply_version_ten,
     _apply_version_eleven,
     _apply_version_twelve,
+    _apply_version_thirteen,
 )
 
 MIGRATION_VERSION = len(MIGRATIONS)
