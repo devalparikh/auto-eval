@@ -111,8 +111,8 @@ Rules:
 
 ## Layout patterns
 
-These five compositions cover nearly everything built so far. Reach for one
-before inventing a sixth.
+These compositions cover nearly everything built so far. Reach for one
+before inventing another.
 
 **The column.** `min(1120px, 100% - 4rem)` with vertical hairlines on both
 sides. Every section draws a full-bleed horizontal rule at its top via an
@@ -147,7 +147,26 @@ reflowing. Under 1100px the screen chooses one column or a stack.
 
 **The window.** Chrome with three dots, a centered breadcrumb pill, and
 right-aligned tools. Inside, a real layout at reduced scale. Never a
-screenshot: these are live DOM and they animate, which is the point.
+screenshot: these are live DOM and they animate, which is the point. The
+landing previews live in `features/landing/product-preview.tsx` with their own
+`preview.module.css`:
+
+- **The frame has one size per breakpoint.** Every step is laid out to fit it,
+  and two steps crossfade in the same box, so switching steps or playing a
+  scene never moves the page. Narrow frames drop panes through container
+  queries rather than growing.
+- **Narration sits under the window, never in it.** A caption carries the
+  step's sentence and the way forward. The window holds only product UI, so
+  nothing floats over it and hides content.
+- **The steps tell one story.** Connect the agent, open a run that failed a
+  check, save it as a test case, benchmark candidates on the locked dataset.
+  The same run, case, and numbers appear wherever the page mentions them.
+
+**The article.** The docs: a reading column of at most 720px with the page's
+sections on a sticky rail beside it, shown by a container query once there is
+room. Inside `/docs` the sidebar swaps a system's pages for the docs pages.
+`features/docs/docs-pages.ts` is the one registry for the sidebar, the rail,
+the pager, and search; a test holds each page's headings to it.
 
 ## Motion
 
@@ -240,6 +259,14 @@ creates waiting.
 - **Answer the click before the route.** Highlight the destination on click, and
   show a cached screen immediately while it refreshes (`useApiResource`'s
   `cacheKey`). A skeleton waits 140ms, so a fast response never shows one.
+- **A page switch is instant.** No entrance animation on a route: it paints at
+  full strength the moment it commits. Sidebar links prefetch the full page,
+  and `staleTimes.dynamic` keeps a visited page for five minutes, so a revisit
+  skips the server. Pages are thin shells whose screens fetch their own data,
+  which is what makes caching the shell safe. The active row and a pressed row
+  change in the same frame; only leaving eases. In development every route
+  compiles on first visit and nothing prefetches, so judge speed on a
+  production build.
 
 ## Data visualization
 
@@ -260,15 +287,21 @@ it literally.
 
 - **Show the real topology.** An early graph forked into two parallel branches
   for no reason and immediately drew the question "why would it fork like
-  that?" It became one honest path: input → deterministic step → live fetch →
-  model → check.
-- **Type every node and color by type**, with the same colors the app uses.
+  that?" It became one honest path: normalize (logic) → retrieve (live data) →
+  generate (model) → format (logic).
+- **Keep scoring off the graph.** Scoring entries run on a run's output; they
+  are not nodes. Show their results beside the graph, not as a last step in it.
+- **Type every node and color by type**, with the same colors the app uses. As
+  on the app's node card, the color sits on the icon and type label; the card
+  edge stays neutral.
 - **Attach the interesting mechanism to the node that owns it.** The snapshot
-  tag hangs off the live-fetch node and moves from pending, to capturing, to
+  tag hangs off the retrieve node and moves from pending, to capturing, to
   frozen as the run passes through.
 - **Fill dead canvas with real content.** A large empty area under a diagram
-  reads as unfinished. Ours became a step-output panel that follows the
-  selected node.
+  reads as unfinished. Ours became a node inspector and a timing waterfall
+  that follow the selected node.
+- **Code must be real code.** The plugin file in a preview has the shape of a
+  real `plugin.py`, because the reader will copy what it shows.
 
 ## Components
 
@@ -377,6 +410,10 @@ these are the ones that actually got shipped wrong.
 | Clicking a graph node "feels off" | Node objects rebuilt on select; clicks start a pan | Selection in context; `nopan` on the card |
 | Hover shadow looks stepped | Animating `box-shadow` | Fade a pre-rendered pseudo-element |
 | A screen stuck on its skeleton | Store update landed between render and subscribe | `useSyncExternalStore`, not `useEffect` |
+| The landing page jumped every few seconds | Each preview step a different height, rows appearing mid-scene | One frame size per breakpoint; render late rows and reveal them |
+| Gaps in the middle of mock code | A code line as a flex row makes every text node an item | Block line; the line number is `inline-block` |
+| A preview "said two things" | The trace passed a check that the dataset step said it failed | One sample story, the same numbers on every surface |
+| Page switches felt slow | A fade-in on every route, a server round trip per click | No route entrance, full prefetch, cached dynamic pages |
 
 ## Checklist before shipping a surface
 

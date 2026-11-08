@@ -1,8 +1,9 @@
 "use client";
 
-import { useInView, useReducedMotion } from "motion/react";
+import { useInView } from "motion/react";
 import { useRef, type ReactNode } from "react";
 
+import { usePrefersReducedMotion } from "@/features/landing/landing-motion";
 import styles from "@/features/landing/landing.module.css";
 
 export type HighlightTone = "coral" | "green" | "blue" | "sand" | "slate";
@@ -28,7 +29,7 @@ export function Highlight({
   tone?: HighlightTone;
 }) {
   const ref = useRef<HTMLSpanElement>(null);
-  const reduceMotion = useReducedMotion();
+  const reduceMotion = usePrefersReducedMotion();
   const inView = useInView(ref, { once: true, amount: 0.6 });
 
   return (

@@ -1,0 +1,844 @@
+/* The article: one reading column with an "on this page" rail beside it.
+   The rail appears only when the content area, not the window, has room for
+   both, so a wide window with the sidebar open behaves like a narrow one. */
+.docs {
+  container-type: inline-size;
+  padding: 0 var(--page-gutter) 96px;
+}
+
+.layout {
+  display: grid;
+  max-width: 1040px;
+  grid-template-columns: minmax(0, 1fr);
+  margin: 0 auto;
+}
+
+.article {
+  min-width: 0;
+  max-width: 720px;
+}
+
+.toc {
+  display: none;
+}
+
+@container (min-width: 960px) {
+  .layout {
+    grid-template-columns: minmax(0, 720px) 196px;
+    justify-content: space-between;
+    column-gap: 56px;
+  }
+
+  .toc {
+    position: sticky;
+    top: 0;
+    display: block;
+    max-height: 100dvh;
+    overflow-y: auto;
+    padding: 46px 0 32px;
+    scrollbar-width: none;
+  }
+}
+
+/* Header */
+
+.header {
+  padding: 40px 0 8px;
+}
+
+.eyebrow {
+  margin: 0;
+  color: var(--text-faint);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.header h1 {
+  margin: 14px 0 0;
+  font-family: var(--font-host-grotesk), var(--font-body);
+  font-size: clamp(28px, 3.4vw, 36px);
+  font-weight: 500;
+  letter-spacing: -0.04em;
+  line-height: 1.08;
+}
+
+.lead {
+  max-width: 62ch;
+  margin: 14px 0 0;
+  color: var(--text-muted);
+  font-size: 15px;
+  line-height: 1.65;
+  text-wrap: pretty;
+}
+
+/* Prose */
+
+.section {
+  padding-top: 44px;
+}
+
+.heading {
+  position: relative;
+  margin: 0;
+  scroll-margin-top: 28px;
+  font-family: var(--font-host-grotesk), var(--font-body);
+  font-size: 21px;
+  font-weight: 500;
+  letter-spacing: -0.03em;
+  line-height: 1.25;
+}
+
+.anchor {
+  margin-left: 10px;
+  color: var(--text-faint);
+  font-weight: 400;
+  opacity: 0;
+  text-decoration: none;
+  transition: opacity var(--hover-out) ease;
+}
+
+.heading:hover .anchor,
+.anchor:focus-visible {
+  opacity: 1;
+  transition-duration: var(--hover-in);
+}
+
+.anchor:hover {
+  color: var(--text);
+}
+
+.article h3 {
+  margin: 28px 0 0;
+  font-size: 15px;
+  font-weight: 500;
+  letter-spacing: -0.015em;
+}
+
+.article p,
+.article li {
+  color: var(--text-muted);
+  font-size: 14px;
+  line-height: 1.7;
+  text-wrap: pretty;
+}
+
+.article p {
+  max-width: 68ch;
+  margin: 12px 0 0;
+}
+
+.article strong {
+  color: var(--text);
+  font-weight: 500;
+}
+
+.article :where(p, li, td) a {
+  color: var(--text);
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, var(--text) 32%, transparent);
+  text-underline-offset: 4px;
+  transition:
+    color var(--hover-out) ease,
+    text-decoration-color var(--hover-out) ease;
+}
+
+.article :where(p, li, td) a:hover {
+  color: var(--accent);
+  text-decoration-color: currentColor;
+  transition-duration: var(--hover-in);
+}
+
+.article :where(p, li, td) code {
+  border-radius: 6px;
+  background: var(--card-inset);
+  color: var(--text);
+  padding: 1px 5px;
+  font-family: var(--font-mono);
+  font-size: 0.86em;
+  overflow-wrap: anywhere;
+}
+
+.article ul {
+  display: grid;
+  max-width: 68ch;
+  gap: 6px;
+  margin: 12px 0 0;
+  padding-left: 18px;
+  list-style: disc;
+}
+
+.article ul li::marker {
+  color: var(--text-faint);
+}
+
+.external {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+/* Numbered steps: the number is data, so it is mono and sits in a quiet chip. */
+.steps {
+  display: grid;
+  max-width: 68ch;
+  gap: 14px;
+  margin: 16px 0 0;
+  padding: 0;
+  counter-reset: step;
+  list-style: none;
+}
+
+.steps > li {
+  position: relative;
+  padding-left: 36px;
+  counter-increment: step;
+}
+
+.steps > li::before {
+  position: absolute;
+  top: 1px;
+  left: 0;
+  display: grid;
+  width: 22px;
+  height: 22px;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--card-inset);
+  color: var(--text);
+  content: counter(step);
+  font-family: var(--font-mono);
+  font-size: 10px;
+}
+
+/* Tables */
+
+.tableWrap {
+  max-width: 100%;
+  margin: 18px 0 0;
+  overflow-x: auto;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.table th {
+  color: var(--text-faint);
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  font-weight: 400;
+  letter-spacing: 0.1em;
+  text-align: left;
+  text-transform: uppercase;
+}
+
+.table th,
+.table td {
+  padding: 11px 16px 11px 0;
+  border-bottom: 1px solid var(--border);
+  line-height: 1.65;
+  vertical-align: top;
+}
+
+.table td {
+  color: var(--text-muted);
+}
+
+.table td:first-child {
+  color: var(--text);
+  white-space: nowrap;
+}
+
+.table td:first-child code {
+  background: none;
+  padding: 0;
+}
+
+/* Callouts are flat panels; the tone lives on the icon alone. */
+.callout {
+  display: flex;
+  max-width: 68ch;
+  align-items: flex-start;
+  gap: 12px;
+  margin: 18px 0 0;
+  border-radius: var(--radius-inset);
+  background: var(--card-inset);
+  padding: 14px 16px;
+}
+
+.callout > svg {
+  flex: 0 0 auto;
+  margin-top: 3px;
+  color: var(--text-muted);
+}
+
+.callout[data-tone="warning"] > svg {
+  color: var(--warning);
+}
+
+.callout p {
+  margin: 0;
+  font-size: 13px;
+}
+
+/* Code */
+
+.codeBlock {
+  min-width: 0;
+  margin: 18px 0 0;
+  border-radius: var(--radius-inset);
+  background: var(--card-inset);
+}
+
+.codeHead {
+  display: flex;
+  min-height: 38px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 8px 0 16px;
+  color: var(--text-faint);
+  font-family: var(--font-mono);
+  font-size: 10px;
+}
+
+.copy {
+  display: inline-flex;
+  min-height: 26px;
+  align-items: center;
+  gap: 6px;
+  border-radius: 8px;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 0 8px;
+  font-family: var(--font-body);
+  font-size: 11px;
+  transition:
+    background-color var(--hover-out) ease,
+    color var(--hover-out) ease;
+}
+
+.copy:hover {
+  background: var(--shell-hover);
+  color: var(--text);
+  transition-duration: var(--hover-in);
+}
+
+.copy[data-copied="true"] {
+  color: var(--success);
+}
+
+.codeBlock pre {
+  max-width: 100%;
+  margin: 0;
+  overflow: auto;
+  padding: 2px 16px 16px;
+  color: var(--text);
+  font: 11.5px/1.75 var(--font-mono);
+}
+
+.codeBlock pre:focus-visible {
+  border-radius: var(--radius-inset);
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.codeDetails summary {
+  cursor: pointer;
+  padding: 0 16px 14px;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.codeDetails summary:hover {
+  color: var(--text);
+}
+
+.codeNote {
+  margin: 0;
+  padding: 0 16px 14px;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin: 20px 0 0;
+}
+
+/* Cards that send the reader on. Flat, like every card in the app. */
+.cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 10px;
+  margin: 18px 0 0;
+}
+
+.card {
+  display: grid;
+  align-content: start;
+  gap: 6px;
+  border-radius: var(--radius-inset);
+  background: var(--card);
+  padding: 16px 18px 18px;
+  text-decoration: none;
+}
+
+.card > svg {
+  margin-bottom: 6px;
+  color: var(--text-muted);
+  transition: color var(--hover-out) ease;
+}
+
+.card:hover > svg {
+  color: var(--text);
+  transition-duration: var(--hover-in);
+}
+
+.card strong {
+  color: var(--text);
+  font-size: 13.5px;
+  font-weight: 500;
+}
+
+.card span {
+  color: var(--text-muted);
+  font-size: 12.5px;
+  line-height: 1.6;
+}
+
+/* The loop on the overview, numbered like the app's workflow cards. */
+.loop {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 10px;
+  margin: 18px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.loop > li {
+  display: grid;
+  align-content: start;
+  gap: 6px;
+  border-radius: var(--radius-inset);
+  background: var(--card);
+  padding: 14px 16px 16px;
+}
+
+.loop > li > span {
+  color: var(--text-faint);
+  font-family: var(--font-mono);
+  font-size: 10px;
+}
+
+.loop > li > strong {
+  font-size: 13.5px;
+}
+
+.loop > li > p {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.6;
+}
+
+/* Previous and next */
+
+.pager {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin: 64px 0 0;
+  border-top: 1px solid var(--border);
+  padding-top: 24px;
+}
+
+.pagerLink {
+  display: grid;
+  gap: 4px;
+  border-radius: var(--radius-inset);
+  background: var(--card);
+  padding: 14px 18px 16px;
+  text-decoration: none;
+}
+
+.pagerLink[data-direction="next"] {
+  grid-column: 2;
+  justify-items: end;
+  text-align: right;
+}
+
+.pagerLink > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-faint);
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.pagerLink > strong {
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.pagerLink > span svg {
+  transition: transform var(--hover-out) var(--ease-settle);
+}
+
+.pagerLink:hover > span svg {
+  transition-duration: var(--hover-in);
+}
+
+.pagerLink[data-direction="previous"]:hover > span svg {
+  transform: translateX(-2px);
+}
+
+.pagerLink[data-direction="next"]:hover > span svg {
+  transform: translateX(2px);
+}
+
+/* On this page. One marker glides along the track to the section in view. */
+.tocLabel {
+  margin: 0 0 12px;
+  color: var(--text-faint);
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.tocList {
+  position: relative;
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tocList::before {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 1px;
+  background: var(--border);
+  content: "";
+}
+
+.tocLink {
+  position: relative;
+  display: block;
+  padding: 5px 0 5px 14px;
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.45;
+  text-decoration: none;
+  transition: color 200ms ease;
+}
+
+.tocLink:hover,
+.tocLink[aria-current="location"] {
+  color: var(--text);
+}
+
+.tocMarker {
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  left: 0;
+  width: 1px;
+  background: var(--text);
+}
+
+.tocTop {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 18px;
+  color: var(--text-faint);
+  font-size: 11.5px;
+  text-decoration: none;
+  transition: color 200ms ease;
+}
+
+.tocTop:hover {
+  color: var(--text);
+}
+
+/* The import walkthrough: a step list beside a small scene. */
+.walkthrough {
+  display: grid;
+  grid-template-columns: 210px minmax(0, 1fr);
+  gap: 12px;
+  margin: 18px 0 0;
+}
+
+.walkSteps {
+  display: grid;
+  align-content: start;
+  gap: 2px;
+}
+
+.walkSteps button {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  border-radius: 14px;
+  cursor: pointer;
+  padding: 12px 14px;
+  text-align: left;
+}
+
+.walkPill {
+  position: absolute;
+  z-index: 0;
+  inset: 0;
+  background: var(--card);
+  pointer-events: none;
+}
+
+.walkIndex,
+.walkCopy {
+  position: relative;
+  z-index: 1;
+}
+
+.walkIndex {
+  color: var(--text-faint);
+  font: 10px/1.9 var(--font-mono);
+  transition: color 200ms ease;
+}
+
+.walkSteps button[aria-pressed="true"] .walkIndex {
+  color: var(--text);
+}
+
+.walkSteps strong {
+  display: block;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.walkSteps small {
+  display: block;
+  margin-top: 3px;
+  color: var(--text-muted);
+  font-size: 11.5px;
+  line-height: 1.5;
+}
+
+.walkSteps button:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.scene {
+  min-width: 0;
+  overflow: hidden;
+  border-radius: var(--radius-inset);
+  background: var(--card);
+}
+
+.sceneChrome {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border-bottom: 1px solid var(--border);
+  padding: 12px 18px;
+  color: var(--text-faint);
+  font: 10px var(--font-mono);
+}
+
+.sceneBody {
+  display: grid;
+  min-height: 300px;
+  align-content: center;
+  gap: 14px;
+  padding: 22px;
+}
+
+.sceneBody h3 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+}
+
+.sceneBody p {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.7;
+}
+
+.fileTree {
+  display: grid;
+  gap: 10px;
+  border-radius: 12px;
+  background: var(--card-inset);
+  padding: 18px;
+  font: 11px/1.7 var(--font-mono);
+}
+
+.fileTree > span {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.fileTree > span:not(:first-child) {
+  padding-left: 24px;
+  color: var(--text-muted);
+}
+
+.fileTree > span:last-child {
+  color: var(--accent);
+}
+
+.miniGraph {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 0;
+}
+
+.miniGraph > svg {
+  flex-shrink: 0;
+  color: var(--text-faint);
+}
+
+.miniNode {
+  min-width: 0;
+  flex: 1;
+  border-radius: 12px;
+  background: var(--card-inset);
+  padding: 12px 10px;
+}
+
+.miniNode small {
+  display: block;
+  margin-bottom: 8px;
+  color: var(--text-muted);
+  font: 9px var(--font-mono);
+}
+
+.miniNode strong {
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.miniNode[data-kind="llm"] {
+  background: var(--accent-soft);
+}
+
+.miniNode[data-kind="llm"] small {
+  color: var(--accent);
+}
+
+.pinRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border-bottom: 1px solid var(--border);
+  padding: 12px 0;
+  font-size: 11.5px;
+}
+
+.pinRow svg {
+  color: var(--success);
+}
+
+.pinRow code {
+  margin-left: auto;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+}
+
+/* Models configured for LM Studio, read live from the catalog. */
+.configured {
+  display: grid;
+  gap: 8px;
+  margin: 18px 0 0;
+  border-radius: var(--radius-inset);
+  background: var(--card-inset);
+  padding: 14px 16px;
+}
+
+.configuredHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.configuredHead p {
+  margin: 0;
+  font-size: 12.5px;
+}
+
+.configured ul {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.configured li {
+  color: var(--text);
+  font: 11.5px var(--font-mono);
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 780px) {
+  .heading {
+    scroll-margin-top: 64px;
+  }
+
+  .header {
+    padding-top: 24px;
+  }
+}
+
+@media (max-width: 640px) {
+  .walkthrough {
+    grid-template-columns: 1fr;
+  }
+
+  .walkSteps {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .walkSteps small {
+    display: none;
+  }
+
+  .miniGraph {
+    gap: 4px;
+  }
+
+  .miniNode strong {
+    font-size: 10px;
+  }
+
+  .pager {
+    grid-template-columns: 1fr;
+  }
+
+  .pagerLink[data-direction="next"] {
+    grid-column: 1;
+  }
+}

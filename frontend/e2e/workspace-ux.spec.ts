@@ -178,8 +178,20 @@ test("selecting a graph node does not pan or re-measure the canvas", async ({
   const viewport = graph.locator(".react-flow__viewport");
   const transform = () =>
     viewport.evaluate((element) => getComputedStyle(element).transform);
-  await page.waitForTimeout(300);
-  const before = await transform();
+  // Wait for the initial fit to settle: under load it can still be easing a
+  // fraction of a pixel after a fixed wait, which read as a pan.
+  let before = await transform();
+  await expect
+    .poll(
+      async () => {
+        const now = await transform();
+        const settled = now === before;
+        before = now;
+        return settled;
+      },
+      { intervals: [200] },
+    )
+    .toBe(true);
 
   // A real click drifts a few pixels between press and release.
   const node = graph.locator(".react-flow__node").nth(1);
@@ -347,7 +359,10 @@ test("the command menu finds pages and traces and runs actions", async ({
   await expect(html).not.toHaveAttribute("data-theme", before ?? "");
 
   // It also opens on the landing page, without calling the API until then.
+  // The shortcut is a client listener, so a press before hydration is lost;
+  // the landing page makes no requests of its own once its code has loaded.
   await page.goto("/");
+  await page.waitForLoadState("networkidle");
   await page.keyboard.press("ControlOrMeta+k");
   await expect(input).toBeFocused();
   await page.keyboard.press("Escape");

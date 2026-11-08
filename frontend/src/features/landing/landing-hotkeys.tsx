@@ -13,7 +13,7 @@ function isTypingTarget(target: EventTarget | null) {
 
 /**
  * Single-key shortcuts that mirror the kbd chips on the landing buttons:
- * B opens the app, W scrolls to the workflow, G opens the repository.
+ * B opens the app, D opens the docs, G opens the repository.
  */
 export function LandingHotkeys() {
   const router = useRouter();
@@ -28,11 +28,9 @@ export function LandingHotkeys() {
           event.preventDefault();
           router.push("/systems");
           break;
-        case "w":
+        case "d":
           event.preventDefault();
-          document
-            .getElementById("workflow")
-            ?.scrollIntoView({ behavior: "smooth", block: "start" });
+          router.push("/docs");
           break;
         case "g":
           event.preventDefault();

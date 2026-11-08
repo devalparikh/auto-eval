@@ -5,7 +5,7 @@ This guide names the smallest edit surface for each common extension. Start at t
 ## Add an agent system
 
 For a portable graph or a manifest-based revision, start with
-[agent-onboarding.md](agent-onboarding.md) and the in-app `/guide`. The import
+[agent-onboarding.md](agent-onboarding.md) and the in-app docs at `/docs/import`. The import
 flow validates existing handlers and creates immutable graph/prompt versions.
 The code-level route below supplies custom behavior that a manifest cannot.
 

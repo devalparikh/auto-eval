@@ -1,12 +1,6 @@
-import {
-  ChartBarIcon,
-  DatabaseIcon,
-  GitBranchIcon,
-  GithubLogoIcon,
-  PulseIcon,
-  ShieldCheckIcon,
-} from "@phosphor-icons/react/dist/ssr";
+import { GithubLogoIcon } from "@phosphor-icons/react/dist/ssr";
 import Link from "next/link";
+import type { ReactNode } from "react";
 
 import { DottedText } from "@/components/dotted-text";
 import {
@@ -23,18 +17,24 @@ import { Highlight } from "@/features/landing/landing-highlight";
 import { LandingHotkeys } from "@/features/landing/landing-hotkeys";
 import { LandingReveal } from "@/features/landing/landing-reveal";
 import { StepMark } from "@/features/landing/step-marks";
-import { ProductPreview } from "@/features/landing/product-preview";
+import {
+  BenchmarkPreview,
+  ProductPreview,
+} from "@/features/landing/product-preview";
 import { TraceWaterfall } from "@/features/landing/trace-waterfall";
 import styles from "@/features/landing/landing.module.css";
 
 const GITHUB_URL = "https://github.com/devalparikh/auto-eval";
+// Seeded on first start with a finalized dataset, a trace, and a finished
+// benchmark, so these links always land on something real.
+const SAMPLE_SYSTEM = "/systems/incident-triage";
 
 const steps = [
   {
     index: "01",
-    title: "Import your agent",
+    title: "Connect your agent",
     description:
-      "Register your graph, handlers, and scoring from one manifest.",
+      "One manifest describes the graph. A plugin adds custom handlers and scoring.",
   },
   {
     index: "02",
@@ -58,9 +58,9 @@ const steps = [
 
 const integrationCards = [
   {
-    title: "The manifest names the system",
+    title: "One plugin registers the system",
     description:
-      "One file declares the system key, default model, and where the graph and handlers live. AutoEval discovers the rest.",
+      "One file declares the system key, default models, and the package that holds the graph and handlers. AutoEval derives the rest.",
     visual: <ManifestVisual />,
   },
   {
@@ -78,7 +78,7 @@ const integrationCards = [
   {
     title: "Trace policy decides what persists",
     description:
-      "Choose what is redacted, what is stored, and what never leaves the machine. Provider keys stay in the backend environment.",
+      "Choose what is redacted, what is stored, and what never leaves the machine.",
     visual: <PolicyVisual />,
   },
 ];
@@ -110,35 +110,56 @@ const provenanceCards = [
   },
 ];
 
-const faqs = [
-  [
-    "Do I need an API key?",
-    "Not to start. The included agents run on mock models. Add an OpenRouter key for hosted models, or LM Studio for local ones.",
-  ],
-  [
-    "Can I compare graph versions as well as models?",
-    "Yes. Select any mix of graph versions and models on one finalized dataset. Results show the change in accuracy, cost, and latency against the earliest version.",
-  ],
-  [
-    "Can I benchmark my own fine-tuned model?",
-    "Yes, through LM Studio. Load the model, list it in LM_STUDIO_MODELS, and it appears beside hosted models.",
-  ],
-  [
-    "Can I fine-tune a model in AutoEval?",
-    "Yes, on Apple Silicon. Custom models fine-tunes a base model on a finalized dataset and produces a downloadable adapter. Adapters cannot be selected in a benchmark yet.",
-  ],
-  [
-    "Do I need a specific agent framework?",
-    "No. Add a code integration with your graph, handlers, scoring, and trace rules. AutoEval runs what you register.",
-  ],
-  [
-    "Can a finalized dataset change?",
-    "No. Each evaluation also records the exact graph, prompt, model, and snapshots it used, so every result traces back to what ran.",
-  ],
-  [
-    "Is AutoEval hosted?",
-    "No. It runs locally for one user with no authentication. Keep both services on loopback.",
-  ],
+const faqs: { question: string; answer: ReactNode }[] = [
+  {
+    question: "Do I need an API key?",
+    answer: (
+      <>
+        Not to start. The sample agents run on mock models. Set{" "}
+        <code>OPENROUTER_API_KEY</code> for hosted models, or connect LM Studio
+        for local ones.
+      </>
+    ),
+  },
+  {
+    question: "Do I need a specific agent framework?",
+    answer:
+      "No. Describe your graph in one manifest, or add a plugin for custom handlers and scoring. Graphs must be acyclic for now, with no loops or conditional edges.",
+  },
+  {
+    question: "Can I compare graph versions as well as models?",
+    answer:
+      "Yes. Select any mix of graph versions and models on one finalized dataset. Results show the change in accuracy, cost, and latency against the earliest version.",
+  },
+  {
+    question: "Can I benchmark my own fine-tuned model?",
+    answer: (
+      <>
+        Yes, through LM Studio. Load the model, list it in{" "}
+        <code>LM_STUDIO_MODELS</code>, and it appears beside hosted models.
+      </>
+    ),
+  },
+  {
+    question: "Can I fine-tune a model in AutoEval?",
+    answer:
+      "Yes, on Apple Silicon. Custom models trains a LoRA adapter on a finalized dataset, ready to download. Adapters can't be picked in a benchmark yet.",
+  },
+  {
+    question: "Can a finalized dataset change?",
+    answer:
+      "No. You start a new draft version instead. Each evaluation also records the exact graph, prompt, model, and snapshots it used, so every result traces back to what ran.",
+  },
+  {
+    question: "Is AutoEval hosted?",
+    answer: (
+      <>
+        No. It runs on your machine for one user, with no authentication, so
+        keep both services on loopback. Setup takes a few commands; the{" "}
+        <Link href="/docs/quickstart">quickstart</Link> lists them.
+      </>
+    ),
+  },
 ];
 
 const footerColumns = [
@@ -155,9 +176,10 @@ const footerColumns = [
   {
     heading: "Resources",
     links: [
+      ["Docs", "/docs"],
+      ["Quickstart", "/docs/quickstart"],
       ["GitHub", GITHUB_URL],
       ["Architecture", `${GITHUB_URL}/blob/main/docs/architecture.md`],
-      ["Extension guide", `${GITHUB_URL}/blob/main/docs/extension-guide.md`],
       [
         "Security notes",
         `${GITHUB_URL}/blob/main/docs/code-security-review.md`,
@@ -189,7 +211,8 @@ export function LandingScreen() {
                 and latency.
               </p>
               <p className={styles.actionNote}>
-                Runs locally. Included agents need no API key.
+                Runs on your machine. No sign-up, and the sample agents need no
+                API key.
               </p>
             </LandingReveal>
             <LandingReveal mode="load" delay={0.16} className={styles.actions}>
@@ -200,10 +223,10 @@ export function LandingScreen() {
               >
                 start benchmarking <kbd aria-hidden="true">B</kbd>
               </Link>
-              <a href="#workflow" className={styles.secondaryAction}>
-                <span aria-hidden="true">›</span> see the workflow{" "}
-                <kbd aria-hidden="true">W</kbd>
-              </a>
+              <Link href="/docs" className={styles.secondaryAction}>
+                <span aria-hidden="true">›</span> read the docs{" "}
+                <kbd aria-hidden="true">D</kbd>
+              </Link>
             </LandingReveal>
           </div>
         </section>
@@ -213,19 +236,8 @@ export function LandingScreen() {
           <span className={styles.ticks} aria-hidden="true" />
           <div className={styles.bandInner}>
             <LandingReveal className={styles.previewPlacement} delay={0.1}>
-              <ProductPreview variant="desktop" />
+              <ProductPreview />
             </LandingReveal>
-          </div>
-        </div>
-
-        <div className={styles.strip} aria-label="What AutoEval covers">
-          <span>Evaluation workbench for agent systems</span>
-          <div className={styles.stripIcons} aria-hidden="true">
-            <GitBranchIcon size={15} weight="regular" />
-            <PulseIcon size={15} weight="regular" />
-            <DatabaseIcon size={15} weight="regular" />
-            <ChartBarIcon size={15} weight="regular" />
-            <ShieldCheckIcon size={15} weight="regular" />
           </div>
         </div>
 
@@ -236,7 +248,6 @@ export function LandingScreen() {
           aria-labelledby="workflow-title"
         >
           <LandingReveal className={styles.sectionHead}>
-            <span className={styles.eyebrow}>The loop</span>
             <h2 id="workflow-title">
               One run becomes
               <br />
@@ -247,8 +258,8 @@ export function LandingScreen() {
               and runtime data are locked, so every model and graph version
               faces the same test.
             </p>
-            <Link href="/systems" className={styles.textLink}>
-              <span aria-hidden="true">›</span> try an included agent
+            <Link href={`${SAMPLE_SYSTEM}/run`} className={styles.textLink}>
+              <span aria-hidden="true">›</span> run a sample agent
             </Link>
           </LandingReveal>
         </section>
@@ -257,7 +268,7 @@ export function LandingScreen() {
           {steps.map((step, index) => (
             <li key={step.index} className={styles.step}>
               <LandingReveal delay={index * 0.06} className={styles.stepInner}>
-                <span className={styles.eyebrow}>Step {step.index}</span>
+                <span className={styles.stepIndex}>{step.index}</span>
                 <StepMark index={index} />
                 <h3>{step.title}</h3>
                 <p>{step.description}</p>
@@ -273,7 +284,6 @@ export function LandingScreen() {
           aria-labelledby="trace-title"
         >
           <LandingReveal className={styles.sectionHead}>
-            <span className={styles.eyebrow}>Trace inspection</span>
             <h2 id="trace-title">
               See what the agent did
               <br />
@@ -284,7 +294,7 @@ export function LandingScreen() {
               tokens, cost, and timing. Failures keep the context that caused
               them.
             </p>
-            <Link href="/systems" className={styles.textLink}>
+            <Link href={`${SAMPLE_SYSTEM}/traces`} className={styles.textLink}>
               <span aria-hidden="true">›</span> inspect a sample trace
             </Link>
           </LandingReveal>
@@ -306,7 +316,6 @@ export function LandingScreen() {
           aria-labelledby="modular-title"
         >
           <LandingReveal className={styles.sectionHead}>
-            <span className={styles.eyebrow}>Bring your own agent</span>
             <h2 id="modular-title">
               Use the agent
               <br />
@@ -316,14 +325,9 @@ export function LandingScreen() {
               Your package owns the graph and the domain logic. AutoEval runs it
               and records the trace. No framework to adopt.
             </p>
-            <a
-              href={`${GITHUB_URL}/blob/main/docs/extension-guide.md`}
-              className={styles.textLink}
-              target="_blank"
-              rel="noreferrer"
-            >
-              <span aria-hidden="true">›</span> read the extension guide
-            </a>
+            <Link href="/docs/import" className={styles.textLink}>
+              <span aria-hidden="true">›</span> how to connect your agent
+            </Link>
           </LandingReveal>
           <div className={styles.cardGrid}>
             {integrationCards.map((card, index) => (
@@ -351,7 +355,6 @@ export function LandingScreen() {
           aria-labelledby="compare-title"
         >
           <LandingReveal className={styles.sectionHead}>
-            <span className={styles.eyebrow}>Benchmarks</span>
             <h2 id="compare-title">
               Benchmark every change
               <br />
@@ -359,11 +362,11 @@ export function LandingScreen() {
             </h2>
             <p>
               Run a finalized dataset across models and graph versions,
-              including your own local fine-tunes. See what improved, what
-              regressed, and what it cost.
+              including your own fine-tunes served through LM Studio. See what
+              improved, what regressed, and what it cost.
             </p>
-            <Link href="/systems" className={styles.textLink}>
-              <span aria-hidden="true">›</span> start a benchmark
+            <Link href={`${SAMPLE_SYSTEM}/results`} className={styles.textLink}>
+              <span aria-hidden="true">›</span> see sample results
             </Link>
           </LandingReveal>
         </section>
@@ -372,12 +375,7 @@ export function LandingScreen() {
           <span className={styles.ticks} aria-hidden="true" />
           <div className={styles.bandInner}>
             <LandingReveal className={styles.previewPlacement} delay={0.08}>
-              <ProductPreview
-                initialStage="evaluate"
-                label="Interactive benchmark preview"
-                tablistLabel="Benchmark workflow steps"
-                idPrefix="model-comparison"
-              />
+              <BenchmarkPreview />
             </LandingReveal>
           </div>
         </div>
@@ -389,7 +387,6 @@ export function LandingScreen() {
           aria-labelledby="provenance-title"
         >
           <LandingReveal className={styles.sectionHead}>
-            <span className={styles.eyebrow}>Provenance</span>
             <h2 id="provenance-title">
               Every result points back
               <br />
@@ -427,12 +424,13 @@ export function LandingScreen() {
           aria-labelledby="faq-title"
         >
           <LandingReveal className={styles.faqTitle}>
-            <span className={styles.eyebrow}>Questions</span>
             <h2 id="faq-title">FAQs.</h2>
-            <p>Everything else lives in the repository docs.</p>
+            <p>
+              Everything else is in the <Link href="/docs">docs</Link>.
+            </p>
           </LandingReveal>
           <LandingReveal delay={0.06} className={styles.faqList}>
-            {faqs.map(([question, answer], index) => (
+            {faqs.map(({ question, answer }, index) => (
               <details
                 key={question}
                 className={styles.faqItem}
@@ -494,28 +492,22 @@ export function LandingScreen() {
             <div key={column.heading} className={styles.footerColumn}>
               <span className={styles.eyebrow}>{column.heading}</span>
               <ul>
-                {column.links.map(([label, href]) =>
-                  href.startsWith("http") ? (
-                    <li key={label}>
+                {column.links.map(([label, href]) => (
+                  <li key={label}>
+                    {href.startsWith("http") ? (
                       <a href={href} target="_blank" rel="noreferrer">
                         {label}
                       </a>
-                    </li>
-                  ) : (
-                    <li key={label}>
+                    ) : href.startsWith("#") ? (
                       <a href={href}>{label}</a>
-                    </li>
-                  ),
-                )}
+                    ) : (
+                      <Link href={href}>{label}</Link>
+                    )}
+                  </li>
+                ))}
               </ul>
             </div>
           ))}
-          <div className={styles.footerMeta}>
-            <span>Single user · no authentication · loopback only</span>
-            <span className={styles.footerStatus}>
-              <i aria-hidden="true" /> runs locally
-            </span>
-          </div>
         </footer>
       </div>
     </div>

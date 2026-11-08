@@ -114,6 +114,32 @@ test("keeps the marketing navigation and desktop preview interactive", async ({
   ).toHaveAttribute("aria-selected", "true");
 });
 
+test("keeps the landing preview one size through every step", async ({
+  page,
+}) => {
+  for (const width of [1280, 390]) {
+    await page.setViewportSize({ width, height: 820 });
+    await page.goto("/");
+    const preview = page.getByLabel("Interactive AutoEval workflow");
+    const tabs = page.getByRole("tablist", { name: "AutoEval workflow steps" });
+    const sizes = new Set<string>();
+    for (const name of ["Connect", "Trace", "Save", "Compare"]) {
+      await tabs.getByRole("tab", { name, exact: true }).click();
+      // Long enough for the crossfade and each scene's first beats.
+      await page.waitForTimeout(1200);
+      sizes.add(
+        JSON.stringify(
+          await preview.evaluate((element) => ({
+            preview: Math.round(element.getBoundingClientRect().height),
+            page: document.documentElement.scrollHeight,
+          })),
+        ),
+      );
+    }
+    expect([...sizes]).toHaveLength(1);
+  }
+});
+
 test("uses the shared select treatment and themed JSON disclosures", async ({
   page,
 }) => {

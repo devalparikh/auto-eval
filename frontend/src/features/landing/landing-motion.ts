@@ -1,7 +1,12 @@
 "use client";
 
-import { useInView, useReducedMotion } from "motion/react";
-import { useEffect, useState, type RefObject } from "react";
+import { useInView } from "motion/react";
+import {
+  useEffect,
+  useState,
+  useSyncExternalStore,
+  type RefObject,
+} from "react";
 
 /**
  * Cycles through a sequence of timed phases while `running` is true. Each
@@ -38,16 +43,64 @@ export function useCycle(
 }
 
 /**
+ * Steps through timed beats once and holds the last one, so a scene builds up
+ * and settles instead of looping back to empty. Returns 0 at the start and
+ * `durations.length` once every beat has played. Pausing (`running` false)
+ * holds the current beat; a new `resetKey` replays from the first.
+ */
+export function useSteps(
+  durations: readonly number[],
+  running: boolean,
+  resetKey: unknown = null,
+) {
+  const [state, setState] = useState({ step: 0, key: resetKey });
+  const step = state.key === resetKey ? state.step : 0;
+  const schedule = durations.join(",");
+
+  useEffect(() => {
+    if (!running) return;
+    const waits = schedule.split(",").map(Number);
+    if (step >= waits.length) return;
+    const timer = setTimeout(
+      () => setState({ step: step + 1, key: resetKey }),
+      waits[step],
+    );
+    return () => clearTimeout(timer);
+  }, [step, running, resetKey, schedule]);
+
+  return step;
+}
+
+const REDUCED_MOTION = "(prefers-reduced-motion: reduce)";
+
+function subscribeToReducedMotion(onChange: () => void) {
+  const query = window.matchMedia(REDUCED_MOTION);
+  query.addEventListener("change", onChange);
+  return () => query.removeEventListener("change", onChange);
+}
+
+/**
+ * The reduced-motion preference, read so the first client render matches the
+ * server's. Motion's `useReducedMotion` answers true on that first render, so
+ * a scene that skips to its finished state rendered different text than the
+ * server did, and React threw the page's HTML away to render it again.
+ */
+export function usePrefersReducedMotion() {
+  return useSyncExternalStore(
+    subscribeToReducedMotion,
+    () => window.matchMedia(REDUCED_MOTION).matches,
+    () => false,
+  );
+}
+
+/**
  * Whether an element is on screen and the viewer has not asked for reduced
  * motion. Scenes use this to start their loops only while they are visible.
  */
 export function useSceneActive(ref: RefObject<HTMLElement | null>) {
-  const reduceMotion = useReducedMotion();
+  const reduceMotion = usePrefersReducedMotion();
   const inView = useInView(ref, { amount: 0.4 });
-  return {
-    active: inView && !reduceMotion,
-    reduceMotion: Boolean(reduceMotion),
-  };
+  return { active: inView && !reduceMotion, reduceMotion };
 }
 
 /** A mm:ss timer that counts while `running` is true and resets otherwise. */

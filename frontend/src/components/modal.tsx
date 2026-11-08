@@ -75,7 +75,10 @@ export function Modal({
           className="fixed inset-0 z-40 grid place-items-center bg-black/65 p-4 backdrop-blur-[3px]"
           initial={reduceMotion ? false : { opacity: 0 }}
           animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
+          // Short on the way out: the fading backdrop still covers the page
+          // and would swallow the next click.
+          exit={{ opacity: 0, transition: { duration: reduceMotion ? 0 : 0.1 } }}
+          transition={{ duration: reduceMotion ? 0 : 0.16 }}
           onMouseDown={(event) => {
             if (event.target === event.currentTarget) onClose();
           }}
@@ -95,7 +98,12 @@ export function Modal({
             }`}
             initial={reduceMotion ? false : { opacity: 0, scale: 0.97, y: 8 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.98, y: 6 }}
+            exit={{
+              opacity: 0,
+              scale: 0.98,
+              y: 6,
+              transition: { duration: reduceMotion ? 0 : 0.1 },
+            }}
             transition={{ duration: 0.18, ease: [0.23, 1, 0.32, 1] }}
           >
             <div className="flex min-w-0 items-start justify-between gap-4 border-b border-[var(--border)] px-5 py-4">

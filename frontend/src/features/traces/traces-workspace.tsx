@@ -57,7 +57,7 @@ export function TracesWorkspace({
         <TraceList systemKey={systemKey} selectedTraceId={selectedTraceId} />
       }
     >
-      <div key={selectedTraceId ?? "none"} className="route-enter">
+      <div key={selectedTraceId ?? "none"}>
         {children}
       </div>
     </SplitPane>

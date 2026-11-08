@@ -35,6 +35,7 @@ import {
   workspaceNavItems,
 } from "@/components/sidebar-nav";
 import { systemByKey } from "@/features/catalog/catalog-options";
+import { docsPages, isDocsPath } from "@/features/docs/docs-pages";
 import { api } from "@/lib/api";
 import { countOf, shortId, textPreview } from "@/lib/format";
 import type { ColorTheme } from "@/lib/theme";
@@ -98,6 +99,20 @@ export function CommandMenu({
         }
       }
     }
+    // Inside the docs their pages lead, as a system's pages do inside a system.
+    const readingDocs = isDocsPath(pathname);
+    for (const page of docsPages) {
+      results.push({
+        id: `docs:${page.slug}`,
+        title: page.title,
+        section: "Docs",
+        detail: page.description,
+        keywords: page.keywords,
+        icon: page.icon,
+        href: page.href,
+        pinned: readingDocs,
+      });
+    }
     for (const item of [...modelsNavItems, ...workspaceNavItems]) {
       results.push({
         id: item.href,
@@ -116,6 +131,18 @@ export function CommandMenu({
       href: "/",
       keywords: "landing",
     });
+    for (const page of docsPages) {
+      for (const section of page.sections) {
+        results.push({
+          id: `docs:${page.slug}#${section.id}`,
+          title: section.title,
+          section: "Docs",
+          detail: page.title,
+          icon: page.icon,
+          href: `${page.href}#${section.id}`,
+        });
+      }
+    }
     for (const item of catalog.data?.agent_systems ?? []) {
       results.push({
         id: `system:${item.key}`,
