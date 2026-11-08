@@ -9,10 +9,22 @@ import "./globals.css";
 const description =
   "Trace agent runs, save real cases as tests, and benchmark every model and graph change on quality, cost, and latency.";
 
+const siteUrl = new URL(
+  process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000",
+);
+
+// Rendered by share-card/render.mjs. Most link previews show the still; Messages
+// and some chat apps play the loop, which opens on the same frame. Bump the
+// version in both names when they change, since platforms cache by URL.
+const shareImage = {
+  url: "/images/autoeval-share-v2.jpg",
+  width: 1200,
+  height: 630,
+  alt: "AutoEval. Trace your agent. Test every change. A benchmark where graph v8 ranks first at 96%, three points over the baseline.",
+};
+
 export const metadata: Metadata = {
-  metadataBase: new URL(
-    process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000",
-  ),
+  metadataBase: siteUrl,
   title: { default: "AutoEval", template: "%s | AutoEval" },
   description,
   openGraph: {
@@ -20,12 +32,15 @@ export const metadata: Metadata = {
     description,
     siteName: "AutoEval",
     type: "website",
-    images: [
+    images: [shareImage],
+    videos: [
       {
-        url: "/images/autoeval-share-v1.jpg",
+        // metadataBase resolves images but not videos, and a preview crawler
+        // needs a direct, absolute link to the file.
+        url: new URL("/images/autoeval-share-v2.mp4", siteUrl),
+        type: "video/mp4",
         width: 1200,
         height: 630,
-        alt: "AutoEval. Trace your agent. Test every change.",
       },
     ],
   },
@@ -33,7 +48,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "AutoEval",
     description,
-    images: ["/images/autoeval-share-v1.jpg"],
+    images: [shareImage],
   },
 };
 

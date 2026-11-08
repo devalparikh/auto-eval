@@ -161,6 +161,9 @@ landing previews live in `features/landing/product-preview.tsx` with their own
 - **The steps tell one story.** Connect the agent, open a run that failed a
   check, save it as a test case, benchmark candidates on the locked dataset.
   The same run, case, and numbers appear wherever the page mentions them.
+- **The link preview tells it too.** `frontend/share-card/card.html` renders
+  the `og:image` and `og:video` from the same run, case, and numbers. Change
+  it and re-render (`node share-card/render.mjs`) whenever the story does.
 
 **The article.** The docs: a reading column of at most 720px with the page's
 sections on a sticky rail beside it, shown by a container query once there is
