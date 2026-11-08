@@ -1,0 +1,725 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>AutoEval share card</title>
+<!--
+  The link preview for AutoEval: a seamless loop and its poster frame.
+
+  It tells the landing page's sample story at share-card scale: a run of
+  research-assistant fails its grounding check, the failed run becomes test
+  case 128 in failure-modes v4, and graph v8 tops the benchmark on that locked
+  dataset. Same run, case, and numbers as features/landing/product-preview.tsx.
+
+  Every style is computed from time inside seek(t): no CSS transitions, no
+  timers, no state carried between frames, so any frame renders on its own.
+  The timeline is seamless at DUR -> 0, which lets the renderer start the video
+  on the poster frame.
+
+    ?t=9.2         a still at that time
+    ?play          realtime preview, looping
+    ?w=1280&h=640  a different frame size (the 1200x630 stage stays centered)
+-->
+<style>
+@font-face{font-family:"Host Grotesk";src:url("../public/fonts/host-grotesk-latin.woff2") format("woff2");font-weight:300 800;font-display:block}
+@font-face{font-family:"Geist Mono";src:url("fonts/geist-mono-latin.woff2") format("woff2");font-weight:400 600;font-display:block}
+:root{
+  --page:#0a0a0a; --ink:#f2f2ef; --muted:#9a9ea3; --faint:#6f7379; --rule:rgb(255 255 255 / 0.1);
+  --accent:#f07a65; --green:#6cc39a; --amber:#e8a33d; --blue:#7fb2dc; --danger:#ee7f74;
+  --w-bg:#0e0e0e; --w-raised:#161616; --w-ink:#f0f0eb; --w-copy:#a1a198; --w-line:#262626;
+  --band:#131b23;
+  --mono:"Geist Mono",ui-monospace,monospace;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--page)}
+#frame{position:relative;overflow:hidden;background:var(--page);color:var(--ink);font-family:"Host Grotesk",system-ui,sans-serif;-webkit-font-smoothing:antialiased;font-variant-numeric:tabular-nums}
+#stage{position:absolute;width:1200px;height:630px}
+.a{position:absolute;left:0;top:0}
+.mono{font-family:var(--mono)}
+.nw{white-space:nowrap}
+svg{display:block;overflow:visible}
+</style>
+</head>
+<body>
+<div id="frame"><div id="stage"></div></div>
+<script>
+"use strict";
+const Q = new URLSearchParams(location.search);
+const W = +(Q.get('w') || 1200), H = +(Q.get('h') || 630);
+const OX = Math.round((W - 1200) / 2), OY = Math.round((H - 630) / 2);
+
+// ───────────────────────────── time ─────────────────────────────
+const DUR = 10.4;
+const T = {
+  toTrace: 0.0,                                            // tabs glide Compare -> Trace, scenes crossfade
+  nodes: [[0.55, 0.78], [0.94, 1.36], [1.52, 2.42], [2.58, 2.72]], // [start, end] per node
+  cite: 2.86, ground: 3.02, note: 3.14,
+  hover: 3.42, save: 3.76,                                 // the cursor finds the failed check and saves it
+  toSave: 3.9,                                             // the failed check lifts and becomes a test case
+  land: 4.6, finalize: 5.05, lock: 5.22,
+  toCompare: 6.15,
+  runs: 6.55, runsEnd: 7.85,
+  sort: 7.95, win: 8.5, wave: 8.6,
+};
+const POSTER = 9.6; // a settled frame: also the video's first frame
+
+const clamp = (x, a = 0, b = 1) => Math.min(b, Math.max(a, x));
+const lerp = (a, b, p) => a + (b - a) * p;
+function bezier(x1, y1, x2, y2) {
+  const cx = 3 * x1, bx = 3 * (x2 - x1) - cx, ax = 1 - cx - bx;
+  const cy = 3 * y1, by = 3 * (y2 - y1) - cy, ay = 1 - cy - by;
+  const X = s => ((ax * s + bx) * s + cx) * s, Y = s => ((ay * s + by) * s + cy) * s;
+  const dX = s => (3 * ax * s + 2 * bx) * s + cx;
+  return x => {
+    if (x <= 0) return 0; if (x >= 1) return 1;
+    let s = x;
+    for (let i = 0; i < 8; i++) { const e = X(s) - x, d = dX(s); if (Math.abs(e) < 1e-6 || Math.abs(d) < 1e-6) break; s -= e / d; }
+    return Y(clamp(s));
+  };
+}
+// The product's own curves (docs/design-system.md, Motion).
+const E = {
+  settle: bezier(0.22, 1, 0.36, 1),
+  over: bezier(0.2, 0.9, 0.3, 1.15),
+  reveal: bezier(0.16, 1, 0.3, 1),
+  ease: bezier(0.25, 0.1, 0.25, 1),
+  io: bezier(0.65, 0, 0.35, 1),
+  lin: x => clamp(x),
+};
+const tw = (t, t0, d, e = E.settle) => e(clamp((t - t0) / d));
+// Closed-form damped spring step response (0 -> 1).
+function spring(T, f = 2.2, z = 0.74) {
+  if (T <= 0) return 0;
+  const w = 2 * Math.PI * f;
+  if (z < 1) { const wd = w * Math.sqrt(1 - z * z); return 1 - Math.exp(-z * w * T) * (Math.cos(wd * T) + (z * w / wd) * Math.sin(wd * T)); }
+  return 1 - Math.exp(-w * T) * (1 + w * T);
+}
+const sp = (t, t0, f, z) => spring(t - t0, f, z);
+
+// ───────────────────────────── dom ─────────────────────────────
+function el(parent, style = {}, html = '', cls = 'a') {
+  const e = document.createElement('div');
+  if (cls) e.className = cls;
+  Object.assign(e.style, style);
+  if (html) e.innerHTML = html;
+  parent.appendChild(e);
+  return e;
+}
+const px = v => `${v}px`;
+function box(e, x, y, w, h) {
+  e.style.transform = `translate(${x.toFixed(2)}px, ${y.toFixed(2)}px)`;
+  if (w != null) e.style.width = px(w);
+  if (h != null) e.style.height = px(h);
+}
+const op = (e, v) => { e.style.opacity = clamp(v).toFixed(3); e.style.visibility = v <= 0.001 ? 'hidden' : 'visible'; };
+const mix = (a, b, p) => `color-mix(in srgb, ${b} ${(clamp(p) * 100).toFixed(1)}%, ${a})`;
+
+const ICON = {
+  logic: '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5.5 2.5c-1.6 0-2 .7-2 2v1.6c0 .9-.5 1.4-1.5 1.9 1 .5 1.5 1 1.5 1.9v1.6c0 1.3.4 2 2 2M10.5 2.5c1.6 0 2 .7 2 2v1.6c0 .9.5 1.4 1.5 1.9-1 .5-1.5 1-1.5 1.9v1.6c0 1.3-.4 2-2 2"/></svg>',
+  live: '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4.6 12.5H4a3 3 0 0 1-.4-6A4.5 4.5 0 0 1 12.3 6 3.2 3.2 0 0 1 12 12.5h-.6"/><path d="M8 7.5v6M5.9 11.4 8 13.5l2.1-2.1"/></svg>',
+  model: '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M2.5 6.5v3M5.25 4v8M8 2.5v11M10.75 5v6M13.5 7v2"/></svg>',
+  check: '<svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 6.3 5 8.7l4.5-5.2"/></svg>',
+  cross: '<svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M3.3 3.3l5.4 5.4M8.7 3.3 3.3 8.7"/></svg>',
+  lock: '<svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"><rect x="2.5" y="5.3" width="7" height="5" rx="1.2" fill="currentColor" fill-opacity=".18"/><path d="M4 5.3V4a2 2 0 0 1 4 0v1.3"/></svg>',
+};
+
+const R = {}; // built elements
+
+// ───────────────────────────── build ─────────────────────────────
+function buildBackdrop(frame) {
+  const bandTop = OY + 282;
+  // the band: photo as atmosphere, tinted, veiled, desaturated and grained
+  const band = el(frame, { left: 0, top: px(bandTop), width: px(W), height: px(H - bandTop), overflow: 'hidden', background: 'var(--band)' });
+  el(band, { inset: '-40px 0 0 0', width: '100%', height: 'calc(100% + 40px)', backgroundImage: 'url("../public/images/autoeval-scenery-lake-v1.jpg")', backgroundSize: 'cover', backgroundPosition: '50% 58%', filter: 'saturate(0.5) contrast(0.92)' });
+  el(band, { inset: 0, width: '100%', height: '100%', background: 'color-mix(in srgb, var(--band) 74%, transparent)' });
+  el(band, { inset: 0, width: '100%', height: '100%', mixBlendMode: 'overlay', opacity: 0.3,
+    backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' seed='7'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E\")" });
+  // a soft floor of shadow so the window reads as floating over the band
+  el(band, { left: 0, bottom: 0, top: 'auto', width: '100%', height: '55%', background: 'linear-gradient(to bottom, transparent, rgb(6 8 11 / 0.55))' });
+  // the column: hairlines either side and one across the top of the band
+  const rule = 'rgb(255 255 255 / 0.09)';
+  el(frame, { left: px(OX + 40), top: 0, width: '1px', height: px(bandTop), background: rule });
+  el(frame, { left: px(OX + 1159), top: 0, width: '1px', height: px(bandTop), background: rule });
+  el(frame, { left: 0, top: px(bandTop), width: px(W), height: '1px', background: 'rgb(255 255 255 / 0.12)' });
+  // registration ticks where the column meets the band
+  for (const x of [OX + 40, OX + 1159]) {
+    el(frame, { left: px(x - 6), top: px(bandTop), width: '13px', height: '1px', background: 'rgb(255 255 255 / 0.34)' });
+    el(frame, { left: px(x), top: px(bandTop - 6), width: '1px', height: '13px', background: 'rgb(255 255 255 / 0.34)' });
+  }
+}
+
+function buildHeader(stage) {
+  el(stage, { left: '72px', top: '40px', width: '32px', height: '32px', border: '1px solid rgb(255 255 255 / 0.32)', borderRadius: '7px',
+    display: 'grid', placeItems: 'center', fontFamily: 'var(--mono)', fontSize: '11px', letterSpacing: '-0.02em', color: 'var(--ink)' }, 'a/e');
+  el(stage, { left: '116px', top: '43px', fontSize: '21px', fontWeight: 500, letterSpacing: '-0.02em', lineHeight: '26px' }, 'AutoEval', 'a nw');
+  // eyebrow: 3px bar + mono uppercase
+  const eb = el(stage, { right: '72px', left: 'auto', top: '49px', display: 'flex', alignItems: 'center', gap: '10px',
+    fontFamily: 'var(--mono)', fontSize: '12px', letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--muted)' }, '', 'a nw');
+  el(eb, { width: '3px', height: '12px', background: 'var(--accent)', borderRadius: '1px' }, '', '');
+  el(eb, {}, 'Open source · runs locally', '');
+
+  const head = { fontSize: '80px', fontWeight: 500, letterSpacing: '-0.035em', lineHeight: '84px' };
+  R.line1 = el(stage, { left: '68px', top: '92px', ...head }, 'Trace your agent.', 'a nw');
+  // line 2 is drawn as a dot field, like DottedText on the landing page
+  R.dotText = 'Test every change.';
+  R.dotCanvas = document.createElement('canvas');
+  R.dotCanvas.className = 'a';
+  Object.assign(R.dotCanvas.style, { left: '64px', top: '170px', width: '820px', height: '100px' });
+  stage.appendChild(R.dotCanvas);
+}
+
+function buildDots() {
+  const dpr = window.devicePixelRatio || 1;
+  const cw = 820, ch = 100;
+  R.dotCanvas.width = cw * dpr; R.dotCanvas.height = ch * dpr;
+  // rasterise the text once at 1 px per CSS px and keep the cells it covers
+  const m = document.createElement('canvas'); m.width = cw; m.height = ch;
+  const g = m.getContext('2d');
+  g.font = '500 80px "Host Grotesk"';
+  g.letterSpacing = `${-0.035 * 80}px`;
+  g.textBaseline = 'alphabetic';
+  g.fillStyle = '#fff';
+  g.fillText(R.dotText, 4, 70);
+  const data = g.getImageData(0, 0, cw, ch).data;
+  const S = 4; // dot pitch: dense enough that the line stays coral when the card is shown small
+  R.dots = [];
+  for (let y = S / 2; y < ch; y += S) for (let x = S / 2; x < cw; x += S) {
+    const a = data[(Math.floor(y) * cw + Math.floor(x)) * 4 + 3];
+    if (a > 110) R.dots.push([x, y]);
+  }
+  R.dotW = cw;
+}
+
+function seekDots(t) {
+  const dpr = window.devicePixelRatio || 1;
+  const c = R.dotCanvas.getContext('2d');
+  c.setTransform(dpr, 0, 0, dpr, 0, 0);
+  c.clearRect(0, 0, 820, 100);
+  // the win wave: a bright front sweeps left to right once the change is proven
+  const p = clamp((t - T.wave) / 0.95);
+  const live = t >= T.wave && t <= T.wave + 1.0;
+  const front = lerp(-120, 900, E.io(p));
+  for (const [x, y] of R.dots) {
+    let r = 1.42, k = 0;
+    if (live) { const d = (x - front) / 70; k = Math.exp(-d * d); r *= 1 + 0.4 * k; }
+    c.fillStyle = k > 0.02 ? mixHex([240, 122, 101], [255, 222, 212], k * 0.85) : '#f07a65';
+    c.beginPath(); c.arc(x, y, r, 0, Math.PI * 2); c.fill();
+  }
+}
+function mixHex(a, b, p) { return `rgb(${a.map((v, i) => Math.round(lerp(v, b[i], p))).join(' ')})`; }
+
+// ── the product window ──
+const WIN = { x: 72, y: 306, w: 1056, h: 420 };
+const BODY = { x: 0, y: 40 }; // inside the window
+const TABS = ['Trace', 'Save', 'Compare'];
+
+function buildWindow(stage) {
+  const w = R.win = el(stage, { left: px(WIN.x), top: px(WIN.y), width: px(WIN.w), height: px(WIN.h), borderRadius: '14px', overflow: 'hidden',
+    background: 'var(--w-bg)', border: '1px solid #222', boxShadow: '0 40px 100px rgb(0 0 0 / 0.55), 0 0 0 1px rgb(0 0 0 / 0.4), inset 0 1px 0 rgb(255 255 255 / 0.06)', color: 'var(--w-ink)' });
+  // chrome
+  const chrome = el(w, { left: 0, top: 0, width: '100%', height: '40px', background: 'var(--w-raised)', borderBottom: '1px solid var(--w-line)' });
+  for (let i = 0; i < 3; i++) el(chrome, { left: px(14 + i * 15), top: '15px', width: '9px', height: '9px', borderRadius: '50%', background: 'rgb(161 161 152 / 0.22)' });
+  const crumbs = el(chrome, { left: px(WIN.w / 2 - 190), top: '7px', width: '380px', height: '26px', borderRadius: '6px', background: 'var(--w-bg)', overflow: 'hidden' });
+  const crumbText = [
+    ['research-assistant', 'traces', 'tr_01J8F2KQ'],
+    ['research-assistant', 'datasets', 'failure-modes'],
+    ['research-assistant', 'evaluations', '024'],
+  ];
+  R.crumbs = crumbText.map(([a, b, c]) => el(crumbs, { left: 0, top: 0, width: '100%', height: '26px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '7px',
+    fontFamily: 'var(--mono)', fontSize: '11.5px', color: 'var(--w-copy)' }, `<b style="color:var(--w-ink);font-weight:500">${a}</b><span>/</span><span>${b}</span><span>/</span><span>${c}</span>`, 'a nw'));
+  // segmented control: the loop's steps, one pill gliding between them
+  const seg = R.seg = el(chrome, { left: px(WIN.w - 14 - 246), top: '6px', width: '246px', height: '28px', borderRadius: '8px', background: 'var(--w-bg)', border: '1px solid var(--w-line)' });
+  R.segPill = el(seg, { left: '2px', top: '2px', width: '80px', height: '22px', borderRadius: '6px', background: 'rgb(240 240 235 / 0.1)', boxShadow: 'inset 0 0 0 1px rgb(240 240 235 / 0.08)', overflow: 'hidden' });
+  R.segProg = el(R.segPill, { left: 0, top: 'auto', bottom: 0, width: '100%', height: '2px', background: 'var(--accent)', transformOrigin: '0 50%' });
+  R.segLabels = TABS.map((name, i) => el(seg, { left: px(2 + i * 80.67), top: '2px', width: '80px', height: '22px', display: 'grid', placeItems: 'center',
+    fontSize: '12.5px', fontWeight: 500, letterSpacing: '-0.01em' }, name, 'a nw'));
+
+  R.body = el(w, { left: px(BODY.x), top: px(BODY.y), width: '100%', height: px(WIN.h - 40) });
+  buildTrace(R.body); buildSave(R.body); buildCompare(R.body);
+  R.flyer = buildFlyer(R.body);
+}
+
+// Trace ------------------------------------------------------------------
+const NODES = [
+  { name: 'normalize', type: 'logic', label: 'logic', ms: '2 ms', start: 0, dur: 2 },
+  { name: 'retrieve', type: 'live', label: 'live data', ms: '142 ms', start: 2, dur: 142 },
+  { name: 'generate', type: 'model', label: 'model', ms: '820 ms', start: 144, dur: 820 },
+  { name: 'format', type: 'logic', label: 'logic', ms: '4 ms', start: 964, dur: 4 },
+];
+const TYPE_COLOR = { logic: 'var(--w-copy)', live: 'var(--blue)', model: 'var(--accent)' };
+const NODE = { w: 204, h: 58, gap: 40, x0: 40, y: 22 };
+
+function buildTrace(body) {
+  const s = R.trace = el(body, { left: 0, top: 0, width: '100%', height: '100%' });
+  // graph canvas: an inset panel on the dot grid
+  el(s, { left: '20px', top: '14px', width: '1016px', height: '126px', borderRadius: '14px', background: 'rgb(240 240 235 / 0.025)',
+    backgroundImage: 'radial-gradient(rgb(240 240 235 / 0.11) 0.8px, transparent 0.8px)', backgroundSize: '14px 14px', border: '1px solid rgb(240 240 235 / 0.05)' });
+  el(s, { left: '36px', top: '24px', fontFamily: 'var(--mono)', fontSize: '10.5px', letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--faint)' }, '', 'a nw');
+  R.edges = [];
+  for (let i = 0; i < 3; i++) {
+    const x = 20 + NODE.x0 + (i + 1) * NODE.w + i * NODE.gap, y = 14 + NODE.y + NODE.h / 2;
+    const base = el(s, { left: px(x + 4), top: px(y), width: px(NODE.gap - 8), height: '0px', borderTop: '1.5px dashed rgb(161 161 152 / 0.32)' });
+    const fill = el(s, { left: px(x + 4), top: px(y - 0.5), width: px(NODE.gap - 8), height: '2px', background: 'rgb(240 240 235 / 0.7)', transformOrigin: '0 50%', borderRadius: '1px' });
+    const pulse = el(s, { left: px(x), top: px(y - 4), width: '8px', height: '8px', borderRadius: '50%', background: '#fff', boxShadow: '0 0 12px 3px rgb(255 255 255 / 0.55)' });
+    R.edges.push({ base, fill, pulse, x: x + 4, len: NODE.gap - 8 });
+  }
+  R.nodes = NODES.map((n, i) => {
+    const x = 20 + NODE.x0 + i * (NODE.w + NODE.gap), y = 14 + NODE.y;
+    const e = el(s, { left: px(x), top: px(y), width: px(NODE.w), height: px(NODE.h), borderRadius: '11px', background: 'rgb(240 240 235 / 0.06)' });
+    el(e, { left: '12px', top: '15px', width: '28px', height: '28px', borderRadius: '8px', display: 'grid', placeItems: 'center',
+      background: `color-mix(in srgb, ${TYPE_COLOR[n.type]} 18%, transparent)`, color: TYPE_COLOR[n.type] }, ICON[n.type]);
+    el(e, { left: '50px', top: '11px', fontSize: '16.5px', fontWeight: 550, letterSpacing: '-0.01em' }, n.name, 'a nw');
+    const sub = el(e, { left: '50px', top: '32px', fontFamily: 'var(--mono)', fontSize: '11.5px', color: 'var(--w-copy)' }, n.label, 'a nw');
+    const run = el(e, { left: '50px', top: '32px', fontFamily: 'var(--mono)', fontSize: '11.5px', color: 'var(--amber)' }, 'running…', 'a nw');
+    const ms = el(e, { left: 'auto', right: '14px', top: '32px', fontFamily: 'var(--mono)', fontSize: '11.5px', color: 'var(--w-ink)' }, n.ms, 'a nw');
+    const dot = el(e, { left: 'auto', right: '9px', top: '9px', width: '6px', height: '6px', borderRadius: '50%' });
+    return { e, sub, run, ms, dot, x, y };
+  });
+  // one outline glides to whichever node is running
+  R.focus = el(s, { width: px(NODE.w + 8), height: px(NODE.h + 8), borderRadius: '14px', border: '1.5px solid rgb(240 240 235 / 0.42)' });
+  // the snapshot hangs off the node that fetched it
+  const rx = R.nodes[1].x + NODE.w / 2;
+  R.stem = el(s, { left: px(rx), top: px(14 + NODE.y + NODE.h + 1), width: '1px', height: '12px', background: 'rgb(127 178 220 / 0.5)' });
+  R.snap = el(s, { left: px(rx - 88), top: px(14 + NODE.y + NODE.h + 13), width: '176px', height: '24px' });
+  const snapLabels = [['snapshot · pending', 'rgb(161 161 152 / 0.12)', 'var(--w-copy)'], ['capturing…', 'rgb(232 163 61 / 0.15)', 'var(--amber)'], ['snapshot 93f2 · frozen', 'rgb(127 178 220 / 0.16)', 'var(--blue)']];
+  R.snapStates = snapLabels.map(([txt, bg, fg]) => el(R.snap, { left: 0, top: 0, width: '100%', height: '24px', display: 'grid', placeItems: 'center', borderRadius: '999px',
+    background: bg, color: fg, fontFamily: 'var(--mono)', fontSize: '11px' }, txt, 'a nw'));
+
+  // timing waterfall
+  const wf = { x: 34, y: 160, label: 92, track: 480 };
+  el(s, { left: px(wf.x), top: px(wf.y), fontFamily: 'var(--mono)', fontSize: '10.5px', letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--faint)' }, 'Timing', 'a nw');
+  for (const [v, f] of [['0 ms', 0], ['484', 0.5], ['968 ms', 1]]) {
+    el(s, { left: px(wf.x + wf.label + f * wf.track - (f === 1 ? 46 : f === 0.5 ? 12 : 0)), top: px(wf.y), fontFamily: 'var(--mono)', fontSize: '10.5px', color: 'var(--faint)' }, v, 'a nw');
+    el(s, { left: px(wf.x + wf.label + f * wf.track), top: px(wf.y + 20), width: '1px', height: '100px', background: 'rgb(240 240 235 / 0.06)' });
+  }
+  R.bars = NODES.map((n, i) => {
+    const y = wf.y + 26 + i * 24;
+    el(s, { left: px(wf.x), top: px(y), fontFamily: 'var(--mono)', fontSize: '12px', lineHeight: '16px', color: 'var(--w-copy)' }, n.name, 'a nw');
+    el(s, { left: px(wf.x + wf.label), top: px(y + 2), width: px(wf.track), height: '12px', borderRadius: '4px', background: 'rgb(240 240 235 / 0.04)' });
+    const x0 = wf.x + wf.label + (n.start / 968) * wf.track;
+    const bw = Math.max(4, (n.dur / 968) * wf.track);
+    const b = el(s, { left: px(x0), top: px(y + 2), width: px(bw), height: '12px', borderRadius: '4px', transformOrigin: '0 50%',
+      background: n.type === 'model' ? 'var(--accent)' : n.type === 'live' ? 'var(--blue)' : 'rgb(161 161 152 / 0.7)' });
+    return b;
+  });
+
+  // scoring sits beside the trace, not on the graph
+  const sc = R.sc = { x: 636, y: 160, w: 400 };
+  el(s, { left: px(sc.x), top: px(sc.y), fontFamily: 'var(--mono)', fontSize: '10.5px', letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--faint)' }, 'Scoring', 'a nw');
+  R.verdict = el(s, { left: 'auto', right: px(1056 - sc.x - sc.w), top: px(sc.y - 1), fontFamily: 'var(--mono)', fontSize: '11px', color: 'var(--danger)' }, '1 of 2 failed', 'a nw');
+  R.scoreRows = [
+    { name: 'citation_format', score: '1.00', ok: true, y: sc.y + 24, h: 34 },
+    { name: 'grounding', score: '0.41', ok: false, y: sc.y + 64, h: 56 },
+  ].map(r => {
+    const e = el(s, { left: px(sc.x), top: px(r.y), width: px(sc.w), height: px(r.h), borderRadius: '9px', background: 'rgb(240 240 235 / 0.05)' });
+    const ring = el(e, { left: '11px', top: '9px', width: '16px', height: '16px', borderRadius: '50%', border: '1.5px solid rgb(161 161 152 / 0.4)' });
+    const mark = el(e, { left: '11px', top: '9px', width: '16px', height: '16px', borderRadius: '50%', display: 'grid', placeItems: 'center', color: '#0e0e0e',
+      background: r.ok ? 'var(--green)' : 'var(--danger)' }, r.ok ? ICON.check : ICON.cross);
+    el(e, { left: '37px', top: '8px', fontFamily: 'var(--mono)', fontSize: '13px', lineHeight: '18px' }, r.name, 'a nw');
+    const dash = el(e, { left: 'auto', right: '14px', top: '8px', fontFamily: 'var(--mono)', fontSize: '13px', color: 'var(--faint)' }, '—', 'a nw');
+    const val = el(e, { left: 'auto', right: '14px', top: '8px', fontFamily: 'var(--mono)', fontSize: '13px', fontWeight: 500, color: r.ok ? 'var(--green)' : 'var(--danger)' }, r.score, 'a nw');
+    let note = null, save = null;
+    if (!r.ok) {
+      note = el(e, { left: '37px', top: '30px', fontFamily: 'var(--mono)', fontSize: '11px', color: 'var(--w-copy)' }, 'arxiv:2403.0117 not in context', 'a nw');
+      save = el(e, { left: 'auto', right: '12px', top: '27px', height: '22px', padding: '0 10px', borderRadius: '6px', background: '#f0f0eb', color: '#121212',
+        display: 'flex', alignItems: 'center', fontSize: '12px', fontWeight: 550, letterSpacing: '-0.005em' }, 'Save as test case', 'a nw');
+    }
+    return { ...r, e, ring, mark, dash, val, note, save };
+  });
+}
+
+// Save -------------------------------------------------------------------
+const CASES = [
+  ['128', 'Grounding cites outside context', 'tr_01J8F2KQ'],
+  ['001', 'Ambiguous retrieval', 'tr_01J8E1RZ'],
+  ['002', 'Missing source citation', 'tr_01J8E9MP'],
+  ['003', 'Conflicting context', 'tr_01J8D44A'],
+];
+const TABLE = { x: 20, y: 76, w: 1016, row: 40 };
+
+function rowHTML([id, name, tr]) {
+  return `<span class="a mono" style="left:18px;top:11px;font-size:12.5px;color:var(--w-copy)">${id}</span>
+    <span class="a nw" style="left:74px;top:9px;font-size:15.5px;letter-spacing:-0.01em">${name}</span>
+    <span class="a mono" style="left:520px;top:11px;font-size:12.5px;color:var(--w-copy)">${tr}</span>`;
+}
+
+function buildSave(body) {
+  const s = R.save = el(body, { left: 0, top: 0, width: '100%', height: '100%' });
+  el(s, { left: '34px', top: '22px', fontSize: '22px', fontWeight: 500, letterSpacing: '-0.025em' }, 'failure-modes', 'a nw');
+  // version chip: draft (amber) swaps to locked (green)
+  const chip = el(s, { left: '196px', top: '24px', width: '128px', height: '26px' });
+  R.chipDraft = el(chip, { left: 0, top: 0, height: '26px', padding: '0 11px', display: 'flex', alignItems: 'center', gap: '7px', borderRadius: '999px',
+    background: 'rgb(232 163 61 / 0.15)', color: 'var(--amber)', fontFamily: 'var(--mono)', fontSize: '12px' }, '<i style="width:6px;height:6px;border-radius:50%;background:currentColor"></i>v4 · draft', 'a nw');
+  R.chipLocked = el(chip, { left: 0, top: 0, height: '26px', padding: '0 11px', display: 'flex', alignItems: 'center', gap: '6px', borderRadius: '999px',
+    background: 'rgb(108 195 154 / 0.16)', color: 'var(--green)', fontFamily: 'var(--mono)', fontSize: '12px' }, `${ICON.lock}v4 · locked`, 'a nw');
+  R.caseCount = el(s, { left: 'auto', right: '196px', top: '29px', fontFamily: 'var(--mono)', fontSize: '12px', color: 'var(--w-copy)' }, '128 reviewed cases', 'a nw');
+  R.finalize = el(s, { left: 'auto', right: '34px', top: '20px', width: '146px', height: '34px', borderRadius: '9px', background: '#f0f0eb', color: '#121212',
+    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', fontSize: '14px', fontWeight: 550 }, 'Finalize v4', 'a nw');
+  R.finalizeDone = el(s, { left: 'auto', right: '34px', top: '20px', width: '146px', height: '34px', borderRadius: '9px', border: '1px solid var(--w-line)', color: 'var(--w-copy)',
+    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', fontSize: '14px', fontWeight: 500 }, `${ICON.lock}Finalized`, 'a nw');
+  // table header
+  const th = { fontFamily: 'var(--mono)', fontSize: '10.5px', letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--faint)' };
+  el(s, { left: px(TABLE.x + 18), top: px(TABLE.y - 4), ...th }, 'Case', 'a nw');
+  el(s, { left: px(TABLE.x + 74), top: px(TABLE.y - 4), ...th }, 'Name', 'a nw');
+  el(s, { left: px(TABLE.x + 520), top: px(TABLE.y - 4), ...th }, 'From trace', 'a nw');
+  el(s, { left: px(TABLE.x + 860), top: px(TABLE.y - 4), ...th }, 'Status', 'a nw');
+  // existing rows; they make room for the new case at the top
+  R.caseRows = CASES.slice(1).map(c => {
+    const e = el(s, { width: px(TABLE.w), height: px(TABLE.row - 4), borderRadius: '9px' }, rowHTML(c));
+    el(e, { left: 0, top: px(TABLE.row - 5), width: '100%', height: '1px', background: 'var(--w-line)' });
+    const lock = el(e, { left: '860px', top: '10px', display: 'flex', gap: '6px', alignItems: 'center', color: 'var(--green)', fontFamily: 'var(--mono)', fontSize: '12px' }, `${ICON.lock}locked`, 'a nw');
+    const draft = el(e, { left: '860px', top: '10px', color: 'var(--w-copy)', fontFamily: 'var(--mono)', fontSize: '12px' }, 'reviewed', 'a nw');
+    return { e, lock, draft };
+  });
+}
+
+// the failed check lifts out of the trace and becomes case 128
+function buildFlyer(body) {
+  const f = el(body, { borderRadius: '9px', overflow: 'hidden' });
+  const a = el(f, { left: 0, top: 0, width: '100%', height: '100%' });
+  el(a, { left: '11px', top: '9px', width: '16px', height: '16px', borderRadius: '50%', display: 'grid', placeItems: 'center', color: '#0e0e0e', background: 'var(--danger)' }, ICON.cross);
+  el(a, { left: '37px', top: '8px', fontFamily: 'var(--mono)', fontSize: '13px', lineHeight: '18px' }, 'grounding', 'a nw');
+  el(a, { left: 'auto', right: '14px', top: '8px', fontFamily: 'var(--mono)', fontSize: '13px', fontWeight: 500, color: 'var(--danger)' }, '0.41', 'a nw');
+  el(a, { left: '37px', top: '30px', fontFamily: 'var(--mono)', fontSize: '11px', color: 'var(--w-copy)' }, 'arxiv:2403.0117 not in context', 'a nw');
+  const b = el(f, { left: 0, top: 0, width: '100%', height: '100%' }, rowHTML(CASES[0]));
+  R.flyRule = el(b, { left: 0, top: px(TABLE.row - 5), width: '100%', height: '1px', background: 'var(--w-line)' });
+  const plus = el(b, { left: '860px', top: '8px', height: '22px', padding: '0 9px', display: 'flex', alignItems: 'center', borderRadius: '999px',
+    background: 'rgb(232 163 61 / 0.15)', color: 'var(--amber)', fontFamily: 'var(--mono)', fontSize: '11.5px' }, '+1 new', 'a nw');
+  const lock = el(b, { left: '860px', top: '10px', display: 'flex', gap: '6px', alignItems: 'center', color: 'var(--green)', fontFamily: 'var(--mono)', fontSize: '12px' }, `${ICON.lock}locked`, 'a nw');
+  return { f, a, b, plus, lock };
+}
+
+// Compare ----------------------------------------------------------------
+// Six candidates on the locked dataset, in the order they were configured.
+const CANDS = [
+  { name: 'Claude Opus 5', vendor: 'anthropic', score: 95, cost: 0.062 },
+  { name: 'Claude Sonnet 5', vendor: 'anthropic', score: 93, cost: 0.021, base: true },
+  { name: 'ra-sonnet-ft-v3', vendor: 'finetune', score: 92, cost: 0.006 },
+  { name: 'GPT-5', vendor: 'openai', score: 91, cost: 0.028 },
+  { name: 'Claude Haiku 4.5', vendor: 'anthropic', score: 86, cost: 0.004 },
+  { name: 'Sonnet 5 · graph v8', vendor: 'graph', score: 96, cost: 0.014, change: true },
+];
+const VENDOR = { anthropic: 'var(--accent)', openai: 'var(--w-copy)', finetune: 'var(--green)', graph: 'var(--blue)' };
+const RANK = [...CANDS.keys()].sort((a, b) => CANDS[b].score - CANDS[a].score); // index by rank
+const COST_ORDER = [...CANDS.keys()].sort((a, b) => CANDS[a].cost - CANDS[b].cost);
+const BOARD = { x: 20, y: 74, w: 1016, row: 33, name: 60, bar: 290, track: 380, score: 694, cost: 762, delta: 842 };
+const AX = { lo: 80, hi: 100 };
+const barX = v => BOARD.bar + ((v - AX.lo) / (AX.hi - AX.lo)) * BOARD.track;
+
+function buildCompare(body) {
+  const s = R.compare = el(body, { left: 0, top: 0, width: '100%', height: '100%' });
+  // run summary
+  const cells = [['Status', 34], ['Dataset', 234], ['Cases', 520], ['Runs', 760]];
+  const lab = { fontFamily: 'var(--mono)', fontSize: '10.5px', letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--faint)' };
+  for (const [l, x] of cells) el(s, { left: px(x), top: '16px', ...lab }, l, 'a nw');
+  const val = { top: '34px', fontFamily: 'var(--mono)', fontSize: '13px' };
+  R.stRun = el(s, { left: '34px', ...val, color: 'var(--amber)' }, '● running', 'a nw');
+  R.stDone = el(s, { left: '34px', ...val, color: 'var(--green)' }, '● complete', 'a nw');
+  el(s, { left: '234px', ...val, display: 'flex', alignItems: 'center', gap: '7px' }, `failure-modes / v4 <span style="color:var(--green);display:inline-flex">${ICON.lock}</span>`, 'a nw');
+  el(s, { left: '520px', ...val }, '128 × 6 candidates', 'a nw');
+  R.runs = el(s, { left: '760px', ...val }, '0 / 768', 'a nw');
+  el(s, { left: '876px', top: '40px', width: '146px', height: '4px', borderRadius: '2px', background: 'rgb(240 240 235 / 0.08)' });
+  R.runsBar = el(s, { left: '876px', top: '40px', width: '146px', height: '4px', borderRadius: '2px', background: 'var(--green)', transformOrigin: '0 50%' });
+  el(s, { left: '20px', top: '62px', width: '1016px', height: '1px', background: 'var(--w-line)' });
+
+  // the baseline: Sonnet 5 on graph v7
+  const bx = BOARD.x + barX(93);
+  R.baseLine = el(s, { left: px(bx), top: px(BOARD.y + 2), width: '0px', height: px(BOARD.row * 6 - 4), borderLeft: '1.5px dashed rgb(240 240 235 / 0.28)' });
+  R.rows = CANDS.map(c => {
+    const e = el(s, { width: px(BOARD.w), height: px(BOARD.row - 3), borderRadius: '8px' });
+    const rank = el(e, { left: '16px', top: '7px', fontFamily: 'var(--mono)', fontSize: '12.5px', color: 'var(--faint)' }, '', 'a nw');
+    el(e, { left: px(BOARD.name - 16), top: '11px', width: '8px', height: '8px', borderRadius: '50%', background: VENDOR[c.vendor] });
+    el(e, { left: px(BOARD.name), top: '5px', fontSize: '15.5px', fontWeight: c.change ? 550 : 450, letterSpacing: '-0.01em' }, c.name +
+      (c.base ? ' <span class="mono" style="font-size:11px;color:var(--faint);margin-left:6px">baseline</span>' : ''), 'a nw');
+    el(e, { left: px(BOARD.bar), top: '10px', width: px(BOARD.track), height: '10px', borderRadius: '3px', background: 'rgb(240 240 235 / 0.04)' });
+    const bar = el(e, { left: px(BOARD.bar), top: '10px', width: px(barX(c.score) - BOARD.bar), height: '10px', borderRadius: '3px', transformOrigin: '0 50%',
+      background: c.change ? 'var(--blue)' : c.base ? 'rgb(240 240 235 / 0.42)' : 'rgb(240 240 235 / 0.2)' });
+    const score = el(e, { left: px(BOARD.score), top: '6px', fontFamily: 'var(--mono)', fontSize: '14px', fontWeight: 500 }, '', 'a nw');
+    el(e, { left: px(BOARD.cost), top: '7px', fontFamily: 'var(--mono)', fontSize: '12.5px', color: 'var(--w-copy)' }, `$${c.cost.toFixed(3)}`, 'a nw');
+    let delta = null;
+    if (c.change) delta = el(e, { left: px(BOARD.delta), top: '3px', height: '24px', padding: '0 10px', display: 'flex', alignItems: 'center', gap: '8px', borderRadius: '999px',
+      background: 'rgb(108 195 154 / 0.16)', color: 'var(--green)', fontFamily: 'var(--mono)', fontSize: '12px', transformOrigin: '0 50%' }, '+3 pts · −33% cost', 'a nw');
+    return { c, e, rank, bar, score, delta };
+  });
+}
+
+// The cursor: saves the failed check, finalizes the dataset, opens Compare.
+// Waypoints are [time, x, y] in window-body coordinates; clicks are times.
+const CURSOR = [[3.18, 760, 330], [3.62, 958, 262], [4.35, 958, 262], [4.95, 952, 40], [5.5, 952, 40], [6.0, 1000, -18], [6.38, 1000, -18], [6.98, 1070, 120]];
+const CLICKS = [T.save, T.finalize, 6.08];
+const glide = bezier(0.3, 0, 0.2, 1);
+function buildCursor(stage) {
+  R.cursorRing = el(stage, { width: '36px', height: '36px', borderRadius: '50%', border: '1.5px solid rgb(255 255 255 / 0.7)' });
+  R.cursor = el(stage, { width: '20px', height: '29px', transformOrigin: '2px 2px', filter: 'drop-shadow(0 4px 8px rgb(0 0 0 / 0.45))' },
+    '<svg viewBox="0 0 28 40" width="20" height="29"><path d="M2.2 2.2v29.2l7.4-6.6 4.7 11.1 5-2.1-4.7-10.9h9.9Z" fill="#fff" stroke="#111" stroke-width="2.2" stroke-linejoin="round"/></svg>');
+}
+function cursorAt(t) {
+  const P = CURSOR;
+  if (t <= P[0][0]) return [P[0][1], P[0][2]];
+  for (let i = 0; i < P.length - 1; i++) {
+    const [a, x0, y0] = P[i], [b, x1, y1] = P[i + 1];
+    if (t <= b) {
+      const p = glide(clamp((t - a) / (b - a)));
+      const arc = Math.sin(p * Math.PI) * Math.min(18, Math.hypot(x1 - x0, y1 - y0) * 0.08); // a hand moves on a slight arc
+      const len = Math.hypot(x1 - x0, y1 - y0) || 1;
+      return [lerp(x0, x1, p) + arc * (y1 - y0) / len, lerp(y0, y1, p) - arc * (x1 - x0) / len];
+    }
+  }
+  return [P[P.length - 1][1], P[P.length - 1][2]];
+}
+function seekCursor(t) {
+  const [bx, by] = cursorAt(t);
+  const x = WIN.x + BODY.x + bx, y = WIN.y + BODY.y + by;
+  const vis = tw(t, CURSOR[0][0], 0.2, E.ease) * (1 - tw(t, 6.5, 0.36, E.ease));
+  let press = 0, ring = -1;
+  for (const c of CLICKS) {
+    press = Math.max(press, clamp((t - c + 0.06) / 0.06) * (1 - clamp((t - c - 0.04) / 0.12)));
+    if (t >= c && t < c + 0.45) ring = (t - c) / 0.45;
+  }
+  R.cursor.style.transform = `translate(${(x - 1.6).toFixed(2)}px, ${(y - 1.6).toFixed(2)}px) scale(${(1 - 0.16 * press).toFixed(3)})`;
+  op(R.cursor, vis);
+  if (ring >= 0) {
+    const k = E.settle(ring);
+    R.cursorRing.style.transform = `translate(${(x - 18).toFixed(2)}px, ${(y - 18).toFixed(2)}px) scale(${lerp(0.2, 1, k).toFixed(3)})`;
+    op(R.cursorRing, (1 - ring) * 0.8 * vis);
+  } else op(R.cursorRing, 0);
+}
+
+// ───────────────────────────── seek ─────────────────────────────
+// Which tab the loop is on, as a continuous index: 2 (Compare) at the top of the
+// loop, gliding to 0 (Trace), then 1 (Save), then 2 again.
+function tabAt(t) {
+  let v = 2;
+  v += (0 - 2) * sp(t, T.toTrace, 2.0, 0.82);
+  v += (1 - 0) * sp(t, T.toSave, 2.0, 0.82);
+  v += (2 - 1) * sp(t, T.toCompare, 2.0, 0.82);
+  return v;
+}
+
+function seekChrome(t) {
+  const tab = tabAt(t);
+  box(R.segPill, 2 + tab * 80.67, 2);
+  R.segLabels.forEach((e, i) => { e.style.color = mix('var(--w-copy)', 'var(--w-ink)', 1 - Math.min(1, Math.abs(tab - i))); });
+  // progress through the current step, drawn under the pill
+  const spans = [[T.toTrace, T.toSave], [T.toSave, T.toCompare], [T.toCompare, DUR]];
+  const cur = Math.round(clamp(tab, 0, 2));
+  const [a, b] = spans[cur];
+  const p = t >= a ? clamp((t - a) / (b - a)) : 1;
+  R.segProg.style.transform = `scaleX(${p.toFixed(4)})`;
+  R.segProg.style.opacity = (0.85).toString();
+  // crumbs swap with the scene
+  const sc = [sceneOpacity(t, 0), sceneOpacity(t, 1), sceneOpacity(t, 2)];
+  R.crumbs.forEach((e, i) => { op(e, sc[i]); box(e, 0, (1 - sc[i]) * (i === cur ? 6 : -6)); });
+}
+
+// scene crossfades: ~320 ms, opacity only
+function sceneOpacity(t, i) {
+  const X = 0.32;
+  if (i === 0) return tw(t, T.toTrace + 0.12, 0.24, E.ease) * (1 - tw(t, T.toSave + 0.04, 0.24, E.ease));
+  if (i === 1) return tw(t, T.toSave + 0.14, X, E.ease) * (1 - tw(t, T.toCompare, X, E.ease));
+  // compare is the settled state the loop starts and ends on
+  return t < T.toTrace + X ? 1 - tw(t, T.toTrace, 0.2, E.ease) : tw(t, T.toCompare + 0.16, X, E.ease);
+}
+
+function seekTrace(t) {
+  op(R.trace, sceneOpacity(t, 0));
+  const N = T.nodes;
+  R.nodes.forEach((n, i) => {
+    const [a, b] = N[i];
+    const running = t >= a && t < b, done = t >= b;
+    n.e.style.opacity = (lerp(0.45, 1, tw(t, a - 0.08, 0.18, E.ease))).toFixed(3);
+    op(n.run, running ? 1 : 0); op(n.sub, running ? 0 : 1);
+    const pm = tw(t, b, 0.32, E.over);
+    op(n.ms, pm); n.ms.style.transform = `translateY(${((1 - pm) * 5).toFixed(2)}px)`;
+    n.dot.style.background = done ? 'var(--green)' : running ? 'var(--amber)' : 'rgb(161 161 152 / 0.4)';
+    n.dot.style.opacity = running ? (0.6 + 0.4 * Math.cos((t - a) * Math.PI * 2 / 0.9)).toFixed(3) : '1';
+    if (done) { const k = sp(t, b, 3.2, 0.5); n.dot.style.transform = `scale(${lerp(0.4, 1, k).toFixed(3)})`; } else n.dot.style.transform = 'none';
+  });
+  // the focus outline glides from node to node with the run
+  let fx = 0;
+  for (let i = 0; i < 4; i++) {
+    const target = R.nodes[i].x - 4;
+    if (i === 0) fx = target; else fx += (target - (R.nodes[i - 1].x - 4)) * tw(t, N[i - 1][1] - 0.02, N[i][0] - N[i - 1][1] + 0.12, E.settle);
+  }
+  box(R.focus, fx, R.nodes[0].y - 4);
+  op(R.focus, tw(t, N[0][0] - 0.12, 0.2, E.ease) * (1 - tw(t, N[3][1] + 0.1, 0.3, E.ease)));
+  // edges draw as the run crosses them, a light riding the leading end
+  R.edges.forEach((g, i) => {
+    const a = N[i][1] - 0.04, d = N[i + 1][0] - a + 0.02;
+    const p = tw(t, a, d, E.io);
+    g.fill.style.transform = `scaleX(${p.toFixed(4)})`;
+    g.pulse.style.transform = `translate(${(p * g.len).toFixed(2)}px, 0)`;
+    op(g.pulse, p > 0 && p < 1 ? Math.sin(p * Math.PI) : 0);
+  });
+  // snapshot: pending -> capturing -> frozen as the retrieve node runs
+  const [ra, rb] = N[1];
+  const st = t < ra ? 0 : t < rb ? 1 : 2;
+  R.snapStates.forEach((e, i) => op(e, i === st ? (i === 2 ? tw(t, rb, 0.26, E.ease) : 1) : 0));
+  R.snap.style.opacity = st === 0 ? '0.55' : '1';
+  const pop = st === 2 ? sp(t, rb, 3, 0.55) : 1;
+  R.snapStates[2].style.transform = `scale(${lerp(0.9, 1, pop).toFixed(3)})`;
+  // waterfall bars fill while their node runs
+  R.bars.forEach((b, i) => {
+    const [a, e] = N[i];
+    b.style.transform = `scaleX(${tw(t, a, e - a, i === 2 ? E.lin : E.settle).toFixed(4)})`;
+    b.style.opacity = t < a ? '0' : '1';
+  });
+  // scoring runs on the output
+  const at = [T.cite, T.ground];
+  R.scoreRows.forEach((r, i) => {
+    const k = tw(t, at[i], 0.42, E.over);
+    op(r.mark, k); r.mark.style.transform = `scale(${lerp(0.4, 1, k).toFixed(3)})`;
+    op(r.ring, 1 - k); op(r.dash, 1 - k); op(r.val, tw(t, at[i] + 0.04, 0.26, E.ease));
+    if (!r.ok) {
+      r.e.style.background = mix('rgb(240 240 235 / 0.05)', 'rgb(238 127 116 / 0.13)', tw(t, at[i], 0.3, E.ease));
+      r.e.style.boxShadow = `inset 0 0 0 1px rgb(238 127 116 / ${(0.35 * tw(t, at[i], 0.3, E.ease)).toFixed(3)})`;
+      // the note types in
+      const p = clamp((t - T.note) / 0.5);
+      r.note.style.clipPath = `inset(0 ${((1 - Math.floor(p * 40) / 40) * 100).toFixed(1)}% 0 0)`;
+      // the cursor hovers, presses Save as test case, and the row lifts away
+      const hv = tw(t, T.hover, 0.22, E.over) * (1 - tw(t, T.save + 0.08, 0.12, E.ease));
+      const pr = clamp((t - T.save) / 0.08) * (1 - clamp((t - T.save - 0.1) / 0.1));
+      op(r.save, hv); r.save.style.transform = `scale(${(lerp(0.92, 1, hv) - 0.05 * pr).toFixed(3)})`; r.save.style.transformOrigin = '100% 50%';
+      // handed to the flyer once it lifts
+      r.e.style.opacity = t >= T.toSave ? '0' : '1';
+    }
+  });
+  op(R.verdict, tw(t, T.ground + 0.08, 0.3, E.ease));
+}
+
+function rowY(slot) { return TABLE.y + 14 + slot * TABLE.row; }
+
+function seekSave(t) {
+  op(R.save, sceneOpacity(t, 1));
+  // existing rows make room for the new case as it arrives
+  const push = sp(t, T.toSave + 0.1, 2.6, 0.9);
+  R.caseRows.forEach((r, i) => {
+    box(r.e, TABLE.x, rowY(i + push));
+    const lk = tw(t, T.lock + 0.08 + (i + 1) * 0.07, 0.38, E.over);
+    op(r.lock, lk); r.lock.style.transform = `scale(${lerp(0.4, 1, lk).toFixed(3)})`; r.lock.style.transformOrigin = '0 50%';
+    op(r.draft, 1 - lk);
+  });
+  const lock = tw(t, T.lock, 0.26, E.ease);
+  op(R.chipDraft, 1 - lock); op(R.chipLocked, lock);
+  // the button is pressed, then gives way to its finished state
+  const press = clamp((t - T.finalize) / 0.1) * (1 - clamp((t - T.finalize - 0.12) / 0.14));
+  R.finalize.style.transform = `scale(${(1 - 0.05 * press).toFixed(3)})`;
+  R.finalize.style.background = mix('#f0f0eb', '#ffffff', tw(t, T.finalize - 0.14, 0.12, E.ease));
+  op(R.finalize, 1 - tw(t, T.lock, 0.24, E.ease)); op(R.finalizeDone, tw(t, T.lock + 0.04, 0.26, E.ease));
+}
+
+function seekFlyer(t) {
+  const F = R.flyer;
+  const src = R.scoreRows[1];
+  const from = { x: R.sc.x, y: src.y, w: R.sc.w, h: src.h };
+  const to = { x: TABLE.x, y: rowY(0), w: TABLE.w, h: TABLE.row - 4 };
+  const t0 = T.toSave, t1 = T.land;
+  if (t < t0 || t > T.toCompare + 0.6) { op(F.f, 0); return; }
+  const lift = tw(t, t0, 0.18, E.settle) * (1 - tw(t, t0 + 0.28, 0.4, E.settle));
+  const p = tw(t, t0 + 0.12, t1 - t0 - 0.12, bezier(0.5, 0, 0.18, 1));
+  const x = lerp(from.x, to.x, p), y = lerp(from.y, to.y, p) - 10 * lift;
+  const w = lerp(from.w, to.w, p), h = lerp(from.h, to.h, p); // both rows end at the same right edge, so it grows leftward
+  box(F.f, x, y, w, h);
+  F.f.style.boxShadow = `0 ${(18 * lift).toFixed(1)}px ${(40 * lift).toFixed(1)}px rgb(0 0 0 / ${(0.5 * lift).toFixed(3)}), inset 0 0 0 1px rgb(238 127 116 / ${(0.35 * (1 - p)).toFixed(3)})`;
+  // red failure tint settles into the new row's highlight, then into a plain locked row
+  const settle = tw(t, T.lock + 0.08, 0.5, E.ease);
+  // opaque while it travels, so it passes cleanly over the rows it crosses
+  F.f.style.background = mix(mix('#2b1a18', '#1f1f1e', p), '#0e0e0e', settle);
+  op(F.a, 1 - tw(t, t0 + 0.12, 0.18, E.ease)); op(F.b, tw(t, t0 + 0.2, 0.22, E.ease));
+  const plus = tw(t, t1 - 0.02, 0.36, E.over) * (1 - tw(t, T.lock, 0.2, E.ease));
+  op(F.plus, plus); F.plus.style.transform = `scale(${lerp(0.6, 1, plus).toFixed(3)})`; F.plus.style.transformOrigin = '0 50%';
+  op(R.flyRule, settle);
+  const lk = tw(t, T.lock + 0.08, 0.38, E.over);
+  op(F.lock, lk); F.lock.style.transform = `scale(${lerp(0.4, 1, lk).toFixed(3)})`; F.lock.style.transformOrigin = '0 50%';
+  op(F.f, 1 - tw(t, T.toCompare, 0.32, E.ease));
+}
+
+function seekCompare(t) {
+  op(R.compare, sceneOpacity(t, 2));
+  // before Compare starts in this loop, it shows its settled state (the loop's first frames)
+  const c = t < T.toCompare ? 1e6 : t;
+  const enter = i => tw(c, T.toCompare + 0.24 + i * 0.05, 0.42, E.reveal);
+  // runs resolve, bars fill cheapest first
+  const prog = tw(c, T.runs, T.runsEnd - T.runs, E.ease);
+  R.runs.textContent = `${Math.round(prog * 768)} / 768`;
+  R.runsBar.style.transform = `scaleX(${prog.toFixed(4)})`;
+  const done = c >= T.runsEnd;
+  op(R.stRun, done ? 0 : 1); op(R.stDone, done ? 1 : 0);
+  const sort = sp(c, T.sort, 1.35, 0.84);
+  const win = tw(c, T.win, 0.3, E.ease);
+  R.rows.forEach((r, i) => {
+    const k = enter(i);
+    const rankIdx = RANK.indexOf(i);
+    const y = BOARD.y + 6 + lerp(i, rankIdx, sort) * BOARD.row;
+    box(r.e, BOARD.x + (1 - k) * -10, y);
+    r.e.style.opacity = k.toFixed(3);
+    const order = COST_ORDER.indexOf(i);
+    const g = tw(c, T.runs + 0.06 + order * 0.17, 0.7, E.settle);
+    r.bar.style.transform = `scaleX(${g.toFixed(4)})`;
+    r.score.textContent = g > 0.01 ? `${Math.round(lerp(AX.lo, r.c.score, g))}%` : '—';
+    r.score.style.color = g > 0.01 ? 'var(--w-ink)' : 'var(--faint)';
+    r.rank.textContent = sort > 0.5 ? `${rankIdx + 1}` : '·';
+    if (r.c.change) {
+      // the change climbs from last to first; lift it while it travels
+      const travel = Math.sin(clamp(sort) * Math.PI);
+      r.e.style.zIndex = 2;
+      r.e.style.background = `color-mix(in srgb, rgb(127 178 220) ${(5 + 6 * travel + 3 * win).toFixed(2)}%, #0e0e0e)`;
+      r.e.style.boxShadow = `0 ${(10 * travel).toFixed(1)}px ${(26 * travel).toFixed(1)}px rgb(0 0 0 / ${(0.45 * travel).toFixed(3)}), inset 0 0 0 1px rgb(127 178 220 / ${(0.28 * win).toFixed(3)})`;
+      r.bar.style.filter = `brightness(${(1 + 0.15 * win).toFixed(3)})`;
+      r.bar.style.boxShadow = `0 0 ${(14 * win).toFixed(1)}px rgb(127 178 220 / ${(0.55 * win).toFixed(3)})`;
+      const d = tw(c, T.win, 0.42, E.over);
+      op(r.delta, d); r.delta.style.transform = `scale(${lerp(0.7, 1, d).toFixed(3)})`;
+    } else {
+      r.e.style.zIndex = 1;
+    }
+  });
+  op(R.baseLine, tw(c, T.runs + 0.3, 0.4, E.ease));
+}
+
+let lastT = -1;
+function seek(t) {
+  t = ((t % DUR) + DUR) % DUR;
+  lastT = t;
+  seekChrome(t);
+  seekTrace(t);
+  seekSave(t);
+  seekFlyer(t);
+  seekCompare(t);
+  seekCursor(t);
+  seekDots(t);
+}
+
+// ───────────────────────────── boot ─────────────────────────────
+async function build() {
+  const frame = document.getElementById('frame');
+  Object.assign(frame.style, { width: px(W), height: px(H) });
+  const stage = document.getElementById('stage');
+  Object.assign(stage.style, { left: px(OX), top: px(OY) });
+  buildBackdrop(frame);
+  frame.appendChild(stage); // stage paints above the band
+  buildHeader(stage);
+  buildWindow(stage);
+  buildCursor(stage);
+  await document.fonts.load('500 80px "Host Grotesk"');
+  await document.fonts.load('400 12px "Geist Mono"');
+  await document.fonts.ready;
+  await Promise.all([...document.images].map(i => i.decode().catch(() => {})));
+  await new Promise(res => { const img = new Image(); img.onload = img.onerror = res; img.src = '../public/images/autoeval-scenery-lake-v1.jpg'; });
+  buildDots();
+  seek(POSTER);
+}
+
+window.DUR = DUR;
+window.POSTER = POSTER;
+window.seek = seek;
+window.ready = build().then(() => {
+  if (Q.has('t')) seek(parseFloat(Q.get('t')));
+  if (Q.has('play')) {
+    const t0 = performance.now();
+    const tick = () => { seek((performance.now() - t0) / 1000 + POSTER); requestAnimationFrame(tick); };
+    requestAnimationFrame(tick);
+  }
+});
+</script>
+</body>
+</html>
