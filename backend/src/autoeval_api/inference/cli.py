@@ -21,6 +21,19 @@ CODEX_COMMAND = (
 )
 
 
+READ_CHUNK_BYTES = 64 * 1024
+
+
+class _OutputLimitExceeded(Exception):
+    pass
+
+
+async def _stop(process: asyncio.subprocess.Process) -> None:
+    if process.returncode is None:
+        process.kill()
+    await process.wait()
+
+
 @dataclass(frozen=True)
 class CliModel:
     descriptor: ModelDescriptor
@@ -83,16 +96,16 @@ class CliInferenceProvider:
             stderr=asyncio.subprocess.PIPE,
         )
         try:
-            stdout, _stderr = await asyncio.wait_for(
-                process.communicate(prompt.encode()), timeout=self.settings.cli_timeout_seconds
+            stdout = await asyncio.wait_for(
+                self._run(process, prompt.encode()), timeout=self.settings.cli_timeout_seconds
             )
         except TimeoutError:
-            process.kill()
-            await process.wait()
+            await _stop(process)
             raise RuntimeError("CLI inference timed out") from None
+        except _OutputLimitExceeded:
+            await _stop(process)
+            raise RuntimeError("CLI inference output exceeded the configured limit") from None
 
-        if len(stdout) > self.settings.cli_output_limit_bytes:
-            raise RuntimeError("CLI inference output exceeded the configured limit")
         if process.returncode != 0:
             raise RuntimeError(f"CLI inference failed with exit code {process.returncode}")
 
@@ -101,3 +114,51 @@ class CliInferenceProvider:
         if not isinstance(parsed, dict):
             raise ValueError("CLI inference output must be a JSON object")
         return InferenceResponse(output=parsed, raw_text=raw_text)
+
+    async def _run(self, process: asyncio.subprocess.Process, prompt: bytes) -> bytes:
+        """Feed the prompt and collect stdout, enforcing the limit while reading.
+
+        `communicate()` buffers both streams in full before anything can be
+        measured, so a chatty process could hold unbounded memory until the
+        timeout. Here stdout stops at the limit and stderr, which is never
+        returned or stored, is read and discarded.
+        """
+        stdin, stdout, stderr = process.stdin, process.stdout, process.stderr
+        if stdin is None or stdout is None or stderr is None:
+            raise RuntimeError("CLI process pipes are unavailable")
+        limit = self.settings.cli_output_limit_bytes
+
+        async def feed() -> None:
+            try:
+                stdin.write(prompt)
+                await stdin.drain()
+            except (BrokenPipeError, ConnectionResetError):
+                pass  # the process stopped reading; its exit status reports why
+            finally:
+                stdin.close()
+
+        async def collect(stream: asyncio.StreamReader) -> bytes:
+            output = bytearray()
+            while chunk := await stream.read(READ_CHUNK_BYTES):
+                output.extend(chunk)
+                if len(output) > limit:
+                    raise _OutputLimitExceeded
+            return bytes(output)
+
+        async def discard(stream: asyncio.StreamReader) -> None:
+            while await stream.read(READ_CHUNK_BYTES):
+                pass
+
+        tasks = [
+            asyncio.ensure_future(feed()),
+            asyncio.ensure_future(collect(stdout)),
+            asyncio.ensure_future(discard(stderr)),
+        ]
+        try:
+            await asyncio.gather(*tasks)
+        finally:
+            for task in tasks:
+                task.cancel()
+            await asyncio.gather(*tasks, return_exceptions=True)
+        await process.wait()
+        return tasks[1].result()

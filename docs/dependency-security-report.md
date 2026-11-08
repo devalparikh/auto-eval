@@ -3,6 +3,30 @@
 **Captured:** 2026-08-06
 **Status:** Pre-fix baseline. No dependency versions were changed as part of this audit.
 
+## Re-audit, 2026-11-08
+
+The zero-advisory npm result below no longer held. The lockfile had drifted out
+of sync with `package.json` (`npm ci` refused it) and pinned `next@16.3.0` and
+`sharp@0.35.3`, which `npm audit --omit=dev` reported with critical advisories,
+among them unauthenticated RCE in image optimization for AVIF and SVG inputs, plus
+high-severity SSRF and denial-of-service issues. No reachable exploit was
+established in this application, but the runtime tree must not ship them.
+
+| Package | Was | Now | How |
+| --- | --- | --- | --- |
+| `next` | 16.3.0 | 16.4.5 | direct; floor raised to `^16.4.5` |
+| `eslint-config-next` | 16.3.0 | 16.4.5 | direct; kept in step with `next` |
+| `sharp` | 0.35.3 | 0.35.5 | transitive through `next` |
+| `nanoid` | 3.3.17 | 3.3.20 | transitive; lockfile only |
+| `source-map-js` | 1.2.1 | 1.2.2 | transitive; lockfile only |
+
+`npm audit --omit=dev` now reports zero advisories, and `npm ci` accepts the
+regenerated lockfile. The full tree still reports development-only findings
+that never ship: `vitest@3` (critical `tinypool` prototype-pollution gadget and
+moderate `@vitest/mocker` issues, fixed only in vitest 5) and moderate
+`typescript-eslint`/`minimatch` advisories under `eslint-config-next`. Both need
+a major toolchain upgrade and are tracked as separate work.
+
 ## Scope and evidence
 
 - Python: audited the exact installed `.venv` environment with `pip-audit 2.10.1 --skip-editable --format=json`, checked metadata with `pip show`, and verified dependency consistency with `pip check`.
