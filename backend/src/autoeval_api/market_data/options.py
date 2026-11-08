@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import re
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
@@ -308,23 +309,24 @@ class TradierOptionsChainProvider:
         path: str,
         params: dict[str, str],
     ) -> dict[str, Any]:
-        response = await client.get(path, params=params)
-        if len(response.content) > self.max_response_bytes:
-            raise OptionsMarketDataError(
-                "provider_response_too_large", "Tradier response exceeded the configured limit"
-            )
-        if response.status_code == 429:
-            raise OptionsMarketDataError("provider_rate_limited", "Tradier rate limit exceeded")
-        if response.status_code in {401, 403}:
-            raise OptionsMarketDataError(
-                "provider_authentication_failed", "Tradier rejected the configured credentials"
-            )
-        if response.status_code >= 400:
-            raise OptionsMarketDataError(
-                "provider_http_error", f"Tradier request failed with HTTP {response.status_code}"
-            )
+        # Stream the body so the size limit bounds what is held in memory: a
+        # buffered response would be downloaded in full before it could be measured.
+        async with client.stream("GET", path, params=params) as response:
+            if response.status_code == 429:
+                raise OptionsMarketDataError("provider_rate_limited", "Tradier rate limit exceeded")
+            if response.status_code in {401, 403}:
+                raise OptionsMarketDataError(
+                    "provider_authentication_failed",
+                    "Tradier rejected the configured credentials",
+                )
+            if response.status_code >= 400:
+                raise OptionsMarketDataError(
+                    "provider_http_error",
+                    f"Tradier request failed with HTTP {response.status_code}",
+                )
+            content = await self._read_bounded(response)
         try:
-            body = response.json()
+            body = json.loads(content)
         except ValueError as error:
             raise OptionsMarketDataError(
                 "provider_invalid_response", "Tradier returned invalid JSON"
@@ -334,6 +336,20 @@ class TradierOptionsChainProvider:
                 "provider_invalid_response", "Tradier returned an invalid response shape"
             )
         return body
+
+    async def _read_bounded(self, response: httpx.Response) -> bytes:
+        too_large = OptionsMarketDataError(
+            "provider_response_too_large", "Tradier response exceeded the configured limit"
+        )
+        declared = response.headers.get("content-length", "")
+        if declared.isdigit() and int(declared) > self.max_response_bytes:
+            raise too_large
+        content = bytearray()
+        async for chunk in response.aiter_bytes():
+            content.extend(chunk)
+            if len(content) > self.max_response_bytes:
+                raise too_large
+        return bytes(content)
 
 
 def default_runtime_input_registry(settings: Settings) -> RuntimeInputCapabilityRegistry:
