@@ -1,8 +1,9 @@
 # Agent onboarding
 
 AutoEval imports a validated graph contract and saves immutable versions. Start
-at **Agent systems → Import system**, or open `/guide` for the interactive
-walkthrough, downloadable starter, and coding-agent brief.
+at **Agent systems → Import system**, or open `/docs/import` for the
+interactive walkthrough and downloadable starter. The coding-agent brief is at
+`/docs/existing-code#coding-agent`.
 
 ## Choose a route
 
@@ -24,7 +25,7 @@ slashes, use a commit link or a local folder.
 
 ## Manifest v1
 
-The starter downloaded from `/guide` is the complete runnable example. Its
+The starter downloaded from `/docs/import` is the complete runnable example. Its
 contract is deliberately small:
 
 ```json

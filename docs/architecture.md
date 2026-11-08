@@ -121,6 +121,9 @@ frontend/src/
   components/          shared shell, modal, status, and state UI
   features/
     catalog/            catalog projections
+    docs/               in-app docs: page registry, content, rail, walkthrough
+    graph/              the node card and vocabulary every graph screen shares
+    landing/            marketing page and its live product previews
     traces/             trace list, run flow, DAG, inspector, review flow
     datasets/           draft editing and finalization
     custom-models/      local fine-tuning recipes, lifecycle, and adapters

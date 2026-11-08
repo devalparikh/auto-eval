@@ -153,3 +153,52 @@ async def test_tradier_provider_requires_credentials_without_making_a_request() 
 
     assert error.value.code == "credentials_missing"
     assert calls == 0
+
+
+def _tradier(respond, **settings: object) -> TradierOptionsChainProvider:
+    return TradierOptionsChainProvider(
+        Settings(
+            AUTOEVAL_ENV="test",
+            OPTIONS_MARKET_DATA_PROVIDER="tradier-sandbox",
+            TRADIER_API_TOKEN="test-token",
+            **settings,
+        ),
+        transport=httpx.MockTransport(respond),
+    )
+
+
+@pytest.mark.asyncio
+async def test_tradier_provider_stops_reading_an_oversize_body_at_the_limit() -> None:
+    # No Content-Length: the limit has to be enforced while the body streams in,
+    # not after the whole response has been buffered.
+    produced = 0
+
+    async def endless_body():
+        nonlocal produced
+        for _ in range(1000):
+            produced += 65_536
+            yield b" " * 65_536
+
+    provider = _tradier(
+        lambda _request: httpx.Response(200, content=endless_body()),
+        market_data_max_response_bytes=100_000,
+    )
+
+    with pytest.raises(OptionsMarketDataError) as error:
+        await provider.fetch(_request())
+
+    assert error.value.code == "provider_response_too_large"
+    assert produced <= 4 * 65_536
+
+
+@pytest.mark.asyncio
+async def test_tradier_provider_rejects_a_declared_oversize_body() -> None:
+    provider = _tradier(
+        lambda _request: httpx.Response(200, content=b" " * 200_000),
+        market_data_max_response_bytes=100_000,
+    )
+
+    with pytest.raises(OptionsMarketDataError) as error:
+        await provider.fetch(_request())
+
+    assert error.value.code == "provider_response_too_large"

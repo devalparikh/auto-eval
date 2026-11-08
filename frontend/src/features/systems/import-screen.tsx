@@ -94,7 +94,7 @@ export function ImportScreen({
     setError(null);
     if (!candidates.length) {
       setError(
-        "No autoeval.json found. Follow the import guide to describe your graph, then select this folder again.",
+        "No autoeval.json found. Follow the import docs to describe your graph, then select this folder again.",
       );
     } else if (candidates.length === 1) {
       await inspectFile(candidates[0]);
@@ -217,11 +217,9 @@ export function ImportScreen({
         </>
       ) : null}
       <div className={styles.menuHelp}>
-        <p>
-          No manifest yet? Follow the guide or hand its brief to a coding agent.
-        </p>
-        <Link href="/guide" className={styles.inlineLink}>
-          Import guide <ArrowRightIcon size={13} />
+        <p>No manifest yet? The docs walk through writing one.</p>
+        <Link href="/docs/import" className={styles.inlineLink}>
+          Import docs <ArrowRightIcon size={13} />
         </Link>
       </div>
     </div>
@@ -267,7 +265,7 @@ export function ImportScreen({
                   Open graph editor
                 </Link>
               </div>
-              <Link href="/guide#local-models" className={styles.inlineLink}>
+              <Link href="/docs/models#lm-studio" className={styles.inlineLink}>
                 Use a local model with LM Studio
               </Link>
             </div>
@@ -578,7 +576,7 @@ export function ImportScreen({
             <div role="alert" className={styles.error}>
               <p>{error}</p>
               {error.includes("No autoeval.json") ? (
-                <Link href="/guide">Open the import guide</Link>
+                <Link href="/docs/import">Open the import docs</Link>
               ) : null}
             </div>
           ) : null}

@@ -50,7 +50,7 @@ const MARKETING_NAV_ITEMS = [
     label: "connect",
     href: "#modular",
     description: "Keep your graph, handlers, scoring, and trace policy beside the agent.",
-    details: ["plugin manifest", "graph definition", "handlers and scoring", "trace policy"],
+    details: ["code plugin", "graph definition", "handlers and scoring", "trace policy"],
   },
   {
     key: "benchmark",
@@ -93,7 +93,6 @@ export function AppShell({
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [commandMenuOpen, setCommandMenuOpen] = useState(false);
   const contentKey = routeContentKey(pathname);
-  const [route, setRoute] = useState({ contentKey, navigated: false });
   const sidebarRef = useRef<HTMLElement>(null);
   const mobileNavButtonRef = useRef<HTMLButtonElement>(null);
   const soundEnabled = useSyncExternalStore(
@@ -101,12 +100,6 @@ export function AppShell({
     readSoundPreference,
     () => true,
   );
-
-  // The first paint is server-rendered and complete. Only a later route change
-  // has anything to ease in.
-  if (route.contentKey !== contentKey) {
-    setRoute({ contentKey, navigated: true });
-  }
 
   function toggleSound() {
     const next = !soundEnabled;
@@ -262,12 +255,9 @@ export function AppShell({
         />
       ) : null}
       <main id="main-content" className="route-frame">
-        <div
-          key={contentKey}
-          className={`route-content ${
-            route.navigated && !isLanding ? "route-enter" : ""
-          }`}
-        >
+        {/* No entrance animation: a page paints at full strength the moment it
+            commits, so a switch never reads as a wait. */}
+        <div key={contentKey} className="route-content">
           {children}
         </div>
       </main>
@@ -364,13 +354,13 @@ function MarketingHeader({
           product
           <CaretDownIcon size={12} weight="bold" aria-hidden="true" />
         </button>
-        <a
+        <Link
           className="marketing-nav-link"
-          href="#workflow"
+          href="/docs"
           onMouseEnter={() => setMenuOpen(false)}
         >
-          workflow
-        </a>
+          docs
+        </Link>
         <a
           className="marketing-nav-link marketing-github-link"
           href="https://github.com/devalparikh/auto-eval"
@@ -392,24 +382,23 @@ function MarketingHeader({
               initial={
                 reduceMotion
                   ? false
-                  : { opacity: 0, y: -6, filter: "blur(6px)" }
+                  : { opacity: 0, y: -4, filter: "blur(4px)" }
               }
               animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
               exit={
                 reduceMotion
-                  ? { opacity: 0 }
+                  ? { opacity: 0, transition: { duration: 0 } }
                   : {
                       opacity: 0,
-                      y: -4,
-                      filter: "blur(4px)",
+                      y: -3,
                       transition: {
-                        duration: 0.16,
+                        duration: 0.12,
                         ease: [0.4, 0, 0.2, 1],
                       },
                     }
               }
               transition={{
-                duration: reduceMotion ? 0 : 0.22,
+                duration: reduceMotion ? 0 : 0.16,
                 ease: [0.16, 1, 0.3, 1],
               }}
             >
@@ -447,42 +436,33 @@ function MarketingHeader({
                 ))}
               </div>
               <div className="marketing-menu-preview">
-                <AnimatePresence mode="wait" initial={false}>
-                  <motion.div
-                    key={activeItem.key}
-                    initial={
-                      reduceMotion
-                        ? false
-                        : { opacity: 0, x: 8, filter: "blur(5px)" }
-                    }
-                    animate={{ opacity: 1, x: 0, filter: "blur(0px)" }}
-                    exit={
-                      reduceMotion
-                        ? { opacity: 0 }
-                        : { opacity: 0, x: -5, filter: "blur(3px)" }
-                    }
-                    transition={{
-                      duration: reduceMotion ? 0 : 0.2,
-                      ease: [0.16, 1, 0.3, 1],
-                    }}
-                  >
-                    <strong>{activeItem.label}</strong>
-                    <p>{activeItem.description}</p>
-                    <div>
-                      {activeItem.details.map((detail) => (
-                        <span key={detail}>{detail}</span>
-                      ))}
-                    </div>
-                    <a href={activeItem.href} onClick={() => setMenuOpen(false)}>
-                      open section
-                      <ArrowUpRightIcon
-                        size={12}
-                        weight="bold"
-                        aria-hidden="true"
-                      />
-                    </a>
-                  </motion.div>
-                </AnimatePresence>
+                {/* The preview swaps on the hover itself. Waiting for the old
+                    one to leave first made every pointer move lag. */}
+                <motion.div
+                  key={activeItem.key}
+                  initial={reduceMotion ? false : { opacity: 0.4, x: 4 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{
+                    duration: reduceMotion ? 0 : 0.14,
+                    ease: [0.32, 0.72, 0, 1],
+                  }}
+                >
+                  <strong>{activeItem.label}</strong>
+                  <p>{activeItem.description}</p>
+                  <div>
+                    {activeItem.details.map((detail) => (
+                      <span key={detail}>{detail}</span>
+                    ))}
+                  </div>
+                  <a href={activeItem.href} onClick={() => setMenuOpen(false)}>
+                    open section
+                    <ArrowUpRightIcon
+                      size={12}
+                      weight="bold"
+                      aria-hidden="true"
+                    />
+                  </a>
+                </motion.div>
               </div>
             </motion.div>
           ) : null}

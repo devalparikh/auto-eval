@@ -12,6 +12,7 @@ import {
   UploadSimpleIcon,
   type Icon,
 } from "@phosphor-icons/react";
+import { docsGroups, docsPages } from "@/features/docs/docs-pages";
 
 export type SidebarNavItem = {
   href: string;
@@ -33,12 +34,31 @@ export const modelsNavItems: SidebarNavItem[] = [
 export const workspaceNavItems: SidebarNavItem[] = [
   { href: "/systems", label: "All systems", icon: StackIcon, exact: true },
   { href: "/import", label: "Import", icon: UploadSimpleIcon },
-  { href: "/guide", label: "Guide", icon: BookOpenTextIcon },
+  { href: "/docs", label: "Docs", icon: BookOpenTextIcon },
 ];
 
 export function systemKeyFromPath(pathname: string): string | null {
   const match = pathname.match(/^\/systems\/([^/]+)/);
   return match ? decodeURIComponent(match[1]) : null;
+}
+
+/**
+ * Inside the docs the rows become the docs' own pages, the way they become a
+ * system's pages inside a system. The workspace rows below still lead back.
+ */
+export function docsNavGroups(): SidebarNavGroup[] {
+  return docsGroups.map((group) => ({
+    label: group,
+    items: docsPages
+      .filter((page) => page.group === group)
+      .map((page) => ({
+        href: page.href,
+        label: page.title,
+        icon: page.icon,
+        // /docs is the overview, not a prefix of every page.
+        exact: page.slug === "",
+      })),
+  }));
 }
 
 /** The order is the workflow: build the agent, try it, then benchmark changes. */

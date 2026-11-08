@@ -47,6 +47,7 @@ export default defineConfig({
       command: `npm run build && npm run start -- --hostname 127.0.0.1 --port ${webPort}`,
       url: webUrl,
       reuseExistingServer: false,
+      timeout: 120_000,
       env: {
         NEXT_PUBLIC_API_URL: `${apiUrl}/api`,
       },

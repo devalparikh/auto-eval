@@ -27,6 +27,7 @@ import {
 } from "react";
 import { useHoverGlide } from "@/components/hover-glide";
 import {
+  docsNavGroups,
   isNavItemActive,
   modelsNavItems,
   pathForSystem,
@@ -38,6 +39,7 @@ import {
   type SidebarNavItem,
 } from "@/components/sidebar-nav";
 import { systemByKey } from "@/features/catalog/catalog-options";
+import { isDocsPath } from "@/features/docs/docs-pages";
 import type { ColorTheme } from "@/lib/theme";
 import type { AgentSystemSummary } from "@/lib/types";
 import { useCatalog } from "@/lib/use-catalog";
@@ -90,29 +92,32 @@ export function AppSidebar({
     onCloseMobile();
   }
 
-  const groups: SidebarNavGroup[] = [
-    ...(systemKey
-      ? systemNavGroups(systemKey, {
-          runtime: system?.runtime,
-          graphVersions: system?.versions.length,
-          datasets: system
-            ? catalog.data?.datasets.filter(
-                (dataset) => dataset.agent_system_id === system.id,
-              ).length
-            : undefined,
-        })
-      : [
-          {
-            label: "Agent systems",
-            items: systems.map((item) => ({
-              href: `/systems/${encodeURIComponent(item.key)}`,
-              label: item.name,
-              icon: GitBranchIcon,
-            })),
-          },
-        ]),
-    { label: "Models", items: modelsNavItems },
-  ];
+  const inDocs = isDocsPath(pathname);
+  const groups: SidebarNavGroup[] = inDocs
+    ? docsNavGroups()
+    : [
+        ...(systemKey
+          ? systemNavGroups(systemKey, {
+              runtime: system?.runtime,
+              graphVersions: system?.versions.length,
+              datasets: system
+                ? catalog.data?.datasets.filter(
+                    (dataset) => dataset.agent_system_id === system.id,
+                  ).length
+                : undefined,
+            })
+          : [
+              {
+                label: "Agent systems",
+                items: systems.map((item) => ({
+                  href: `/systems/${encodeURIComponent(item.key)}`,
+                  label: item.name,
+                  icon: GitBranchIcon,
+                })),
+              },
+            ]),
+        { label: "Models", items: modelsNavItems },
+      ];
 
   const activeHref =
     navigation.pendingHref ??
@@ -121,7 +126,7 @@ export function AppSidebar({
     )?.href ??
     null;
   const tooltipY = useSpring(0, tooltipGlide);
-  const rowsKey = systemKey ? "system" : "workspace";
+  const rowsKey = inDocs ? "docs" : systemKey ? "system" : "workspace";
   const [tooltip, setTooltip] = useState({
     label: "",
     hovering: false,
@@ -399,6 +404,9 @@ function NavRow({
   return (
     <Link
       href={item.href}
+      // The full page, not just its loading state: pages are thin shells, so
+      // this is cheap, and the click then renders with no server round trip.
+      prefetch
       aria-current={active ? "page" : undefined}
       className="shell-nav-row"
       data-nav-row
@@ -557,6 +565,7 @@ function SystemSwitcher({
                       key={flow.id}
                       role="menuitem"
                       href={pathForSystem(pathname, flow.key, flow.runtime)}
+                      prefetch
                       className="shell-switcher-item"
                       aria-current={
                         flow.id === current?.id ? "true" : undefined

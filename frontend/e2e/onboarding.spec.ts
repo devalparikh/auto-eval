@@ -121,23 +121,23 @@ test("imports a manifest, edits an immutable graph version, and imports a prompt
   ).toBeVisible();
 });
 
-test("import guide works in both themes, on mobile, and with reduced motion", async ({
+test("import docs work in both themes, on mobile, and with reduced motion", async ({
   page,
 }, testInfo) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
-  await page.goto("/guide");
+  await page.goto("/docs/import");
   await page.getByRole("button", { name: /Map the behavior/ }).click();
   await expect(
     page.getByRole("region", { name: "Map the behavior" }),
   ).toBeVisible();
   await page.screenshot({
-    path: testInfo.outputPath("guide-dark.png"),
+    path: testInfo.outputPath("docs-import-dark.png"),
     fullPage: true,
   });
   const light = page.getByRole("button", { name: "Use light theme" });
   if (await light.count()) await light.click();
   await page.screenshot({
-    path: testInfo.outputPath("guide-light.png"),
+    path: testInfo.outputPath("docs-import-light.png"),
     fullPage: true,
   });
   for (const width of [1280, 768, 390]) {
@@ -153,7 +153,7 @@ test("import guide works in both themes, on mobile, and with reduced motion", as
       .toBeLessThanOrEqual(1);
   }
   await page.screenshot({
-    path: testInfo.outputPath("guide-mobile.png"),
+    path: testInfo.outputPath("docs-import-mobile.png"),
     fullPage: true,
   });
   await page.getByRole("button", { name: /Review and import/ }).click();
@@ -163,4 +163,59 @@ test("import guide works in both themes, on mobile, and with reduced motion", as
   const download = page.waitForEvent("download");
   await page.getByRole("button", { name: "Download starter" }).click();
   expect((await download).suggestedFilename()).toBe("autoeval.json");
+});
+
+test("docs swap the sidebar to their pages and keep the rail on the section in view", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+
+  // The old guide URL lands on the page that replaced it.
+  await page.goto("/guide");
+  await expect(page).toHaveURL(/\/docs\/import$/);
+  await expect(
+    page.getByRole("heading", { level: 1, name: "Import a system" }),
+  ).toBeVisible();
+
+  // Inside the docs, the sidebar lists docs pages, not a system's pages.
+  const primary = page.getByRole("navigation", { name: "Primary" });
+  await expect(primary.getByRole("link", { name: "Quickstart" })).toBeVisible();
+  await expect(
+    primary.getByRole("link", { name: "Import a system" }),
+  ).toHaveAttribute("aria-current", "page");
+
+  // The rail marks the section being read and follows a jump.
+  const rail = page.getByRole("navigation", { name: "On this page" });
+  await expect(rail.getByRole("link", { name: "Walkthrough" })).toHaveAttribute(
+    "aria-current",
+    "location",
+  );
+  await rail.getByRole("link", { name: "Review and import" }).click();
+  await expect(page).toHaveURL(/#review-and-import$/);
+  await expect(
+    rail.getByRole("link", { name: "Review and import" }),
+  ).toHaveAttribute("aria-current", "location");
+
+  // Previous and next follow the reading order.
+  await page
+    .getByRole("navigation", { name: "More docs" })
+    .getByRole("link", { name: /Next/ })
+    .click();
+  await expect(page).toHaveURL(/\/docs\/existing-code$/);
+  await expect(
+    page.getByRole("heading", { level: 1, name: "Adapt existing code" }),
+  ).toBeVisible();
+
+  for (const width of [1280, 768, 390]) {
+    await page.setViewportSize({ width, height: 900 });
+    await expect
+      .poll(() =>
+        page.evaluate(
+          () =>
+            document.documentElement.scrollWidth -
+            document.documentElement.clientWidth,
+        ),
+      )
+      .toBeLessThanOrEqual(1);
+  }
 });

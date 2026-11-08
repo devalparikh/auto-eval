@@ -38,7 +38,7 @@ make setup
 make dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000). The API runs at [http://localhost:8000](http://localhost:8000), with interactive development docs at [http://localhost:8000/docs](http://localhost:8000/docs).
+Open [http://localhost:3000](http://localhost:3000). The API runs at [http://localhost:8000](http://localhost:8000), with interactive development docs at [http://localhost:8000/docs](http://localhost:8000/docs). Both servers listen on loopback only, so the workbench is not reachable from other machines; the frontend also refuses API requests addressed to any host other than this machine.
 
 OpenRouter is optional. Add `OPENROUTER_API_KEY` to `.env`, then choose an OpenRouter model on a system's **Run** or **Evaluations** page. The adapter posts to the fixed API endpoint `https://openrouter.ai/api/v1/chat/completions`; `OPENROUTER_APP_URL=http://localhost:3000` is only the optional application-attribution referrer, not the API base URL. The mock models require no network or secrets.
 

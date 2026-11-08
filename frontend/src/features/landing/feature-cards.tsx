@@ -156,22 +156,30 @@ export function ManifestVisual() {
             <i />
             <span>plugin.py</span>
           </div>
+          {/* The real shape of a plugin file; the hero's Connect step shows
+              the same one in full. */}
           <pre>
             <span>
               <b>1</b>
-              <i>system_key</i> = &quot;research-assistant&quot;
+              <i>PLUGIN</i> = AgentSystemPlugin(
             </span>
             <span>
               <b>2</b>
-              <i>default_model</i> = &quot;candidate-a&quot;
+              {"    "}
+              <i>package</i>=&quot;research_assistant&quot;,
             </span>
             <span>
               <b>3</b>
-              <i>register_handlers</i>(registry)
+              {"    "}
+              <i>spec</i>=AgentSystemSpec(<i>key</i>=&quot;research-assistant&quot;,
             </span>
             <span data-typing={phase === 0 && !reduceMotion ? "true" : "false"}>
               <b>4</b>
-              <i>scoring_entries</i> = [grounding, citation_format]
+              {"        "}
+              <i>default_model_ids</i>=(&quot;claude-sonnet-5&quot;,)),
+            </span>
+            <span>
+              <b>5</b>)
             </span>
           </pre>
         </div>
@@ -198,32 +206,33 @@ export function ManifestVisual() {
   );
 }
 
-/* Card 2: a run moves through the pipeline while a recording timer counts. */
+/* Card 2: a run moves through the pipeline while a recording timer counts.
+   The same four nodes as the hero's trace; `kind` picks the colour. */
 const graphNodes = [
-  { x: 4, kind: "input", name: "question" },
-  { x: 68, kind: "step", name: "normalize" },
-  { x: 132, kind: "live", name: "fetch" },
-  { x: 196, kind: "model", name: "generate" },
-  { x: 260, kind: "check", name: "grounding" },
+  { x: 4, kind: "step", label: "logic", name: "normalize" },
+  { x: 86, kind: "live", label: "live", name: "retrieve" },
+  { x: 168, kind: "model", label: "model", name: "generate" },
+  { x: 250, kind: "step", label: "logic", name: "format" },
 ] as const;
 
+// The cursor follows the running node, dipping to the snapshot under retrieve.
 const cursorStops = [
   { x: 18, y: 30 },
-  { x: 36, y: 62 },
-  { x: 52, y: 30 },
-  { x: 70, y: 60 },
-  { x: 86, y: 30 },
+  { x: 39, y: 62 },
+  { x: 59, y: 30 },
+  { x: 79, y: 30 },
+  { x: 79, y: 30 },
 ];
 
 export function GraphVisual() {
   const ref = useRef<HTMLDivElement>(null);
   const { active, reduceMotion } = useSceneActive(ref);
-  const phase = useCycle([1200, 1300, 1700, 1600, 2000], active);
+  const phase = useCycle([1200, 1500, 1800, 1200, 2200], active);
   const timer = useTimer(active);
-  const done = reduceMotion ? 5 : phase;
+  const done = reduceMotion ? graphNodes.length : phase;
   const statusOf = (index: number) =>
     index < done ? "complete" : index === done ? "running" : "pending";
-  const snapshotState = done > 2 ? "frozen" : done === 2 ? "capturing" : "idle";
+  const snapshotState = done > 1 ? "frozen" : done === 1 ? "capturing" : "idle";
 
   return (
     <div ref={ref} className={styles.stage} aria-hidden="true">
@@ -237,7 +246,7 @@ export function GraphVisual() {
         </span>
         <span
           className={styles.recordingPill}
-          data-pressed={done < 5 ? "true" : "false"}
+          data-pressed={done < graphNodes.length ? "true" : "false"}
         >
           <i />
           Run graph
@@ -287,7 +296,7 @@ export function GraphVisual() {
                   className={styles.graphNodeBar}
                 />
                 <text x={node.x + 8} y={41} className={styles.graphNodeKind}>
-                  {node.kind}
+                  {node.label}
                 </text>
                 <text x={node.x + 8} y={54} className={styles.graphNodeName}>
                   {node.name}
@@ -301,12 +310,12 @@ export function GraphVisual() {
               </g>
             ))}
             <g className={styles.snapshotTag} data-state={snapshotState}>
-              <line x1="162" y1="62" x2="162" y2="76" />
-              <rect x="122" y="76" width="80" height="26" rx="5" />
-              <text x="130" y="87" className={styles.graphNodeKind}>
+              <line x1="116" y1="62" x2="116" y2="76" />
+              <rect x="76" y="76" width="80" height="26" rx="5" />
+              <text x="84" y="87" className={styles.graphNodeKind}>
                 snapshot
               </text>
-              <text x="130" y="97" className={styles.snapshotTagValue}>
+              <text x="84" y="97" className={styles.snapshotTagValue}>
                 {snapshotState === "frozen"
                   ? "93f2 · frozen"
                   : snapshotState === "capturing"
@@ -341,13 +350,12 @@ export function HandlersVisual() {
     >
       <div className={styles.transcriptInner}>
         <div className={styles.bubble} key={`first-${shown === 0}`}>
-          grounding scored <b>0.92</b>. Every cited source was present in the
-          retrieved context.
+          grounding scored <b>0.41</b>. The answer cites arxiv:2403.0117, which
+          no retrieved document contains.
         </div>
         {shown >= 1 ? (
           <div className={styles.bubble}>
-            citation_format scored <b>1.0</b>. Four citations, all in the
-            expected shape.
+            citation_format scored <b>1.0</b>. One citation, well formed.
           </div>
         ) : null}
         {shown >= 2 ? (

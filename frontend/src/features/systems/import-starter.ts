@@ -1,4 +1,4 @@
-/** This same runnable example is downloadable and used throughout the onboarding guide. */
+/** This same runnable example is downloadable and used throughout the docs. */
 export const starterManifest = {
   schema_version: 1,
   system: {
