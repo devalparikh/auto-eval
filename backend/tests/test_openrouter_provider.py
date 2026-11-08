@@ -184,27 +184,21 @@ async def test_deepseek_finance_request_keeps_zdr_compatible_max_tokens():
 
 
 @pytest.mark.asyncio
-async def test_openrouter_surfaces_safe_provider_error_message():
+async def test_openrouter_does_not_persist_provider_error_bodies():
     def handler(_: httpx.Request) -> httpx.Response:
         return httpx.Response(
             404,
             json={
                 "error": {
                     "code": 404,
-                    "message": "No allowed providers are available for the selected model",
+                    "message": "An echoed secret and user@example.com must stay out of traces",
                 }
             },
         )
 
     provider = OpenRouterInferenceProvider(settings(), httpx.MockTransport(handler))
 
-    with pytest.raises(
-        RuntimeError,
-        match=(
-            "OpenRouter request failed \\(404\\): "
-            "No allowed providers are available for the selected model"
-        ),
-    ):
+    with pytest.raises(RuntimeError, match=r"^OpenRouter request failed \(404\)$"):
         await provider.complete(request("openrouter/openai/gpt-5.6-luna"))
 
 

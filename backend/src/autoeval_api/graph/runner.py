@@ -10,6 +10,7 @@ from langgraph.graph import END, StateGraph
 from langgraph.runtime import Runtime
 from sqlalchemy.orm import Session
 
+from autoeval_api.config import Settings, get_settings
 from autoeval_api.graph.context import GraphRuntimeContext, NodeResourceExecutionBinding
 from autoeval_api.graph.definition import (
     AgentGraphDefinition,
@@ -24,6 +25,7 @@ from autoeval_api.graph.trace_policy import project_inference_payload, project_t
 from autoeval_api.graph.trace_recorder import TraceRecorder
 from autoeval_api.graph.types import AgentState
 from autoeval_api.inference.base import InferenceRequest, InferenceResponse
+from autoeval_api.inference.budget import InferenceBudget
 from autoeval_api.inference.registry import InferenceProviderRegistry
 from autoeval_api.models import (
     AgentSystemVersionRecord,
@@ -50,6 +52,8 @@ class RunSelection:
     model_id: str
     agent_system_key: str
     prompt_versions: dict[str, PromptVersionRecord] = field(default_factory=dict)
+    budget: InferenceBudget | None = None
+    output_observer: Callable[[dict[str, Any]], None] | None = None
 
 
 @dataclass(frozen=True)
@@ -65,10 +69,12 @@ class AgentGraphRunner:
         provider_registry: InferenceProviderRegistry,
         node_registry: NodeHandlerRegistry | None = None,
         runtime_input_registry: RuntimeInputCapabilityRegistry | None = None,
+        settings: Settings | None = None,
     ) -> None:
         self.provider_registry = provider_registry
         self.node_registry = node_registry or default_node_handler_registry()
         self.runtime_input_registry = runtime_input_registry or RuntimeInputCapabilityRegistry()
+        self.settings = settings or get_settings()
 
     async def run(
         self,
@@ -109,7 +115,7 @@ class AgentGraphRunner:
             node_resource_selections={},
             capture_node_outputs=capture_node_outputs,
         )
-        recorder = TraceRecorder(session)
+        recorder = TraceRecorder(session, self.settings)
         recorder.start_trace(trace)
 
         started = perf_counter()
@@ -143,6 +149,8 @@ class AgentGraphRunner:
             )
             raw_output = state.get("output", state)
             trace.output = project_trace_payload(selection.agent_system_key, raw_output)
+            if selection.output_observer is not None:
+                selection.output_observer(trace.output)
             trace.status = RunStatus.COMPLETE
         except Exception as error:
             trace.status = RunStatus.FAILED
@@ -223,12 +231,16 @@ class AgentGraphRunner:
                         snapshot,
                         prompt_version,
                     )
+                    if selection.budget is not None:
+                        selection.budget.record(inference)
+                    self._apply_usage(span, inference)
+                    if selection.budget is not None:
+                        selection.budget.require_within_limits()
                     output = self.node_registry.llm_output(
                         node.handler, selection.agent_system_key
                     )(snapshot, inference)
                 span.output = self._span_output(selection.agent_system_key, output, inference)
                 span.status = RunStatus.COMPLETE
-                self._apply_usage(span, inference)
                 return self._graph_update(output)
             except Exception as error:
                 span.status = RunStatus.FAILED
@@ -361,6 +373,8 @@ class AgentGraphRunner:
         prompt_version: PromptVersionRecord,
     ) -> InferenceResponse:
         provider = self.provider_registry.get_for_model(selection.model_id)
+        if selection.budget is not None:
+            selection.budget.reserve_call()
         normalized = state.get("normalized", {})
         modalities = normalized.get("modalities", [])
         return await provider.complete(

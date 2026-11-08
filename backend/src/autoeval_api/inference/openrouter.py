@@ -141,20 +141,8 @@ class OpenRouterInferenceProvider:
         if not response.is_error:
             return
 
-        message: object = response.reason_phrase
-        try:
-            body = response.json()
-        except (json.JSONDecodeError, UnicodeDecodeError):
-            body = None
-        if isinstance(body, dict):
-            error = body.get("error")
-            if isinstance(error, dict):
-                message = error.get("message") or message
-            elif isinstance(error, str):
-                message = error
-
-        safe_message = " ".join(str(message).split())[:1000]
-        raise RuntimeError(f"OpenRouter request failed ({response.status_code}): {safe_message}")
+        # Provider bodies can echo prompts, request credentials, or personal data.
+        raise RuntimeError(f"OpenRouter request failed ({response.status_code})")
 
     @staticmethod
     def _require_safe_input(model: OpenRouterModelConfig, request: InferenceRequest) -> None:

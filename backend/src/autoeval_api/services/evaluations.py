@@ -3,14 +3,17 @@ import hashlib
 import json
 from collections.abc import Callable
 from dataclasses import dataclass
+from datetime import timedelta
 from typing import Any
 
-from sqlalchemy import update
+from sqlalchemy import func, update
 from sqlalchemy.orm import Session
 
 from autoeval_api.agent_systems.registry import system_plugins
+from autoeval_api.config import Settings, get_settings
 from autoeval_api.graph.definition import NodeResourceSelection, parse_graph_definition
 from autoeval_api.graph.runner import AgentGraphRunner, RunSelection, TraceContext
+from autoeval_api.inference.budget import InferenceBudget
 from autoeval_api.models import (
     AgentSystemRecord,
     AgentSystemVersionRecord,
@@ -21,6 +24,7 @@ from autoeval_api.models import (
     EvalItemResultRecord,
     EvalModelResultRecord,
     EvalRunRecord,
+    EvaluationAdmissionRecord,
     PromptRecord,
     PromptVersionRecord,
     RunStatus,
@@ -29,6 +33,7 @@ from autoeval_api.models import (
     format_error_for_storage,
     utc_now,
 )
+from autoeval_api.redaction import redact_payload
 from autoeval_api.schemas import (
     EvalItemResultResponse,
     EvalModelResultResponse,
@@ -49,9 +54,14 @@ class EvaluationContext:
     prompt_versions: dict[str, PromptVersionRecord]
     metric_suite: MetricSuite
     agent_system_key: str
+    budget: InferenceBudget
 
 
 class EvaluationConflict(ValueError):
+    pass
+
+
+class EvaluationLimitExceeded(ValueError):
     pass
 
 
@@ -61,13 +71,54 @@ class EvaluationService:
         session_factory: Callable[[], Session],
         runner: AgentGraphRunner,
         scoring_registry: ScoringRegistry | None = None,
+        settings: Settings | None = None,
     ) -> None:
         self.session_factory = session_factory
         self.runner = runner
         self.scoring_registry = scoring_registry or default_scoring_registry()
+        self.settings = settings or get_settings()
         # A benchmark starts one run per graph version. SQLite takes one writer and every
         # run shares this event loop, so queued runs wait their turn instead of contending.
         self._execution_lock = asyncio.Lock()
+
+    def _limits(self) -> dict[str, int | float]:
+        return {
+            "max_calls": self.settings.evaluation_max_provider_calls,
+            "max_tokens": self.settings.evaluation_max_tokens,
+            "max_cost_usd": self.settings.evaluation_max_cost_usd,
+        }
+
+    def _require_admission(self, session: Session, item_count: int, graph, model_ids) -> None:
+        active = session.query(EvalRunRecord).filter(
+            EvalRunRecord.status.in_([RunStatus.QUEUED, RunStatus.RUNNING])
+        )
+        if active.count() >= self.settings.evaluation_max_pending_runs:
+            raise EvaluationLimitExceeded("Too many pending evaluations; wait for a run to finish")
+        if item_count > self.settings.evaluation_max_items:
+            raise EvaluationLimitExceeded("Evaluation dataset exceeds the configured item limit")
+        nodes = parse_graph_definition(graph.definition).nodes
+        calls = item_count * len(set(model_ids)) * sum(node.kind == "llm" for node in nodes)
+        if calls > self.settings.evaluation_max_provider_calls:
+            raise EvaluationLimitExceeded("Evaluation exceeds the configured provider-call limit")
+        # Reserve each active run's entire dollar allowance. The database lock
+        # makes concurrent processes see reservations before admitting more work.
+        reserved = sum(
+            (run.limits or {}).get("max_cost_usd", self.settings.evaluation_max_cost_usd)
+            for run in active.all()
+        )
+        spent = (
+            session.query(func.coalesce(func.sum(TraceRecord.cost_usd), 0))
+            .filter(
+                TraceRecord.started_at >= utc_now() - timedelta(days=1),
+                TraceRecord.evaluation_run_id.is_not(None),
+                TraceRecord.evaluation_run_id.not_in(active.with_entities(EvalRunRecord.id)),
+            )
+            .scalar()
+        )
+        if spent + reserved + self.settings.evaluation_max_cost_usd > (
+            self.settings.evaluation_daily_cost_usd
+        ):
+            raise EvaluationLimitExceeded("Evaluation daily spend allowance is exhausted")
 
     def create_run(
         self,
@@ -84,6 +135,15 @@ class EvaluationService:
     ) -> EvalRunRecord:
         """Finalize and enqueue atomically; a retry returns the original run."""
         try:
+            # UPDATE takes a write lock on SQLite and a row lock on PostgreSQL.
+            # It covers admission, retry lookup, finalization, and insertion.
+            locked = session.execute(
+                update(EvaluationAdmissionRecord)
+                .where(EvaluationAdmissionRecord.id == 1)
+                .values(id=1)
+            ).rowcount
+            if locked != 1:
+                raise RuntimeError("Evaluation admission is unavailable; apply database migrations")
             if finalize_dataset or request_id:
                 # Acquire SQLite's writer lock before reading the draft or retry key.
                 # Final versions are never updated. Other databases lock the version row.
@@ -125,6 +185,12 @@ class EvaluationService:
                         )
                     session.commit()
                     return existing
+            item_count = (
+                session.query(DatasetItemRecord)
+                .filter_by(dataset_version_id=dataset_version.id)
+                .count()
+            )
+            self._require_admission(session, item_count, graph_version, model_ids)
             if finalize_dataset:
                 if not expected_dataset_revision:
                     raise EvaluationConflict("Review the dataset before finalizing it.")
@@ -157,6 +223,7 @@ class EvaluationService:
                 session, dataset_version, graph_version, prompt_version, model_ids, resolved_prompts
             )
             run.request_id = request_id
+            run.limits = self._limits()
             run.request_hash = request_hash if request_id else None
             session.commit()
             session.refresh(run)
@@ -289,6 +356,12 @@ class EvaluationService:
             prompt_versions=prompt_versions,
             metric_suite=self.scoring_registry.for_dataset(dataset.key),
             agent_system_key=system.key,
+            budget=InferenceBudget(
+                **{
+                    key: min(value, (run.limits or {}).get(key, value))
+                    for key, value in self._limits().items()
+                }
+            ),
         )
 
     async def _evaluate_model(
@@ -297,9 +370,15 @@ class EvaluationService:
         context: EvaluationContext,
         model_id: str,
     ) -> None:
-        completed: list[tuple[DatasetItemRecord, TraceRecord]] = []
+        completed: list[tuple[DatasetItemRecord, TraceRecord, dict[str, Any]]] = []
         # One SQLAlchemy session owns this local run, so item execution is deliberately serialized.
         for item in context.items:
+            actual: dict[str, Any] = {}
+
+            def capture_output(output: dict[str, Any]) -> None:
+                nonlocal actual
+                actual = output
+
             self._require_locked_runtime_inputs(
                 context.graph_version, item, context.agent_system_key
             )
@@ -312,6 +391,8 @@ class EvaluationService:
                     model_id,
                     context.agent_system_key,
                     context.prompt_versions,
+                    context.budget,
+                    capture_output,
                 ),
                 item.input,
                 TraceContext(
@@ -325,16 +406,15 @@ class EvaluationService:
             )
             if trace.status != RunStatus.COMPLETE:
                 raise RuntimeError(trace.error or "Agent run failed")
-            completed.append((item, trace))
-            actual = trace.output or {}
+            completed.append((item, trace, actual))
             session.add(
                 EvalItemResultRecord(
                     eval_run_id=context.run.id,
                     dataset_item_id=item.id,
                     model_id=model_id,
                     trace_id=trace.id,
-                    expected=item.expected,
-                    actual=actual,
+                    expected=redact_payload(item.expected, self.settings.trace_secrets()),
+                    actual=trace.output or {},
                     scores=context.metric_suite.score_item(item.expected, actual),
                 )
             )
@@ -439,14 +519,13 @@ class EvaluationService:
         session: Session,
         context: EvaluationContext,
         model_id: str,
-        completed: list[tuple[DatasetItemRecord, TraceRecord]],
+        completed: list[tuple[DatasetItemRecord, TraceRecord, dict[str, Any]]],
     ) -> None:
         expected_items: list[dict[str, Any]] = []
         actual_items: list[dict[str, Any]] = []
         latencies: list[float] = []
         costs: list[float] = []
-        for item, trace in completed:
-            actual = trace.output or {}
+        for item, trace, actual in completed:
             expected_items.append(item.expected)
             actual_items.append(actual)
             latencies.append(trace.latency_ms)

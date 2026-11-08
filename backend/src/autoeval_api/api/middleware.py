@@ -117,8 +117,10 @@ class RequestGuardMiddleware:
         username, separator, password = decoded.partition(":")
         return bool(
             separator
-            and secrets.compare_digest(username, "autoeval")
-            and secrets.compare_digest(password, self.hosted_password or "")
+            and secrets.compare_digest(username.encode("utf-8"), b"autoeval")
+            and secrets.compare_digest(
+                password.encode("utf-8"), (self.hosted_password or "").encode("utf-8")
+            )
         )
 
     async def _read_request_messages(self, receive: Receive) -> list[Message] | None:

@@ -1,3 +1,6 @@
+import base64
+
+import pytest
 from fastapi.testclient import TestClient
 
 from autoeval_api.app import create_application
@@ -123,3 +126,32 @@ def test_hosted_guard_requires_valid_basic_auth(session_factory) -> None:
     assert background_eval.json()["detail"] == (
         "Hosted evaluations must set run_in_background=false"
     )
+
+
+@pytest.mark.parametrize(
+    ("configured_password", "credentials", "expected"),
+    [
+        ("a" * 40, "autoev\u00e1l:wrong", 401),
+        ("a" * 40, "autoeval:wrong\u00e9", 401),
+        ("p\u00e4ssword" * 8, "autoeval:" + "p\u00e4ssword" * 8, 200),
+    ],
+)
+def test_basic_auth_handles_utf8_credentials(
+    session_factory, configured_password, credentials, expected
+) -> None:
+    settings = Settings(
+        _env_file=None,
+        AUTOEVAL_ENV="test",
+        hosted_password=configured_password,
+        allowed_hosts=["testserver"],
+    )
+    app = create_application(
+        settings=settings,
+        session_factory=session_factory,
+        initialize_database=False,
+        seed_on_start=False,
+    )
+    authorization = base64.b64encode(credentials.encode("utf-8")).decode("ascii")
+    with TestClient(app) as client:
+        response = client.get("/api/health", headers={"Authorization": "Basic " + authorization})
+    assert response.status_code == expected
