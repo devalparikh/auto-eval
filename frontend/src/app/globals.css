@@ -612,9 +612,17 @@ kbd.shell-nav-count {
   transition-duration: var(--hover-in);
 }
 
+/* The row a press lands on answers in the same frame; only leaving eases. */
 .shell-nav-row[aria-current="page"] {
   color: var(--text);
   font-weight: 500;
+  transition-duration: 0ms;
+}
+
+/* Touch has no hover glide, so a press shows on the row itself, instantly. */
+.shell-nav-row:active {
+  background: var(--shell-active);
+  transition: none;
 }
 
 .shell-nav-row:focus-visible {
@@ -1775,9 +1783,11 @@ kbd.shell-nav-count {
   backdrop-filter: blur(4px);
 }
 
+/* Opens in the frame it was asked for: a short settle, never a fade from
+   nothing that the first keystroke has to wait out. */
 @media (prefers-reduced-motion: no-preference) {
   .command-menu[open] {
-    animation: routeEnter 180ms var(--ease-settle) both;
+    animation: menuEnter 120ms var(--ease-settle) both;
   }
 }
 
@@ -2263,10 +2273,6 @@ kbd.shell-nav-count {
   .loading-state {
     animation: fadeIn 200ms ease 140ms both;
   }
-
-  .route-enter {
-    animation: routeEnter 200ms var(--ease-settle) both;
-  }
 }
 
 @keyframes fadeIn {
@@ -2275,12 +2281,10 @@ kbd.shell-nav-count {
   }
 }
 
-/* Ending on `transform: none` keeps fixed-position modals inside the route
-   anchored to the viewport once the entrance finishes. */
-@keyframes routeEnter {
+@keyframes menuEnter {
   from {
-    opacity: 0;
-    transform: translateY(4px);
+    opacity: 0.6;
+    transform: translateY(-2px) scale(0.99);
   }
 
   to {

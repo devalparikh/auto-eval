@@ -1,46 +1,46 @@
 "use client";
 
-import { useInView, useReducedMotion } from "motion/react";
+import { useInView } from "motion/react";
 import { useRef } from "react";
 
+import { usePrefersReducedMotion } from "@/features/landing/landing-motion";
 import styles from "@/features/landing/landing.module.css";
+
+// The same run as the hero's trace step: four nodes, 968 ms, one model call.
+const TOTAL_MS = 968;
 
 const spans = [
   {
-    kind: "INPUT",
-    name: "question",
+    kind: "LOGIC",
+    name: "normalize",
     start: 0,
-    duration: 4,
-    total: 1420,
-    meta: "user turn",
+    duration: 2,
+    meta: "normalize_query · replayed",
     tone: "logic",
   },
   {
-    kind: "CONTEXT",
+    kind: "LIVE",
     name: "retrieve",
-    start: 4,
+    start: 2,
     duration: 142,
-    total: 1420,
-    meta: "3 documents · 2,118 tok",
+    meta: "snapshot 93f2 · 3 documents",
     tone: "live",
   },
   {
     kind: "MODEL",
     name: "generate",
-    start: 150,
+    start: 144,
     duration: 820,
-    total: 1420,
-    meta: "candidate-a · 1,284 tok · $0.0042",
+    meta: "claude-sonnet-5 · 1,284 tokens",
     tone: "model",
   },
   {
-    kind: "CHECK",
-    name: "grounding",
-    start: 974,
-    duration: 446,
-    total: 1420,
-    meta: "policy · failed",
-    tone: "fail",
+    kind: "LOGIC",
+    name: "format",
+    start: 964,
+    duration: 4,
+    meta: "add_citations · 1 citation",
+    tone: "logic",
   },
 ] as const;
 
@@ -48,16 +48,16 @@ const toneClass = {
   logic: styles.spanLogic,
   live: styles.spanLive,
   model: styles.spanModel,
-  fail: styles.spanFail,
 } as const;
 
 /**
- * A recorded run laid out as a span waterfall, ending in the grounding check
- * that failed. Bars grow in from the left the first time the panel is seen.
+ * A recorded run laid out as a span waterfall, with the grounding check that
+ * failed on its output. Bars grow in from the left the first time the panel
+ * is seen.
  */
 export function TraceWaterfall() {
   const ref = useRef<HTMLDivElement>(null);
-  const reduceMotion = useReducedMotion();
+  const reduceMotion = usePrefersReducedMotion();
   const inView = useInView(ref, { once: true, amount: 0.35 });
 
   return (
@@ -78,14 +78,14 @@ export function TraceWaterfall() {
             <i aria-hidden="true" />
             research-assistant / traces / tr_01J8F2KQ
           </span>
-          <span>1.42 s · $0.0042</span>
+          <span>968 ms · $0.0042</span>
         </header>
         <div className={styles.waterfallScale} aria-hidden="true">
           <div>
             <span>0 ms</span>
-            <span>400</span>
-            <span>800</span>
-            <span>1,200</span>
+            <span>320</span>
+            <span>640</span>
+            <span>960</span>
           </div>
         </div>
         <ol className={styles.spanList}>
@@ -95,8 +95,8 @@ export function TraceWaterfall() {
               className={`${styles.spanRow} ${toneClass[span.tone]}`}
               style={
                 {
-                  "--span-start": `${(span.start / span.total) * 100}%`,
-                  "--span-width": `${Math.max((span.duration / span.total) * 100, 1.2)}%`,
+                  "--span-start": `${(span.start / TOTAL_MS) * 100}%`,
+                  "--span-width": `${Math.max((span.duration / TOTAL_MS) * 100, 1.2)}%`,
                   "--span-index": index,
                 } as React.CSSProperties
               }

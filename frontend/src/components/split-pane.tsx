@@ -8,7 +8,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { paneCookieName } from "@/lib/sidebar";
+import { paneCollapsedFromCookie, paneCookieName } from "@/lib/sidebar";
 
 /**
  * A collapsible side pane beside the main content, for list-and-detail screens.
@@ -30,7 +30,9 @@ export function SplitPane({
   pane: ReactNode;
   children: ReactNode;
 }) {
-  const [collapsed, setCollapsed] = useState(initialCollapsed);
+  const [collapsed, setCollapsed] = useState(
+    () => paneCollapsedInBrowser(id) ?? initialCollapsed,
+  );
   const paneId = useId();
 
   const toggle = useCallback(() => {
@@ -80,4 +82,20 @@ export function SplitPane({
       </div>
     </div>
   );
+}
+
+/**
+ * Visited routes are served from the router cache, so `initialCollapsed` can be
+ * the cookie from an earlier visit. The browser's cookie is always current, and
+ * on the first load it is the one the server read, so hydration still matches.
+ */
+function paneCollapsedInBrowser(id: string): boolean | null {
+  if (typeof document === "undefined") return null;
+  const prefix = `${paneCookieName(id)}=`;
+  const entry = document.cookie
+    .split("; ")
+    .find((cookie) => cookie.startsWith(prefix));
+  return entry === undefined
+    ? null
+    : paneCollapsedFromCookie(entry.slice(prefix.length));
 }
