@@ -8,7 +8,7 @@ from sqlalchemy import create_engine, event, inspect, text
 from sqlalchemy.exc import IntegrityError
 
 from autoeval_api.db import Base, build_session_factory
-from autoeval_api.migrations import MIGRATION_VERSION, apply_migrations
+from autoeval_api.migrations import apply_migrations
 from autoeval_api.models import (
     AgentSystemVersionRecord,
     DatasetVersionRecord,
@@ -209,7 +209,7 @@ def test_retry_migration_preserves_existing_runs_and_enforces_uniqueness(tmp_pat
     )
     with engine.begin() as connection:
         connection.execute(text("CREATE TABLE schema_migrations (version INTEGER PRIMARY KEY)"))
-        for version in range(1, MIGRATION_VERSION):
+        for version in range(1, 12):  # Fixture represents the schema before migration 12.
             connection.execute(text("INSERT INTO schema_migrations VALUES (:v)"), {"v": version})
         connection.execute(text("CREATE TABLE eval_runs (id TEXT PRIMARY KEY)"))
         connection.execute(text("INSERT INTO eval_runs VALUES ('existing')"))

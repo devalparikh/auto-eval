@@ -235,6 +235,15 @@
             "title": "Product Key",
             "type": "string"
           },
+          "runtime": {
+            "default": "graph",
+            "enum": [
+              "graph",
+              "external_harness"
+            ],
+            "title": "Runtime",
+            "type": "string"
+          },
           "versions": {
             "items": {
               "$ref": "#/components/schemas/VersionSummary"
@@ -530,6 +539,24 @@
         "title": "AutoEvalManifest",
         "type": "object"
       },
+      "CaptureReview": {
+        "additionalProperties": false,
+        "properties": {
+          "decision": {
+            "enum": [
+              "approved",
+              "rejected"
+            ],
+            "title": "Decision",
+            "type": "string"
+          }
+        },
+        "required": [
+          "decision"
+        ],
+        "title": "CaptureReview",
+        "type": "object"
+      },
       "CatalogResponse": {
         "properties": {
           "agent_systems": {
@@ -568,6 +595,41 @@
           "models"
         ],
         "title": "CatalogResponse",
+        "type": "object"
+      },
+      "ConnectHarness": {
+        "additionalProperties": false,
+        "properties": {
+          "harness": {
+            "enum": [
+              "claude-code",
+              "codex",
+              "hermes",
+              "opencode",
+              "pi",
+              "other"
+            ],
+            "title": "Harness",
+            "type": "string"
+          },
+          "key": {
+            "pattern": "^[a-z][a-z0-9-]{1,99}$",
+            "title": "Key",
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "name",
+          "harness"
+        ],
+        "title": "ConnectHarness",
         "type": "object"
       },
       "CreateAgentVersionRequest": {
@@ -1536,6 +1598,626 @@
           }
         },
         "title": "HTTPValidationError",
+        "type": "object"
+      },
+      "HarnessCapture": {
+        "additionalProperties": false,
+        "properties": {
+          "configuration_hash": {
+            "pattern": "^[a-f0-9]{64}$",
+            "title": "Configuration Hash",
+            "type": "string"
+          },
+          "cost_usd": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cost Usd"
+          },
+          "harness_revision": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Harness Revision",
+            "type": "string"
+          },
+          "input_tokens": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Input Tokens"
+          },
+          "latency_ms": {
+            "minimum": 0.0,
+            "title": "Latency Ms",
+            "type": "number"
+          },
+          "model": {
+            "maxLength": 240,
+            "minLength": 1,
+            "title": "Model",
+            "type": "string"
+          },
+          "output_tokens": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Output Tokens"
+          },
+          "protocol": {
+            "enum": [
+              "chat",
+              "responses",
+              "anthropic"
+            ],
+            "title": "Protocol",
+            "type": "string"
+          },
+          "request": {
+            "additionalProperties": true,
+            "title": "Request",
+            "type": "object"
+          },
+          "request_id": {
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Request Id",
+            "type": "string"
+          },
+          "response": {
+            "additionalProperties": true,
+            "title": "Response",
+            "type": "object"
+          },
+          "schema_version": {
+            "const": 1,
+            "default": 1,
+            "title": "Schema Version",
+            "type": "integer"
+          },
+          "session_id": {
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Session Id",
+            "type": "string"
+          },
+          "task_key": {
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Task Key",
+            "type": "string"
+          }
+        },
+        "required": [
+          "request_id",
+          "session_id",
+          "task_key",
+          "harness_revision",
+          "configuration_hash",
+          "model",
+          "protocol",
+          "request",
+          "response",
+          "latency_ms"
+        ],
+        "title": "HarnessCapture",
+        "type": "object"
+      },
+      "HarnessCaptureSummary": {
+        "additionalProperties": false,
+        "properties": {
+          "content_hash": {
+            "title": "Content Hash",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "input_tokens": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Input Tokens"
+          },
+          "model": {
+            "title": "Model",
+            "type": "string"
+          },
+          "output_tokens": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Output Tokens"
+          },
+          "partition": {
+            "title": "Partition",
+            "type": "string"
+          },
+          "review": {
+            "title": "Review",
+            "type": "string"
+          },
+          "session_id": {
+            "title": "Session Id",
+            "type": "string"
+          },
+          "task_key": {
+            "title": "Task Key",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "task_key",
+          "session_id",
+          "model",
+          "review",
+          "partition",
+          "content_hash",
+          "input_tokens",
+          "output_tokens"
+        ],
+        "title": "HarnessCaptureSummary",
+        "type": "object"
+      },
+      "HarnessCaseResult": {
+        "additionalProperties": false,
+        "properties": {
+          "cost_usd": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cost Usd"
+          },
+          "input_tokens": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Input Tokens"
+          },
+          "latency_ms": {
+            "minimum": 0.0,
+            "title": "Latency Ms",
+            "type": "number"
+          },
+          "output_tokens": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Output Tokens"
+          },
+          "repetition": {
+            "maximum": 10.0,
+            "minimum": 1.0,
+            "title": "Repetition",
+            "type": "integer"
+          },
+          "status": {
+            "enum": [
+              "completed",
+              "error",
+              "timeout"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "task_key": {
+            "title": "Task Key",
+            "type": "string"
+          },
+          "test_exit_code": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Test Exit Code"
+          },
+          "test_output_hash": {
+            "anyOf": [
+              {
+                "pattern": "^[a-f0-9]{64}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Test Output Hash"
+          }
+        },
+        "required": [
+          "task_key",
+          "repetition",
+          "status",
+          "latency_ms"
+        ],
+        "title": "HarnessCaseResult",
+        "type": "object"
+      },
+      "HarnessReceipt": {
+        "additionalProperties": false,
+        "properties": {
+          "content_hash": {
+            "title": "Content Hash",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "content_hash"
+        ],
+        "title": "HarnessReceipt",
+        "type": "object"
+      },
+      "HarnessRun": {
+        "additionalProperties": false,
+        "properties": {
+          "configuration_hash": {
+            "pattern": "^[a-f0-9]{64}$",
+            "title": "Configuration Hash",
+            "type": "string"
+          },
+          "harness_revision": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Harness Revision",
+            "type": "string"
+          },
+          "label": {
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Label",
+            "type": "string"
+          },
+          "model": {
+            "maxLength": 240,
+            "minLength": 1,
+            "title": "Model",
+            "type": "string"
+          },
+          "request_id": {
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Request Id",
+            "type": "string"
+          },
+          "results": {
+            "items": {
+              "$ref": "#/components/schemas/HarnessCaseResult"
+            },
+            "maxItems": 1000,
+            "minItems": 1,
+            "title": "Results",
+            "type": "array"
+          },
+          "suite_id": {
+            "title": "Suite Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "request_id",
+          "suite_id",
+          "label",
+          "model",
+          "harness_revision",
+          "configuration_hash",
+          "results"
+        ],
+        "title": "HarnessRun",
+        "type": "object"
+      },
+      "HarnessRunSummary": {
+        "additionalProperties": false,
+        "properties": {
+          "configuration_hash": {
+            "title": "Configuration Hash",
+            "type": "string"
+          },
+          "content_hash": {
+            "title": "Content Hash",
+            "type": "string"
+          },
+          "cost_usd": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cost Usd"
+          },
+          "failures": {
+            "title": "Failures",
+            "type": "integer"
+          },
+          "harness_revision": {
+            "title": "Harness Revision",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "mean_latency_ms": {
+            "title": "Mean Latency Ms",
+            "type": "number"
+          },
+          "model": {
+            "title": "Model",
+            "type": "string"
+          },
+          "pass_rate": {
+            "title": "Pass Rate",
+            "type": "number"
+          },
+          "passed": {
+            "title": "Passed",
+            "type": "integer"
+          },
+          "suite_id": {
+            "title": "Suite Id",
+            "type": "string"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "suite_id",
+          "label",
+          "model",
+          "harness_revision",
+          "configuration_hash",
+          "pass_rate",
+          "passed",
+          "total",
+          "failures",
+          "mean_latency_ms",
+          "cost_usd",
+          "content_hash"
+        ],
+        "title": "HarnessRunSummary",
+        "type": "object"
+      },
+      "HarnessSuite": {
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "repetitions": {
+            "default": 1,
+            "maximum": 10.0,
+            "minimum": 1.0,
+            "title": "Repetitions",
+            "type": "integer"
+          },
+          "task_keys": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 100,
+            "minItems": 1,
+            "title": "Task Keys",
+            "type": "array"
+          }
+        },
+        "required": [
+          "name",
+          "task_keys"
+        ],
+        "title": "HarnessSuite",
+        "type": "object"
+      },
+      "HarnessTask": {
+        "additionalProperties": false,
+        "properties": {
+          "key": {
+            "pattern": "^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,99}$",
+            "title": "Key",
+            "type": "string"
+          },
+          "partition": {
+            "enum": [
+              "train",
+              "validation",
+              "benchmark"
+            ],
+            "title": "Partition",
+            "type": "string"
+          },
+          "prompt": {
+            "maxLength": 100000,
+            "minLength": 1,
+            "title": "Prompt",
+            "type": "string"
+          },
+          "repository_revision": {
+            "default": "",
+            "maxLength": 120,
+            "title": "Repository Revision",
+            "type": "string"
+          },
+          "test_command": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 40,
+            "title": "Test Command",
+            "type": "array"
+          }
+        },
+        "required": [
+          "key",
+          "partition",
+          "prompt"
+        ],
+        "title": "HarnessTask",
+        "type": "object"
+      },
+      "HarnessTrainingExport": {
+        "additionalProperties": false,
+        "properties": {
+          "content_hash": {
+            "title": "Content Hash",
+            "type": "string"
+          },
+          "dataset_version_id": {
+            "title": "Dataset Version Id",
+            "type": "string"
+          },
+          "train": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Train",
+            "type": "array"
+          },
+          "validation": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Validation",
+            "type": "array"
+          }
+        },
+        "required": [
+          "dataset_version_id",
+          "train",
+          "validation",
+          "content_hash"
+        ],
+        "title": "HarnessTrainingExport",
+        "type": "object"
+      },
+      "HarnessWorkspace": {
+        "additionalProperties": false,
+        "properties": {
+          "captures": {
+            "items": {
+              "$ref": "#/components/schemas/HarnessCaptureSummary"
+            },
+            "title": "Captures",
+            "type": "array"
+          },
+          "harness": {
+            "title": "Harness",
+            "type": "string"
+          },
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "runs": {
+            "items": {
+              "$ref": "#/components/schemas/HarnessRunSummary"
+            },
+            "title": "Runs",
+            "type": "array"
+          },
+          "suites": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Suites",
+            "type": "array"
+          },
+          "system_id": {
+            "title": "System Id",
+            "type": "string"
+          },
+          "tasks": {
+            "items": {
+              "$ref": "#/components/schemas/HarnessTask"
+            },
+            "title": "Tasks",
+            "type": "array"
+          }
+        },
+        "required": [
+          "system_id",
+          "key",
+          "name",
+          "harness",
+          "tasks",
+          "captures",
+          "suites",
+          "runs"
+        ],
+        "title": "HarnessWorkspace",
         "type": "object"
       },
       "ImportSource": {
@@ -3771,6 +4453,15 @@
             "title": "Sample",
             "type": "array"
           },
+          "sample_tools": {
+            "default": [],
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Sample Tools",
+            "type": "array"
+          },
           "train_count": {
             "title": "Train Count",
             "type": "integer"
@@ -3793,22 +4484,56 @@
       "TrainingMessage": {
         "properties": {
           "content": {
-            "title": "Content",
-            "type": "string"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Content"
           },
           "role": {
             "enum": [
               "system",
+              "developer",
               "user",
-              "assistant"
+              "assistant",
+              "tool"
             ],
             "title": "Role",
             "type": "string"
+          },
+          "tool_call_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tool Call Id"
+          },
+          "tool_calls": {
+            "anyOf": [
+              {
+                "items": {
+                  "additionalProperties": true,
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tool Calls"
           }
         },
         "required": [
-          "role",
-          "content"
+          "role"
         ],
         "title": "TrainingMessage",
         "type": "object"
@@ -5075,6 +5800,502 @@
           }
         },
         "summary": "Eval Run Detail"
+      }
+    },
+    "/api/harnesses": {
+      "post": {
+        "operationId": "connect_api_harnesses_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConnectHarness"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HarnessWorkspace"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Connect",
+        "tags": [
+          "harnesses"
+        ]
+      }
+    },
+    "/api/harnesses/{key}": {
+      "get": {
+        "operationId": "workspace_api_harnesses__key__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "key",
+            "required": true,
+            "schema": {
+              "title": "Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HarnessWorkspace"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Workspace",
+        "tags": [
+          "harnesses"
+        ]
+      }
+    },
+    "/api/harnesses/{key}/captures": {
+      "post": {
+        "operationId": "capture_api_harnesses__key__captures_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "key",
+            "required": true,
+            "schema": {
+              "title": "Key",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HarnessCapture"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HarnessReceipt"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Capture",
+        "tags": [
+          "harnesses"
+        ]
+      }
+    },
+    "/api/harnesses/{key}/captures/{capture_id}": {
+      "get": {
+        "operationId": "capture_detail_api_harnesses__key__captures__capture_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "key",
+            "required": true,
+            "schema": {
+              "title": "Key",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "capture_id",
+            "required": true,
+            "schema": {
+              "title": "Capture Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HarnessCapture"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Capture Detail",
+        "tags": [
+          "harnesses"
+        ]
+      }
+    },
+    "/api/harnesses/{key}/captures/{capture_id}/review": {
+      "post": {
+        "operationId": "review_api_harnesses__key__captures__capture_id__review_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "key",
+            "required": true,
+            "schema": {
+              "title": "Key",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "capture_id",
+            "required": true,
+            "schema": {
+              "title": "Capture Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CaptureReview"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HarnessReceipt"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Review",
+        "tags": [
+          "harnesses"
+        ]
+      }
+    },
+    "/api/harnesses/{key}/runs": {
+      "post": {
+        "operationId": "run_api_harnesses__key__runs_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "key",
+            "required": true,
+            "schema": {
+              "title": "Key",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HarnessRun"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HarnessReceipt"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Run",
+        "tags": [
+          "harnesses"
+        ]
+      }
+    },
+    "/api/harnesses/{key}/runs/{run_id}": {
+      "get": {
+        "operationId": "run_detail_api_harnesses__key__runs__run_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "key",
+            "required": true,
+            "schema": {
+              "title": "Key",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "title": "Run Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HarnessRun"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Run Detail",
+        "tags": [
+          "harnesses"
+        ]
+      }
+    },
+    "/api/harnesses/{key}/suites": {
+      "post": {
+        "operationId": "suite_api_harnesses__key__suites_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "key",
+            "required": true,
+            "schema": {
+              "title": "Key",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HarnessSuite"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HarnessReceipt"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Suite",
+        "tags": [
+          "harnesses"
+        ]
+      }
+    },
+    "/api/harnesses/{key}/tasks": {
+      "post": {
+        "operationId": "task_api_harnesses__key__tasks_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "key",
+            "required": true,
+            "schema": {
+              "title": "Key",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HarnessTask"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HarnessReceipt"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Task",
+        "tags": [
+          "harnesses"
+        ]
+      }
+    },
+    "/api/harnesses/{key}/training-export": {
+      "post": {
+        "operationId": "training_export_api_harnesses__key__training_export_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "key",
+            "required": true,
+            "schema": {
+              "title": "Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HarnessTrainingExport"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Training Export",
+        "tags": [
+          "harnesses"
+        ]
       }
     },
     "/api/health": {

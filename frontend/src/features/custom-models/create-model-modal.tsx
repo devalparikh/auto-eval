@@ -56,10 +56,13 @@ export function CreateModelModal({
       seed: 42,
     },
   });
+  const harnessDataset =
+    datasets.find((item) => item.id === form.dataset_version_id)?.system
+      ?.runtime === "external_harness";
   const [customBase, setCustomBase] = useState(
     Boolean(
       source &&
-      !runtime.base_models.some((model) => model.id === source.base_model),
+        !runtime.base_models.some((model) => model.id === source.base_model),
     ),
   );
   const [preview, setPreview] = useState<TrainingDataPreview | null>(null);
@@ -204,8 +207,15 @@ export function CreateModelModal({
           </div>
           <div className="field">
             <label htmlFor="model-instruction">Training instruction</label>
+            {harnessDataset && (
+              <p className={styles.hint}>
+                Harness datasets preserve their captured instructions and tools.
+                This replacement instruction is not used.
+              </p>
+            )}
             <textarea
               id="model-instruction"
+              disabled={harnessDataset}
               className="app-textarea"
               required
               maxLength={16000}
@@ -267,10 +277,9 @@ export function CreateModelModal({
             </div>
           </details>
           <p className={styles.hint}>
-            Training pairs the input JSON with the reviewed expected JSON. If
-            your dataset contains scoring labels, those labels become the
-            answer. It does not reproduce an agent’s graph or fetch external
-            context.
+            {harnessDataset
+              ? "Training uses captured conversations, tool definitions, and the approved assistant response. Choose a base model whose chat template supports the roles and tools in your examples."
+              : "Training pairs the input JSON with the reviewed expected JSON. If your dataset contains scoring labels, those labels become the answer. It does not reproduce an agent’s graph or fetch external context."}
           </p>
         </fieldset>
         {preview && (
@@ -283,17 +292,25 @@ export function CreateModelModal({
               removed
             </p>
             <p className={styles.hint}>
-              A fixed 10% holdout (at least one example) is reserved for
-              validation.
+              {harnessDataset
+                ? "Training and validation use separate tasks selected during capture. Benchmark tasks remain held out."
+                : "A fixed 10% holdout (at least one example) is reserved for validation."}
             </p>
-            {preview.sample.map((message) => (
-              <div key={message.role}>
+            {!!preview.sample_tools?.length && (
+              <pre>{JSON.stringify(preview.sample_tools, null, 2)}</pre>
+            )}
+            {preview.sample.map((message, index) => (
+              <div key={index}>
                 <span className={styles.eyebrow}>
                   {message.role === "assistant"
                     ? "Expected answer"
                     : message.role}
                 </span>
                 <pre>{message.content}</pre>
+                {message.tool_calls && (
+                  <pre>{JSON.stringify(message.tool_calls, null, 2)}</pre>
+                )}
+                {message.tool_call_id && <code>{message.tool_call_id}</code>}
               </div>
             ))}
           </section>

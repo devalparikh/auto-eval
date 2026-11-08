@@ -19,6 +19,7 @@ export type AgentSystemSummary = {
   dataset_editor: string;
   input_editor: string;
   primary_metric: string;
+  runtime?: "graph" | "external_harness";
 };
 
 export type PromptSummary = {
@@ -94,8 +95,10 @@ export type TrainingRuntime = {
 };
 
 export type TrainingMessage = {
-  role: "system" | "user" | "assistant";
-  content: string;
+  role: "system" | "developer" | "user" | "assistant" | "tool";
+  content?: string | null;
+  tool_calls?: Record<string, unknown>[] | null;
+  tool_call_id?: string | null;
 };
 
 export type TrainingDataPreview = {
@@ -104,6 +107,7 @@ export type TrainingDataPreview = {
   validation_count: number;
   duplicate_count: number;
   sample: TrainingMessage[];
+  sample_tools?: Record<string, unknown>[];
 };
 
 export type CustomModel = CreateCustomModel & {

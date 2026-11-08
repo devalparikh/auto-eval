@@ -21,6 +21,13 @@ AutoEval is a local-first workspace for building, tracing, versioning, and evalu
 - A sidebar with collapsible list panes and a `⌘K` command menu for pages, traces, datasets, and models
 - FastAPI unit and integration tests plus frontend unit and Playwright test harnesses
 
+## Coding harnesses
+
+Use **Import → Connect a coding harness** for Claude Code, Codex, Hermes, OpenCode,
+Pi, or a compatible client. Capture through a local recorder in front of
+CLIProxyAPI, review conversations into training datasets, and compare real
+harness runs on frozen coding tasks. See [the setup and benchmark guide](docs/harnesses.md).
+
 ## Local setup
 
 Requirements: Python 3.11+, Node 20.9+, and npm.

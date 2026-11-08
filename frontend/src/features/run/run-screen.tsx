@@ -97,6 +97,12 @@ export function RunWorkbench({
   const graphs = graphVersions(catalog, systemKey);
   const prompts = promptVersions(catalog, systemKey);
   const models = modelsForSystem(catalog, system.default_model_ids, systemKey);
+  const groupedModelChoices = modelChoices(models).reduce<
+    Record<string, ReturnType<typeof modelChoices>>
+  >((groups, choice) => {
+    (groups[choice.group] ??= []).push(choice);
+    return groups;
+  }, {});
   const isNodeResourceQuery =
     system.input_editor === NODE_RESOURCE_QUERY_INPUT_EDITOR;
   const [input, setInput] = useState(
@@ -304,11 +310,9 @@ export function RunWorkbench({
                   required
                   onChange={(event) => setSelectedModelId(event.target.value)}
                 >
-                  {Object.entries(
-                    Object.groupBy(modelChoices(models), (choice) => choice.group),
-                  ).map(([group, choices]) => (
+                  {Object.entries(groupedModelChoices).map(([group, choices]) => (
                     <optgroup key={group} label={group}>
-                      {choices?.map((choice) => (
+                      {choices.map((choice) => (
                         <option key={choice.value} value={choice.value}>
                           {choice.label}
                         </option>
