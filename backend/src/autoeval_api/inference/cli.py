@@ -1,5 +1,8 @@
 import asyncio
 import json
+import os
+import signal
+from contextlib import suppress
 from dataclasses import dataclass
 
 from autoeval_api.config import Settings
@@ -22,6 +25,7 @@ CODEX_COMMAND = (
 
 
 READ_CHUNK_BYTES = 64 * 1024
+CLEANUP_TIMEOUT_SECONDS = 5
 
 
 class _OutputLimitExceeded(Exception):
@@ -29,9 +33,28 @@ class _OutputLimitExceeded(Exception):
 
 
 async def _stop(process: asyncio.subprocess.Process) -> None:
-    if process.returncode is None:
-        process.kill()
-    await process.wait()
+    # Descendants can keep the pipes open after the CLI itself exits. Every CLI
+    # gets its own process group so cleanup also stops those descendants.
+    try:
+        if os.name == "posix":
+            os.killpg(process.pid, signal.SIGKILL)
+        elif process.returncode is None:
+            process.kill()
+    except ProcessLookupError:
+        pass
+
+    async def drain(stream: asyncio.StreamReader | None) -> None:
+        if stream is not None:
+            while await stream.read(READ_CHUNK_BYTES):
+                pass
+
+    # wait() alone can deadlock when a cancelled reader left a full pipe. Keep
+    # draining without retaining output, and bound cleanup as well as execution.
+    with suppress(TimeoutError):
+        await asyncio.wait_for(
+            asyncio.gather(drain(process.stdout), drain(process.stderr), process.wait()),
+            timeout=CLEANUP_TIMEOUT_SECONDS,
+        )
 
 
 @dataclass(frozen=True)
@@ -94,6 +117,7 @@ class CliInferenceProvider:
             stdin=asyncio.subprocess.PIPE,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
+            start_new_session=os.name == "posix",
         )
         try:
             stdout = await asyncio.wait_for(
@@ -105,6 +129,9 @@ class CliInferenceProvider:
         except _OutputLimitExceeded:
             await _stop(process)
             raise RuntimeError("CLI inference output exceeded the configured limit") from None
+        except asyncio.CancelledError:
+            await _stop(process)
+            raise
 
         if process.returncode != 0:
             raise RuntimeError(f"CLI inference failed with exit code {process.returncode}")

@@ -9,7 +9,12 @@ from autoeval_api.api.dependencies import (
 )
 from autoeval_api.models import DatasetRecord, DatasetVersionRecord, EvalRunRecord
 from autoeval_api.schemas import CreateEvalRunRequest, EvalRunResponse
-from autoeval_api.services.evaluations import EvaluationConflict, eval_run_response, list_eval_runs
+from autoeval_api.services.evaluations import (
+    EvaluationConflict,
+    EvaluationLimitExceeded,
+    eval_run_response,
+    list_eval_runs,
+)
 
 router = APIRouter()
 
@@ -76,6 +81,10 @@ async def create_eval_run(
             expected_dataset_revision=payload.expected_dataset_revision,
             request_id=payload.request_id,
         )
+    except EvaluationLimitExceeded as error:
+        raise HTTPException(
+            status_code=429, detail=str(error), headers={"Retry-After": "60"}
+        ) from error
     except EvaluationConflict as error:
         raise HTTPException(status_code=409, detail=str(error)) from error
     except (ValueError, RuntimeError) as error:

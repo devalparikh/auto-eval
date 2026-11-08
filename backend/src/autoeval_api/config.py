@@ -50,6 +50,21 @@ class Settings(BaseSettings):
     max_request_bytes: int = 2_000_000
     enforce_loopback_clients: bool = True
     hosted_password: SecretStr | None = None
+    trace_retention_days: int = Field(default=30, ge=1, le=3650)
+    evaluation_max_pending_runs: int = Field(default=4, ge=1, le=100)
+    evaluation_max_items: int = Field(default=1000, ge=1, le=100_000)
+    evaluation_max_provider_calls: int = Field(default=200, ge=1, le=100_000)
+    evaluation_max_tokens: int = Field(default=1_000_000, ge=1, le=100_000_000)
+    evaluation_max_cost_usd: float = Field(default=5, gt=0, le=1000, allow_inf_nan=False)
+    evaluation_daily_cost_usd: float = Field(default=25, gt=0, le=10_000, allow_inf_nan=False)
+
+    def trace_secrets(self) -> tuple[str, ...]:
+        values = [self.openrouter_api_key, self.tradier_api_token]
+        for value in (self.lm_studio_api_token, self.hosted_password):
+            if value is not None:
+                values.append(value.get_secret_value())
+        # Match longer values first when one configured credential prefixes another.
+        return tuple(sorted({value for value in values if value}, key=len, reverse=True))
 
     @field_validator("web_origins", "allowed_hosts", "lm_studio_models", mode="before")
     @classmethod

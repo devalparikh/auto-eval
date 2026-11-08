@@ -963,6 +963,17 @@ def _apply_version_thirteen(connection) -> None:
         record.__table__.create(connection, checkfirst=True)
 
 
+def _apply_version_fourteen(connection) -> None:
+    from autoeval_api.models import EvaluationAdmissionRecord
+
+    EvaluationAdmissionRecord.__table__.create(connection, checkfirst=True)
+    connection.execute(
+        text("INSERT INTO evaluation_admission (id) VALUES (1) ON CONFLICT DO NOTHING")
+    )
+    if _table_exists(connection, "eval_runs"):
+        _add_column_if_missing(connection, "eval_runs", "limits", "JSON NOT NULL DEFAULT '{}'")
+
+
 # Ordered by version: index 0 is version 1, and a version is recorded as applied
 # only after its function returns. Append new migrations; never reorder or edit
 # one that has shipped.
@@ -980,6 +991,7 @@ MIGRATIONS: tuple[Migration, ...] = (
     _apply_version_eleven,
     _apply_version_twelve,
     _apply_version_thirteen,
+    _apply_version_fourteen,
 )
 
 MIGRATION_VERSION = len(MIGRATIONS)

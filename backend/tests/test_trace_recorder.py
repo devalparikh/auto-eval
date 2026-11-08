@@ -1,3 +1,6 @@
+from copy import deepcopy
+
+from autoeval_api.config import Settings
 from autoeval_api.graph.trace_recorder import TraceRecorder
 from autoeval_api.models import (
     AgentSystemVersionRecord,
@@ -113,3 +116,55 @@ def test_finish_trace_aggregates_cost_and_tokens_across_spans(session_factory) -
     assert trace.output_tokens == 50
 
     session.close()
+
+
+def test_recorder_redacts_every_persistence_boundary_without_changing_business_input(
+    session_factory,
+):
+    with session_factory() as session:
+        graph = session.query(AgentSystemVersionRecord).first()
+        prompt = session.query(PromptVersionRecord).first()
+        business_input = {
+            "text": "Contact person@example.com with Bearer abcdef1234567890",
+            "nested": [{"apiKey": "do-not-store", "full_name": "Jane Smith"}],
+            "token_count": 42,
+        }
+        original = deepcopy(business_input)
+        recorder = TraceRecorder(
+            session,
+            Settings(_env_file=None, OPENROUTER_API_KEY="configured-private-value"),
+        )
+        trace = _base_trace(graph.id, prompt.id)
+        trace.request_input = business_input
+        recorder.start_trace(trace)
+        span = TraceSpanRecord(
+            trace_id=trace.id,
+            node_id="test",
+            node_kind="llm",
+            sequence=0,
+            input=business_input,
+            system_prompt="Use configured-private-value",
+        )
+        recorder.start_span(span)
+        span.output = {"password": "another-secret", "message": "person@example.com"}
+        span.error = "Echoed configured-private-value"
+        recorder.finish_span(span)
+        trace.output = {"authorization": "private authorization"}
+        trace.error = "Echoed configured-private-value"
+        recorder.finish_trace(trace, None)
+        session.expire_all()
+        stored = session.get(TraceRecord, trace.id)
+        stored_span = session.get(TraceSpanRecord, span.id)
+        assert stored.request_input["nested"][0] == {
+            "apiKey": "[redacted]",
+            "full_name": "[redacted]",
+        }
+        assert "example.com" not in stored.request_input["text"]
+        assert "abcdef" not in stored.request_input["text"]
+        assert stored.request_input["token_count"] == 42
+        assert stored.output == {"authorization": "[redacted]"}
+        assert stored.error == "Echoed [redacted]"
+        assert stored_span.output == {"password": "[redacted]", "message": "[redacted]"}
+        assert stored_span.error == "Echoed [redacted]"
+        assert stored_span.system_prompt == "Use [redacted]"
+        assert business_input == original

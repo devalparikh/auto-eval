@@ -5,6 +5,23 @@ from sqlalchemy.exc import DatabaseError
 from autoeval_api.migrations import MIGRATION_VERSION, apply_migrations
 
 
+def test_evaluation_admission_upgrade_backfills_limits_and_is_idempotent(session_factory):
+    engine = session_factory.kw["bind"]
+    with engine.begin() as connection:
+        connection.execute(text("DROP TABLE evaluation_admission"))
+        connection.execute(text("ALTER TABLE eval_runs DROP COLUMN limits"))
+        connection.execute(
+            text("DELETE FROM schema_migrations WHERE version = :version"),
+            {"version": MIGRATION_VERSION},
+        )
+    apply_migrations(engine)
+    apply_migrations(engine)
+    with engine.connect() as connection:
+        assert connection.execute(text("SELECT id FROM evaluation_admission")).all() == [(1,)]
+        columns = {item["name"] for item in inspect(connection).get_columns("eval_runs")}
+        assert "limits" in columns
+
+
 def test_legacy_database_is_scoped_and_backfilled(tmp_path) -> None:
     engine = create_engine(f"sqlite:///{tmp_path / 'legacy.db'}")
     with engine.begin() as connection:

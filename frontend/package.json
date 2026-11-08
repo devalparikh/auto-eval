@@ -36,6 +36,14 @@
     "openapi-typescript": "^7.13.0",
     "tailwindcss": "^4.1.11",
     "typescript": "^5.9.2",
-    "vitest": "^3.2.4"
+    "vitest": "^5.1.0"
+  },
+  "overrides": {
+    "@typescript-eslint/typescript-estree": {
+      "minimatch": "^11.0.5"
+    }
+  },
+  "engines": {
+    "node": "^22.12.0 || ^24.0.0 || >=26.0.0"
   }
 }

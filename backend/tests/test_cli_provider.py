@@ -1,3 +1,4 @@
+import asyncio
 import dataclasses
 import sys
 import time
@@ -55,7 +56,7 @@ async def test_cli_failure_does_not_expose_stderr() -> None:
     )
 
     with pytest.raises(RuntimeError, match="exit code 2") as raised:
-        await provider.complete(REQUEST)
+        await asyncio.wait_for(provider.complete(REQUEST), timeout=5)
 
     assert "secret" not in str(raised.value)
 
@@ -94,3 +95,37 @@ async def test_cli_stderr_is_drained_so_a_chatty_process_cannot_stall() -> None:
     response = await provider.complete(REQUEST)
 
     assert response.output == {"ok": True}
+
+
+@pytest.mark.asyncio
+async def test_cli_timeout_also_stops_descendants_holding_output_pipes() -> None:
+    provider = _provider(
+        "import subprocess, sys; sys.stdin.read(); "
+        "subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(30)']); "
+        "print('{}')",
+        cli_timeout_seconds=1,
+    )
+    with pytest.raises(RuntimeError, match="timed out"):
+        await asyncio.wait_for(provider.complete(REQUEST), timeout=5)
+
+
+@pytest.mark.asyncio
+async def test_cancelling_inference_terminates_its_child(monkeypatch) -> None:
+    provider = _provider("import sys,time; sys.stdin.read(); time.sleep(30)")
+    spawn = asyncio.create_subprocess_exec
+    started = asyncio.Event()
+    children = []
+
+    async def capture(*args, **kwargs):
+        process = await spawn(*args, **kwargs)
+        children.append(process)
+        started.set()
+        return process
+
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", capture)
+    task = asyncio.create_task(provider.complete(REQUEST))
+    await asyncio.wait_for(started.wait(), timeout=3)
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await asyncio.wait_for(task, timeout=5)
+    assert children[0].returncode is not None

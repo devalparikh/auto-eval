@@ -27,6 +27,16 @@ moderate `@vitest/mocker` issues, fixed only in vitest 5) and moderate
 `typescript-eslint`/`minimatch` advisories under `eslint-config-next`. Both need
 a major toolchain upgrade and are tracked as separate work.
 
+## Follow-up remediation, 2026-11-08
+
+Vitest is now `^5.1.0`, and a targeted typescript-estree override selects
+`minimatch@^11.0.5`. Both the full npm audit and production-only audit report
+zero advisories. The Node engine requirement matches Vitest 5. Python development
+bounds now require `pytest>=9.0.3,<10` and `pytest-asyncio>=1.4,<2`.
+`make setup` requires `pip>=26.2`, covering the additional index-URL advisory
+CVE-2026-13346 as well as the earlier installer findings. The historical
+baseline below remains as captured evidence.
+
 ## Scope and evidence
 
 - Python: audited the exact installed `.venv` environment with `pip-audit 2.10.1 --skip-editable --format=json`, checked metadata with `pip show`, and verified dependency consistency with `pip check`.

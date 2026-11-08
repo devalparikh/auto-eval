@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import asyncio
+import logging
 from collections.abc import AsyncIterator, Callable
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -39,6 +41,7 @@ from autoeval_api.services.custom_models import CustomModelService
 from autoeval_api.services.evaluations import EvaluationService
 from autoeval_api.services.scoring import ScoringRegistry, default_scoring_registry
 from autoeval_api.services.system_imports import SystemImportService
+from autoeval_api.services.trace_retention import prune_traces
 
 
 def _infer_engine_from_session_factory(
@@ -97,15 +100,28 @@ def create_application(
         provider_registry,
         node_registry,
         default_runtime_input_registry(settings),
+        settings=settings,
     )
     evaluation_service = evaluation_service or EvaluationService(
-        session_factory, runner, scoring_registry
+        session_factory, runner, scoring_registry, settings=settings
     )
     system_import_service = system_import_service or SystemImportService(
         runner.node_registry,
         runner.runtime_input_registry,
     )
     custom_model_service = custom_model_service or CustomModelService(session_factory, settings)
+
+    def expire_traces() -> None:
+        with session_factory() as session:
+            prune_traces(session, settings.trace_retention_days, apply=True)
+
+    async def maintain_trace_retention() -> None:
+        while True:
+            await asyncio.sleep(3600)
+            try:
+                await asyncio.to_thread(expire_traces)
+            except Exception:
+                logging.getLogger(__name__).warning("Trace retention failed; retrying in one hour")
 
     @asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncIterator[None]:
@@ -125,9 +141,14 @@ def create_application(
                 session.close()
             await ensure_demo_runs(session_factory, runner, scoring_registry)
         custom_model_service.recover_interrupted()
+        await asyncio.to_thread(expire_traces)
+        retention_task = asyncio.create_task(maintain_trace_retention())
         try:
             yield
         finally:
+            retention_task.cancel()
+            with suppress(asyncio.CancelledError):
+                await retention_task
             await custom_model_service.shutdown()
 
     app = FastAPI(

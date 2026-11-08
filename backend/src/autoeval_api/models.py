@@ -19,6 +19,7 @@ from sqlalchemy import (
 from sqlalchemy.orm import Mapped, mapped_column
 
 from autoeval_api.db import Base
+from autoeval_api.redaction import redact_text
 
 
 def new_id() -> str:
@@ -30,7 +31,7 @@ def utc_now() -> datetime:
 
 
 def format_error_for_storage(error: Exception) -> str:
-    return (str(error).strip() or error.__class__.__name__)[:2000]
+    return redact_text(str(error).strip() or error.__class__.__name__)[:2000]
 
 
 class DatasetStatus(StrEnum):
@@ -355,12 +356,21 @@ class TraceSpanRecord(Base):
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
+class EvaluationAdmissionRecord(Base):
+    """One database row serializes run admission across API processes."""
+
+    __tablename__ = "evaluation_admission"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+
+
 class EvalRunRecord(Base):
     __tablename__ = "eval_runs"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
     request_id: Mapped[str | None] = mapped_column(String(80), nullable=True, unique=True)
     request_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    limits: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
     status: Mapped[str] = mapped_column(String(20), default=RunStatus.QUEUED)
     dataset_version_id: Mapped[str] = mapped_column(ForeignKey("dataset_versions.id"), index=True)
     agent_system_version_id: Mapped[str] = mapped_column(
