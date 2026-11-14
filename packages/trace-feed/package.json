@@ -1,0 +1,31 @@
+{
+  "name": "@devalparikh/autoeval",
+  "version": "0.1.0",
+  "description": "Explicit, metadata-only application observation and a local authenticated feed",
+  "private": true,
+  "license": "UNLICENSED",
+  "type": "module",
+  "engines": {
+    "node": ">=22.22.1"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./server": {
+      "types": "./dist/server.d.ts",
+      "default": "./dist/server.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "prepack": "npm run build",
+    "test": "node --test test/*.test.mjs",
+    "test:package": "node scripts/test-package.mjs"
+  }
+}

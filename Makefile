@@ -1,4 +1,4 @@
-.PHONY: setup dev api web seed test test-backend test-frontend check build e2e verify api-types api-types-check
+.PHONY: setup dev api web seed test test-backend test-frontend check build e2e verify api-types api-types-check test-trace-feed
 
 setup:
 	python3 -m venv .venv
@@ -37,7 +37,7 @@ api-types-check:
 	diff -u frontend/src/lib/api-schema.ts $$tmp/api-schema.ts || { echo "frontend/src/lib/api-schema.ts is stale - run 'make api-types'"; exit 1; }; \
 	echo "API types are in sync with the backend schema"
 
-check: api-types-check
+check: api-types-check test-trace-feed
 	.venv/bin/ruff check backend/src backend/tests
 	.venv/bin/ruff format --check backend/src backend/tests
 	.venv/bin/pytest backend/tests
@@ -53,3 +53,6 @@ verify: check build e2e
 
 seed:
 	.venv/bin/python -m autoeval_api.seed
+
+test-trace-feed:
+	cd packages/trace-feed && npm run test:package

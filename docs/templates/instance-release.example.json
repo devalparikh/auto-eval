@@ -1,0 +1,28 @@
+{
+  "status": "design-only; no runtime loader or deployment automation",
+  "publicProduct": {
+    "repository": "<public-upstream-owner>/auto-eval",
+    "releaseVersion": null,
+    "serverArtifact": null,
+    "serverIntegrityOrDigest": null,
+    "uiArtifact": null,
+    "uiIntegrityOrDigest": null,
+    "sdkVersion": null,
+    "compatibilityManifest": null,
+    "migrationManifestSha256": null
+  },
+  "instance": {
+    "deploymentTarget": "<documented supported target>",
+    "publicConfigurationReference": "<chosen release documentation>",
+    "authConfigurationReference": "<private non-secret configuration path>",
+    "allowlistConfigurationReference": "<private non-secret configuration path>",
+    "environmentTemplateReference": "<private secret-free template path>",
+    "secretStores": [
+      "<approved platform secret store references; never values>"
+    ],
+    "provisioningRunbook": "<private runbook path>",
+    "upstreamMigrationRunbook": "<public migration instructions for pinned release>",
+    "upgradeApprovalReference": null,
+    "backupRestoreRunbook": "<private runbook path>"
+  }
+}
