@@ -28,6 +28,11 @@ Pi, or a compatible client. Capture through a local recorder in front of
 CLIProxyAPI, review conversations into training datasets, and compare real
 harness runs on frozen coding tasks. See [the setup and benchmark guide](docs/harnesses.md).
 
+For the proposed path from local application adapters to cross-language trace
+ingestion and SDK/server distribution, see the [existing-application architecture
+decision](docs/live-application-evaluation-architecture.md). It distinguishes the
+first live smoke run from future production capture and hosting.
+
 ## Local setup
 
 Requirements: Python 3.11+, Node 20.9+, and npm.
