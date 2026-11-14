@@ -37,3 +37,22 @@ The before-fix report remains unchanged so its original findings and evidence ar
 No critical remotely exploitable issue was identified under the enforced loopback-only threat model. Redaction and retention preserve referenced provenance and do not rewrite historical or immutable data. Evaluation usage allowances depend on provider accounting and can be exceeded by the final in-flight response. Durable workers, provider billing limits, and a broader data lifecycle remain requirements for unattended or shared deployment.
 
 The follow-up regression suite also covers cross-process admission, rejected work without side effects, retry behavior at capacity, retained charges after spend failures, redaction before persistence, unchanged scoring, and retention protection for dataset/evaluation/snapshot references.
+
+## Hosted candidate (2026-11-14; not deployed)
+
+The new Supabase profile replaces the local-only limitation for explicitly configured
+hosted candidates. A central guard authenticates every API except minimal health/
+auth bootstrap/request/verify. Stable subject/email allowlisting, admin vs resource
+viewer roles, secure opaque sessions, Origin checks, durable throttling and live
+app-key scope/expiry/revocation checks apply. PostgreSQL tables enable RLS and revoke
+PUBLIC/anon/authenticated access; only a separately granted backend DML role can use
+them. This is application/server authorization, not browser-issued SQL or provider
+privilege. Legacy Basic remains separate and local remains loopback-only.
+
+Tests cover synthetic OTP/JWT/key rotation, direct API denial, resource isolation,
+consent withdrawal, finalized comparison, installed SDK delivery and isolated local
+PostgreSQL migration/runtime-role/RLS behavior. They do not establish live Supabase
+configuration, SMTP delivery, deployed RLS/role grants or Vercel routing. Production
+readiness remains false pending independent review and authorized live acceptance.
+See [hosted contract](hosted-client-contract.md) for bounded session revocation,
+retention/backups and exact supported settings.

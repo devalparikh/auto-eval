@@ -50,6 +50,7 @@ export async function apiRequest<T>(
   try {
     response = await fetch(`${API_URL}${path}`, {
       ...options,
+      credentials: "same-origin",
       headers: {
         Accept: "application/json",
         ...(options.body === undefined
@@ -70,6 +71,9 @@ export async function apiRequest<T>(
   const text = await response.text();
   const payload = parseJson(text);
   if (!response.ok) {
+    if (response.status === 401 && typeof window !== "undefined") {
+      window.dispatchEvent(new Event("autoeval:unauthorized"));
+    }
     throw new ApiError(
       payload === notJson
         ? unavailableMessage(response.status)

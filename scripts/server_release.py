@@ -103,10 +103,10 @@ def build(root, output, version, source):
         "archiveSha256": digest(bundle),
         "files": {n: digest(d) for n, d in contents.items()},
         "compatibility": {
-            "migrationCli": None,
-            "schemaUpgradeContract": None,
-            "hostedFeed": False,
-            "supabaseAuth": False,
+            "migrationCli": "autoeval-migrate",
+            "schemaUpgradeContract": {"version": 18, "runtimeMigrates": False, "postgresBaseline": "empty-schema-only"},
+            "hostedFeed": True,
+            "supabaseAuth": True,
             "productionReady": False,
         },
     }

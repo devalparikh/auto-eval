@@ -31,10 +31,18 @@ try {
     .replace('"../src/index.js"', '"@devalparikh/autoeval"')
     .replace('"../src/server.js"', '"@devalparikh/autoeval/server"');
   await writeFile(join(directory, "consumer.test.mjs"), source);
-  execFileSync(process.execPath, ["--test", "consumer.test.mjs"], {
-    cwd: directory,
-    stdio: "inherit",
-  });
+  const envTest = (
+    await readFile(new URL("../test/env.test.mjs", import.meta.url), "utf8")
+  ).replace(/(["'])\.\.\/src\/index\.js\1/g, '"@devalparikh/autoeval"');
+  await writeFile(join(directory, "env.test.mjs"), envTest);
+  execFileSync(
+    process.execPath,
+    ["--test", "consumer.test.mjs", "env.test.mjs"],
+    {
+      cwd: directory,
+      stdio: "inherit",
+    },
+  );
 } finally {
   await rm(directory, { recursive: true, force: true });
 }

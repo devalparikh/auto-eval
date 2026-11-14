@@ -85,6 +85,9 @@ def test_guard_rejects_non_loopback_client(session_factory) -> None:
 
 
 def test_hosted_guard_requires_valid_basic_auth(session_factory) -> None:
+    from autoeval_api.migration_cli import upgrade
+
+    upgrade(session_factory.kw["bind"])
     settings = Settings(
         AUTOEVAL_ENV="production",
         database_url="postgresql+psycopg://user:password@db.example/autoeval",
