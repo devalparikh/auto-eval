@@ -172,3 +172,54 @@ def test_onboarding_freezes_cases_and_imports_complete_matrix(tmp_path):
         altered = manifest.tasks[0].model_dump()
         altered["application_case"]["input"]["message"] = "changed"
         assert client.post("/api/harnesses/test-app/tasks", json=altered).status_code == 422
+
+
+def test_documented_cli_inspect_runs_in_fresh_process(tmp_path):
+    import subprocess
+
+    path = tmp_path / "manifest.json"
+    path.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "system": {"key": "app", "name": "App", "harness": "other"},
+                "tasks": [task()],
+                "suite": {"name": "Cases", "task_keys": ["greeting"]},
+            }
+        )
+    )
+    result = subprocess.run(
+        [sys.executable, "-m", "autoeval_api.application_benchmark", "inspect", str(path)],
+        capture_output=True,
+        text=True,
+        timeout=10,
+    )
+    assert result.returncode == 0, result.stderr
+    assert json.loads(result.stdout)["cases"] == 1
+
+
+def test_comparison_rejects_changed_inputs_and_reports_named_checks(tmp_path):
+    import copy
+
+    from autoeval_api.application_benchmark import compare
+
+    baseline = evaluate(
+        tmp_path,
+        adapter(
+            tmp_path,
+            'print(json.dumps({"schema_version": 1, "model": r["model"], '
+            '"mode": r["mode"], "output": {"writes": 1, "reply": "Hello"}}))',
+        ),
+    )
+    candidate = copy.deepcopy(baseline)
+    candidate["results"][0]["checks"]["no_writes"] = True
+    candidate["results"][0]["test_exit_code"] = 0
+    result = compare(baseline, candidate)
+    assert result["baseline"]["passed"] == 0
+    assert result["candidate"]["passed"] == 1
+    assert result["changes"][0]["task"] == "greeting"
+    for field in ("suite_id", "model", "execution_mode", "configuration_hash"):
+        changed = copy.deepcopy(candidate)
+        changed[field] = "live" if field == "execution_mode" else "d" * 64
+        with pytest.raises(ValueError):
+            compare(baseline, changed)

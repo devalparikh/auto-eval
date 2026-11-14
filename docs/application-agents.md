@@ -126,3 +126,18 @@ Lifty's first suite should cover direct replies, real retrieval orchestration,
 proposal validation, malformed tool batches, read budgets and failure handling.
 Start with synthetic fixtures; production conversations, health data, account
 credentials, live Supabase writes and automatic training are out of scope.
+
+## Compare and automate
+
+A successful submission still exits with status 1 when any case fails, so CI can
+block on a regression without discarding its evidence. Status 2 means setup or
+submission failed. Inspect the saved file before rerunning paid inference.
+
+```sh
+.venv/bin/python -m autoeval_api.application_benchmark compare /tmp/baseline.json /tmp/candidate.json
+```
+
+Comparison requires identical suite, declared model, execution mode, settings
+hash and case/repetition identities. It reports each changed named check. This is
+a paired code comparison, not a statistical significance test or model-ranking
+command. Local JSON files are caller-supplied evidence, not signed attestations.

@@ -30,7 +30,7 @@ from autoeval_api.harness_schemas import (
     HarnessSuite,
     HarnessTask,
 )
-from autoeval_api.services.versioning import hash_json
+from autoeval_api.hashing import hash_json
 
 MAX_OUTPUT = 1_000_000
 
@@ -218,6 +218,63 @@ def run_suite(
     ).model_dump()
 
 
+def summarize(result: dict) -> dict:
+    cases = result["results"]
+    passed = sum(case["status"] == "completed" and case["test_exit_code"] == 0 for case in cases)
+    return {
+        "mode": result["execution_mode"],
+        "passed": passed,
+        "total": len(cases),
+        "failures": [
+            {
+                "task": case["task_key"],
+                "repetition": case["repetition"],
+                "error": case.get("error_code"),
+                "checks": [
+                    name for name, passed in (case.get("checks") or {}).items() if not passed
+                ],
+            }
+            for case in cases
+            if case["status"] != "completed" or case["test_exit_code"] != 0
+        ],
+    }
+
+
+def compare(baseline: dict, candidate: dict) -> dict:
+    baseline = HarnessRun.model_validate(baseline).model_dump()
+    candidate = HarnessRun.model_validate(candidate).model_dump()
+    for field in ("suite_id", "model", "execution_mode", "configuration_hash"):
+        if baseline[field] != candidate[field]:
+            raise ValueError("Comparison requires the same suite, model, mode and settings")
+
+    def indexed(run):
+        rows = {(item["task_key"], item["repetition"]): item for item in run["results"]}
+        if len(rows) != len(run["results"]):
+            raise ValueError("Duplicate result identity")
+        return rows
+
+    before, after = indexed(baseline), indexed(candidate)
+    if before.keys() != after.keys():
+        raise ValueError("Comparison requires matching case matrices")
+    changes = []
+    for key, old in before.items():
+        new = after[key]
+        if (old["status"], old["test_exit_code"], old["checks"]) != (
+            new["status"],
+            new["test_exit_code"],
+            new["checks"],
+        ):
+            changes.append(
+                {
+                    "task": key[0],
+                    "repetition": key[1],
+                    "before": {"status": old["status"], "checks": old["checks"]},
+                    "after": {"status": new["status"], "checks": new["checks"]},
+                }
+            )
+    return {"baseline": summarize(baseline), "candidate": summarize(candidate), "changes": changes}
+
+
 def require_revision(repository: Path, revision: str) -> None:
     if not re.fullmatch(r"[a-f0-9]{40}", revision):
         raise ValueError("Candidate revision must be a full Git commit SHA")
@@ -234,6 +291,9 @@ def main():
     for action in ("inspect", "onboard"):
         sub = commands.add_parser(action)
         sub.add_argument("manifest", type=Path)
+    comparison = commands.add_parser("compare")
+    comparison.add_argument("baseline", type=Path)
+    comparison.add_argument("candidate", type=Path)
     run = commands.add_parser("run")
     for name in ("system", "suite", "model", "revision", "label"):
         run.add_argument(f"--{name}", required=True)
@@ -246,6 +306,17 @@ def main():
     run.add_argument("command", nargs=argparse.REMAINDER)
     args = parser.parse_args()
     try:
+        if args.action == "compare":
+            print(
+                json.dumps(
+                    compare(
+                        json.loads(args.baseline.read_bytes()),
+                        json.loads(args.candidate.read_bytes()),
+                    ),
+                    indent=2,
+                )
+            )
+            return
         if args.action == "inspect":
             manifest = inspect_manifest(args.manifest)
             print(
@@ -288,7 +359,10 @@ def main():
             args.output.write_text(json.dumps(result, indent=2) + "\n")
             response = client.post(f"/api/harnesses/{args.system}/runs", json=result)
             response.raise_for_status()
-            print(json.dumps({"saved": str(args.output), "receipt": response.json()}))
+            summary = summarize(result)
+            print(json.dumps({"saved": str(args.output), "receipt": response.json(), **summary}))
+            if summary["passed"] != summary["total"]:
+                parser.exit(1, "Evaluation saved; one or more cases failed.\n")
     except (ValueError, OSError, subprocess.SubprocessError, httpx.HTTPError):
         # Neither child stderr nor upstream bodies/credential-bearing URLs belong in logs.
         parser.exit(
