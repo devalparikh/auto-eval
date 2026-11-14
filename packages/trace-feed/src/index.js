@@ -13,6 +13,15 @@ import {
 
 /** No global instrumentation, environment reads, model calls, queues or import-time I/O. */
 export function createCapture(options = {}) {
+  try {
+    return initializeCapture(options);
+  } catch {
+    // Never attach the input or cause: URL/clone/getter errors may contain secrets.
+    throw new Error("Invalid feed contract");
+  }
+}
+
+function initializeCapture(options) {
   if (options.enabled !== true)
     return { capture: async () => ({ status: "disabled" }) };
   const {

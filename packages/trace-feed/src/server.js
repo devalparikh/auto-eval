@@ -291,7 +291,8 @@ export async function startFeed({
         db.exec("BEGIN IMMEDIATE");
         try {
           db.prepare(
-            "UPDATE grants SET revoked=1 WHERE project=? AND id=?",
+            "INSERT INTO grants(project,id,body,expires,revoked) VALUES (?,?,'{}',0,1) " +
+              "ON CONFLICT(project,id) DO UPDATE SET revoked=1",
           ).run(project, grantMatch[1]);
           db.prepare(
             "DELETE FROM observations WHERE project=? AND grant_id=?",
