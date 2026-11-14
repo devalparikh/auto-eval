@@ -177,7 +177,10 @@ test("selecting a graph node does not pan or re-measure the canvas", async ({
   const edgeCount = await graph.locator(".react-flow__edge").count();
   const viewport = graph.locator(".react-flow__viewport");
   const transform = () =>
-    viewport.evaluate((element) => getComputedStyle(element).transform);
+    viewport.evaluate((element) => {
+      const matrix = new DOMMatrixReadOnly(getComputedStyle(element).transform);
+      return [matrix.a, matrix.b, matrix.c, matrix.d, matrix.e, matrix.f];
+    });
   // Wait for the initial fit to settle: under load it can still be easing a
   // fraction of a pixel after a fixed wait, which read as a pan.
   let before = await transform();
@@ -185,7 +188,7 @@ test("selecting a graph node does not pan or re-measure the canvas", async ({
     .poll(
       async () => {
         const now = await transform();
-        const settled = now === before;
+        const settled = now.every((value, index) => Math.abs(value - before[index]) < 0.00001);
         before = now;
         return settled;
       },
@@ -207,7 +210,10 @@ test("selecting a graph node does not pan or re-measure the canvas", async ({
   );
   await expect(graph.locator(".graph-edge-active").first()).toBeAttached();
   await expect(graph.locator(".react-flow__edge")).toHaveCount(edgeCount);
-  expect(await transform()).toBe(before);
+  const after = await transform();
+  // CSS serializes matrices with limited decimal precision. Keep scale exact
+  // to five decimals and translations below 0.01 CSS px (the test drag is 4x2 px).
+  after.forEach((value, index) => expect(value).toBeCloseTo(before[index], index < 4 ? 5 : 2));
 
   const third = graph.locator(".react-flow__node").nth(2);
   await third.focus();
