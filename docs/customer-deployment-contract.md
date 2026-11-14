@@ -95,14 +95,15 @@ upgrade/repeated-run testing before deployment. No migration is executed here.
 The product may ship neutral Vercel examples and a generic self-host image. Instance
 Vercel configuration belongs to the private repo and must consume supported public
 artifacts. Vercel and a container image are distinct deployment targets: do not
-assume Vercel directly runs an arbitrary self-host Docker image. Before selecting
-Vercel, upstream must document and verify how its released Next.js/FastAPI artifacts
+assume Vercel directly runs an arbitrary self-host Docker image. Before enabling the confirmed
+Vercel target, upstream must document and verify how its released Next.js/FastAPI artifacts
 are installed and routed there without copying source. If that adapter is missing,
 record a product gap; do not fall back to a maintainer's source-linked Vercel project.
 
 A supported public container on a compatible host is another customer path once
-that image is released and verified. Choosing or provisioning either target needs
-separate operator approval. The current loopback Node/SQLite receipt service is a
+that image is released and verified. Other customers may choose other supported targets; that does not reopen the
+confirmed Vercel decision for this instance. Provisioning still needs separate
+operator approval. The current loopback Node/SQLite receipt service is a
 local development option, not a serverless or public hosted receiver.
 
 A link or authorized facade in a consuming application can lead to the customer's

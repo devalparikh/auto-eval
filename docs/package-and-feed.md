@@ -70,17 +70,17 @@ as an outside customer. No special access, fork or copied product source. See th
 [customer deployment contract](customer-deployment-contract.md) for ownership,
 release gates, public-interface gaps and migration responsibilities.
 
-The private repo would own its instance Vercel configuration, approved database
+The private repo owns its instance Vercel configuration, approved database
 provisioning and migration orchestration, auth/allowlist configuration and secret-free
-environment templates. Secrets remain in Vercel/Supabase. Its target can still be a
+environment templates. Secrets remain in Vercel/Supabase. Its confirmed target is a
 separate Vercel project with Next.js/FastAPI and durable PostgreSQL, but the product
 must first provide a supported public artifact installation path for that target.
 The existing source-linked upstream preview is not that customer install path.
 A generic self-host image is a product deliverable, not an implemented artifact in
 this PR, and must not be assumed runnable directly on Vercel.
 
-Supabase Auth or OIDC and project-scoped authorization remain the recommended auth
-boundary. Do not reuse Lifty's data tables or service-role credential. The instance's
+Supabase Auth with project-scoped authorization is the confirmed private-instance
+auth boundary; other generic product auth adapters do not change that decision. Do not reuse Lifty's data tables or service-role credential. The instance's
 allowlisted operators and project identifiers stay out of upstream configuration.
 Lifty sends a backend ingest-only credential; browser/admin login is separate.
 Missing setup capabilities must be fixed or tracked upstream, never privately
