@@ -1207,6 +1207,23 @@ export interface components {
             /** Version */
             version: number;
         };
+        /** ApplicationCase */
+        ApplicationCase: {
+            /** Checks */
+            checks: components["schemas"]["ApplicationCheck"][];
+            /** Input */
+            input: {
+                [key: string]: components["schemas"]["JsonValue"];
+            };
+        };
+        /** ApplicationCheck */
+        ApplicationCheck: {
+            equals: components["schemas"]["JsonValue"];
+            /** Name */
+            name: string;
+            /** Path */
+            path: (string | number)[];
+        };
         /** ApplicationInput */
         ApplicationInput: {
             /** Environment */
@@ -1842,8 +1859,14 @@ export interface components {
         };
         /** HarnessCaseResult */
         HarnessCaseResult: {
+            /** Checks */
+            checks?: {
+                [key: string]: boolean;
+            } | null;
             /** Cost Usd */
             cost_usd?: number | null;
+            /** Error Code */
+            error_code?: ("adapter_exit" | "adapter_timeout" | "adapter_output" | "adapter_protocol" | "checkout") | null;
             /** Input Tokens */
             input_tokens?: number | null;
             /** Latency Ms */
@@ -1875,6 +1898,8 @@ export interface components {
         HarnessRun: {
             /** Configuration Hash */
             configuration_hash: string;
+            /** Execution Mode */
+            execution_mode?: ("offline" | "live") | null;
             /** Harness Revision */
             harness_revision: string;
             /** Label */
@@ -1931,6 +1956,7 @@ export interface components {
         };
         /** HarnessTask */
         HarnessTask: {
+            application_case?: components["schemas"]["ApplicationCase"] | null;
             /** Key */
             key: string;
             /**
@@ -1994,6 +2020,7 @@ export interface components {
              */
             kind: "local" | "github";
         };
+        JsonValue: unknown;
         /** KeyInput */
         KeyInput: {
             /**

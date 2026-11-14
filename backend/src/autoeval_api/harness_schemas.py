@@ -3,7 +3,7 @@
 import re
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, JsonValue, model_validator
 
 
 class HarnessModel(BaseModel):
@@ -16,6 +16,23 @@ class ConnectHarness(HarnessModel):
     harness: Literal["claude-code", "codex", "hermes", "opencode", "pi", "other"]
 
 
+class ApplicationCheck(HarnessModel):
+    name: str = Field(pattern=r"^[a-zA-Z0-9_.-]{1,80}$")
+    path: list[str | int] = Field(max_length=20)
+    equals: JsonValue
+
+
+class ApplicationCase(HarnessModel):
+    input: dict[str, JsonValue]
+    checks: list[ApplicationCheck] = Field(min_length=1, max_length=100)
+
+    @model_validator(mode="after")
+    def unique_checks(self):
+        if len({check.name for check in self.checks}) != len(self.checks):
+            raise ValueError("Check names must be unique")
+        return self
+
+
 class HarnessTask(HarnessModel):
     key: str = Field(pattern=r"^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,99}$")
     partition: Literal["train", "validation", "benchmark"]
@@ -23,14 +40,19 @@ class HarnessTask(HarnessModel):
     repository_revision: str = Field(default="", max_length=120)
     test_command: list[str] = Field(default_factory=list, max_length=40)
 
+    application_case: ApplicationCase | None = None
+
     @model_validator(mode="after")
     def benchmark_contract(self):
         if self.partition == "benchmark" and (
-            not re.fullmatch(r"[a-f0-9]{40}", self.repository_revision) or not self.test_command
+            not re.fullmatch(r"[a-f0-9]{40}", self.repository_revision)
+            or not (bool(self.test_command) ^ (self.application_case is not None))
         ):
             raise ValueError(
-                "Benchmark tasks require a pinned repository revision and test command"
+                "Benchmark needs a pinned revision and test_command or application_case"
             )
+        if self.application_case is not None and self.partition != "benchmark":
+            raise ValueError("Application cases are benchmark-only; never training captures")
         if any(not part or len(part) > 1000 for part in self.test_command):
             raise ValueError("Invalid test command argument")
         return self
@@ -74,6 +96,12 @@ class HarnessCaseResult(HarnessModel):
     output_tokens: int | None = Field(default=None, ge=0)
     cost_usd: float | None = Field(default=None, ge=0)
 
+    checks: dict[str, bool] | None = None
+    error_code: (
+        Literal["adapter_exit", "adapter_timeout", "adapter_output", "adapter_protocol", "checkout"]
+        | None
+    ) = None
+
     @model_validator(mode="after")
     def completed_evidence(self):
         if self.status == "completed" and (
@@ -90,6 +118,7 @@ class HarnessRun(HarnessModel):
     model: str = Field(min_length=1, max_length=240)
     harness_revision: str = Field(min_length=1, max_length=200)
     configuration_hash: str = Field(pattern=r"^[a-f0-9]{64}$")
+    execution_mode: Literal["offline", "live"] | None = None
     results: list[HarnessCaseResult] = Field(min_length=1, max_length=1000)
 
 

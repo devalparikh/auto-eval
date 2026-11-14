@@ -1,5 +1,3 @@
-import hashlib
-import json
 from typing import Any
 
 from sqlalchemy import func
@@ -11,6 +9,8 @@ from autoeval_api.graph.definition import (
     AgentGraphDefinition,
     parse_graph_definition,
 )
+from autoeval_api.hashing import hash_json as hash_json
+from autoeval_api.hashing import hash_text as hash_text
 from autoeval_api.models import (
     AgentSystemRecord,
     AgentSystemVersionRecord,
@@ -18,15 +18,6 @@ from autoeval_api.models import (
     PromptVersionRecord,
 )
 from autoeval_api.schemas import AgentSystemSummary, PromptSummary, VersionSummary
-
-
-def hash_json(value: dict[str, Any]) -> str:
-    canonical = json.dumps(value, sort_keys=True, separators=(",", ":"))
-    return hashlib.sha256(canonical.encode()).hexdigest()
-
-
-def hash_text(value: str) -> str:
-    return hashlib.sha256(value.encode()).hexdigest()
 
 
 def create_agent_version(

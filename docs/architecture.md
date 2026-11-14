@@ -90,6 +90,11 @@ finalized datasets consumed by the existing custom-model service with native
 messages and tools. Frozen suites and complete external trial matrices provide
 task pass rates. See [harnesses.md](harnesses.md) for boundaries and setup.
 
+Application agents can use `application_benchmark.py` to run a trusted local JSON
+adapter against frozen cases in the external harness workspace. Inputs and
+assertions freeze independently of candidate code; the server never executes
+adapters. See [application-agents.md](application-agents.md).
+
 ## Implemented extension points
 
 - `services/system_imports.py` inspects and atomically imports the versioned
