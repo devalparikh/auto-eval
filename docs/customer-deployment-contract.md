@@ -6,6 +6,13 @@ A private customer deployment repository is configuration and operations, not a
 product fork. The first author's instance gets no special access or implementation
 shortcuts. The deployment repository split is not an open architecture alternative.
 
+The confirmed hosted target is a private repository deploying a pinned public release
+to Vercel with Supabase database/auth settings, issuing an endpoint and per-app keys.
+Applications install the public registry SDK and initialize it from environment;
+the operator uses Supabase sign-in for the private dashboard. See the exact
+[hosted client/configuration contract](hosted-client-contract.md) for current versus
+proposed variables, scopes, rotation and local/hosted separation.
+
 ## Ownership
 
 The public product repository owns SDKs, server, UI, supported self-host images,

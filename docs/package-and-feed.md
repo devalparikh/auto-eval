@@ -107,6 +107,13 @@ hosting needs scoped authorization on the existing workbench APIs too, not merel
 on this new ingest route. Existing hosted Basic auth is a single-user preview
 boundary, not tenant isolation.
 
+The confirmed end-to-end target is specified in the
+[hosted client contract](hosted-client-contract.md): private Vercel deployment of a
+pinned public release, Supabase database/auth environment configuration, instance-issued
+per-app keys and endpoint, registry-installed SDK initialized from app environment,
+and Supabase sign-in to the private dashboard. Its proposed environment/scopes are
+not implemented by this PR; current capture stays synthetic and explicitly configured.
+
 ## Vercel/storage: code truth versus deployed reality
 
 At the pinned main, root `vercel.json` declares one project with `frontend` Next.js
