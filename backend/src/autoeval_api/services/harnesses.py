@@ -78,7 +78,9 @@ def connect(session: Session, request: ConnectHarness) -> HarnessWorkspace:
 
 def add_task(session: Session, key: str, request: HarnessTask) -> HarnessReceipt:
     system = system_for(session, key)
-    document = request.model_dump()
+    document = request.model_dump(
+        exclude={"application_case"} if request.application_case is None else set()
+    )
     digest = hash_json(document)
     tasks = session.query(HarnessTaskRecord).filter_by(agent_system_id=system.id).all()
     for task in tasks:
@@ -340,7 +342,32 @@ def submit_run(session: Session, key: str, request: HarnessRun) -> HarnessReceip
         raise ValueError(
             "Include every frozen task and repetition exactly once, including failures"
         )
+    application_tasks = {
+        task["key"]: task for task in suite.document["tasks"] if task.get("application_case")
+    }
+    if application_tasks:
+        if len(application_tasks) != len(suite.document["tasks"]) or request.execution_mode is None:
+            raise ValueError(
+                "Application suites require homogeneous cases and explicit execution_mode"
+            )
+        for result in request.results:
+            checks = application_tasks[result.task_key]["application_case"]["checks"]
+            if result.status == "completed" and (
+                result.checks is None
+                or set(result.checks) != {check["name"] for check in checks}
+                or result.test_exit_code != (0 if all(result.checks.values()) else 1)
+            ):
+                raise ValueError(
+                    "Application result must include every frozen check and consistent exit code"
+                )
     document = request.model_dump()
+    # Preserve hashes/idempotency for pre-application requests and persisted records.
+    if request.execution_mode is None:
+        document.pop("execution_mode")
+    for result in document["results"]:
+        for field in ("checks", "error_code"):
+            if result[field] is None:
+                result.pop(field)
     digest = hash_json(document)
     existing = (
         session.query(HarnessRunRecord)

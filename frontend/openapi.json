@@ -305,6 +305,68 @@
         "title": "AgentVersionDetail",
         "type": "object"
       },
+      "ApplicationCase": {
+        "additionalProperties": false,
+        "properties": {
+          "checks": {
+            "items": {
+              "$ref": "#/components/schemas/ApplicationCheck"
+            },
+            "maxItems": 100,
+            "minItems": 1,
+            "title": "Checks",
+            "type": "array"
+          },
+          "input": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/JsonValue"
+            },
+            "title": "Input",
+            "type": "object"
+          }
+        },
+        "required": [
+          "input",
+          "checks"
+        ],
+        "title": "ApplicationCase",
+        "type": "object"
+      },
+      "ApplicationCheck": {
+        "additionalProperties": false,
+        "properties": {
+          "equals": {
+            "$ref": "#/components/schemas/JsonValue"
+          },
+          "name": {
+            "pattern": "^[a-zA-Z0-9_.-]{1,80}$",
+            "title": "Name",
+            "type": "string"
+          },
+          "path": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "maxItems": 20,
+            "title": "Path",
+            "type": "array"
+          }
+        },
+        "required": [
+          "name",
+          "path",
+          "equals"
+        ],
+        "title": "ApplicationCheck",
+        "type": "object"
+      },
       "ArtifactCatalogResponse": {
         "properties": {
           "agent_system_id": {
@@ -1791,6 +1853,20 @@
       "HarnessCaseResult": {
         "additionalProperties": false,
         "properties": {
+          "checks": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "boolean"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Checks"
+          },
           "cost_usd": {
             "anyOf": [
               {
@@ -1802,6 +1878,24 @@
               }
             ],
             "title": "Cost Usd"
+          },
+          "error_code": {
+            "anyOf": [
+              {
+                "enum": [
+                  "adapter_exit",
+                  "adapter_timeout",
+                  "adapter_output",
+                  "adapter_protocol",
+                  "checkout"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Code"
           },
           "input_tokens": {
             "anyOf": [
@@ -1910,6 +2004,21 @@
             "pattern": "^[a-f0-9]{64}$",
             "title": "Configuration Hash",
             "type": "string"
+          },
+          "execution_mode": {
+            "anyOf": [
+              {
+                "enum": [
+                  "offline",
+                  "live"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Execution Mode"
           },
           "harness_revision": {
             "maxLength": 200,
@@ -2078,6 +2187,16 @@
       "HarnessTask": {
         "additionalProperties": false,
         "properties": {
+          "application_case": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ApplicationCase"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "key": {
             "pattern": "^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,99}$",
             "title": "Key",
@@ -2250,6 +2369,7 @@
         "title": "ImportSource",
         "type": "object"
       },
+      "JsonValue": {},
       "ManifestPrompt": {
         "additionalProperties": false,
         "properties": {
