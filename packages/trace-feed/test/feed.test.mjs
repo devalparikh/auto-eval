@@ -527,3 +527,43 @@ test("dataset registration is content addressed and cannot invent missing frozen
     409,
   );
 });
+
+
+test("unknown consent withdrawal survives delayed registration and restart", async (t) => {
+  const f = await fixture(t);
+  const grant = { ...f.grant, id: randomUUID() };
+  assert.equal((await f.call("DELETE", `/v1/grants/${grant.id}`, f.admin)).status, 200);
+  assert.equal((await f.call("POST", "/v1/grants", f.admin, grant)).status, 409);
+  assert.equal((await f.call("POST", "/v1/traces", f.ingest, { ...f.trace, grantId: grant.id })).status, 403);
+  await f.feed.close();
+  f.feed.close = async () => {}; // Fixture cleanup must not close the old server twice.
+  const restarted = await startFeed(f.config);
+  try {
+    const call = (method, route, credential, body) => fetch(restarted.endpoint + route, {
+      method, headers: { authorization: `Bearer ${credential}`, "content-type": "application/json" },
+      ...(body ? { body: JSON.stringify(body) } : {}),
+    });
+    assert.equal((await call("DELETE", `/v1/grants/${grant.id}`, f.admin)).status, 200);
+    assert.equal((await call("POST", "/v1/grants", f.admin, grant)).status, 409);
+    assert.equal((await call("POST", "/v1/traces", f.ingest, { ...f.trace, grantId: grant.id })).status, 403);
+  } finally { await restarted.close(); }
+});
+
+test("initialization errors never disclose raw configuration or attached causes", () => {
+  const marker = "synthetic-credential-must-not-leak";
+  for (const options of [
+    { enabled: true, endpoint: marker },
+    { enabled: true, endpoint: { toString() { throw new Error(marker); } } },
+    { get enabled() { throw new Error(marker); } },
+    null,
+  ]) {
+    assert.throws(() => createCapture(options), error => {
+      assert.equal(error.message, "Invalid feed contract");
+      assert.deepEqual(Object.keys(error), []);
+      assert.equal(error.cause, undefined);
+      assert.equal(error.input, undefined);
+      assert.equal(String(error.stack).includes(marker), false);
+      return true;
+    });
+  }
+});

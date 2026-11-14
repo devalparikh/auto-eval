@@ -104,7 +104,7 @@ def build(root, output, version, source):
         "files": {n: digest(d) for n, d in contents.items()},
         "compatibility": {
             "migrationCli": "autoeval-migrate",
-            "schemaUpgradeContract": {"version": 18, "runtimeMigrates": False, "postgresBaseline": "empty-schema-only"},
+            "schemaUpgradeContract": {"version": 19, "runtimeMigrates": False, "postgresBaseline": "empty-schema-only"},
             "hostedFeed": True,
             "supabaseAuth": True,
             "productionReady": False,

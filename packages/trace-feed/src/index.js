@@ -13,6 +13,15 @@ import {
 
 /** No global instrumentation, environment reads, model calls, queues or import-time I/O. */
 export function createCapture(options = {}) {
+  try {
+    return initializeCapture(options);
+  } catch {
+    // Never attach the input or cause: URL/clone/getter errors may contain secrets.
+    throw new Error("Invalid feed contract");
+  }
+}
+
+function initializeCapture(options) {
   if (options.enabled !== true)
     return { capture: async () => ({ status: "disabled" }) };
   const {
@@ -112,7 +121,15 @@ export function createCapture(options = {}) {
 }
 
 /** Explicit server-only initialization. Importing this module reads no environment. */
-export function createCaptureFromEnv({ policy, env = process.env } = {}) {
+export function createCaptureFromEnv(options = {}) {
+  try {
+    return initializeCaptureFromEnv(options);
+  } catch {
+    throw new Error("Invalid feed contract");
+  }
+}
+
+function initializeCaptureFromEnv({ policy, env = process.env }) {
   if (env.AUTOEVAL_ENABLED !== "true") return createCapture();
   return createCapture({
     enabled: true,

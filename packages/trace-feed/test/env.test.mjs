@@ -33,3 +33,22 @@ test("env capture is explicitly enabled, validated, and has no import-time captu
     }),
   );
 });
+
+test("environment initialization sanitizes malformed endpoints and getters", () => {
+  const marker = "synthetic-credential-must-not-leak";
+  for (const options of [
+    { policy, env: { AUTOEVAL_ENABLED: "true", AUTOEVAL_ENDPOINT: marker } },
+    { get env() { throw new Error(marker); } },
+    { env: { get AUTOEVAL_ENABLED() { throw new Error(marker); } } },
+    null,
+  ]) {
+    assert.throws(() => createCaptureFromEnv(options), error => {
+      assert.equal(error.message, "Invalid feed contract");
+      assert.deepEqual(Object.keys(error), []);
+      assert.equal(error.cause, undefined);
+      assert.equal(error.input, undefined);
+      assert.equal(String(error.stack).includes(marker), false);
+      return true;
+    });
+  }
+});
