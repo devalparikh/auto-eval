@@ -126,3 +126,108 @@ def test_postgres_rls_and_runtime_role_cannot_migrate(postgres):
             for name in (role, browser):
                 connection.execute(text(f'DROP OWNED BY "{name}"'))
                 connection.execute(text(f'DROP ROLE "{name}"'))
+
+
+@pytest.mark.parametrize("existing", [False, True])
+def test_runtime_temp_shadow_cannot_mutate_final_items(postgres, monkeypatch, existing):
+    from sqlalchemy.orm import Session
+
+    from autoeval_api import migration_cli
+    from autoeval_api.migration_cli import grant_runtime
+    from autoeval_api.models import (
+        AgentSystemRecord,
+        DatasetItemRecord,
+        DatasetRecord,
+        DatasetVersionRecord,
+    )
+
+    if existing:
+        # Build a genuine v18 database with the historical trigger and digests,
+        # then run the appended migration through the supported upgrade path.
+        with monkeypatch.context() as patch:
+            patch.setattr(migration_cli, "MIGRATIONS", migration_cli.MIGRATIONS[:-1])
+            patch.setattr(migration_cli, "MIGRATION_VERSION", MIGRATION_VERSION - 1)
+            upgrade(postgres)
+    upgrade(postgres)
+    role = "runtime_" + uuid4().hex
+    with postgres.begin() as connection:
+        schema = connection.scalar(text("SELECT current_schema()"))
+        connection.execute(text(f'CREATE ROLE "{role}"'))
+    try:
+        grant_runtime(postgres, role)
+        with Session(postgres) as session:
+            agent = AgentSystemRecord(key="test", name="Test")
+            session.add(agent)
+            session.flush()
+            dataset = DatasetRecord(agent_system_id=agent.id, key="test", name="Test")
+            session.add(dataset)
+            session.flush()
+            final = DatasetVersionRecord(dataset_id=dataset.id, version=1)
+            draft = DatasetVersionRecord(dataset_id=dataset.id, version=2)
+            session.add_all([final, draft])
+            session.flush()
+            item = DatasetItemRecord(
+                dataset_version_id=final.id, input={"fixed": True}, expected={}
+            )
+            editable = DatasetItemRecord(dataset_version_id=draft.id, input={}, expected={})
+            session.add_all([item, editable])
+            session.flush()
+            item_id, version_id, editable_id = item.id, final.id, editable.id
+            final.status = "final"
+            session.commit()
+        with postgres.connect() as connection:
+            connection.execute(text(f'SET LOCAL ROLE "{role}"'))
+            connection.execute(text("CREATE TEMP TABLE dataset_versions (id text, status text)"))
+            connection.execute(
+                text("INSERT INTO pg_temp.dataset_versions VALUES (:id, 'draft')"),
+                {"id": version_id},
+            )
+            connection.commit()
+            for sql in (
+                f'UPDATE "{schema}".dataset_items SET input=\'{{"tampered": true}}\' WHERE id=:id',
+                f'DELETE FROM "{schema}".dataset_items WHERE id=:id',
+            ):
+                connection.execute(text(f'SET LOCAL ROLE "{role}"'))
+                with pytest.raises(DBAPIError, match="dataset_version_not_draft"):
+                    connection.execute(text(sql), {"id": item_id})
+                connection.rollback()
+            connection.execute(text(f'SET LOCAL ROLE "{role}"'))
+            # A real draft stays editable even with a TEMP shadow; missing parent
+            # fails in the guard itself rather than depending on FK enforcement.
+            connection.execute(
+                text(
+                    f'UPDATE "{schema}".dataset_items '
+                    "SET input='{\"allowed\": true}' WHERE id=:id"
+                ),
+                {"id": editable_id},
+            )
+            connection.commit()
+            connection.execute(text(f'SET LOCAL ROLE "{role}"'))
+            with pytest.raises(DBAPIError, match="dataset_version_not_draft"):
+                connection.execute(
+                    text(
+                        f'UPDATE "{schema}".dataset_items '
+                        "SET dataset_version_id='missing' WHERE id=:id"
+                    ),
+                    {"id": editable_id},
+                )
+            connection.rollback()
+            assert connection.scalar(
+                text(f'SELECT input FROM "{schema}".dataset_items WHERE id=:id'), {"id": item_id}
+            ) == {"fixed": True}
+            connection.execute(text("DROP TABLE pg_temp.dataset_versions"))
+            connection.execute(text("RESET ROLE"))
+            connection.commit()
+        with postgres.connect() as connection:
+            row = connection.execute(
+                text(
+                    "SELECT prosecdef, proconfig FROM pg_proc "
+                    "WHERE oid = 'autoeval_dataset_item_guard()'::regprocedure"
+                )
+            ).one()
+            assert row[0] is False
+            assert row[1] == [f"search_path=pg_catalog, {schema}, pg_temp"]
+    finally:
+        with postgres.begin() as connection:
+            connection.execute(text(f'DROP OWNED BY "{role}"'))
+            connection.execute(text(f'DROP ROLE "{role}"'))

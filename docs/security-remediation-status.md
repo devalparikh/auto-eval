@@ -56,3 +56,29 @@ configuration, SMTP delivery, deployed RLS/role grants or Vercel routing. Produc
 readiness remains false pending independent review and authorized live acceptance.
 See [hosted contract](hosted-client-contract.md) for bounded session revocation,
 retention/backups and exact supported settings.
+
+
+## Independent review repairs (2026-11-14; awaiting re-review)
+
+The earlier candidate failed independent review. The following repairs are now
+implemented, with synthetic regression evidence; this is not a production approval.
+
+- Auth transitions advance a subject-scoped generation, abort API transports,
+  clear cached values, and reject late results and retained setters from earlier
+  generations. HTTP 401/403 responses evict denied cached data. Tests reproduce
+  the admin-to-viewer late-response race, including mounted and unmounted hooks.
+- The local Node receiver atomically persists an unknown-grant withdrawal as a
+  revoked tombstone. Registration and traces remain rejected after a restart.
+- Append-only migration 19 binds the dataset-item guard to the product schema,
+  keeps SECURITY INVOKER, pins pg_catalog/product/pg_temp search order, and rejects
+  missing parents. PostgreSQL regressions attempt the runtime-role TEMP shadow
+  against fresh and upgraded v18 schemas. Existing migrations remain unchanged;
+  the official fresh-schema path also applies migration 19 (no ORM columns change).
+- Both explicit SDK initializers normalize failures to `Invalid feed contract`,
+  without raw endpoint input, nested cause, or credential-bearing properties.
+  The package-consumer tests exercise malformed synthetic credentials.
+
+Required review surfaces: `api-session.ts`, `use-api-resource.ts`, `api.ts`,
+`auth-gate.tsx`, migration 19 and its runtime-role regression, and the SDK
+initializer/receiver changes inherited from PR26. Re-run independent review at
+all new stack heads before merging. License and publication settings are unchanged.

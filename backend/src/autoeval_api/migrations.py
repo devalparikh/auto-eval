@@ -1091,6 +1091,38 @@ def _apply_version_eighteen(connection) -> None:
                 connection.execute(text(f'REVOKE ALL ON "{table}" FROM "{role}"'))
 
 
+def _apply_version_nineteen(connection) -> None:
+    if connection.dialect.name != "postgresql":
+        return
+    # DDL runs only through the owner migration CLI. Bind both the function and
+    # parent relation to this trusted schema, never a runtime caller's TEMP table.
+    schema = connection.scalar(text("SELECT current_schema()"))
+    quoted = connection.dialect.identifier_preparer.quote(schema)
+    connection.execute(
+        text(f"""
+        CREATE OR REPLACE FUNCTION {quoted}.autoeval_dataset_item_guard()
+        RETURNS trigger LANGUAGE plpgsql SECURITY INVOKER
+        SET search_path = pg_catalog, {quoted}, pg_temp AS $$
+        BEGIN
+            IF TG_OP <> 'INSERT' THEN
+                IF (SELECT status FROM {quoted}.dataset_versions
+                    WHERE id = OLD.dataset_version_id FOR UPDATE) IS DISTINCT FROM 'draft' THEN
+                    RAISE EXCEPTION 'dataset_version_not_draft';
+                END IF;
+            END IF;
+            IF TG_OP <> 'DELETE' THEN
+                IF (SELECT status FROM {quoted}.dataset_versions
+                    WHERE id = NEW.dataset_version_id FOR UPDATE) IS DISTINCT FROM 'draft' THEN
+                    RAISE EXCEPTION 'dataset_version_not_draft';
+                END IF;
+                RETURN NEW;
+            END IF;
+            RETURN OLD;
+        END; $$
+        """)
+    )
+
+
 # Ordered by version: index 0 is version 1, and a version is recorded as applied
 # only after its function returns. Append new migrations; never reorder or edit
 # one that has shipped.
@@ -1113,6 +1145,7 @@ MIGRATIONS: tuple[Migration, ...] = (
     _apply_version_sixteen,
     _apply_version_seventeen,
     _apply_version_eighteen,
+    _apply_version_nineteen,
 )
 
 MIGRATION_VERSION = len(MIGRATIONS)

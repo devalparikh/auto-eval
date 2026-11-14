@@ -46,7 +46,7 @@ test("OTP gates private content until code verification and releases failed pend
   await screen.findByRole("alert");
   expect(screen.getByRole("button", { name: "Verify code" })).toBeEnabled();
   expect(screen.queryByText("Private workspace")).toBeNull();
-  api.mockResolvedValueOnce({});
+  api.mockResolvedValueOnce({}).mockResolvedValueOnce({ subject: "viewer-subject" });
   fireEvent.click(screen.getByRole("button", { name: "Verify code" }));
   await screen.findByText("Private workspace");
 });

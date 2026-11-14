@@ -1,3 +1,4 @@
+import { getApiSession } from "@/lib/api-session";
 import type {
   AgentVersionDetail,
   Catalog,
@@ -46,10 +47,25 @@ export async function apiRequest<T>(
   path: string,
   options: RequestOptions = {},
 ): Promise<T> {
+  const session = getApiSession();
+  const controller = new AbortController();
+  const abort = () => controller.abort();
+  const signals = [session.signal, options.signal].filter((signal): signal is AbortSignal => !!signal);
+  for (const signal of signals) {
+    if (signal.aborted) abort();
+    else signal.addEventListener("abort", abort, { once: true });
+  }
+  const assertCurrent = () => {
+    if (controller.signal.aborted || getApiSession() !== session)
+      throw new DOMException("Request cancelled", "AbortError");
+  };
+  try {
   let response: Response;
   try {
+    assertCurrent();
     response = await fetch(`${API_URL}${path}`, {
       ...options,
+      signal: controller.signal,
       credentials: "same-origin",
       headers: {
         Accept: "application/json",
@@ -63,12 +79,14 @@ export async function apiRequest<T>(
       cache: "no-store",
     });
   } catch {
+    assertCurrent();
     // fetch rejects only when no response arrived at all.
     throw new Error(
       "Could not reach the AutoEval API. Check that the backend is running.",
     );
   }
   const text = await response.text();
+  assertCurrent();
   const payload = parseJson(text);
   if (!response.ok) {
     if (response.status === 401 && typeof window !== "undefined") {
@@ -91,6 +109,9 @@ export async function apiRequest<T>(
     );
   }
   return payload as T;
+  } finally {
+    for (const signal of signals) signal.removeEventListener("abort", abort);
+  }
 }
 
 function parseJson(text: string): unknown {

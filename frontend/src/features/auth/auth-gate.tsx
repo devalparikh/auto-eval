@@ -27,9 +27,13 @@ export function AuthGate({
     };
     window.addEventListener("autoeval:unauthorized", unauthorized);
     const controller = new AbortController();
-    apiRequest("/auth/session", { signal: controller.signal })
-      .then(() => {
-        if (!controller.signal.aborted) setPhase("ready");
+    apiRequest<{subject: string}>("/auth/session", { signal: controller.signal })
+      .then((principal) => {
+        if (!controller.signal.aborted) {
+          if (!principal?.subject) throw new Error("Invalid session");
+          clearApiResourceCache(principal.subject);
+          setPhase("ready");
+        }
       })
       .catch(() => {
         if (!controller.signal.aborted) setPhase("email");
@@ -55,7 +59,13 @@ export function AuthGate({
         signal: controller.signal,
       });
       if (!controller.signal.aborted) {
-        if (phase === "code") clearApiResourceCache();
+        if (phase === "code") {
+          clearApiResourceCache();
+          const principal = await apiRequest<{subject: string}>("/auth/session", { signal: controller.signal });
+          if (controller.signal.aborted) return;
+          if (!principal?.subject) throw new Error("Invalid session");
+          clearApiResourceCache(principal.subject);
+        }
         setPhase(phase === "email" ? "code" : "ready");
         setToken("");
       }
@@ -85,12 +95,15 @@ export function AuthGate({
               onClick={async () => {
                 if (busy) return;
                 setBusy(true);
+                clearApiResourceCache();
+                setPhase("loading");
                 try {
                   await apiRequest("/auth/logout", { method: "POST" });
                   clearApiResourceCache();
                   setPhase("email");
                 } catch {
-                  setError("Sign-out failed. Try again.");
+                  setPhase("email");
+                  setError("Sign-out could not be confirmed. Sign in to try again.");
                 } finally {
                   setBusy(false);
                 }

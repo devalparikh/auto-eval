@@ -5,8 +5,12 @@ import {
   useEffect,
   useRef,
   useState,
+  useSyncExternalStore,
   type SetStateAction,
 } from "react";
+
+import { apiSessionKey, getApiSession, subscribeApiSession, transitionApiSession } from "@/lib/api-session";
+import { ApiError } from "@/lib/api";
 
 const CACHE_LIMIT = 64;
 const cache = new Map<string, unknown>();
@@ -20,8 +24,10 @@ function remember(key: string, value: unknown) {
   }
 }
 
-export function clearApiResourceCache() {
-  cache.clear();
+subscribeApiSession(() => cache.clear());
+
+export function clearApiResourceCache(identity: string | null = null) {
+  transitionApiSession(identity);
 }
 
 export type ApiResourceOptions = {
@@ -39,27 +45,33 @@ export function useApiResource<T>(
   dependencies: unknown[] = [],
   { cacheKey = null }: ApiResourceOptions = {},
 ) {
+  const session = useSyncExternalStore(subscribeApiSession, getApiSession, getApiSession);
+  const scopedKey = cacheKey === null ? null : apiSessionKey(cacheKey, session);
+  const [dataSession, setDataSession] = useState(session);
   const [data, setDataState] = useState<T | null>(() =>
-    cacheKey !== null ? ((cache.get(cacheKey) as T | undefined) ?? null) : null,
+    cacheKey !== null ? ((cache.get(scopedKey!) as T | undefined) ?? null) : null,
   );
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(
-    () => loader !== null && (cacheKey === null || !cache.has(cacheKey)),
+    () => loader !== null && (cacheKey === null || !cache.has(scopedKey!)),
   );
   const loaderRef = useRef(loader);
-  const cacheKeyRef = useRef(cacheKey);
+  const cacheKeyRef = useRef(scopedKey);
   const requestSequence = useRef(0);
   const dependencyKey = JSON.stringify(dependencies);
 
   const load = useCallback(
     async (currentLoader: () => Promise<T>, key: string | null) => {
+      if (getApiSession() !== session) return;
       const requestId = ++requestSequence.current;
+      setDataSession(session);
       const cached = key !== null && cache.has(key);
-      if (cached) setDataState(cache.get(key) as T);
+      setDataState(cached ? cache.get(key) as T : null);
       setLoading(!cached);
       setError(null);
       try {
         const result = await currentLoader();
+        if (getApiSession() !== session || requestId !== requestSequence.current) return;
         // An unchanged refresh keeps the same object, so nothing downstream
         // re-renders or rebuilds because of it.
         const unchanged =
@@ -69,16 +81,20 @@ export function useApiResource<T>(
           setDataState(result);
         }
       } catch (caught) {
-        if (requestId === requestSequence.current) {
+        if (getApiSession() === session && requestId === requestSequence.current) {
+          if (caught instanceof ApiError && (caught.status === 401 || caught.status === 403)) {
+            if (key !== null) cache.delete(key);
+            setDataState(null);
+          }
           setError(caught instanceof Error ? caught.message : "Unknown error");
         }
       } finally {
-        if (requestId === requestSequence.current) {
+        if (getApiSession() === session && requestId === requestSequence.current) {
           setLoading(false);
         }
       }
     },
-    [],
+    [session],
   );
 
   const reload = useCallback(async () => {
@@ -87,7 +103,10 @@ export function useApiResource<T>(
   }, [load]);
 
   const setData = useCallback((value: SetStateAction<T | null>) => {
+    if (getApiSession() !== session) return;
+    setDataSession(session);
     setDataState((current) => {
+      if (getApiSession() !== session) return current;
       const next =
         typeof value === "function"
           ? (value as (previous: T | null) => T | null)(current)
@@ -97,16 +116,16 @@ export function useApiResource<T>(
       }
       return next;
     });
-  }, []);
+  }, [session]);
 
   useEffect(() => {
     loaderRef.current = loader;
-    cacheKeyRef.current = cacheKey;
+    cacheKeyRef.current = scopedKey;
     if (!loader) {
       // Invalidate any in-flight request from a previous, non-null loader.
       const requestId = ++requestSequence.current;
       void Promise.resolve().then(() => {
-        if (requestId === requestSequence.current) {
+        if (getApiSession() === session && requestId === requestSequence.current) {
           setDataState(null);
           setError(null);
           setLoading(false);
@@ -114,13 +133,20 @@ export function useApiResource<T>(
       });
       return;
     }
-    void Promise.resolve().then(() => load(loader, cacheKey));
+    const sequence = requestSequence.current;
+    void Promise.resolve().then(() => {
+      if (sequence === requestSequence.current) return load(loader, scopedKey);
+    });
     return () => {
       requestSequence.current += 1;
     };
     // The caller owns dependency identity explicitly, like useEffect.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dependencyKey, cacheKey, load]);
+  }, [dependencyKey, scopedKey, load]);
 
-  return { data, setData, error, loading, reload };
+  return {
+    data: dataSession === session ? data : null,
+    setData, error: dataSession === session ? error : null,
+    loading: dataSession === session ? loading : loader !== null, reload,
+  };
 }

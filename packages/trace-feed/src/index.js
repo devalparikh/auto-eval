@@ -121,7 +121,15 @@ function initializeCapture(options) {
 }
 
 /** Explicit server-only initialization. Importing this module reads no environment. */
-export function createCaptureFromEnv({ policy, env = process.env } = {}) {
+export function createCaptureFromEnv(options = {}) {
+  try {
+    return initializeCaptureFromEnv(options);
+  } catch {
+    throw new Error("Invalid feed contract");
+  }
+}
+
+function initializeCaptureFromEnv({ policy, env = process.env }) {
   if (env.AUTOEVAL_ENABLED !== "true") return createCapture();
   return createCapture({
     enabled: true,

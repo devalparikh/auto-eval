@@ -35,7 +35,7 @@ yet. Keep instance release pins null until publication is separately approved.
    grants schema usage, DML and backend-only RLS policies; migration tables are
    SELECT-only. The role must not be superuser or bypass RLS. Runtime must not own
    tables or have DDL privileges. Never supply migration credentials to the app.
-5. Migration version 18 supports fresh PostgreSQL baselining and subsequent ordered
+5. Migration version 19 supports fresh PostgreSQL baselining and subsequent ordered
    upgrades under a PostgreSQL advisory transaction lock. SQLite retains its legacy
    upgrade path. Migration entrypoint source digests are persisted/checked; reviewed
    release hashes cover helper/source bytes. Legacy SQLite versions are first
