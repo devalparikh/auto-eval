@@ -142,7 +142,7 @@ def execute_adapter(command: list[str], cwd: Path, request: dict, timeout: float
                 raise ValueError("Invalid adapter envelope")
             # Reject non-finite JSON, including values in unscored output fields.
             json.dumps(envelope, allow_nan=False)
-        except (ValueError, UnicodeError):
+        except (ValueError, UnicodeError, RecursionError):
             return {"error_code": "adapter_protocol"}
         return {"output": envelope["output"], "hash": hashlib.sha256(raw).hexdigest()}
 

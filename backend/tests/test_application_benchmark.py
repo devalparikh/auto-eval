@@ -223,3 +223,71 @@ def test_comparison_rejects_changed_inputs_and_reports_named_checks(tmp_path):
         changed[field] = "live" if field == "execution_mode" else "d" * 64
         with pytest.raises(ValueError):
             compare(baseline, changed)
+
+
+def test_cli_saves_failed_evidence_before_exit_one(tmp_path, monkeypatch, capsys):
+    import httpx
+
+    from autoeval_api import application_benchmark as benchmark
+
+    command = adapter(
+        tmp_path,
+        'print(json.dumps({"schema_version": 1, "model": r["model"], '
+        '"mode": r["mode"], "output": {"writes": 1, "reply": "Hello"}}))',
+    )
+    config = tmp_path / "settings.json"
+    config.write_text("{}")
+    output = tmp_path / "result.json"
+    submitted = []
+
+    def respond(request):
+        if request.method == "GET":
+            return httpx.Response(200, json={"suites": [frozen_suite()]})
+        submitted.append(json.loads(request.content))
+        assert output.exists()
+        return httpx.Response(201, json={"id": "saved"})
+
+    client = httpx.Client(transport=httpx.MockTransport(respond), base_url="http://127.0.0.1")
+    monkeypatch.setattr(benchmark.httpx, "Client", lambda **kwargs: client)
+    monkeypatch.setattr(benchmark, "require_revision", lambda *args: None)
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "application_benchmark",
+            "run",
+            "--system",
+            "test-app",
+            "--suite",
+            "suite",
+            "--repository",
+            str(tmp_path),
+            "--revision",
+            "b" * 40,
+            "--model",
+            "scripted/v1",
+            "--mode",
+            "offline",
+            "--label",
+            "test",
+            "--config",
+            str(config),
+            "--output",
+            str(output),
+            "--allow-local-execution",
+            "--",
+            *command,
+        ],
+    )
+    with pytest.raises(SystemExit) as error:
+        benchmark.main()
+    assert error.value.code == 1
+    assert submitted[0] == json.loads(output.read_text())
+    assert json.loads(capsys.readouterr().out)["failures"][0]["checks"] == ["no_writes"]
+
+
+def test_deep_adapter_output_is_a_failed_case_not_an_incomplete_matrix(tmp_path):
+    command = adapter(tmp_path, 'print("[" * 2000 + "0" + "]" * 2000)')
+    result = evaluate(tmp_path, command)
+    assert len(result["results"]) == 1
+    assert result["results"][0]["error_code"] == "adapter_protocol"

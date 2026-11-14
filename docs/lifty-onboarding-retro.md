@@ -16,3 +16,10 @@ rewrite checks (unit, per-hand/total convention and sets/reps), with the other
 nine cases passing. This validates the need for structured invariants rather
 than whole-prose equality. These are injected model-response failures through
 real application code, not observations of the live production model.
+
+Paired result after the Lifty quantity guard: all 12 cases pass on the unchanged
+suite. Evidence files are committed in deval-blog under
+`docs/lifty-autoeval-{baseline,candidate}.json`; run hashes remain local-instance
+receipts rather than trusted execution attestations. Follow-ups are filed as
+[issue 22](https://github.com/devalparikh/auto-eval/issues/22) and
+[issue 23](https://github.com/devalparikh/auto-eval/issues/23).
