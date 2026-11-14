@@ -119,7 +119,7 @@ test("comparison keeps the selected pair fixed until its response settles", asyn
   fireEvent.change(screen.getByLabelText("Candidate"), {
     target: { value: "right" },
   });
-  fireEvent.click(screen.getByRole("button", { name: "Compare", exact: true }));
+  fireEvent.click(screen.getByRole("button", { name: "Compare" }));
   expect(screen.getByLabelText("Baseline")).toBeDisabled();
   expect(screen.getByLabelText("Candidate")).toBeDisabled();
   expect(screen.getByLabelText("Application")).toBeDisabled();
