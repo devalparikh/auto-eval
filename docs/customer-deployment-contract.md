@@ -8,7 +8,7 @@ shortcuts. The deployment repository split is not an open architecture alternati
 
 The confirmed hosted target is a private repository deploying a pinned public release
 to Vercel with Supabase database/auth settings, issuing an endpoint and per-app keys.
-Applications install the public registry SDK and initialize it from environment;
+Applications install the documented SDK and initialize it from environment;
 the operator uses Supabase sign-in for the private dashboard. See the exact
 [hosted client/configuration contract](hosted-client-contract.md) for current versus
 proposed variables, scopes, rotation and local/hosted separation.
@@ -30,7 +30,7 @@ operations runbooks. Credentials remain in the customer's Vercel/Supabase secret
 stores; the repo contains names/references, never values or exported .env files.
 Configuring a deployment is not permission to access its application data.
 
-The consuming application independently installs the public SDK and retains all
+The consuming application independently installs the documented SDK and retains all
 inference. A deployment admin login, an app ingest credential and a provider key
 are separate privileges. No model credential is needed just to ingest observations.
 
@@ -83,12 +83,9 @@ There is one authoritative product schema and one migration history: upstream.
   database: use documented compatibility windows or an explicitly approved restore
   procedure. Retry/replay behavior must be tested on disposable populated databases.
 
-The current FastAPI app creates/upgrades schema in its lifespan. A separate,
-publicly documented release migration command, locking/checksum behavior and a
-Vercel-safe migration orchestration path have **not** been implemented by this PR.
-The private repo must not invent commands or run copied SQL to bridge that gap.
-Any approved migration-runner lifecycle change belongs upstream and needs fresh/
-upgrade/repeated-run testing before deployment. No migration is executed here.
+Local development upgrades in lifespan; production only checks the explicitly migrated schema. The candidate provides `autoeval-migrate upgrade/status`, PostgreSQL locking,
+entrypoint checksums and separate backend runtime grants. Follow [SETUP.md](SETUP.md).
+Only disposable test databases were migrated. No production migration is authorized.
 
 ## Vercel and self-hosting
 
@@ -157,3 +154,17 @@ protected APIs; its generic implementation belongs upstream and is not supplied
 by packaging. Private-first SDK publication is now the approved preparation plan,
 subject to separate exact-version publication approval; reconcile the public-only
 SDK wording before claiming supported onboarding. No author-only install path.
+
+## Candidate status amendment (2026-11-14)
+
+The earlier onboarding gap list describes the PR26 baseline. This stacked candidate
+implements auth, feed storage/UI, migration CLI and SDK env initialization; it does
+not publish artifacts or provision an instance. The SDK's approved interim distribution
+plan is **private GitHub Packages**, with npm later. Authorized outside customers must
+use the same documented package-read permissions and install path; no maintainer
+source access shortcut. License, namespace, registry authentication/access tests and
+publication remain decisions, not implemented releases. Server release assets remain
+publicly documented and pinned only after publication. No self-host image is claimed.
+
+[Hosted client contract](hosted-client-contract.md) supersedes proposed variable names,
+key lifetime/grace values and unsupported capability statements from the PR26 baseline.

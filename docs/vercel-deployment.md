@@ -1,3 +1,8 @@
+> This page documents the legacy Basic preview. For the new Supabase hosted
+> candidate and release installation use [SETUP.md](SETUP.md). Both profiles now
+> require explicit migration before production startup. No deploy is authorized
+> or performed by these instructions.
+
 # Vercel deployment
 
 AutoEval now includes a fail-closed **single-user preview deployment** profile
@@ -45,8 +50,8 @@ an incomplete deployment fail instead of silently publishing the local profile.
 
 Provision a durable PostgreSQL database and put its SQLAlchemy URL in
 `AUTOEVAL_DATABASE_URL`. The Python deployment installs the Psycopg driver from
-`backend/pyproject.toml`. Schema creation and the append-only migrations run in
-the application lifespan and seed operations are idempotent.
+`backend/pyproject.toml`. Production startup checks the schema only. Run the released `autoeval-migrate`
+CLI separately as described in SETUP.md; no production demo seeding occurs.
 
 Do not use SQLite on Vercel. Its local filesystem is not the workbench's durable
 source of truth across separate hosted invocations.
@@ -77,8 +82,8 @@ limits remain required before this can support unattended or multi-user work.
 
 ## Deployment checklist
 
-1. Create a Vercel project from the repository and confirm that its account
-   supports the multi-service `vercel.json` schema.
+1. After separate deployment approval, submit the verified extracted release stage
+   and confirm the account supports its multi-service `vercel.json` schema.
 2. Provision PostgreSQL and configure every required environment variable above.
 3. Enable Vercel Deployment Protection; do not rely on obscurity of the URL.
 4. Deploy a preview first.

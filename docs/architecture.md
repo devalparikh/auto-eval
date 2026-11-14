@@ -153,7 +153,7 @@ artifact contract, and path to future hardware/cloud executors.
 
 - SQLite and the in-process evaluation task are suitable for local, single-process use only.
 - `sqlite://` shares one connection across threads through `StaticPool`, and parallel requests segfault it inside SQLAlchemy. It is for serial, in-process tests only. Anything serving concurrent requests, including Playwright, uses a file database.
-- There is no authentication or authorization. Keep both servers on loopback.
+- Local mode remains loopback-only. Hosted Supabase mode centrally authorizes every API; see [hosted contract](hosted-client-contract.md).
 - Trace capture and outbound inference are separate policy boundaries. Non-synthetic portfolio traces remove identity-like fields, exact shares, symbols, and raw dollar values; provider calls receive only an explicit typed model context. Synthetic fixtures may retain richer local trace output for evaluation and inspection.
 - Provider secrets live only in the backend environment. CLI providers are disabled by default and cross a high-trust local execution boundary when enabled.
 - Inputs and outputs persist as JSON. Providers may accept referenced multimodal input objects, but binary artifact storage and generated image, audio, or video outputs are future work.
@@ -242,3 +242,18 @@ for implementation boundaries, experiment registration, hosting and approval gat
 ## Product versus customer deployment repositories
 
 AutoEval owns the generic SDKs, server, UI, self-host artifacts, public configuration and product migration history. Customer deployment repositories consume pinned public artifacts through documented interfaces only; they own instance provisioning/configuration and migration orchestration, never forked schema or product source. This includes the author's own private instance. See [customer deployment contract](customer-deployment-contract.md) for the confirmed split and explicitly unimplemented release/install capabilities.
+
+## Hosted application observations
+
+`services/hosted_auth.py` owns verified enrollment, opaque sessions and durable rate
+limits; the request guard is the server-wide authorization boundary. Existing
+workbench resources are instance-admin-only. `services/application_feed.py` owns
+immutable application policies, datasets/experiments, consent and metadata-only
+observations. `api/routes/auth.py` and `applications.py` expose thin HTTP boundaries.
+The application key determines the app/environment; payloads cannot choose an owner.
+The domain app owns inference. No hosted ingest route executes providers or imported
+code. Frontend auth and application features own their async request state.
+
+Production uses explicit `migration_cli.py` upgrades, never lifespan DDL. PostgreSQL
+uses durable tables, per-application serialization, immutable-record triggers and
+RLS excluding browser roles; backend runtime is a separately granted DML role.

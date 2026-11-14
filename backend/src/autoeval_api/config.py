@@ -3,6 +3,7 @@ from ipaddress import ip_address
 from pathlib import Path
 from typing import Annotated, Literal
 from urllib.parse import urlsplit
+from uuid import UUID
 
 from pydantic import Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
@@ -13,6 +14,7 @@ class Settings(BaseSettings):
         env_file=(".env", "../.env"),
         env_prefix="AUTOEVAL_",
         extra="ignore",
+        hide_input_in_errors=True,
     )
 
     environment: str = Field(default="development", alias="AUTOEVAL_ENV")
@@ -50,6 +52,14 @@ class Settings(BaseSettings):
     max_request_bytes: int = 2_000_000
     enforce_loopback_clients: bool = True
     hosted_password: SecretStr | None = None
+    auth_mode: Literal["local", "basic", "supabase"] = "local"
+    supabase_url: str = ""
+    supabase_publishable_key: SecretStr | None = None
+    # Subject -> approved email, role and explicit app/environment resource IDs.
+    operator_allowlist: dict[str, dict] = Field(default_factory=dict)
+    session_seconds: int = Field(default=900, ge=60, le=3600)
+    feed_allow_production: bool = False
+
     trace_retention_days: int = Field(default=30, ge=1, le=3650)
     evaluation_max_pending_runs: int = Field(default=4, ge=1, le=100)
     evaluation_max_items: int = Field(default=1000, ge=1, le=100_000)
@@ -119,9 +129,49 @@ class Settings(BaseSettings):
     def validate_production_security(self) -> "Settings":
         if self.enable_lm_studio and not self.lm_studio_models:
             raise ValueError("LM Studio requires at least one identifier in LM_STUDIO_MODELS")
+        if self.auth_mode == "supabase":
+            url = urlsplit(self.supabase_url)
+            if (
+                url.scheme != "https"
+                or not url.hostname
+                or url.path not in {"", "/"}
+                or url.query
+                or url.fragment
+                or url.username
+                or url.password
+                or not self.supabase_publishable_key
+            ):
+                raise ValueError("Supabase requires an HTTPS origin and publishable key")
+            self.supabase_url = self.supabase_url.rstrip("/")
+            if self.hosted_password:
+                raise ValueError("Supabase and Basic authentication cannot be combined")
+            for subject, entry in self.operator_allowlist.items():
+                try:
+                    UUID(subject)
+                    for resource in entry.get("resources", []):
+                        UUID(resource)
+                except (ValueError, TypeError, AttributeError) as error:
+                    raise ValueError("Allowlist subjects/resources must be UUIDs") from error
+                if set(entry) - {"email", "role", "resources"}:
+                    raise ValueError("Unknown allowlist fields")
+                if (
+                    not subject
+                    or not isinstance(entry.get("email"), str)
+                    or "@" not in entry["email"]
+                    or entry.get("role") not in {"admin", "viewer"}
+                    or not isinstance(entry.get("resources", []), list)
+                    or any(not isinstance(x, str) for x in entry.get("resources", []))
+                ):
+                    raise ValueError("Invalid operator allowlist")
+        if not self.enforce_loopback_clients and not (
+            self.auth_mode == "supabase" or self.hosted_password
+        ):
+            raise ValueError("Network access requires authentication")
         if not self.production:
             return self
-        if self.hosted_password is None or len(self.hosted_password.get_secret_value()) < 32:
+        if self.auth_mode != "supabase" and (
+            self.hosted_password is None or len(self.hosted_password.get_secret_value()) < 32
+        ):
             raise ValueError(
                 "AUTOEVAL_HOSTED_PASSWORD must contain at least 32 characters in production"
             )

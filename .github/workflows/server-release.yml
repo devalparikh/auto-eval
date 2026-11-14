@@ -1,11 +1,6 @@
 name: Server release candidate
 on:
   pull_request:
-    paths:
-      - scripts/server_release.py
-      - scripts/test_server_release.py
-      - .github/workflows/server-release.yml
-      - docs/server-release.md
   workflow_dispatch:
     inputs:
       version:
@@ -17,12 +12,36 @@ permissions:
 jobs:
   verify:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_HOST_AUTH_METHOD: trust
+          POSTGRES_DB: autoeval_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      AUTOEVAL_TEST_POSTGRES_URL: postgresql+psycopg://postgres@127.0.0.1:5432/autoeval_test
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - run: python3 -m unittest discover -s scripts -p test_server_release.py -v
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Install validation dependencies
+        run: |
+          python3 -m venv .venv
+          .venv/bin/python -m pip install -e 'backend[dev,hosted]'
+          cd frontend
+          npm ci --no-audit --no-fund
+          npx playwright install --with-deps chromium
+      - name: Full product verification
+        run: make verify
       - name: Build candidate outside the source tree
         env:
           VERSION: ${{ inputs.version || '0.0.0-candidate' }}
@@ -41,7 +60,14 @@ jobs:
         working-directory: ${{ runner.temp }}/server-stage/frontend
         run: npm ci --no-audit --no-fund && npm run build
       - name: Build the installed backend wheel without starting the app
-        run: python3 -m pip wheel --no-deps "$RUNNER_TEMP/server-stage/backend" --wheel-dir "$RUNNER_TEMP/wheel-check"
+        run: |
+          python3 -m venv "$RUNNER_TEMP/installed-backend"
+          "$RUNNER_TEMP/installed-backend/bin/pip" install "$RUNNER_TEMP/server-stage/backend[hosted]"
+          cd "$RUNNER_TEMP"
+          AUTOEVAL_DATABASE_URL="sqlite:///$RUNNER_TEMP/installed.db" "$RUNNER_TEMP/installed-backend/bin/autoeval-migrate" upgrade
+          AUTOEVAL_DATABASE_URL="sqlite:///$RUNNER_TEMP/installed.db" "$RUNNER_TEMP/installed-backend/bin/autoeval-migrate" status
+          "$RUNNER_TEMP/installed-backend/bin/python" -c 'import jwt; from autoeval_api.app import create_application; assert create_application(initialize_database=False, seed_on_start=False).openapi()'
+
       # Ephemeral CI evidence, not a registry package or GitHub Release.
       - uses: actions/upload-artifact@v4
         with:

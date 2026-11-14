@@ -12,7 +12,7 @@ def test_evaluation_admission_upgrade_backfills_limits_and_is_idempotent(session
         connection.execute(text("ALTER TABLE eval_runs DROP COLUMN limits"))
         connection.execute(
             text("DELETE FROM schema_migrations WHERE version = :version"),
-            {"version": MIGRATION_VERSION},
+            {"version": 14},
         )
     apply_migrations(engine)
     apply_migrations(engine)

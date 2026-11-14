@@ -1,8 +1,8 @@
 # Vercel server release contract (candidate implementation)
 
 This is a separate deployable product artifact from the app runtime npm SDK.
-No release exists yet. Packaging does not implement hosted auth/feed/UI/migrations
-or make the current workbench safe for the proposed customer pilot.
+No release exists yet. The candidate includes hosted auth/feed/UI and explicit
+migrations; production readiness remains false pending review and live acceptance.
 
 ## Build and verify without publishing
 
@@ -23,8 +23,8 @@ secret/license/dependency review before publication. No approved license current
 exists; packaging is not permission to redistribute.
 
 Manifest schema 1 binds product, version, source, target, archive SHA-256 and each
-member's SHA-256. It explicitly marks hosted feed, Supabase auth and production
-readiness false, migration CLI/schema upgrade contract null. It is verification
+member's SHA-256. It marks hosted feed and Supabase auth implemented, names `autoeval-migrate`
+and schema version 19, and keeps production readiness false. It is verification
 metadata, not a fabricated migration compatibility guarantee. Python dependencies
 are still bounded rather than fully locked; identical source bundle bytes do not
 promise identical dependency resolutions or reproducible deploy output.
@@ -64,7 +64,8 @@ https://vercel.com/docs/cli/deploy (reviewed 2026-11-14).
 
 ## Release review and explicit publication gate
 
-server-release.yml runs offline tests/build/install on PRs and manual dispatch;
+server-release.yml runs full `make verify`, isolated PostgreSQL checks, and installed
+frontend/backend/CLI validation on PRs and manual dispatch;
 it uploads only short-lived Actions evidence. It has read-only repository permission,
 no tag-triggered publishing, release creation, registry or deploy step. It cannot
 publish even if someone dispatches it. Do not dispatch during this task.
@@ -80,26 +81,9 @@ assets. Record build run/source identity and attestations when available. No pro
 attestation is fabricated here. Publication automation is intentionally deferred until
 its protected approval environment is separately approved/configured.
 
-## Hosted email OTP boundary — proposed, not implemented
+## Hosted email OTP boundary — implemented candidate
 
-Generic request-code/enter-code UI and auth enforcement belong in AutoEval, not the
-instance. Supabase `signInWithOtp` defaults to magic-link email; the email template
-must include `{{ .Token }}` for a numeric code. Product requests use
-`options: { shouldCreateUser: false }`, followed by
-`verifyOtp({ email, token, type: 'email' })`. Enrollment is operator-approved only.
-Never log codes/sessions or treat requesting a code as authorization.
-
-The product must validate token signature, issuer, audience, expiry and verified
-identity, map approved email enrollment to stable Supabase subject IDs, then apply
-server-side subject allowlisting and per-resource authorization on ALL protected
-APIs (including direct backend access). UI guards alone are insufficient. Empty
-allowlist denies access. App ingest/consent keys remain separately scoped; OTP users
-cannot substitute their session for an ingest credential or vice versa. Sign-in and
-health endpoints need narrowly documented exceptions, rate limiting, non-enumerating
-errors, CSRF/session handling, revocation and denied-user tests. Existing Basic-auth
-preview stays unchanged until this replacement is implemented and tested.
-
-The instance owns allowed operator emails/subjects, Supabase email provider/template,
-code length/expiry/rate settings and exact Site URL/Redirect URLs. No settings changed.
-Primary docs: https://supabase.com/docs/guides/auth/auth-email-passwordless and
-https://supabase.com/docs/guides/auth/auth-email-templates (reviewed 2026-11-14).
+See [hosted-client-contract.md](hosted-client-contract.md) for request/verify,
+server-wide authority, allowlist, cookie/CSRF, rate limits, signing-key rotation,
+app-key and session revocation behavior. See [SETUP.md](SETUP.md) for separate
+migration/runtime roles and installation. No live Supabase/Vercel settings changed.

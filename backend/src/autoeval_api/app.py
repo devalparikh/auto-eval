@@ -14,7 +14,9 @@ from sqlalchemy.orm import Session
 from autoeval_api.agent_systems.seed import ensure_demo_runs, ensure_seed_data
 from autoeval_api.api.middleware import RequestGuardMiddleware, SecurityHeadersMiddleware
 from autoeval_api.api.routes import (
+    applications,
     artifacts,
+    auth,
     catalog,
     custom_models,
     datasets,
@@ -114,6 +116,10 @@ def create_application(
     def expire_traces() -> None:
         with session_factory() as session:
             prune_traces(session, settings.trace_retention_days, apply=True)
+            from autoeval_api.services.application_feed import purge
+
+            purge(session)
+            session.commit()
 
     async def maintain_trace_retention() -> None:
         while True:
@@ -125,7 +131,7 @@ def create_application(
 
     @asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncIterator[None]:
-        if initialize_database:
+        if initialize_database and not settings.production:
             schema_engine = resolved_engine
             if schema_engine is None:
                 raise ValueError(
@@ -133,7 +139,11 @@ def create_application(
                     "pass engine= explicitly, or a session_factory bound to one"
                 )
             create_schema(schema_engine)
-        if seed_on_start:
+        if settings.production:
+            from autoeval_api.migration_cli import require_current_schema
+
+            require_current_schema(resolved_engine)
+        if seed_on_start and not settings.production:
             session = session_factory()
             try:
                 ensure_seed_data(session)
@@ -159,6 +169,16 @@ def create_application(
         openapi_url=None if settings.production else "/openapi.json",
         lifespan=lifespan,
     )
+    from fastapi.exception_handlers import request_validation_exception_handler
+    from fastapi.exceptions import RequestValidationError
+    from starlette.responses import JSONResponse
+
+    @app.exception_handler(RequestValidationError)
+    async def validation_error(request, error):
+        if request.url.path.startswith(("/api/auth/", "/api/applications", "/v1/")):
+            return JSONResponse({"detail": "Invalid request"}, status_code=422)
+        return await request_validation_exception_handler(request, error)
+
     app.state.runner = runner
     app.state.provider_registry = provider_registry
     app.state.evaluation_service = evaluation_service
@@ -176,9 +196,18 @@ def create_application(
         allow_methods=["GET", "POST", "PUT", "OPTIONS"],
         allow_headers=["Content-Type", "Accept"],
     )
-    app.add_middleware(RequestGuardMiddleware, settings=settings)
+    from autoeval_api.services.hosted_auth import HostedAuth
+
+    app.state.hosted_auth = HostedAuth(settings, session_factory)
+    app.add_middleware(
+        RequestGuardMiddleware,
+        settings=settings,
+        hosted_auth=app.state.hosted_auth if settings.auth_mode == "supabase" else None,
+    )
     app.add_middleware(SecurityHeadersMiddleware)
 
+    app.include_router(auth.router)
+    app.include_router(applications.router)
     app.include_router(catalog.router)
     app.include_router(harnesses.router)
     app.include_router(custom_models.router)

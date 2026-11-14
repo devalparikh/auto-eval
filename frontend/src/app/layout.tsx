@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { AppShell } from "@/components/app-shell";
 import { SIDEBAR_COOKIE_NAME, sidebarStateFromCookie } from "@/lib/sidebar";
 import { colorThemeFromCookie, THEME_COOKIE_NAME } from "@/lib/theme";
+import { AuthGate } from "@/features/auth/auth-gate";
 import "./globals.css";
 
 const description =
@@ -69,9 +70,11 @@ export default async function RootLayout({
   return (
     <html lang="en" data-theme={theme} data-scroll-behavior="smooth">
       <body>
-        <AppShell initialTheme={theme} initialSidebar={sidebar}>
-          {children}
-        </AppShell>
+        <AuthGate enabled={process.env.AUTOEVAL_AUTH_MODE === "supabase"}>
+          <AppShell initialTheme={theme} initialSidebar={sidebar}>
+            {children}
+          </AppShell>
+        </AuthGate>
       </body>
     </html>
   );

@@ -5,7 +5,10 @@ import binascii
 import secrets
 from ipaddress import ip_address
 
+from fastapi import HTTPException
+from starlette.concurrency import run_in_threadpool
 from starlette.datastructures import Headers, MutableHeaders
+from starlette.requests import Request
 from starlette.responses import JSONResponse
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
@@ -16,8 +19,9 @@ LOCAL_CLIENT_NAMES = {"localhost", "testclient"}
 
 
 class RequestGuardMiddleware:
-    def __init__(self, app: ASGIApp, settings: Settings) -> None:
+    def __init__(self, app: ASGIApp, settings: Settings, hosted_auth=None) -> None:
         self.app = app
+        self.hosted_auth = hosted_auth
         self.max_request_bytes = settings.max_request_bytes
         self.allowed_origins = frozenset(settings.web_origins)
         self.enforce_loopback_clients = settings.enforce_loopback_clients
@@ -52,7 +56,20 @@ class RequestGuardMiddleware:
             await self._respond(scope, receive, send, 403, "Cross-origin request is not allowed")
             return
 
+        if self.hosted_auth is not None:
+            try:
+                await run_in_threadpool(self.hosted_auth.authorize, Request(scope))
+            except HTTPException as error:
+                await self._respond(scope, receive, send, error.status_code, error.detail)
+                return
+
         messages = await self._read_request_messages(receive)
+        if (
+            messages is not None
+            and scope["path"].startswith("/v1/")
+            and sum(len(message.get("body", b"")) for message in messages) > 16384
+        ):
+            messages = None
         if messages is None:
             await self._respond(scope, receive, send, 413, "Request body is too large")
             return

@@ -466,3 +466,56 @@ class HarnessRunRecord(Base):
     content_hash: Mapped[str] = mapped_column(String(64))
     document: Mapped[dict[str, Any]] = mapped_column(JSON)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+
+
+class HostedSessionRecord(Base):
+    __tablename__ = "hosted_sessions"
+    digest: Mapped[str] = mapped_column(String(64), primary_key=True)
+    subject: Mapped[str] = mapped_column(String(200))
+    email: Mapped[str] = mapped_column(String(320))
+    expires: Mapped[float] = mapped_column(Float)
+
+
+class HostedRateRecord(Base):
+    __tablename__ = "hosted_rates"
+    digest: Mapped[str] = mapped_column(String(64), primary_key=True)
+    count: Mapped[int] = mapped_column(Integer, default=0)
+    expires: Mapped[float] = mapped_column(Float)
+
+
+class ApplicationRecord(Base):
+    __tablename__ = "feed_applications"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    environment: Mapped[str] = mapped_column(String(40))
+    name: Mapped[str] = mapped_column(String(96))
+    policy: Mapped[dict] = mapped_column(JSON)
+    retention_days: Mapped[int] = mapped_column(Integer)
+
+
+class ApplicationKeyRecord(Base):
+    __tablename__ = "feed_keys"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    application_id: Mapped[str] = mapped_column(ForeignKey("feed_applications.id"), index=True)
+    digest: Mapped[str] = mapped_column(String(64), unique=True)
+    scope: Mapped[str] = mapped_column(String(32))
+    expires: Mapped[float] = mapped_column(Float)
+    revoked: Mapped[bool] = mapped_column(Boolean, default=False)
+
+
+class FeedObjectRecord(Base):
+    __tablename__ = "feed_objects"
+    application_id: Mapped[str] = mapped_column(
+        ForeignKey("feed_applications.id"), primary_key=True
+    )
+    kind: Mapped[str] = mapped_column(String(20), primary_key=True)
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    body: Mapped[dict] = mapped_column(JSON)
+    expires: Mapped[float] = mapped_column(Float, default=0, index=True)
+    revoked: Mapped[bool] = mapped_column(Boolean, default=False)
+    grant_id: Mapped[str | None] = mapped_column(String(36), index=True)
+
+
+class MigrationChecksumRecord(Base):
+    __tablename__ = "schema_migration_checksums"
+    version: Mapped[int] = mapped_column(Integer, primary_key=True)
+    digest: Mapped[str] = mapped_column(String(64))

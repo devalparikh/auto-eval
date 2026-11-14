@@ -38,11 +38,12 @@ function initializeCapture(options) {
       !url.password &&
       !url.search &&
       !url.hash &&
-      url.pathname === "/v1/traces",
+      ["/v1/traces", "/api/backend/v1/traces"].includes(url.pathname),
   );
   requireValue(
     url.protocol === "https:" ||
       (url.protocol === "http:" &&
+        origin === "synthetic" &&
         ["127.0.0.1", "[::1]"].includes(url.hostname)),
   );
   requireValue(
@@ -117,4 +118,29 @@ function initializeCapture(options) {
       }
     },
   };
+}
+
+/** Explicit server-only initialization. Importing this module reads no environment. */
+export function createCaptureFromEnv(options = {}) {
+  try {
+    return initializeCaptureFromEnv(options);
+  } catch {
+    throw new Error("Invalid feed contract");
+  }
+}
+
+function initializeCaptureFromEnv({ policy, env = process.env }) {
+  if (env.AUTOEVAL_ENABLED !== "true") return createCapture();
+  return createCapture({
+    enabled: true,
+    endpoint: env.AUTOEVAL_ENDPOINT,
+    token: env.AUTOEVAL_INGEST_KEY,
+    experimentId: env.AUTOEVAL_EXPERIMENT_ID,
+    source: env.AUTOEVAL_SOURCE,
+    policy,
+    timeoutMs:
+      env.AUTOEVAL_REQUEST_TIMEOUT_MS === undefined
+        ? 500
+        : Number(env.AUTOEVAL_REQUEST_TIMEOUT_MS),
+  });
 }

@@ -46,3 +46,8 @@ export interface CaptureOptions {
 export function createCapture(options?: CaptureOptions): {
   capture(input: CaptureInput): Promise<CaptureResult>;
 };
+
+export function createCaptureFromEnv(options?: {
+  policy?: Policy;
+  env?: Record<string, string | undefined>;
+}): ReturnType<typeof createCapture>;

@@ -128,3 +128,15 @@ source projection, authenticated opt-in, account-to-grant mapping and withdrawal
 retention/backups, protected durable hosting, access review and separate approval
 for any live/judge calls. Lifty's first integration also blocks production capture
 in its own code. This package contains no production records or credentials.
+
+## Hosted environment initialization (unpublished candidate)
+
+`createCaptureFromEnv({policy})` reads `AUTOEVAL_ENABLED`, `AUTOEVAL_ENDPOINT`,
+`AUTOEVAL_INGEST_KEY`, `AUTOEVAL_EXPERIMENT_ID`, `AUTOEVAL_SOURCE` and
+`AUTOEVAL_REQUEST_TIMEOUT_MS` when explicitly called. Only `true` enables capture.
+Import is inert. Keep app inference independent of initialization/capture failures.
+Use `/v1/traces` directly or `/api/backend/v1/traces` through the hosted service.
+The app must still pass authenticated consent and its structural projection.
+Consent/read keys are separate and are not consumed by capture. See the product's
+`docs/hosted-client-contract.md` and `docs/SETUP.md`. This package remains private,
+UNLICENSED and unpublished; private GitHub Packages prerelease is planned, npm later.

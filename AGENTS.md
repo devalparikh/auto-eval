@@ -58,5 +58,5 @@ Which target for which change:
 Read [docs/code-security-review.md](docs/code-security-review.md),
 [docs/dependency-security-report.md](docs/dependency-security-report.md), and the
 current disposition in
-[docs/security-remediation-status.md](docs/security-remediation-status.md). This
-app has no authentication — it is not to be exposed to a network.
+[docs/security-remediation-status.md](docs/security-remediation-status.md). Local mode must remain loopback-only. Hosted exposure requires the documented
+Supabase or legacy Basic profile; read docs/hosted-client-contract.md and docs/SETUP.md.

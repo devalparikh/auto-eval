@@ -974,6 +974,155 @@ def _apply_version_fourteen(connection) -> None:
         _add_column_if_missing(connection, "eval_runs", "limits", "JSON NOT NULL DEFAULT '{}'")
 
 
+def _apply_version_fifteen(connection) -> None:
+    from autoeval_api.models import (
+        ApplicationKeyRecord,
+        ApplicationRecord,
+        FeedObjectRecord,
+        HostedRateRecord,
+        HostedSessionRecord,
+    )
+
+    for record in (
+        ApplicationRecord,
+        ApplicationKeyRecord,
+        FeedObjectRecord,
+        HostedSessionRecord,
+        HostedRateRecord,
+    ):
+        record.__table__.create(connection, checkfirst=True)
+
+
+def _apply_version_sixteen(connection) -> None:
+    if connection.dialect.name != "postgresql":
+        return
+    # PostgreSQL parity for immutable provenance and finalized datasets. Locks
+    # serialize item writes against finalization across processes.
+    connection.execute(
+        text("""
+        CREATE OR REPLACE FUNCTION autoeval_immutable() RETURNS trigger AS $$
+        BEGIN RAISE EXCEPTION 'immutable_record'; END;
+        $$ LANGUAGE plpgsql
+    """)
+    )
+    for table in (
+        "agent_system_versions",
+        "prompt_versions",
+        "portfolio_snapshots",
+        "runtime_input_snapshots",
+        "node_output_snapshots",
+    ):
+        connection.execute(
+            text(
+                f"CREATE TRIGGER immutable_record BEFORE UPDATE OR DELETE ON {table} "
+                "FOR EACH ROW EXECUTE FUNCTION autoeval_immutable()"
+            )
+        )
+    connection.execute(
+        text("""
+        CREATE OR REPLACE FUNCTION autoeval_dataset_item_guard() RETURNS trigger AS $$
+        BEGIN
+            IF TG_OP <> 'INSERT' THEN
+                IF (SELECT status FROM dataset_versions
+                    WHERE id = OLD.dataset_version_id FOR UPDATE) <> 'draft' THEN
+                    RAISE EXCEPTION 'dataset_version_not_draft';
+                END IF;
+            END IF;
+            IF TG_OP <> 'DELETE' THEN
+                IF (SELECT status FROM dataset_versions
+                    WHERE id = NEW.dataset_version_id FOR UPDATE) <> 'draft' THEN
+                    RAISE EXCEPTION 'dataset_version_not_draft';
+                END IF;
+                RETURN NEW;
+            END IF;
+            RETURN OLD;
+        END; $$ LANGUAGE plpgsql;
+        CREATE TRIGGER dataset_item_guard BEFORE INSERT OR UPDATE OR DELETE ON dataset_items
+        FOR EACH ROW EXECUTE FUNCTION autoeval_dataset_item_guard();
+        CREATE OR REPLACE FUNCTION autoeval_dataset_version_guard() RETURNS trigger AS $$
+        BEGIN
+            IF OLD.status <> 'draft' THEN RAISE EXCEPTION 'dataset_version_not_draft'; END IF;
+            IF TG_OP = 'DELETE' THEN RETURN OLD; END IF;
+            RETURN NEW;
+        END; $$ LANGUAGE plpgsql;
+        CREATE TRIGGER dataset_version_guard BEFORE UPDATE OR DELETE ON dataset_versions
+        FOR EACH ROW EXECUTE FUNCTION autoeval_dataset_version_guard();
+        CREATE OR REPLACE FUNCTION autoeval_feed_guard() RETURNS trigger AS $$
+        BEGIN
+            IF TG_OP = 'DELETE' THEN
+                IF OLD.kind <> 'trace' THEN RAISE EXCEPTION 'immutable_record'; END IF;
+                RETURN OLD;
+            END IF;
+            IF OLD.kind <> 'grant' OR NOT NEW.revoked OR
+               OLD.body::jsonb <> NEW.body::jsonb OR OLD.id <> NEW.id OR
+               OLD.application_id <> NEW.application_id OR OLD.kind <> NEW.kind OR
+               OLD.expires <> NEW.expires THEN RAISE EXCEPTION 'immutable_record'; END IF;
+            RETURN NEW;
+        END; $$ LANGUAGE plpgsql;
+        CREATE TRIGGER feed_guard BEFORE UPDATE OR DELETE ON feed_objects
+        FOR EACH ROW EXECUTE FUNCTION autoeval_feed_guard();
+    """)
+    )
+
+
+def _apply_version_seventeen(connection) -> None:
+    from autoeval_api.models import MigrationChecksumRecord
+
+    MigrationChecksumRecord.__table__.create(connection, checkfirst=True)
+    connection.execute(
+        text("INSERT INTO evaluation_admission (id) VALUES (1) ON CONFLICT DO NOTHING")
+    )
+
+
+def _apply_version_eighteen(connection) -> None:
+    if connection.dialect.name != "postgresql":
+        return
+    from autoeval_api.db import Base
+
+    # Supabase's browser-facing roles must never read product tables directly.
+    # Backend HTTP authorization is authoritative; no end-user Data API policies.
+    tables = sorted(set(Base.metadata.tables) | {"schema_migrations"})
+    roles = set(connection.execute(text("SELECT rolname FROM pg_roles")).scalars())
+    for table in tables:
+        connection.execute(text(f'ALTER TABLE "{table}" ENABLE ROW LEVEL SECURITY'))
+        connection.execute(text(f'REVOKE ALL ON "{table}" FROM PUBLIC'))
+        for role in ("anon", "authenticated"):
+            if role in roles:
+                connection.execute(text(f'REVOKE ALL ON "{table}" FROM "{role}"'))
+
+
+def _apply_version_nineteen(connection) -> None:
+    if connection.dialect.name != "postgresql":
+        return
+    # DDL runs only through the owner migration CLI. Bind both the function and
+    # parent relation to this trusted schema, never a runtime caller's TEMP table.
+    schema = connection.scalar(text("SELECT current_schema()"))
+    quoted = connection.dialect.identifier_preparer.quote(schema)
+    connection.execute(
+        text(f"""
+        CREATE OR REPLACE FUNCTION {quoted}.autoeval_dataset_item_guard()
+        RETURNS trigger LANGUAGE plpgsql SECURITY INVOKER
+        SET search_path = pg_catalog, {quoted}, pg_temp AS $$
+        BEGIN
+            IF TG_OP <> 'INSERT' THEN
+                IF (SELECT status FROM {quoted}.dataset_versions
+                    WHERE id = OLD.dataset_version_id FOR UPDATE) IS DISTINCT FROM 'draft' THEN
+                    RAISE EXCEPTION 'dataset_version_not_draft';
+                END IF;
+            END IF;
+            IF TG_OP <> 'DELETE' THEN
+                IF (SELECT status FROM {quoted}.dataset_versions
+                    WHERE id = NEW.dataset_version_id FOR UPDATE) IS DISTINCT FROM 'draft' THEN
+                    RAISE EXCEPTION 'dataset_version_not_draft';
+                END IF;
+                RETURN NEW;
+            END IF;
+            RETURN OLD;
+        END; $$
+        """)
+    )
+
+
 # Ordered by version: index 0 is version 1, and a version is recorded as applied
 # only after its function returns. Append new migrations; never reorder or edit
 # one that has shipped.
@@ -992,6 +1141,11 @@ MIGRATIONS: tuple[Migration, ...] = (
     _apply_version_twelve,
     _apply_version_thirteen,
     _apply_version_fourteen,
+    _apply_version_fifteen,
+    _apply_version_sixteen,
+    _apply_version_seventeen,
+    _apply_version_eighteen,
+    _apply_version_nineteen,
 )
 
 MIGRATION_VERSION = len(MIGRATIONS)
