@@ -229,3 +229,12 @@ it depends on, and scores stay comparable across runs even though the portfolio
 that item points at is one of many. `runtime_mode: "current"` — resolving the
 newest snapshot for an identity — exists only on the interactive run path, where
 "use my latest portfolio" is the point.
+
+## Imported application observations
+
+`packages/trace-feed` is the independent npm capture artifact and a loopback-only
+receipt service. Applications retain their inference/tool loop and submit approved
+metadata after completion. This service uses a separate local database and cannot
+mutate the workbench's immutable versions or finalized datasets. It is not yet
+integrated into the FastAPI UI or hosted profile. See [package and feed architecture](package-and-feed.md)
+for implementation boundaries, experiment registration, hosting and approval gates.
