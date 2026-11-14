@@ -238,3 +238,7 @@ metadata after completion. This service uses a separate local database and canno
 mutate the workbench's immutable versions or finalized datasets. It is not yet
 integrated into the FastAPI UI or hosted profile. See [package and feed architecture](package-and-feed.md)
 for implementation boundaries, experiment registration, hosting and approval gates.
+
+## Product versus customer deployment repositories
+
+AutoEval owns the generic SDKs, server, UI, self-host artifacts, public configuration and product migration history. Customer deployment repositories consume pinned public artifacts through documented interfaces only; they own instance provisioning/configuration and migration orchestration, never forked schema or product source. This includes the author's own private instance. See [customer deployment contract](customer-deployment-contract.md) for the confirmed split and explicitly unimplemented release/install capabilities.

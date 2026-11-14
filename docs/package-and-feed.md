@@ -62,14 +62,29 @@ were read at those heads. New independent bases: AutoEval
 
 ## Where hosted AutoEval should live
 
-Recommend **AutoEval's own Vercel project with its Next.js/FastAPI services and a
-separate durable PostgreSQL database**, after explicit infrastructure approval.
-Supabase PostgreSQL and Supabase Auth are reasonable implementations, but do not
-reuse Lifty's data tables or service-role credential. Another OIDC/SSO provider is
-also viable; neither auth integration is implemented in this change. Give Deval
-an authenticated AutoEval workspace, initially with only his allow-listed identity.
-Lifty sends a backend ingest-only credential bound to its project. Browser/admin
-login and ingest authorization are different credentials and permissions.
+**Confirmed repository split:** `devalparikh/auto-eval` is the generic product,
+including SDKs, server, UI, self-host image and docs as product deliverables. Deval's
+own instance belongs to a **separate private customer deployment repository** and
+must use the same public documented pinned package/image and configuration paths
+as an outside customer. No special access, fork or copied product source. See the
+[customer deployment contract](customer-deployment-contract.md) for ownership,
+release gates, public-interface gaps and migration responsibilities.
+
+The private repo would own its instance Vercel configuration, approved database
+provisioning and migration orchestration, auth/allowlist configuration and secret-free
+environment templates. Secrets remain in Vercel/Supabase. Its target can still be a
+separate Vercel project with Next.js/FastAPI and durable PostgreSQL, but the product
+must first provide a supported public artifact installation path for that target.
+The existing source-linked upstream preview is not that customer install path.
+A generic self-host image is a product deliverable, not an implemented artifact in
+this PR, and must not be assumed runnable directly on Vercel.
+
+Supabase Auth or OIDC and project-scoped authorization remain the recommended auth
+boundary. Do not reuse Lifty's data tables or service-role credential. The instance's
+allowlisted operators and project identifiers stay out of upstream configuration.
+Lifty sends a backend ingest-only credential; browser/admin login is separate.
+Missing setup capabilities must be fixed or tracked upstream, never privately
+patched for the author's instance. No private repository creation is authorized.
 
 Deval would sign in to AutoEval to review consenting observations, register/pin
 experiments, select a reviewed dataset and compare results. The future hosted UI
@@ -80,7 +95,7 @@ checks receipts programmatically. Do not advertise the future review UI as built
 | Option                                                                                       | Benefit                                                                                           | Cost / decision                                                                                                                                                                                                           |
 | -------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `/admin/evals` inside Lifty, gated by verified Supabase identity and a server-side allowlist | Reuses login and a familiar entry point                                                           | Couples app releases and evaluator privileges, risks access to app secrets/data, and needs a backend facade rather than a hidden menu. A future link/BFF to the generic service is fine; do not fork AutoEval into Lifty. |
-| AutoEval project + Supabase Auth or OIDC + separate PostgreSQL                               | Independent generic product, storage, permissions and release cycle; other apps can feed it       | Requires approved auth, hosting, database, schema migrations, backup/deletion and operations. Recommended target, not deployed.                                                                                           |
+| Private instance repo + supported AutoEval release + scoped auth/PostgreSQL                  | Independent generic product, storage, permissions and release cycle; other apps can feed it       | Requires approved auth, hosting, database, schema migrations, backup/deletion and operations. Confirmed repo boundary; hosted installation remains unimplemented.                                                         |
 | Dedicated VM/container with durable volume and private access                                | Current local receiver can run without serverless persistence problems; simplest supervised pilot | Operator owns patching, recovery and backups; current receiver binds loopback and has no public UI/SSO. Use local/private operator access only.                                                                           |
 | Managed evaluation vendor                                                                    | Less operational work                                                                             | New processor, disclosure, retention, spend and export decisions. No vendor account or integration authorized.                                                                                                            |
 
@@ -168,6 +183,10 @@ flow must derive its grant from the account's current consent at the source.
 
 ## Distribution decision
 
+The private instance is a customer of public releases, not a privileged consumer
+of the development tarball. Public install gaps and migration tooling are tracked
+in the [customer contract](customer-deployment-contract.md).
+
 Prefer a public npm client under a verified namespace and an approved permissive
 license, with private app-side policies/fixtures. SDK openness does not make traces
 public. The repo lacks a declared license today, so the artifact remains
@@ -190,6 +209,11 @@ None of the following is satisfied merely by credentials being present:
   account-to-random-grant mapping, withdrawal and deletion before enabling capture.
   Deval's infrastructure approval is not each user's consent. No blanket historical
   conversation export or retroactive consent.
+- Deval explicitly approves creation/name/private visibility of the separate deployment
+  repository; no repository is created in this task. Public product release and
+  customer-only install prerequisites must be satisfied before populating a working
+  deployment. Instance provisioning orchestrates upstream migrations; it never forks
+  product schema.
 - Deval approves the destination/account/region and any new hosting/database/auth
   setup, plus exact migration/configuration changes. Inspect actual Vercel/Supabase
   settings through authorized access before proposing deploy commands. Hosted
