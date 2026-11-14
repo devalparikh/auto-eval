@@ -157,3 +157,12 @@ local feed tests are programmatic and do not prove that dashboard exists.
 No repo, registry package, key issuance service, hosted database, environment setting,
 secret or deployment was created by this contract update. All prior real-data
 consent, retention, migration, publication and production approval gates remain.
+
+## Numeric email OTP requirement (proposed)
+
+Dashboard sign-in must use Supabase email one-time numeric codes, not magic-link-only
+login. See [server release/auth boundary](server-release.md#hosted-email-otp-boundary--proposed-not-implemented).
+The product owns request/verify UI, shouldCreateUser:false, session/JWT verification
+and all protected API allowlist/resource checks. The instance owns email enrollment,
+subject mapping and Supabase template/expiry/site/redirect settings. None of this is
+implemented by release packaging or by setting proposed environment variables.
