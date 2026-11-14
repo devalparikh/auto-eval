@@ -48,6 +48,7 @@ export function useApiResource<T>(
   const session = useSyncExternalStore(subscribeApiSession, getApiSession, getApiSession);
   const scopedKey = cacheKey === null ? null : apiSessionKey(cacheKey, session);
   const [dataSession, setDataSession] = useState(session);
+  const dataSessionRef = useRef(session);
   const [data, setDataState] = useState<T | null>(() =>
     cacheKey !== null ? ((cache.get(scopedKey!) as T | undefined) ?? null) : null,
   );
@@ -64,9 +65,12 @@ export function useApiResource<T>(
     async (currentLoader: () => Promise<T>, key: string | null) => {
       if (getApiSession() !== session) return;
       const requestId = ++requestSequence.current;
+      const changedIdentity = dataSessionRef.current !== session;
+      dataSessionRef.current = session;
       setDataSession(session);
       const cached = key !== null && cache.has(key);
-      setDataState(cached ? cache.get(key) as T : null);
+      if (cached) setDataState(cache.get(key) as T);
+      else if (changedIdentity) setDataState(null);
       setLoading(!cached);
       setError(null);
       try {
@@ -104,6 +108,7 @@ export function useApiResource<T>(
 
   const setData = useCallback((value: SetStateAction<T | null>) => {
     if (getApiSession() !== session) return;
+    dataSessionRef.current = session;
     setDataSession(session);
     setDataState((current) => {
       if (getApiSession() !== session) return current;
