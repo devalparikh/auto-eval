@@ -81,3 +81,50 @@ test("viewer dashboard reads allowed observations without key controls", async (
   expect(screen.queryByText("Issue key")).toBeNull();
   await waitFor(() => expect(screen.getByText("synthetic")).toBeVisible());
 });
+
+test("comparison keeps the selected pair fixed until its response settles", async () => {
+  let resolveComparison!: (value: unknown) => void;
+  const comparison = new Promise((resolve) => {
+    resolveComparison = resolve;
+  });
+  vi.mocked(apiRequest).mockImplementation(async (path) => {
+    if (path === "/auth/session") return { role: "viewer" };
+    if (path === "/applications")
+      return [
+        { id: "app", name: "Demo", environment: "preview", retention_days: 1 },
+      ];
+    if (path === "/applications/app/traces") return [];
+    if (path === "/applications/app/experiments")
+      return ["left", "right"].map((id) => ({
+        id,
+        model: "mock",
+        mode: "scripted",
+        datasetHash: "hash",
+      }));
+    if (path === "/applications/app/comparisons/left/right") return comparison;
+    throw new Error("unexpected request");
+  });
+  render(<ApplicationsScreen />);
+  fireEvent.change(await screen.findByLabelText("Application"), {
+    target: { value: "app" },
+  });
+  await waitFor(() =>
+    expect(screen.getAllByRole("option", { name: "mock / left" })).toHaveLength(
+      2,
+    ),
+  );
+  fireEvent.change(screen.getByLabelText("Baseline"), {
+    target: { value: "left" },
+  });
+  fireEvent.change(screen.getByLabelText("Candidate"), {
+    target: { value: "right" },
+  });
+  fireEvent.click(screen.getByRole("button", { name: "Compare", exact: true }));
+  expect(screen.getByLabelText("Baseline")).toBeDisabled();
+  expect(screen.getByLabelText("Candidate")).toBeDisabled();
+  expect(screen.getByLabelText("Application")).toBeDisabled();
+  resolveComparison({ mode: "scripted", cases: [] });
+  await screen.findByText("Mode: scripted");
+  fireEvent.click(screen.getByRole("button", { name: "Refresh" }));
+  expect(screen.queryByText("Mode: scripted")).toBeNull();
+});

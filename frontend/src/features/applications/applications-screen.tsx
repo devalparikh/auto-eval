@@ -146,6 +146,7 @@ export function ApplicationsScreen() {
         disabled={busy}
         onClick={() => {
           setError("");
+          setComparison(null);
           setRevision((value) => value + 1);
         }}
       >
@@ -359,6 +360,7 @@ export function ApplicationsScreen() {
             <label>
               Baseline
               <select
+                disabled={busy}
                 value={left}
                 onChange={(event) => {
                   setLeft(event.target.value);
@@ -378,6 +380,7 @@ export function ApplicationsScreen() {
             <label>
               Candidate
               <select
+                disabled={busy}
                 value={right}
                 onChange={(event) => {
                   setRight(event.target.value);

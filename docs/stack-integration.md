@@ -20,3 +20,7 @@ supersession/closure remains a coordinator decision after the independent review
 Review PR24 original behavior and the combined host boundary, particularly immutable
 harness request hashing/idempotency and generated schema union. The upstream hosted
 stack's auth/migration/consent review surfaces remain mandatory.
+
+The combined dashboard also freezes comparison selections during an outstanding
+comparison request and clears comparison results on refresh, so a late response
+cannot be presented under a different selected experiment pair.
