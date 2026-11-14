@@ -146,3 +146,14 @@ additional gap, fix it upstream or file an upstream issue with a sanitized repro
 expected public behavior and acceptance check. Never paper over it in the private
 repo. Public release, instance creation and production enablement remain separately
 authorized actions. No customer repository, release, image or deployment was created.
+
+## Server release candidate implementation
+
+[Server release contract](server-release.md) adds packaging, verification and
+Vercel staging installation tooling in a follow-up draft. No release has been
+published; hosted auth/feed/migration gates above remain. The chosen dashboard
+auth is Supabase numeric email OTP with a server-enforced allowlist on all
+protected APIs; its generic implementation belongs upstream and is not supplied
+by packaging. Private-first SDK publication is now the approved preparation plan,
+subject to separate exact-version publication approval; reconcile the public-only
+SDK wording before claiming supported onboarding. No author-only install path.
