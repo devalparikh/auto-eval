@@ -1,0 +1,53 @@
+name: Server release candidate
+on:
+  pull_request:
+    paths:
+      - scripts/server_release.py
+      - scripts/test_server_release.py
+      - .github/workflows/server-release.yml
+      - docs/server-release.md
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Exact candidate version (publication requires separate explicit approval)
+        required: true
+        default: 0.0.0-candidate
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python3 -m unittest discover -s scripts -p test_server_release.py -v
+      - name: Build candidate outside the source tree
+        env:
+          VERSION: ${{ inputs.version || '0.0.0-candidate' }}
+        run: python3 scripts/server_release.py build --source . --output "$RUNNER_TEMP/server-release" --version "$VERSION" --source-commit "$GITHUB_SHA"
+      - name: Verify installation of candidate
+        env:
+          VERSION: ${{ inputs.version || '0.0.0-candidate' }}
+        run: |
+          cd "$RUNNER_TEMP/server-release"
+          sha256sum -c SHA256SUMS
+          python3 server_release.py install --bundle auto-eval-server.tar.gz --manifest server-manifest.json --manifest-sha256 "$(sha256sum server-manifest.json | cut -d ' ' -f 1)" --destination "$RUNNER_TEMP/server-stage" --version "$VERSION" --source-commit "$GITHUB_SHA"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Build the installed frontend
+        working-directory: ${{ runner.temp }}/server-stage/frontend
+        run: npm ci --no-audit --no-fund && npm run build
+      - name: Build the installed backend wheel without starting the app
+        run: python3 -m pip wheel --no-deps "$RUNNER_TEMP/server-stage/backend" --wheel-dir "$RUNNER_TEMP/wheel-check"
+      # Ephemeral CI evidence, not a registry package or GitHub Release.
+      - uses: actions/upload-artifact@v4
+        with:
+          name: server-release-candidate
+          path: ${{ runner.temp }}/server-release/
+          retention-days: 7
+          if-no-files-found: error
+# No tag trigger, contents:write, gh release command, deployment or publication job.
+# Publication remains an explicit operator action after approval of exact bytes.
