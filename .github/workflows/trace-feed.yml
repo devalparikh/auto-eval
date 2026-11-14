@@ -1,0 +1,18 @@
+name: Trace feed package
+on:
+  pull_request:
+    paths:
+      - packages/trace-feed/**
+      - .github/workflows/trace-feed.yml
+permissions:
+  contents: read
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - run: npm run test:package
+        working-directory: packages/trace-feed
