@@ -13,6 +13,7 @@ interactive walkthrough and downloadable starter. The coding-agent brief is at
 | A prepared local codebase | Drop its folder or select `autoeval.json`. Choose a manifest if the folder contains several. |
 | A public GitHub repository | Paste its repository, subfolder, or manifest link. |
 | A private repository | Clone it locally, then select the folder. |
+| An existing application agent with its own tool loop | Use the [application adapter contract](application-agents.md) and frozen cases. |
 | Custom tools, retrieval, or another agent framework | Register an adapter using [extension-guide.md](extension-guide.md), then import its manifest. |
 | A revision of an existing system | Keep the same system key and choose **Import version** in Artifacts. |
 
