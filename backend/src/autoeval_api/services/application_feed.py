@@ -9,7 +9,7 @@ import time
 from uuid import uuid4
 
 from fastapi import HTTPException
-from sqlalchemy import delete, func, or_, select
+from sqlalchemy import delete, func, or_, select, text
 
 from autoeval_api.models import (
     ApplicationCaptureSettingsRecord,
@@ -54,7 +54,15 @@ def active_clause():
     return or_(FeedObjectRecord.expires == 0, FeedObjectRecord.expires > now_ms())
 
 
+def lock_sqlite(session):
+    # SQLite ignores FOR UPDATE. Reserve the writer before reading consent/settings;
+    # the reservation lasts until this request commits or closes its session.
+    if session.get_bind().dialect.name == "sqlite":
+        session.execute(text("BEGIN IMMEDIATE"))
+
+
 def resource(session, principal, app_id, *, write=False, content=False):
+    lock_sqlite(session)
     app = session.scalar(
         select(ApplicationRecord).where(ApplicationRecord.id == app_id).with_for_update()
     )
@@ -223,6 +231,7 @@ def change_key(session, app, key_id, body=None):
 def key_resource(session, principal):
     if principal.get("scope") != SCOPE:
         denied(403)
+    lock_sqlite(session)
     app = session.scalar(
         select(ApplicationRecord)
         .where(ApplicationRecord.id == principal["application_id"])
@@ -251,7 +260,8 @@ def immutable(session, app_id, kind, id, body, **kwargs):
         .select_from(FeedObjectRecord)
         .where(FeedObjectRecord.application_id == app_id, FeedObjectRecord.kind == kind)
     )
-    if count >= 10000:
+    # Erasure receipts must outlive data without imposing a lifetime capture ceiling.
+    if kind != "receipt2" and count >= 10000:
         raise HTTPException(429, "Application storage limit reached")
     row = FeedObjectRecord(application_id=app_id, kind=kind, id=id, body=body, **kwargs)
     session.add(row)

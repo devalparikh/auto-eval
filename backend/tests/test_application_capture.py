@@ -518,3 +518,77 @@ def test_invalid_unicode_content_is_omitted(feed):
     )
     assert response.status_code == 201, response.text
     assert response.json()["coverage"]["content.request"] == "invalid_value"
+
+
+def test_sqlite_withdrawal_serializes_with_inflight_capture(tmp_path):
+    import threading
+
+    from sqlalchemy import create_engine
+
+    from autoeval_api.db import build_session_factory
+    from autoeval_api.migration_cli import upgrade
+    from autoeval_api.services import application_contract as contract
+    from autoeval_api.services import application_feed as service
+
+    engine = create_engine(f"sqlite:///{tmp_path}/race.db")
+    upgrade(engine)
+    factory = build_session_factory(engine)
+    app_id, grant_id = str(uuid4()), str(uuid4())
+    principal = {"role": "admin"}
+    with factory() as session:
+        service.create_application(
+            session, principal, contract.ApplicationInput(id=app_id, name="Race")
+        )
+        session.commit()
+    with factory() as session:
+        app = service.resource(session, principal, app_id)
+        ids = service.connect(
+            session,
+            app,
+            contract.Connection(
+                policy=contract.Policy.model_validate(policy()),
+                experiment=contract.Experiment.model_validate(experiment()),
+            ),
+        )
+        service.grant(session, app, contract.Grant(id=grant_id, source="synthetic"))
+        session.commit()
+    started, finished, failures = threading.Event(), threading.Event(), []
+
+    def withdraw():
+        try:
+            with factory() as session:
+                started.set()
+                app = service.resource(session, principal, app_id, write=True)
+                service.revoke_grant(session, app, grant_id)
+                session.commit()
+        except Exception as error:
+            failures.append(type(error).__name__)
+        finally:
+            finished.set()
+
+    with factory() as session:
+        app = service.resource(session, principal, app_id)
+        service.consent_for(session, app, grant_id, "synthetic")
+        worker = threading.Thread(target=withdraw)
+        worker.start()
+        assert started.wait(2) and not finished.wait(0.05)
+        now = service.now_ms()
+        trace = contract.Observation(
+            schemaVersion=2,
+            id=str(uuid4()),
+            experimentId=ids["experimentId"],
+            policyVersion=ids["policyVersion"],
+            grantId=grant_id,
+            source="synthetic",
+            startedAt=now,
+            endedAt=now,
+            status="ok",
+        )
+        service.ingest(session, app, trace)
+        session.commit()
+    worker.join(3)
+    assert not worker.is_alive() and not failures
+    with factory() as session:
+        assert service.observations(session, app_id) == []
+        assert session.get(FeedObjectRecord, (app_id, "grant2", grant_id)).revoked
+    engine.dispose()
