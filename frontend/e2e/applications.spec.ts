@@ -7,52 +7,44 @@ test("synthetic application feed reaches dashboard and consent withdrawal remove
   request,
 }) => {
   const app = randomUUID(),
-    experiment = randomUUID(),
     grant = randomUUID();
   const created = await request.post(`${api}/api/applications`, {
     data: {
       id: app,
       name: `Synthetic ${app}`,
-      environment: "preview",
-      policy: { metrics: ["latency_ms"], checks: ["passed"] },
-      retention_days: 1,
     },
   });
   expect(created.status()).toBe(201);
-  const issue = async (scope: string) => {
+  const issue = async () => {
     const response = await request.post(`${api}/api/applications/${app}/keys`, {
-      data: { scope },
+      data: { expiresAt: Date.now() + 86400000 },
     });
     expect(response.status()).toBe(201);
     return (await response.json()).token as string;
   };
-  const ingest = await issue("traces:write"),
-    consent = await issue("grants:write");
-  expect(
-    (
-      await request.post(`${api}/api/applications/${app}/experiments`, {
-        data: {
-          id: experiment,
-          revision: "a".repeat(40),
-          promptHash: "b".repeat(64),
-          configHash: "c".repeat(64),
-          graphHash: null,
-          model: "synthetic/mock",
-          mode: "observed",
-          datasetHash: null,
-        },
-      })
-    ).status(),
-  ).toBe(201);
+  const ingest = await issue();
+  const consent = ingest;
+  const connection = await request.post(`${api}/v2/connect`, {
+    headers: { authorization: `Bearer ${ingest}` },
+    data: {
+      policy: { schemaVersion: 2,
+        metrics: { latency_ms: { semanticId: "run.latency", definitionVersion: 1, unit: "ms" } },
+        checks: { passed: { semanticId: "reply.valid", definitionVersion: 1, expected: true } } },
+      experiment: { revision: { kind: "git-sha1", value: "a".repeat(40) },
+        promptHash: "b".repeat(64), configHash: "c".repeat(64), graphHash: null,
+        models: [{ role: "trainer", provider: "mock", model: "synthetic/mock" }], mode: "observed" }
+    }
+  });
+  expect(connection.status()).toBe(200);
+  const { experimentId, policyVersion } = await connection.json();
   const now = Date.now();
   expect(
     (
-      await request.post(`${api}/v1/grants`, {
+      await request.post(`${api}/v2/grants`, {
         headers: { authorization: `Bearer ${consent}` },
         data: {
           id: grant,
           source: "synthetic",
-          policy: "metadata-v1",
           expiresAt: now + 600000,
         },
       })
@@ -61,15 +53,15 @@ test("synthetic application feed reaches dashboard and consent withdrawal remove
   const id = randomUUID();
   expect(
     (
-      await request.post(`${api}/v1/traces`, {
+      await request.post(`${api}/v2/traces`, {
         headers: { authorization: `Bearer ${ingest}` },
         data: {
-          schemaVersion: 1,
+          schemaVersion: 2,
           id,
-          experimentId: experiment,
+          experimentId,
+          policyVersion,
           grantId: grant,
           source: "synthetic",
-          policy: "metadata-v1",
           caseId: null,
           startedAt: now,
           endedAt: now + 1,
@@ -90,7 +82,7 @@ test("synthetic application feed reaches dashboard and consent withdrawal remove
   ).toBeVisible();
   expect(
     (
-      await request.delete(`${api}/v1/grants/${grant}`, {
+      await request.delete(`${api}/v2/grants/${grant}`, {
         headers: { authorization: `Bearer ${consent}` },
       })
     ).status(),

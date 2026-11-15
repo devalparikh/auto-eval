@@ -11,8 +11,7 @@ import styles from "./applications.module.css";
 type Application = {
   id: string;
   name: string;
-  environment: string;
-  retention_days: number;
+  settings: { retention_days: number | null };
 };
 type Observation = {
   id: string;
@@ -24,7 +23,7 @@ type Observation = {
 };
 type Experiment = {
   id: string;
-  model: string;
+  models: { model: string }[];
   mode: string;
   datasetHash: string | null;
 };
@@ -34,10 +33,10 @@ type Comparison = {
     id: string;
     beforeStatus: string;
     afterStatus: string;
-    checks: { name: string; before: boolean | null; after: boolean | null }[];
+    values: { semanticId: string; compatible: boolean; before: number | boolean | null; after: number | boolean | null }[];
   }[];
 };
-type Key = { id: string; scope: string; revoked: boolean; expires: number };
+type Key = { id: string; scope: string; revoked: boolean; expiresAt: number };
 
 export function ApplicationsScreen() {
   const [ingestEndpoint, setIngestEndpoint] = useState("");
@@ -57,8 +56,8 @@ export function ApplicationsScreen() {
   const [secret, setSecret] = useState("");
   const [revision, setRevision] = useState(0);
   const [name, setName] = useState("");
-  const [environment, setEnvironment] = useState("preview");
-  const [scope, setScope] = useState("traces:write");
+  const [lifespan, setLifespan] = useState("30");
+  const [scope, setScope] = useState("application:connect");
   const [registerOpen, setRegisterOpen] = useState(false);
   useEffect(() => {
     const controller = new AbortController();
@@ -72,7 +71,7 @@ export function ApplicationsScreen() {
         if (!controller.signal.aborted) {
           setIngestEndpoint(
             new URL(
-              API_URL.replace(/\/api$/, "") + "/v1/traces",
+              API_URL.replace(/\/api$/, "") + "/v2/traces",
               window.location.origin,
             ).href,
           );
@@ -127,11 +126,12 @@ export function ApplicationsScreen() {
     setError("");
     setSecret("");
     try {
-      const result = await apiRequest<{ token?: string }>(path, {
+      const result = await apiRequest<{ id?: string; token?: string; key?: { token: string } }>(path, {
         method: "POST",
         body,
       });
       if (result.token) setSecret(result.token);
+      if (result.key) { setSecret(result.key.token); setSelected(result.id!); }
       setRevision((value) => value + 1);
     } catch {
       setError(
@@ -147,7 +147,7 @@ export function ApplicationsScreen() {
     <div className={styles.screen}>
       <PageHeader
         title="Applications"
-        description="Metadata-only observations from applications that run their own inference. Observations expire with consent or retention."
+        description="Observations from applications that run their own inference. Settings and consent control capture."
         action={
           <button
             type="button"
@@ -216,7 +216,7 @@ export function ApplicationsScreen() {
                 <option value="">Select an application</option>
                 {apps.map((app) => (
                   <option key={app.id} value={app.id}>
-                    {app.name} / {app.environment}
+                    {app.name}
                   </option>
                 ))}
               </Select>
@@ -224,12 +224,8 @@ export function ApplicationsScreen() {
             {current ? (
               <dl className={styles.facts}>
                 <div>
-                  <dt>Environment</dt>
-                  <dd className="mono">{current.environment}</dd>
-                </div>
-                <div>
                   <dt>Retention</dt>
-                  <dd className="mono">{current.retention_days}d</dd>
+                  <dd className="mono">{current.settings.retention_days === null ? "Keep" : `${current.settings.retention_days}d`}</dd>
                 </div>
               </dl>
             ) : null}
@@ -254,9 +250,7 @@ export function ApplicationsScreen() {
                 void mutate("/applications", {
                   id: crypto.randomUUID(),
                   name,
-                  environment,
-                  policy: { metrics: ["latency_ms"], checks: ["passed"] },
-                  retention_days: 7,
+                  key: { expiresAt: Date.now() + Number(lifespan) * 86400000 },
                 });
               }}
             >
@@ -272,20 +266,18 @@ export function ApplicationsScreen() {
                 />
               </div>
               <div className="field">
-                <label htmlFor="application-environment">Environment</label>
+                <label htmlFor="application-lifespan">Key lifespan (days)</label>
                 <input
-                  id="application-environment"
+                  id="application-lifespan"
                   className="app-input mono"
                   required
-                  pattern="[a-z][a-z0-9_]{0,47}"
-                  value={environment}
-                  onChange={(event) => setEnvironment(event.target.value)}
+                  type="number" min={1} max={90}
+                  value={lifespan}
+                  onChange={(event) => setLifespan(event.target.value)}
                 />
               </div>
               <p className={styles.note}>
-                Seven-day retention. Policy: <code>latency_ms</code> and{" "}
-                <code>passed</code>. Registration is immutable; use the API to
-                register a different policy.
+                Data is kept until explicitly deleted. The SDK registers its policy automatically.
               </p>
               <button className="app-button" disabled={busy}>
                 Register
@@ -322,9 +314,7 @@ export function ApplicationsScreen() {
                       value={scope}
                       onChange={(event) => setScope(event.target.value)}
                     >
-                      <option>traces:write</option>
-                      <option>grants:write</option>
-                      <option>traces:read</option>
+                      <option>application:connect</option>
                     </Select>
                   </div>
                   <button
@@ -333,8 +323,7 @@ export function ApplicationsScreen() {
                     disabled={busy}
                     onClick={() =>
                       void mutate(`/applications/${selected}/keys`, {
-                        scope,
-                        expires_in_days: 30,
+                        expiresAt: Date.now() + 30 * 86400000,
                       })
                     }
                   >
@@ -356,7 +345,7 @@ export function ApplicationsScreen() {
                 )}
                 {keys.length === 0 ? (
                   <p className={styles.note}>
-                    No keys issued. Start with <code>traces:write</code> to send
+                    No keys issued. Start with <code>application:connect</code> to send
                     observations.
                   </p>
                 ) : (
@@ -368,7 +357,7 @@ export function ApplicationsScreen() {
                         <span className={styles.keyState}>
                           {key.revoked
                             ? "Revoked"
-                            : `Expires ${new Date(key.expires * 1000).toLocaleDateString()}`}
+                            : `Expires ${new Date(key.expiresAt).toLocaleDateString()}`}
                         </span>
                         {!key.revoked && (
                           <span className={styles.keyActions}>
@@ -379,6 +368,7 @@ export function ApplicationsScreen() {
                               onClick={() =>
                                 void mutate(
                                   `/applications/${selected}/keys/${key.id}/rotate`,
+                                  { expiresAt: Date.now() + 30 * 86400000 },
                                 )
                               }
                             >
@@ -417,7 +407,7 @@ export function ApplicationsScreen() {
                   title="No observations yet"
                   message={
                     admin
-                      ? "Issue a traces:write key and send metadata-only traces to the ingest endpoint."
+                      ? "Issue a application:connect key and send traces through the SDK to the ingest endpoint."
                       : "Observations appear here once the application sends them."
                   }
                 />
@@ -480,7 +470,7 @@ export function ApplicationsScreen() {
                     <option value="">Select experiment</option>
                     {comparable.map((run) => (
                       <option key={run.id} value={run.id}>
-                        {run.model} / {run.id}
+                        {run.models.map((model) => model.model).join(", ")} / {run.id}
                       </option>
                     ))}
                   </Select>
@@ -499,7 +489,7 @@ export function ApplicationsScreen() {
                     <option value="">Select experiment</option>
                     {comparable.map((run) => (
                       <option key={run.id} value={run.id}>
-                        {run.model} / {run.id}
+                        {run.models.map((model) => model.model).join(", ")} / {run.id}
                       </option>
                     ))}
                   </Select>
@@ -545,9 +535,9 @@ export function ApplicationsScreen() {
                       <p>
                         {item.beforeStatus} → {item.afterStatus}
                       </p>
-                      {item.checks.map((check) => (
-                        <p key={check.name} className="mono">
-                          {check.name}: {String(check.before)} →{" "}
+                      {item.values.map((check) => (
+                        <p key={check.semanticId} className="mono">
+                          {check.semanticId}{check.compatible ? "" : " (not comparable)"}: {String(check.before)} →{" "}
                           {String(check.after)}
                         </p>
                       ))}

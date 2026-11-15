@@ -275,3 +275,53 @@ def assert_pending_table_keys(engine):
         if index["unique"]
     ]
     assert ["digest"] in unique
+
+
+def test_postgres_v20_populated_upgrade_preserves_history_revokes_legacy(postgres, monkeypatch):
+    from autoeval_api import migration_cli
+
+    with monkeypatch.context() as patch:
+        patch.setattr(migration_cli, "MIGRATIONS", migration_cli.MIGRATIONS[:20])
+        patch.setattr(migration_cli, "MIGRATION_VERSION", 20)
+        upgrade(postgres)
+    # Remove future ORM columns/tables to reproduce the shipped v20 layout.
+    with postgres.begin() as connection:
+        connection.execute(text("DROP TABLE feed_capture_settings"))
+        for table, columns in [
+            ("feed_keys", ("label", "created", "retire_at")),
+            ("feed_objects", ("parent_id", "request_digest")),
+        ]:
+            for column in columns:
+                connection.execute(text(f"ALTER TABLE {table} DROP COLUMN {column}"))
+        connection.execute(
+            text("INSERT INTO feed_applications VALUES ('app','preview','History','{}',7)")
+        )
+        connection.execute(
+            text(
+                "INSERT INTO feed_keys(id,application_id,digest,scope,expires,revoked) "
+                "VALUES ('key','app','digest','traces:write',9999999999,false)"
+            )
+        )
+        connection.execute(
+            text(
+                "INSERT INTO feed_objects(application_id,kind,id,body,expires,revoked) "
+                "VALUES ('app','experiment','old','{}',0,false)"
+            )
+        )
+    upgrade(postgres)
+    upgrade(postgres)
+    with postgres.connect() as connection:
+        assert connection.scalar(text("SELECT revoked FROM feed_keys WHERE id='key'"))
+        assert (
+            connection.scalar(text("SELECT count(*) FROM feed_objects WHERE kind='experiment'"))
+            == 1
+        )
+        assert connection.execute(
+            text(
+                "SELECT production_enabled, categories_initialized, retention_days "
+                "FROM feed_capture_settings"
+            )
+        ).one() == (False, True, 7)
+        assert connection.scalar(
+            text("SELECT relrowsecurity FROM pg_class WHERE oid='feed_capture_settings'::regclass")
+        )

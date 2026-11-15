@@ -107,6 +107,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/applications/{app_id}/content": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Erase Content */
+        delete: operations["erase_content_api_applications__app_id__content_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/applications/{app_id}/datasets": {
         parameters: {
             query?: never;
@@ -134,8 +151,7 @@ export interface paths {
         /** Experiments */
         get: operations["experiments_api_applications__app_id__experiments_get"];
         put?: never;
-        /** Experiment */
-        post: operations["experiment_api_applications__app_id__experiments_post"];
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -160,7 +176,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/applications/{app_id}/keys/{key_id}/{action}": {
+    "/api/applications/{app_id}/keys/{key_id}/revoke": {
         parameters: {
             query?: never;
             header?: never;
@@ -169,8 +185,59 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Change Key */
-        post: operations["change_key_api_applications__app_id__keys__key_id___action__post"];
+        /** Revoke Key */
+        post: operations["revoke_key_api_applications__app_id__keys__key_id__revoke_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/applications/{app_id}/keys/{key_id}/rotate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Rotate Key */
+        post: operations["rotate_key_api_applications__app_id__keys__key_id__rotate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/applications/{app_id}/policies": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Policies */
+        get: operations["policies_api_applications__app_id__policies_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/applications/{app_id}/settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Settings */
+        put: operations["settings_api_applications__app_id__settings_put"];
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -186,6 +253,57 @@ export interface paths {
         };
         /** Dashboard */
         get: operations["dashboard_api_applications__app_id__traces_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/applications/{app_id}/traces/{trace_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Detail */
+        get: operations["detail_api_applications__app_id__traces__trace_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/applications/{app_id}/traces/{trace_id}/assessments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Assess */
+        post: operations["assess_api_applications__app_id__traces__trace_id__assessments_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/applications/{app_id}/traces/{trace_id}/content": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Content */
+        get: operations["content_api_applications__app_id__traces__trace_id__content_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1034,24 +1152,24 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/v1/comparisons/{left}/{right}": {
+    "/v2/connect": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        /** Read Comparison */
-        get: operations["read_comparison_v1_comparisons__left___right__get"];
+        get?: never;
         put?: never;
-        post?: never;
+        /** Connect */
+        post: operations["connect_v2_connect_post"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/v1/grants": {
+    "/v2/grants": {
         parameters: {
             query?: never;
             header?: never;
@@ -1061,14 +1179,14 @@ export interface paths {
         get?: never;
         put?: never;
         /** Grant */
-        post: operations["grant_v1_grants_post"];
+        post: operations["grant_v2_grants_post"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/v1/grants/{id}": {
+    "/v2/grants/{id}": {
         parameters: {
             query?: never;
             header?: never;
@@ -1079,13 +1197,30 @@ export interface paths {
         put?: never;
         post?: never;
         /** Revoke Grant */
-        delete: operations["revoke_grant_v1_grants__id__delete"];
+        delete: operations["revoke_grant_v2_grants__id__delete"];
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/v1/traces": {
+    "/v2/outcomes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Outcome */
+        post: operations["outcome_v2_outcomes_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/traces": {
         parameters: {
             query?: never;
             header?: never;
@@ -1095,24 +1230,7 @@ export interface paths {
         get?: never;
         put?: never;
         /** Ingest */
-        post: operations["ingest_v1_traces_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/v1/traces/{id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Read Trace */
-        get: operations["read_trace_v1_traces__id__get"];
-        put?: never;
-        post?: never;
+        post: operations["ingest_v2_traces_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1264,15 +1382,11 @@ export interface components {
         };
         /** ApplicationInput */
         ApplicationInput: {
-            /** Environment */
-            environment: string;
             /** Id */
-            id: string;
+            id?: string;
+            key?: components["schemas"]["KeyInput"] | null;
             /** Name */
             name: string;
-            policy: components["schemas"]["Policy"];
-            /** Retention Days */
-            retention_days: number;
         };
         /** ArtifactCatalogResponse */
         ArtifactCatalogResponse: {
@@ -1353,6 +1467,17 @@ export interface components {
             /** Version */
             version?: number | null;
         };
+        /** Assessment */
+        Assessment: {
+            /** Id */
+            id: string;
+            /** Ratings */
+            ratings: {
+                [key: string]: "pass" | "fail" | "unknown";
+            };
+            /** Scorerhash */
+            scorerHash: string;
+        };
         /** AutoEvalManifest */
         AutoEvalManifest: {
             graph: components["schemas"]["AgentGraphDefinition"];
@@ -1372,6 +1497,20 @@ export interface components {
              */
             decision: "approved" | "rejected";
         };
+        /** CaptureSettings */
+        CaptureSettings: {
+            /** Content Categories */
+            content_categories?: string[];
+            /** Content Retention Days */
+            content_retention_days?: number | null;
+            /**
+             * Production Enabled
+             * @default true
+             */
+            production_enabled: boolean;
+            /** Retention Days */
+            retention_days?: number | null;
+        };
         /** CatalogResponse */
         CatalogResponse: {
             /** Agent Systems */
@@ -1382,6 +1521,15 @@ export interface components {
             models: components["schemas"]["ModelOption"][];
             /** Prompts */
             prompts: components["schemas"]["PromptSummary"][];
+        };
+        /** Check */
+        Check: {
+            /** Definitionversion */
+            definitionVersion: number;
+            /** Expected */
+            expected: boolean | null;
+            /** Semanticid */
+            semanticId: string;
         };
         /** ConnectHarness */
         ConnectHarness: {
@@ -1394,6 +1542,23 @@ export interface components {
             key: string;
             /** Name */
             name: string;
+        };
+        /** Connection */
+        Connection: {
+            experiment: components["schemas"]["Experiment"];
+            policy: components["schemas"]["Policy"];
+            /**
+             * Source
+             * @default synthetic
+             * @enum {string}
+             */
+            source: "synthetic" | "production";
+        };
+        /** ContentField */
+        ContentField: {
+            /** Category */
+            category: string;
+            valueSchema: components["schemas"]["ValueSchema"];
         };
         /** CreateAgentVersionRequest */
         CreateAgentVersionRequest: {
@@ -1788,6 +1953,13 @@ export interface components {
             /** Status */
             status: string;
         };
+        /** EventDefinition */
+        EventDefinition: {
+            /** Attributes */
+            attributes?: {
+                [key: string]: components["schemas"]["ValueSchema"];
+            };
+        };
         /** ExchangeRequest */
         ExchangeRequest: {
             /** Code */
@@ -1798,34 +1970,31 @@ export interface components {
             /** Confighash */
             configHash: string;
             /** Datasethash */
-            datasetHash: string | null;
+            datasetHash?: string | null;
             /** Graphhash */
             graphHash: string | null;
-            /** Id */
-            id: string;
             /**
              * Mode
+             * @default observed
              * @enum {string}
              */
-            mode: "scripted" | "live" | "observed";
-            /** Model */
-            model: string;
+            mode: "observed" | "scripted" | "live";
+            /** Models */
+            models: components["schemas"]["Model"][];
             /** Prompthash */
-            promptHash: string;
-            /** Revision */
-            revision: string;
+            promptHash: string | null;
+            revision: components["schemas"]["Revision"];
+            /** Runid */
+            runId?: string | null;
         };
         /** Grant */
         Grant: {
+            /** Categories */
+            categories?: string[];
             /** Expiresat */
-            expiresAt: number;
+            expiresAt?: number | null;
             /** Id */
             id: string;
-            /**
-             * Policy
-             * @constant
-             */
-            policy: "metadata-v1";
             /**
              * Source
              * @enum {string}
@@ -2066,16 +2235,13 @@ export interface components {
         JsonValue: unknown;
         /** KeyInput */
         KeyInput: {
+            /** Expiresat */
+            expiresAt: number;
             /**
-             * Expires In Days
-             * @default 30
+             * Label
+             * @default App connection
              */
-            expires_in_days: number;
-            /**
-             * Scope
-             * @enum {string}
-             */
-            scope: "traces:write" | "grants:write" | "traces:read";
+            label: string;
         };
         /** ManifestPrompt */
         ManifestPrompt: {
@@ -2097,6 +2263,28 @@ export interface components {
             key: string;
             /** Name */
             name: string;
+        };
+        /** Metric */
+        Metric: {
+            /** Definitionversion */
+            definitionVersion: number;
+            /** Max */
+            max?: number | null;
+            /** Min */
+            min?: number | null;
+            /** Semanticid */
+            semanticId: string;
+            /** Unit */
+            unit: string;
+        };
+        /** Model */
+        Model: {
+            /** Model */
+            model: string;
+            /** Provider */
+            provider: string;
+            /** Role */
+            role: string;
         };
         /** ModelOption */
         ModelOption: {
@@ -2412,10 +2600,18 @@ export interface components {
         /** Observation */
         Observation: {
             /** Caseid */
-            caseId: string | null;
+            caseId?: string | null;
             /** Checks */
-            checks: {
-                [key: string]: boolean | null;
+            checks?: {
+                [key: string]: unknown;
+            };
+            /** Content */
+            content?: {
+                [key: string]: unknown;
+            };
+            /** Coverage */
+            coverage?: {
+                [key: string]: "not_measured" | "not_authorized" | "invalid_value" | "redaction_failed" | "size_limit" | "retention_expired";
             };
             /** Endedat */
             endedAt: number;
@@ -2426,19 +2622,18 @@ export interface components {
             /** Id */
             id: string;
             /** Metrics */
-            metrics: {
-                [key: string]: number | null;
+            metrics?: {
+                [key: string]: unknown;
             };
-            /**
-             * Policy
-             * @constant
-             */
-            policy: "metadata-v1";
+            /** Policyversion */
+            policyVersion: string;
+            /** Redactorversion */
+            redactorVersion?: string | null;
             /**
              * Schemaversion
              * @constant
              */
-            schemaVersion: 1;
+            schemaVersion: 2;
             /**
              * Source
              * @enum {string}
@@ -2450,14 +2645,65 @@ export interface components {
              * Status
              * @enum {string}
              */
-            status: "ok" | "error" | "partial";
+            status: "ok" | "error" | "partial" | "cancelled";
+            /** Steps */
+            steps?: components["schemas"]["Step"][];
+        };
+        /** Outcome */
+        Outcome: {
+            /** Attributes */
+            attributes?: {
+                [key: string]: unknown;
+            };
+            /** Content */
+            content?: {
+                [key: string]: unknown;
+            };
+            /** Id */
+            id: string;
+            /** Name */
+            name: string;
+            /** Occurredat */
+            occurredAt: number;
+            /** Policyversion */
+            policyVersion: string;
+            /** Redactorversion */
+            redactorVersion?: string | null;
+            /**
+             * Schemaversion
+             * @constant
+             */
+            schemaVersion: 2;
+            /** Traceid */
+            traceId: string;
         };
         /** Policy */
         Policy: {
             /** Checks */
-            checks: string[];
+            checks?: {
+                [key: string]: components["schemas"]["Check"];
+            };
+            /** Content */
+            content?: {
+                [key: string]: components["schemas"]["ContentField"];
+            };
             /** Metrics */
-            metrics: string[];
+            metrics?: {
+                [key: string]: components["schemas"]["Metric"];
+            };
+            /** Outcomes */
+            outcomes?: {
+                [key: string]: components["schemas"]["EventDefinition"];
+            };
+            /**
+             * Schemaversion
+             * @constant
+             */
+            schemaVersion: 2;
+            /** Steps */
+            steps?: {
+                [key: string]: components["schemas"]["EventDefinition"];
+            };
         };
         /** PortfolioSnapshotDetail */
         PortfolioSnapshotDetail: {
@@ -2557,6 +2803,28 @@ export interface components {
             prompt_id: string;
             /** Version */
             version: number;
+        };
+        /** Revision */
+        Revision: {
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "git-sha1" | "git-sha256" | "artifact-sha256";
+            /** Value */
+            value: string;
+        };
+        /** RotationInput */
+        RotationInput: {
+            /** Expiresat */
+            expiresAt: number;
+            /**
+             * Label
+             * @default App connection
+             */
+            label: string;
+            /** Retireat */
+            retireAt?: number | null;
         };
         /** RunTraceRequest */
         RunTraceRequest: {
@@ -2709,6 +2977,31 @@ export interface components {
             source_kind: string;
             /** Source Trace Id */
             source_trace_id: string | null;
+        };
+        /** Step */
+        Step: {
+            /** Attributes */
+            attributes?: {
+                [key: string]: unknown;
+            };
+            /** Durationms */
+            durationMs?: number | null;
+            /** Id */
+            id: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "model" | "tool" | "validation" | "persistence" | "admission";
+            /** Name */
+            name: string;
+            /** Parentid */
+            parentId?: string | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "ok" | "error" | "partial" | "cancelled";
         };
         /** SystemImportCommitRequest */
         SystemImportCommitRequest: {
@@ -3129,6 +3422,31 @@ export interface components {
             /** Error Type */
             type: string;
         };
+        /** ValueSchema */
+        ValueSchema: {
+            /** Enum */
+            enum?: string[] | null;
+            items?: components["schemas"]["ValueSchema"] | null;
+            /**
+             * Maxitems
+             * @default 32
+             */
+            maxItems: number;
+            /**
+             * Maxlength
+             * @default 1000
+             */
+            maxLength: number;
+            /** Properties */
+            properties?: {
+                [key: string]: components["schemas"]["ValueSchema"];
+            };
+            /**
+             * Type
+             * @enum {string}
+             */
+            type: "string" | "number" | "integer" | "boolean" | "object" | "array";
+        };
         /** VerifyRequest */
         VerifyRequest: {
             /** Email */
@@ -3384,6 +3702,39 @@ export interface operations {
             };
         };
     };
+    erase_content_api_applications__app_id__content_delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                app_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     dataset_api_applications__app_id__datasets_post: {
         parameters: {
             query?: never;
@@ -3441,43 +3792,6 @@ export interface operations {
                     "application/json": {
                         [key: string]: unknown;
                     }[];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    experiment_api_applications__app_id__experiments_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                app_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["Experiment"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
                 };
             };
             /** @description Validation Error */
@@ -3561,18 +3875,125 @@ export interface operations {
             };
         };
     };
-    change_key_api_applications__app_id__keys__key_id___action__post: {
+    revoke_key_api_applications__app_id__keys__key_id__revoke_post: {
         parameters: {
             query?: never;
             header?: never;
             path: {
                 app_id: string;
                 key_id: string;
-                action: string;
             };
             cookie?: never;
         };
         requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    rotate_key_api_applications__app_id__keys__key_id__rotate_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                app_id: string;
+                key_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RotationInput"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    policies_api_applications__app_id__policies_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                app_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    }[];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    settings_api_applications__app_id__settings_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                app_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CaptureSettings"];
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {
@@ -3616,6 +4037,112 @@ export interface operations {
                     "application/json": {
                         [key: string]: unknown;
                     }[];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    detail_api_applications__app_id__traces__trace_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                app_id: string;
+                trace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    assess_api_applications__app_id__traces__trace_id__assessments_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                app_id: string;
+                trace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Assessment"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    content_api_applications__app_id__traces__trace_id__content_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                app_id: string;
+                trace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
                 };
             };
             /** @description Validation Error */
@@ -5272,17 +5799,18 @@ export interface operations {
             };
         };
     };
-    read_comparison_v1_comparisons__left___right__get: {
+    connect_v2_connect_post: {
         parameters: {
             query?: never;
             header?: never;
-            path: {
-                left: string;
-                right: string;
-            };
+            path?: never;
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Connection"];
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {
@@ -5306,7 +5834,7 @@ export interface operations {
             };
         };
     };
-    grant_v1_grants_post: {
+    grant_v2_grants_post: {
         parameters: {
             query?: never;
             header?: never;
@@ -5341,7 +5869,7 @@ export interface operations {
             };
         };
     };
-    revoke_grant_v1_grants__id__delete: {
+    revoke_grant_v2_grants__id__delete: {
         parameters: {
             query?: never;
             header?: never;
@@ -5374,7 +5902,7 @@ export interface operations {
             };
         };
     };
-    ingest_v1_traces_post: {
+    outcome_v2_outcomes_post: {
         parameters: {
             query?: never;
             header?: never;
@@ -5383,7 +5911,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["Observation"];
+                "application/json": components["schemas"]["Outcome"];
             };
         };
         responses: {
@@ -5409,19 +5937,21 @@ export interface operations {
             };
         };
     };
-    read_trace_v1_traces__id__get: {
+    ingest_v2_traces_post: {
         parameters: {
             query?: never;
             header?: never;
-            path: {
-                id: string;
-            };
+            path?: never;
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Observation"];
+            };
+        };
         responses: {
             /** @description Successful Response */
-            200: {
+            201: {
                 headers: {
                     [name: string]: unknown;
                 };

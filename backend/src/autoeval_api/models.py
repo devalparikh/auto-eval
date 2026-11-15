@@ -516,6 +516,23 @@ class ApplicationKeyRecord(Base):
     scope: Mapped[str] = mapped_column(String(32))
     expires: Mapped[float] = mapped_column(Float)
     revoked: Mapped[bool] = mapped_column(Boolean, default=False)
+    label: Mapped[str] = mapped_column(
+        String(80), default="App connection", server_default="App connection"
+    )
+    created: Mapped[float] = mapped_column(Float, default=0, server_default="0")
+    retire_at: Mapped[float | None] = mapped_column(Float)
+
+
+class ApplicationCaptureSettingsRecord(Base):
+    __tablename__ = "feed_capture_settings"
+    application_id: Mapped[str] = mapped_column(
+        ForeignKey("feed_applications.id"), primary_key=True
+    )
+    production_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    categories_initialized: Mapped[bool] = mapped_column(Boolean, default=False)
+    retention_days: Mapped[int | None] = mapped_column(Integer)
+    content_retention_days: Mapped[int | None] = mapped_column(Integer)
+    content_categories: Mapped[list] = mapped_column(JSON, default=list)
 
 
 class FeedObjectRecord(Base):
@@ -529,6 +546,8 @@ class FeedObjectRecord(Base):
     expires: Mapped[float] = mapped_column(Float, default=0, index=True)
     revoked: Mapped[bool] = mapped_column(Boolean, default=False)
     grant_id: Mapped[str | None] = mapped_column(String(36), index=True)
+    parent_id: Mapped[str | None] = mapped_column(String(64), index=True)
+    request_digest: Mapped[str | None] = mapped_column(String(64))
 
 
 class MigrationChecksumRecord(Base):

@@ -59,7 +59,7 @@ test("viewer dashboard reads allowed observations without key controls", async (
     if (path === "/auth/session") return { role: "viewer" };
     if (path === "/applications")
       return [
-        { id: "app", name: "Demo", environment: "preview", retention_days: 1 },
+        { id: "app", name: "Demo", settings: { retention_days: null } },
       ];
     if (path === "/applications/app/experiments") return [];
     if (path === "/applications/app/traces")
@@ -94,13 +94,13 @@ test("comparison keeps the selected pair fixed until its response settles", asyn
     if (path === "/auth/session") return { role: "viewer" };
     if (path === "/applications")
       return [
-        { id: "app", name: "Demo", environment: "preview", retention_days: 1 },
+        { id: "app", name: "Demo", settings: { retention_days: null } },
       ];
     if (path === "/applications/app/traces") return [];
     if (path === "/applications/app/experiments")
       return ["left", "right"].map((id) => ({
         id,
-        model: "mock",
+        models: [{ model: "mock" }],
         mode: "scripted",
         datasetHash: "hash",
       }));
