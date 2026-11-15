@@ -1,0 +1,51 @@
+name: Publish SDK
+on:
+  push:
+    branches: [main]
+    paths:
+      - packages/trace-feed/**
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# One writer for this package across push and manual runs. Never cancel a publish.
+concurrency:
+  group: autoeval-sdk-publish
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    if: github.repository == 'devalparikh/auto-eval' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Test publisher and installed SDK; build package
+        run: |
+          python3 -m unittest discover -s scripts -p test_sdk_publish.py -v
+          npm run test:package --prefix packages/trace-feed
+      - name: Publish absent version and verify registry metadata
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SOURCE_SHA: ${{ github.sha }}
+        run: python3 scripts/sdk_publish.py
+      - name: Retain source and checksum evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: sdk-publication-${{ github.sha }}
+          path: ${{ runner.temp }}/sdk-publication.json
+          if-no-files-found: error
+          retention-days: 90

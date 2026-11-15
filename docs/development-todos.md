@@ -1,5 +1,9 @@
 # Product follow-ups
 
+- [x] Replace the pending manual SDK publication plan with the reviewed
+  [Actions publishing process](sdk-publishing.md). Built-in GITHUB_TOKEN only;
+  workflow_dispatch is the manual fallback. No local publication occurred.
+
 - [ ] Revisit application-capture retention for storage optimization and privacy.
   Capture v2 defaults both metadata and diagnostic content retention to **Keep**
   (`null`), per the approved integration decision. Operators can select a finite

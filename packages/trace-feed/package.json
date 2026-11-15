@@ -3,6 +3,11 @@
   "version": "0.2.0-private.1",
   "description": "Server-only, consented agent capture with automatic versioning",
   "license": "UNLICENSED",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/devalparikh/auto-eval.git",
+    "directory": "packages/trace-feed"
+  },
   "type": "module",
   "engines": {
     "node": ">=22.22.1"

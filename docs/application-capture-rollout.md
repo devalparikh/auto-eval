@@ -46,18 +46,20 @@ as a separately verified prior bundle plus the matching backup/schema state, nev
 by deleting migration rows or changing shipped migration code. Capture may be safely
 disabled in Lifty while owners reconcile a rollout failure.
 
-## Separately approved SDK publication
+## Approved SDK publication through Actions
 
 Review `@devalparikh/autoeval@0.2.0-private.1` and its exact packed bytes. The package
 has no runtime dependencies, is UNLICENSED and targets restricted GitHub Packages.
 The owner must confirm namespace/package permissions and the intended license/access
-before publishing. Publication credentials are never committed, printed or passed
-in a PR. No CI workflow publishes this package.
-
-After an explicit publish request, publish the reviewed archive to GitHub Packages
-with restricted access. Verify a clean consumer can install that exact version with
-a read-only package token and a committed integrity lockfile. Verify unauthorized
-access is refused. Do not treat local tarball tests as proof of registry access.
+before approving a merge. [SDK publishing](sdk-publishing.md) defines the automatic
+main-push workflow, existing-version skip, built-in GITHUB_TOKEN access, exact
+tarball validation and source/checksum evidence. Only merge when Deval explicitly
+asks; merging a package change authorizes publication of an absent version.
+The manual fallback is workflow_dispatch on main, never local/PAT publication.
+No manual publication of `0.2.0-private.1` occurred. Verify a clean consumer can
+install the pinned version with a read-only package token and committed integrity
+lockfile, and verify intended access boundaries separately. Local tarball tests
+and metadata checks do not establish registry-install or visibility guarantees.
 
 ## Lifty owner work
 

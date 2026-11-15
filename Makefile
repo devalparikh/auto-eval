@@ -37,7 +37,9 @@ api-types-check:
 	diff -u frontend/src/lib/api-schema.ts $$tmp/api-schema.ts || { echo "frontend/src/lib/api-schema.ts is stale - run 'make api-types'"; exit 1; }; \
 	echo "API types are in sync with the backend schema"
 
-check: api-types-check test-trace-feed test-server-release
+check: api-types-check test-trace-feed test-server-release test-sdk-publish
+	.venv/bin/ruff check scripts/sdk_publish.py scripts/test_sdk_publish.py
+	.venv/bin/ruff format --check scripts/sdk_publish.py scripts/test_sdk_publish.py
 	.venv/bin/ruff check backend/src backend/tests
 	.venv/bin/ruff format --check backend/src backend/tests
 	.venv/bin/pytest backend/tests
@@ -60,3 +62,7 @@ test-trace-feed:
 .PHONY: test-server-release
 test-server-release:
 	python3 -m unittest discover -s scripts -p test_server_release.py -v
+
+.PHONY: test-sdk-publish
+test-sdk-publish:
+	python3 -m unittest discover -s scripts -p test_sdk_publish.py -v
