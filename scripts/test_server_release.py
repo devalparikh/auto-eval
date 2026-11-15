@@ -61,7 +61,7 @@ class ReleaseTests(unittest.TestCase):
         stage = self.root / "stage"
         service = json.loads((stage / "vercel.json").read_text())["services"]["backend"]
         command = shlex.split(service["installCommand"])
-        self.assertEqual(command, ["uv", "pip", "install", ".[hosted]"])
+        self.assertEqual(command, ["uv", "pip", "install", "--link-mode=copy", ".[hosted]"])
         manifest = tomllib.loads((stage / service["root"] / "pyproject.toml").read_text())
         self.assertIn("psycopg[binary]>=3.2,<4", manifest["project"]["optional-dependencies"]["hosted"])
         self.assertNotIn("installCommand", json.loads((stage / "vercel.json").read_text()))

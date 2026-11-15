@@ -9,7 +9,7 @@
       "root": "backend",
       "framework": "fastapi",
       "entrypoint": "main:app",
-      "installCommand": "uv pip install '.[hosted]'"
+      "installCommand": "uv pip install --link-mode=copy '.[hosted]'"
     }
   },
   "rewrites": [
