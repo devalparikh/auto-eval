@@ -114,7 +114,7 @@ adapters. See [application-agents.md](application-agents.md).
 - Request-scoped `GraphRuntimeContext` carries repositories and local resources that must not enter graph state. Portfolio Query uses it to resolve a full snapshot locally, then an explicit deterministic node constructs the provider-safe model context.
 - A node may declare a registered, schema-versioned `runtime_input_policy` capability with separate direct-runtime and evaluation modes. The runner resolves direct Portfolio Q&A to `refresh` and evaluations to `locked`; locked mode resolves an immutable snapshot selected separately from business input and cannot call a provider. Policies may be conditionally required, so generic portfolio questions skip the options observation while covered-call questions fail closed if it is absent. The observation is runtime provenance, not graph or prompt version content.
 
-There is currently no `DatasetImporter`, `ArtifactStore`, or `EvaluationDispatcher` interface. Dataset edits use the dataset service, payloads are stored as JSON in SQLite, and evaluation background work runs in the FastAPI process. Introduce a real interface only when adding a second implementation.
+There is currently no `DatasetImporter`, `ArtifactStore`, or `EvaluationDispatcher` interface. Dataset edits use the dataset service, payloads are stored as JSON in the configured database, and evaluation background work runs in the FastAPI process. Introduce a real interface only when adding a second implementation.
 
 `AgentSystemSpec` is deliberately code-level. It supplies default models, an input template, editor identity, and the primary metric without trying to turn every agent UX into a database-driven form builder. Unknown registered systems receive generic JSON fallbacks.
 
@@ -154,7 +154,7 @@ artifact contract, and path to future hardware/cloud executors.
 - `output_node` must name a node in the graph definition. The runner currently expects the completed graph state to contain a top-level `output` key; otherwise the complete state becomes the trace output.
 - All sink nodes connect to LangGraph `END`. `output_node` does not currently choose one sink when a graph branches.
 
-## Local MVP boundaries
+## Runtime and storage boundaries
 
 - SQLite and the in-process evaluation task are suitable for local, single-process use only.
 - `sqlite://` shares one connection across threads through `StaticPool`, and parallel requests segfault it inside SQLAlchemy. It is for serial, in-process tests only. Anything serving concurrent requests, including Playwright, uses a file database.
@@ -237,16 +237,23 @@ newest snapshot for an identity — exists only on the interactive run path, whe
 
 ## Imported application observations
 
-`packages/trace-feed` is the independent npm capture artifact and a loopback-only
-receipt service. Applications retain their inference/tool loop and submit approved
-metadata after completion. This service uses a separate local database and cannot
-mutate the workbench's immutable versions or finalized datasets. It is not yet
-integrated into the FastAPI UI or hosted profile. See [package and feed architecture](package-and-feed.md)
-for implementation boundaries, experiment registration, hosting and approval gates.
+`packages/trace-feed` provides the private `@devalparikh/autoeval` SDK. Applications
+retain their inference/tool loop and submit approved metadata after completion to
+FastAPI's `/v1/traces`, exposed by Vercel at `/api/backend/v1/traces`. The
+`/applications` dashboard reviews these observations. See the hosted implementation
+below and the [hosted client contract](hosted-client-contract.md) for the exact
+capture, authorization and registration contract.
+
+The package's optional `/server` entry point still provides `startFeed`, a
+loopback-only Node receiver with its own SQLite receipts. It supports isolated
+local consumers and package tests; it is not the hosted persistence layer. Neither
+receiver turns observations into mutable workbench graph/prompt versions or
+finalized datasets. See [package and feed architecture](package-and-feed.md) for
+current boundaries and the historical adoption decisions.
 
 ## Product versus customer deployment repositories
 
-AutoEval owns the generic SDKs, server, UI, self-host artifacts, public configuration and product migration history. Customer deployment repositories consume pinned public artifacts through documented interfaces only; they own instance provisioning/configuration and migration orchestration, never forked schema or product source. This includes the author's own private instance. See [customer deployment contract](customer-deployment-contract.md) for the confirmed split and explicitly unimplemented release/install capabilities.
+AutoEval owns the generic SDKs, server, UI, self-host artifacts, public configuration and product migration history. Customer deployment repositories consume pinned artifacts through documented interfaces only; they own instance provisioning/configuration and migration orchestration, never forked schema or product source. This includes the author's own private instance. See [customer deployment contract](customer-deployment-contract.md) for the repository split, private SDK access and remaining release/install gates.
 
 ## Hosted application observations
 
@@ -262,3 +269,22 @@ code. Frontend auth and application features own their async request state.
 Production uses explicit `migration_cli.py` upgrades, never lifespan DDL. PostgreSQL
 uses durable tables, per-application serialization, immutable-record triggers and
 RLS excluding browser roles; backend runtime is a separately granted DML role.
+
+## Retained local and self-host paths
+
+Hosted observation capture supplements the execution workbench. Keep these paths
+because they still serve distinct consumers:
+
+- SQLite defaults, local authentication mode, loopback guards, seed data and
+  `make dev` / `make api`: offline development, demos and regression tests.
+- `python -m autoeval_api.application_benchmark`, harness routes/services and
+  migration-13 tables: frozen-case local adapter benchmarks, including the
+  dependent deval-blog integration. Hosted ingestion does not replace execution.
+- Node `startFeed`: a separately testable local SDK receiver without FastAPI.
+- Basic preview authentication: supported single-user deployment compatibility.
+- Workbench graphs, datasets, evaluations and opt-in local inference/training:
+  reproducible execution and hardware-local workflows beyond observation capture.
+- Self-host and server-release tooling/docs: installation and upgrade boundaries
+  for other operators, independent of the author's hosted instance.
+
+No runtime code, schema history or scripts are retired by this framing cleanup.

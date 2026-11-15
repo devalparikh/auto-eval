@@ -6,7 +6,7 @@ A private customer deployment repository is configuration and operations, not a
 product fork. The first author's instance gets no special access or implementation
 shortcuts. The deployment repository split is not an open architecture alternative.
 
-The confirmed hosted target is a private repository deploying a pinned public release
+The confirmed hosted target is a private repository deploying a pinned server release
 to Vercel with Supabase database/auth settings, issuing an endpoint and per-app keys.
 Applications install the documented SDK and initialize it from environment;
 the operator uses Supabase sign-in for the private dashboard. See the exact
@@ -22,8 +22,9 @@ target product boundaries, not a claim that every artifact exists today. Keep ac
 customer IDs, allowlists, domains, regions, platform project IDs and configuration
 out of the product. Generic examples contain placeholders only.
 
-A private customer repository consumes a pinned, publicly obtainable package or
-image and owns the instance's Vercel/deployment configuration, infrastructure setup,
+A private customer repository consumes a pinned package or image through the
+documented access path and owns the instance's Vercel/deployment configuration,
+infrastructure setup,
 secret-free environment templates, operator allowlist configuration, release pin,
 upgrade approvals, provisioning and migration orchestration, backup/restore and
 operations runbooks. Credentials remain in the customer's Vercel/Supabase secret
@@ -38,8 +39,8 @@ are separate privileges. No model credential is needed just to ingest observatio
 
 A valid installation must be reproducible by an unrelated customer using only:
 
-1. A documented public artifact, pinned to an immutable version and integrity or
-   image digest, plus published compatibility/release information.
+1. A documented artifact available to authorized customers, pinned to an immutable
+   version and integrity or image digest, plus published compatibility/release information.
 2. Documented public configuration and supported auth/storage adapters.
 3. Public installation, migration, verification, backup and upgrade instructions.
 
@@ -50,11 +51,14 @@ package/image pin is acceptable; a repository commit alone is not an installable
 server release. A private deployment must not compile a copy of upstream source as
 an undocumented workaround for a missing release artifact.
 
-The current local tarball in Lifty is explicitly a **pre-release development test**
-of the package contract. It is not a published customer installation or permission
-to use a maintainer-only distribution path for the private instance. Product
-release/publication needs separate approval. A public self-host image must be built,
-verified and documented upstream before an instance can pin it.
+The SDK uses the approved private GitHub Packages distribution path, with npm
+later. Authorized customers use the same documented package-read permissions and
+installation contract; private distribution does not justify maintainer-only source
+access. Historical tarball tests are development evidence, not the current hosted
+integration model. See [SETUP.md](SETUP.md) for the pinned consumer contract.
+
+Server release publication and a public self-host image are separate deliverables.
+The running author's instance does not prove that either is generally available.
 
 ## Schema migrations versus instance provisioning
 
@@ -83,19 +87,20 @@ There is one authoritative product schema and one migration history: upstream.
   database: use documented compatibility windows or an explicitly approved restore
   procedure. Retry/replay behavior must be tested on disposable populated databases.
 
-Local development upgrades in lifespan; production only checks the explicitly migrated schema. The candidate provides `autoeval-migrate upgrade/status`, PostgreSQL locking,
+Local development upgrades in lifespan; production only checks the explicitly migrated schema. The product provides `autoeval-migrate upgrade/status`, PostgreSQL locking,
 entrypoint checksums and separate backend runtime grants. Follow [SETUP.md](SETUP.md).
-Only disposable test databases were migrated. No production migration is authorized.
+The implementation validation used disposable test databases; instance migration
+authorization and evidence belong to the operator.
 
 ## Vercel and self-hosting
 
 The product may ship neutral Vercel examples and a generic self-host image. Instance
 Vercel configuration belongs to the private repo and must consume supported public
 artifacts. Vercel and a container image are distinct deployment targets: do not
-assume Vercel directly runs an arbitrary self-host Docker image. Before enabling the confirmed
-Vercel target, upstream must document and verify how its released Next.js/FastAPI artifacts
-are installed and routed there without copying source. If that adapter is missing,
-record a product gap; do not fall back to a maintainer's source-linked Vercel project.
+assume Vercel directly runs an arbitrary self-host Docker image. The product provides a verified-bundle staging installer for Next.js/FastAPI;
+see [server-release.md](server-release.md). Live installation acceptance and
+immutable release publication remain separate from that implementation. Missing
+installation capabilities belong upstream, not in a private source fork.
 
 A supported public container on a compatible host is another customer path once
 that image is released and verified. Other customers may choose other supported targets; that does not reopen the
@@ -119,52 +124,28 @@ Resolve its exact fields against the real upstream release contract before use.
 Runtime environment templates must be generated from or checked against the chosen
 release's documented configuration. This PR adds no new runtime environment names.
 
-## Customer onboarding gaps tracked by this change
+## Current implementation and remaining release gates
 
-The following are upstream product work, not private-repo implementation tasks:
+The PR26 onboarding gap list predates the PR28–29 implementation. It is replaced
+here by the current division between implemented capabilities and release evidence:
 
-- Approve a license/namespace and release the public SDK with documented integrity
-  and supported runtime matrix. The local artifact remains private/unpublished.
-- Package/release server and UI for customer installation; build and test the public
-  self-host image. No image or container build is present in this PR.
-- Implement and test the hosted feed/storage integration and generic scoped auth;
-  expose supported configuration for provider/issuer and operator allowlists.
-  The existing Basic-auth preview does not implement the proposed customer auth.
-- Provide the public migration/upgrade tooling and supported Vercel install adapter
-  described above, with fresh-install and upgrade smoke checks using only public
-  artifacts/configuration. Vercel deployment from upstream source is existing
-  behavior, not evidence that this new customer installation contract works.
-- Integrate observation review into the product UI and document consent, deletion,
-  backup lifecycle and inference permissions end to end.
+| Area | Implemented in the product | Still a separate gate |
+| --- | --- | --- |
+| Application feed | FastAPI persistence, scoped keys, consent/retention, immutable manifests/experiments and `/applications` review | App-specific production consent and operational acceptance |
+| Hosted auth | Supabase sign-in, server-wide authorization and operator allowlist | Instance enrollment, configuration and deployed isolation verification |
+| Migrations | Explicit upgrade/status CLI, PostgreSQL locking, entrypoint checksums and runtime grants | Approved backup, upgrade and restore evidence per instance |
+| SDK | Capture API and environment initializer, isolated packed-consumer tests | Exact-version distribution/access verification under the private registry contract |
+| Server installation | Bundle/manifest verifier and Vercel staging installer | Published immutable assets and live customer-install acceptance |
+| Self-host image | Documented product ownership and release boundary | A built, released and verified container image is not claimed |
 
-These gaps are filed upstream in [issue #27](https://github.com/devalparikh/auto-eval/issues/27);
-none is claimed resolved by this docs update. When setup exposes an
-additional gap, fix it upstream or file an upstream issue with a sanitized repro,
-expected public behavior and acceptance check. Never paper over it in the private
-repo. Public release, instance creation and production enablement remain separately
-authorized actions. No customer repository, release, image or deployment was created.
+The [server release contract](server-release.md) is the source for packaging and
+publication gates; the [hosted client contract](hosted-client-contract.md) is the
+source for implemented authentication, scopes and capture settings. The earlier
+[issue #27](https://github.com/devalparikh/auto-eval/issues/27) records the original
+gaps, not proof that implemented auth/feed/UI remain missing. New installation gaps
+belong upstream with sanitized reproductions, never in private product patches.
 
-## Server release candidate implementation
-
-[Server release contract](server-release.md) adds packaging, verification and
-Vercel staging installation tooling in a follow-up draft. No release has been
-published; hosted auth/feed/migration gates above remain. The chosen dashboard
-auth is Supabase numeric email OTP with a server-enforced allowlist on all
-protected APIs; its generic implementation belongs upstream and is not supplied
-by packaging. Private-first SDK publication is now the approved preparation plan,
-subject to separate exact-version publication approval; reconcile the public-only
-SDK wording before claiming supported onboarding. No author-only install path.
-
-## Candidate status amendment (2026-11-14)
-
-The earlier onboarding gap list describes the PR26 baseline. This stacked candidate
-implements auth, feed storage/UI, migration CLI and SDK env initialization; it does
-not publish artifacts or provision an instance. The SDK's approved interim distribution
-plan is **private GitHub Packages**, with npm later. Authorized outside customers must
-use the same documented package-read permissions and install path; no maintainer
-source access shortcut. License, namespace, registry authentication/access tests and
-publication remain decisions, not implemented releases. Server release assets remain
-publicly documented and pinned only after publication. No self-host image is claimed.
-
-[Hosted client contract](hosted-client-contract.md) supersedes proposed variable names,
-key lifetime/grace values and unsupported capability statements from the PR26 baseline.
+This documentation cleanup does not publish artifacts, provision an instance,
+change deployment settings or authorize production capture. Historical candidate
+statements in release/contract documents describe their recorded validation scope;
+they are not a live inventory of the author's deployment.
