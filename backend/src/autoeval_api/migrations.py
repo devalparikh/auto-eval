@@ -1123,6 +1123,22 @@ def _apply_version_nineteen(connection) -> None:
     )
 
 
+def _apply_version_twenty(connection) -> None:
+    from autoeval_api.models import HostedPendingRecord
+
+    HostedPendingRecord.__table__.create(connection, checkfirst=True)
+    if connection.dialect.name != "postgresql":
+        return
+    # Same backend-only exposure as version 18 gives every other product table.
+    table = HostedPendingRecord.__tablename__
+    roles = set(connection.execute(text("SELECT rolname FROM pg_roles")).scalars())
+    connection.execute(text(f'ALTER TABLE "{table}" ENABLE ROW LEVEL SECURITY'))
+    connection.execute(text(f'REVOKE ALL ON "{table}" FROM PUBLIC'))
+    for role in ("anon", "authenticated"):
+        if role in roles:
+            connection.execute(text(f'REVOKE ALL ON "{table}" FROM "{role}"'))
+
+
 # Ordered by version: index 0 is version 1, and a version is recorded as applied
 # only after its function returns. Append new migrations; never reorder or edit
 # one that has shipped.
@@ -1146,6 +1162,7 @@ MIGRATIONS: tuple[Migration, ...] = (
     _apply_version_seventeen,
     _apply_version_eighteen,
     _apply_version_nineteen,
+    _apply_version_twenty,
 )
 
 MIGRATION_VERSION = len(MIGRATIONS)

@@ -10,8 +10,9 @@ import { afterEach, expect, test, vi } from "vitest";
 import { AuthGate } from "@/features/auth/auth-gate";
 import { ApplicationsScreen } from "@/features/applications/applications-screen";
 import { useHostedSession } from "@/features/auth/hosted-session";
-import { apiRequest } from "@/lib/api";
-vi.mock("@/lib/api", () => ({
+import { ApiError, apiRequest } from "@/lib/api";
+vi.mock("@/lib/api", async (importOriginal) => ({
+  ApiError: (await importOriginal<typeof import("@/lib/api")>()).ApiError,
   apiRequest: vi.fn(),
   API_URL: "/api/backend/api",
 }));
@@ -148,9 +149,12 @@ test("verified registration shows only own pending ID and never mounts private c
   expect(screen.getByText(subject)).toBeVisible();
   expect(privateMount).not.toHaveBeenCalled();
   expect(api).toHaveBeenCalledTimes(3);
+  api.mockResolvedValueOnce({ authenticated: false });
   fireEvent.click(screen.getByRole("button", { name: "Return to sign in" }));
+  expect(await screen.findByRole("button", { name: "Send code" })).toBeEnabled();
   expect(screen.queryByText(subject)).toBeNull();
-  expect(screen.getByRole("button", { name: "Send code" })).toBeEnabled();
+  // Leaving ends the server-held pending record, so a reload starts at sign-in.
+  expect(api).toHaveBeenLastCalledWith("/auth/pending", { method: "DELETE" });
 });
 
 test("email-link callback strips the code and keeps verified registration pending", async () => {
@@ -285,4 +289,148 @@ test("first-use dashboard tells an admin to register and a viewer to ask for acc
   render(<ApplicationsScreen />);
   await screen.findByText("No applications shared with you");
   expect(screen.queryByRole("button", { name: "Register application" })).toBeNull();
+});
+
+
+const pendingSubject = "00000000-0000-4000-8000-0000000000b1";
+const unauthorized = () => new ApiError("Request not authorized", 401);
+
+function PrivateProbe({ onMount }: { onMount: () => void }) {
+  onMount();
+  return <p>Private workspace</p>;
+}
+
+test("a reload while pending asks the server and shows only its verified subject", async () => {
+  const api = vi.mocked(apiRequest);
+  api.mockImplementation(async (path, options) => {
+    if (path === "/auth/session") throw unauthorized();
+    if (path === "/auth/pending" && options?.method === "POST")
+      return { authenticated: false, status: "pending", subject: pendingSubject };
+    throw new Error(`unexpected ${path}`);
+  });
+  const mounted = vi.fn();
+  render(<StrictMode><AuthGate enabled><PrivateProbe onMount={mounted} /></AuthGate></StrictMode>);
+  expect(await screen.findByRole("heading", { name: "Approval pending" })).toBeVisible();
+  expect(screen.getByText(pendingSubject)).toBeVisible();
+  expect(mounted).not.toHaveBeenCalled();
+  expect(api.mock.calls.map(([path]) => path)).toEqual(
+    expect.arrayContaining(["/auth/session", "/auth/pending"]),
+  );
+  // Nothing about the pending identity is kept in browser storage.
+  expect(window.localStorage.length).toBe(0);
+  expect(window.sessionStorage.length).toBe(0);
+});
+
+test.each([
+  ["no pending record", { authenticated: false }],
+  ["a pending answer without a subject", { authenticated: false, status: "pending" }],
+  ["an unknown status", { authenticated: true, status: "admin", subject: pendingSubject }],
+])("a reload with %s shows sign-in, never the workspace", async (_, answer) => {
+  const api = vi.mocked(apiRequest);
+  api.mockImplementation(async (path) => {
+    if (path === "/auth/session") throw unauthorized();
+    if (path === "/auth/pending") return answer;
+    throw new Error(`unexpected ${path}`);
+  });
+  const mounted = vi.fn();
+  render(<AuthGate enabled><PrivateProbe onMount={mounted} /></AuthGate>);
+  expect(await screen.findByRole("button", { name: "Send code" })).toBeEnabled();
+  expect(screen.queryByText(pendingSubject)).toBeNull();
+  expect(screen.queryByRole("status")).toBeNull();
+  expect(mounted).not.toHaveBeenCalled();
+});
+
+test("a reload after approval asks for a fresh sign-in instead of opening the workspace", async () => {
+  vi.mocked(apiRequest).mockImplementation(async (path) => {
+    if (path === "/auth/session") throw unauthorized();
+    if (path === "/auth/pending") return { authenticated: false, status: "approved" };
+    throw new Error(`unexpected ${path}`);
+  });
+  const mounted = vi.fn();
+  render(<AuthGate enabled><PrivateProbe onMount={mounted} /></AuthGate>);
+  const notice = await screen.findByText(/Your account is approved/);
+  expect(notice.closest("[role=status]")).not.toBeNull();
+  expect(screen.getByRole("button", { name: "Send code" })).toBeEnabled();
+  expect(mounted).not.toHaveBeenCalled();
+});
+
+test("an unreachable API does not probe pending state", async () => {
+  const api = vi.mocked(apiRequest);
+  api.mockRejectedValueOnce(new Error("Could not reach the AutoEval API."));
+  render(<AuthGate enabled><p>Private workspace</p></AuthGate>);
+  await screen.findByRole("button", { name: "Send code" });
+  expect(api).toHaveBeenCalledTimes(1);
+});
+
+test("check again reports still pending, then approval, then requires sign-in", async () => {
+  const api = vi.mocked(apiRequest);
+  const answers: unknown[] = [
+    { authenticated: false, status: "pending", subject: pendingSubject },
+    { authenticated: false, status: "pending", subject: pendingSubject },
+  ];
+  api.mockImplementation(async (path) => {
+    if (path === "/auth/session") throw unauthorized();
+    if (path === "/auth/pending") {
+      const next = answers.shift();
+      if (next instanceof Error) throw next;
+      return next ?? { authenticated: false, status: "approved" };
+    }
+    throw new Error(`unexpected ${path}`);
+  });
+  const mounted = vi.fn();
+  render(<AuthGate enabled><PrivateProbe onMount={mounted} /></AuthGate>);
+  await screen.findByText(pendingSubject);
+  fireEvent.click(screen.getByRole("button", { name: "Check again" }));
+  expect(await screen.findByText("Still waiting for approval.", { selector: "p" })).toBeVisible();
+  // Announced through a polite live region, not only shown.
+  expect(screen.getByText("Still waiting for approval.", { selector: "[role=status]" })).toBeInTheDocument();
+  answers.push(new Error("offline"));
+  fireEvent.click(screen.getByRole("button", { name: "Check again" }));
+  expect(await screen.findByText(/couldn’t be checked/, { selector: "p" })).toBeVisible();
+  expect(screen.getByText(pendingSubject)).toBeVisible();
+  fireEvent.click(screen.getByRole("button", { name: "Check again" }));
+  expect(await screen.findByText(/Your account is approved/)).toBeVisible();
+  expect(screen.queryByText(pendingSubject)).toBeNull();
+  expect(mounted).not.toHaveBeenCalled();
+  // Starting a sign-in clears the notice.
+  fireEvent.change(screen.getByLabelText("Email"), { target: { value: "new@example.invalid" } });
+  api.mockResolvedValueOnce({});
+  fireEvent.click(screen.getByRole("button", { name: "Send code" }));
+  await screen.findByLabelText("Email code");
+  expect(screen.queryByText(/Your account is approved/)).toBeNull();
+});
+
+test("an expired pending record returns to sign-in with an explanation", async () => {
+  const api = vi.mocked(apiRequest);
+  let checks = 0;
+  api.mockImplementation(async (path) => {
+    if (path === "/auth/session") throw unauthorized();
+    if (path === "/auth/pending")
+      return checks++ === 0
+        ? { authenticated: false, status: "pending", subject: pendingSubject }
+        : { authenticated: false };
+    throw new Error(`unexpected ${path}`);
+  });
+  render(<AuthGate enabled><p>Private workspace</p></AuthGate>);
+  await screen.findByText(pendingSubject);
+  fireEvent.click(screen.getByRole("button", { name: "Check again" }));
+  expect(await screen.findByText(/no longer available in this browser/)).toBeVisible();
+  expect(screen.queryByText(pendingSubject)).toBeNull();
+  expect(screen.queryByText("Private workspace")).toBeNull();
+});
+
+test("return to sign in still leaves pending when clearing the record fails", async () => {
+  const api = vi.mocked(apiRequest);
+  api.mockImplementation(async (path, options) => {
+    if (path === "/auth/session") throw unauthorized();
+    if (path === "/auth/pending" && options?.method === "DELETE") throw new Error("offline");
+    if (path === "/auth/pending")
+      return { authenticated: false, status: "pending", subject: pendingSubject };
+    throw new Error(`unexpected ${path}`);
+  });
+  render(<AuthGate enabled><p>Private workspace</p></AuthGate>);
+  await screen.findByText(pendingSubject);
+  fireEvent.click(screen.getByRole("button", { name: "Return to sign in" }));
+  expect(await screen.findByRole("button", { name: "Send code" })).toBeEnabled();
+  expect(screen.queryByText(pendingSubject)).toBeNull();
 });

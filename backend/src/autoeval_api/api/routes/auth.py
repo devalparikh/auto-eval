@@ -9,7 +9,7 @@ from fastapi import APIRouter, HTTPException, Request, Response
 from pydantic import BaseModel, ConfigDict, Field
 
 from autoeval_api.models import HostedSessionRecord
-from autoeval_api.services.hosted_auth import COOKIE, digest, rate_limit
+from autoeval_api.services.hosted_auth import COOKIE, PENDING_COOKIE, digest, rate_limit
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 PKCE_COOKIE = "__Host-autoeval-pkce"
@@ -29,12 +29,14 @@ class ExchangeRequest(BaseModel):
     code: str = Field(pattern=r"^[A-Za-z0-9_-]{16,256}$")
 
 
-def require_hosted(request):
+def require_hosted(request, *, limited=True):
     if request.app.state.settings.auth_mode != "supabase":
         raise HTTPException(404, "Not available")
     # Login CSRF matters even before a session exists.
     if request.headers.get("origin") not in request.app.state.settings.web_origins:
         raise HTTPException(403, "Request not authorized")
+    if not limited:
+        return
     rate_limit(request.app.state.session_factory, "auth-global", 100, 60)
     rate_limit(request.app.state.session_factory, "auth-client:" + request.client.host, 20, 60)
 
@@ -142,28 +144,64 @@ def exchange(body: ExchangeRequest, request: Request, response: Response) -> dic
 
 
 def complete_verification(request: Request, response: Response, access_token: str) -> dict:
-    value, age, pending_subject = request.app.state.hosted_auth.new_session(access_token)
+    hosted_auth = request.app.state.hosted_auth
+    value, age, pending_subject = hosted_auth.new_session(access_token)
+    # Either outcome replaces whatever this browser held before.
+    hosted_auth.clear_pending(request.cookies.get(PENDING_COOKIE, ""))
     if pending_subject is not None:
         # Clear any previous browser identity; verification alone grants no access.
-        with request.app.state.session_factory() as session:
-            row = session.get(HostedSessionRecord, digest(request.cookies.get(COOKIE, "")))
-            if row:
-                session.delete(row)
-                session.commit()
-        response.delete_cookie(COOKIE, secure=True, httponly=True, samesite="strict", path="/")
+        revoke_session(request, response)
+        # A display-only record, so a reload still shows this verified subject.
+        set_cookie(response, PENDING_COOKIE, value, age)
         return {"authenticated": False, "status": "pending", "subject": pending_subject}
-    response.set_cookie(
-        COOKIE, value, max_age=age, secure=True, httponly=True, samesite="strict", path="/"
-    )
+    clear_cookie(response, PENDING_COOKIE)
+    set_cookie(response, COOKIE, value, age)
     return {"authenticated": True}
+
+
+@router.post("/pending")
+def pending_status(request: Request, response: Response) -> dict:
+    """This browser's own pending registration, if any. Grants no access."""
+    value = request.cookies.get(PENDING_COOKIE, "")
+    # Every signed-out page load asks; without a cookie there is nothing to look
+    # up, so those requests must not spend the shared sign-in rate limits.
+    require_hosted(request, limited=bool(value))
+    status = request.app.state.hosted_auth.pending_status(value)
+    if status is None or status["status"] != "pending":
+        clear_cookie(response, PENDING_COOKIE)
+    return status or {"authenticated": False}
+
+
+@router.delete("/pending")
+def clear_pending(request: Request, response: Response) -> dict:
+    require_hosted(request)
+    request.app.state.hosted_auth.clear_pending(request.cookies.get(PENDING_COOKIE, ""))
+    clear_cookie(response, PENDING_COOKIE)
+    return {"authenticated": False}
 
 
 @router.post("/logout")
 def logout(request: Request, response: Response) -> dict:
+    revoke_session(request, response)
+    request.app.state.hosted_auth.clear_pending(request.cookies.get(PENDING_COOKIE, ""))
+    clear_cookie(response, PENDING_COOKIE)
+    return {"authenticated": False}
+
+
+def revoke_session(request: Request, response: Response) -> None:
     with request.app.state.session_factory() as session:
         row = session.get(HostedSessionRecord, digest(request.cookies.get(COOKIE, "")))
         if row:
             session.delete(row)
             session.commit()
-    response.delete_cookie(COOKIE, secure=True, httponly=True, samesite="strict", path="/")
-    return {"authenticated": False}
+    clear_cookie(response, COOKIE)
+
+
+def set_cookie(response: Response, name: str, value: str, age: int) -> None:
+    response.set_cookie(
+        name, value, max_age=age, secure=True, httponly=True, samesite="strict", path="/"
+    )
+
+
+def clear_cookie(response: Response, name: str) -> None:
+    response.delete_cookie(name, secure=True, httponly=True, samesite="strict", path="/")

@@ -12,15 +12,26 @@ from sqlalchemy import delete, select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 
-from autoeval_api.models import ApplicationKeyRecord, HostedRateRecord, HostedSessionRecord
+from autoeval_api.models import (
+    ApplicationKeyRecord,
+    HostedPendingRecord,
+    HostedRateRecord,
+    HostedSessionRecord,
+)
 
 COOKIE = "__Host-autoeval"
+# A separate cookie and table: the pending status is never an application session.
+PENDING_COOKIE = "__Host-autoeval-pending"
+# Never longer than the verified access token either; see ``new_session``.
+PENDING_SECONDS = 3600
 PUBLIC = {
     "/api/health",
     "/api/auth/bootstrap",
     "/api/auth/request",
     "/api/auth/verify",
     "/api/auth/exchange",
+    # Reads or clears only the caller's own pending registration; grants nothing.
+    "/api/auth/pending",
 }
 
 
@@ -103,7 +114,7 @@ class HostedAuth:
                 denied()
             entry = self.settings.operator_allowlist.get(claims["sub"])
             if allow_pending and (not entry or entry["email"].lower() != user["email"].lower()):
-                principal = {"subject": claims["sub"], "role": "pending"}
+                principal = {"subject": claims["sub"], "email": user["email"], "role": "pending"}
             else:
                 principal = self.enrollment(claims["sub"], user["email"])
             return principal, min(claims["exp"], time.time() + self.settings.session_seconds)
@@ -114,10 +125,28 @@ class HostedAuth:
         principal, expires = self.verify_token(
             token, allow_pending=self.settings.allow_self_registration
         )
-        if principal["role"] == "pending":
-            # No pending session, role, or database authorization record is created.
-            return None, 0, principal["subject"]
         value = secrets.token_urlsafe(32)
+        if principal["role"] == "pending":
+            # Only a display record for this browser: no session, role, or grant.
+            # Bounded by the verified token's own expiry, one per subject.
+            expires = min(expires, time.time() + PENDING_SECONDS)
+            with self.factory() as session:
+                session.execute(
+                    delete(HostedPendingRecord).where(
+                        (HostedPendingRecord.expires <= time.time())
+                        | (HostedPendingRecord.subject == principal["subject"])
+                    )
+                )
+                session.add(
+                    HostedPendingRecord(
+                        digest=digest(value),
+                        subject=principal["subject"],
+                        email=principal["email"],
+                        expires=expires,
+                    )
+                )
+                session.commit()
+            return value, max(0, int(expires - time.time())), principal["subject"]
         with self.factory() as session:
             session.execute(
                 delete(HostedSessionRecord).where(HostedSessionRecord.expires <= time.time())
@@ -132,6 +161,42 @@ class HostedAuth:
             )
             session.commit()
         return value, max(0, int(expires - time.time())), None
+
+    def pending_status(self, value):
+        """Report a browser's own pending registration. Never authorizes anything.
+
+        Returns ``None`` when there is nothing to show: no cookie, an unknown or
+        expired record, or registration since disabled. Once the operator has
+        approved the exact subject and email, the record is consumed and the user
+        must verify again to receive a session.
+        """
+        if not value:
+            return None
+        now = time.time()
+        with self.factory() as session:
+            session.execute(delete(HostedPendingRecord).where(HostedPendingRecord.expires <= now))
+            record = session.get(HostedPendingRecord, digest(value))
+            if record is None or not self.settings.allow_self_registration:
+                if record is not None:
+                    session.delete(record)
+                session.commit()
+                return None
+            entry = self.settings.operator_allowlist.get(record.subject)
+            if entry and entry["email"].lower() == record.email.lower():
+                session.delete(record)
+                session.commit()
+                return {"authenticated": False, "status": "approved"}
+            session.commit()
+            return {"authenticated": False, "status": "pending", "subject": record.subject}
+
+    def clear_pending(self, value):
+        if not value:
+            return
+        with self.factory() as session:
+            session.execute(
+                delete(HostedPendingRecord).where(HostedPendingRecord.digest == digest(value))
+            )
+            session.commit()
 
     def authenticate(self, request):
         auth = request.headers.get("authorization", "")
