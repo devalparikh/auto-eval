@@ -51,14 +51,16 @@ yet. Keep instance release pins null until publication is separately approved.
 7. After separate deployment approval, submit the fully staged release for Vercel
    remote service builds. No deploy command is run or automated here. Confirm actual
    multi-service routing and platform settings with synthetic acceptance before use.
-8. Sign in, register an application/environment and policy, issue separate ingest,
-   consent and optional read keys. Register immutable datasets/experiments via the
-   documented admin APIs. Initialize the installed SDK from server environment.
-   Never put any app key in `NEXT_PUBLIC_*` or browser code.
-9. Verify synthetic sign-in, forbidden direct access, scoped ingestion/dashboard,
-   key rotation/expiry, consent withdrawal and retention. Production collection
-   remains disabled until participant consent, minimization, access and backup
-   retention are independently approved. The domain app always owns inference.
+8. Sign in to `/applications`, name the app, choose a key lifespan and copy its
+   one app-scoped key into the app's backend environment. Production capture defaults
+   on, retention defaults to Keep, and the first SDK policy establishes content
+   permissions. Edit these later on the app settings page. The SDK auto-registers
+   policy/experiment versions. Individual consent remains app-owned and off by
+   default; see [Lifty integration](lifty-integration.md).
+9. Verify synthetic sign-in, forbidden direct access, scoped capture/dashboard,
+   key rotation/expiry, content permissions, consent withdrawal and retention.
+   Only authenticated users who opted in may be captured. Keys never enter
+   `NEXT_PUBLIC_*`, browser code, console snippets or logs. The domain app owns inference.
 
 Local development remains `make setup`, `make dev`, bound to loopback. No hosted
 credentials or production observations are needed for `make verify`.

@@ -46,7 +46,9 @@ def create_application(body: contract.ApplicationInput, request: Request) -> dic
 def settings(app_id: contract.Id, body: contract.CaptureSettings, request: Request) -> dict:
     with request.app.state.session_factory() as session:
         app = feed.resource(session, principal(request), app_id, write=True)
-        result = feed.update_settings(session, app, principal(request), body)
+        result = feed.update_settings(
+            session, app, principal(request), body, request.headers.get("if-match")
+        )
         session.commit()
         return result
 
@@ -163,10 +165,26 @@ def policies(app_id: contract.Id, request: Request) -> list[dict]:
 
 
 @router.get("/api/applications/{app_id}/experiments")
-def experiments(app_id: contract.Id, request: Request) -> list[dict]:
+def experiments(
+    app_id: contract.Id,
+    request: Request,
+    after: contract.Hash | None = None,
+    evaluations_only: bool = False,
+) -> list[dict]:
     with request.app.state.session_factory() as session:
         feed.resource(session, principal(request), app_id)
-        return feed.objects(session, app_id, "experiment2")
+        return feed.objects(
+            session, app_id, "experiment2", after=after, evaluations_only=evaluations_only
+        )
+
+
+@router.get("/api/applications/{app_id}/policy-categories")
+def policy_categories(
+    app_id: contract.Id, request: Request, after: contract.Hash | None = None
+) -> list[dict]:
+    with request.app.state.session_factory() as session:
+        feed.resource(session, principal(request), app_id)
+        return feed.policy_categories(session, app_id, after)
 
 
 @router.get("/api/applications/{app_id}/comparisons/{left}/{right}")

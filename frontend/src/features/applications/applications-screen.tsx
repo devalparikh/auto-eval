@@ -1,18 +1,16 @@
 "use client";
 
 import { ArrowClockwiseIcon, PlusIcon } from "@phosphor-icons/react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
+import { TraceReview } from "./trace-review";
 import { PageHeader } from "@/components/page-header";
 import { Select } from "@/components/select";
 import { EmptyState, ErrorState, LoadingState } from "@/components/states";
 import { API_URL, apiRequest } from "@/lib/api";
 import styles from "./applications.module.css";
 
-type Application = {
-  id: string;
-  name: string;
-  settings: { retention_days: number | null };
-};
+import type { Application, AppKey as Key } from "./application-types";
 type Observation = {
   id: string;
   experimentId: string;
@@ -33,15 +31,22 @@ type Comparison = {
     id: string;
     beforeStatus: string;
     afterStatus: string;
-    values: { semanticId: string; compatible: boolean; before: number | boolean | null; after: number | boolean | null }[];
+    values: {
+      semanticId: string;
+      compatible: boolean;
+      beforeResult: string;
+      afterResult: string;
+      before: number | boolean | null;
+      after: number | boolean | null;
+    }[];
   }[];
 };
-type Key = { id: string; scope: string; revoked: boolean; expiresAt: number };
 
 export function ApplicationsScreen() {
   const [ingestEndpoint, setIngestEndpoint] = useState("");
   const [apps, setApps] = useState<Application[]>([]);
   const [selected, setSelected] = useState("");
+  const selectedRef = useRef("");
   const [traces, setTraces] = useState<Observation[]>([]);
   const [experiments, setExperiments] = useState<Experiment[]>([]);
   const [left, setLeft] = useState("");
@@ -52,15 +57,34 @@ export function ApplicationsScreen() {
   const [admin, setAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
+  const [uncertain, setUncertain] = useState(false);
+  const createId = useRef<string | null>(null);
+  const mutationEpoch = useRef(0);
   const [error, setError] = useState("");
   const [secret, setSecret] = useState("");
   const [revision, setRevision] = useState(0);
   const [name, setName] = useState("");
   const [lifespan, setLifespan] = useState("30");
-  const [scope, setScope] = useState("application:connect");
+  const [overlap, setOverlap] = useState("1");
+  const [clock, setClock] = useState(0);
+  const validLifetime =
+    Number.isInteger(Number(lifespan)) &&
+    Number(lifespan) >= 1 &&
+    Number(lifespan) <= 90;
+  const [reviewTrace, setReviewTrace] = useState("");
+  const pending = useRef(false),
+    mounted = useRef(false);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
   const [registerOpen, setRegisterOpen] = useState(false);
   useEffect(() => {
     const controller = new AbortController();
+    const readEpoch = mutationEpoch.current;
+    const canReconcile = !pending.current;
     Promise.all([
       apiRequest<Application[]>("/applications", { signal: controller.signal }),
       apiRequest<{ role: string }>("/auth/session", {
@@ -68,7 +92,7 @@ export function ApplicationsScreen() {
       }),
     ])
       .then(([items, user]) => {
-        if (!controller.signal.aborted) {
+        if (!controller.signal.aborted && readEpoch === mutationEpoch.current) {
           setIngestEndpoint(
             new URL(
               API_URL.replace(/\/api$/, "") + "/v2/traces",
@@ -76,11 +100,23 @@ export function ApplicationsScreen() {
             ).href,
           );
           setApps(items);
+          const recovered = items.find((item) => item.id === createId.current);
+          if (recovered) {
+            setSelected(recovered.id);
+            selectedRef.current = recovered.id;
+            createId.current = null;
+            setRegisterOpen(false);
+            setName("");
+            setError(
+              "Application creation is confirmed. Review its keys; the previous one-time token cannot be retrieved.",
+            );
+          }
+          if (canReconcile && !selectedRef.current) setUncertain(false);
           setAdmin(user.role === "admin");
         }
       })
       .catch(() => {
-        if (!controller.signal.aborted)
+        if (!controller.signal.aborted && readEpoch === mutationEpoch.current)
           setError("Applications could not be loaded. Refresh to try again.");
       })
       .finally(() => {
@@ -91,6 +127,8 @@ export function ApplicationsScreen() {
   useEffect(() => {
     if (!selected) return;
     const controller = new AbortController();
+    const readEpoch = mutationEpoch.current;
+    const canReconcile = !pending.current;
     Promise.all([
       apiRequest<Observation[]>(`/applications/${selected}/traces`, {
         signal: controller.signal,
@@ -100,20 +138,35 @@ export function ApplicationsScreen() {
             signal: controller.signal,
           })
         : Promise.resolve([]),
-      apiRequest<Experiment[]>(`/applications/${selected}/experiments`, {
-        signal: controller.signal,
-      }),
+      (async () => {
+        const all: Experiment[] = [];
+        let after = "";
+        for (;;) {
+          const page = await apiRequest<Experiment[]>(
+            `/applications/${selected}/experiments?evaluations_only=true${after ? "&after=" + after : ""}`,
+            { signal: controller.signal },
+          );
+          all.push(...page);
+          if (page.length < 100) return all;
+          const next = page[page.length - 1].id;
+          if (next <= after || all.length > 10000)
+            throw new Error("Invalid experiment page");
+          after = next;
+        }
+      })(),
     ])
       .then(([items, issued, runs]) => {
-        if (!controller.signal.aborted) {
+        if (!controller.signal.aborted && readEpoch === mutationEpoch.current) {
           setTraces(items);
           setKeys(issued);
+          setClock(Date.now());
           setExperiments(runs);
           setDetailLoaded(selected);
+          if (canReconcile) setUncertain(false);
         }
       })
       .catch(() => {
-        if (!controller.signal.aborted)
+        if (!controller.signal.aborted && readEpoch === mutationEpoch.current)
           setError(
             "Application data could not be loaded. Refresh to try again.",
           );
@@ -121,24 +174,39 @@ export function ApplicationsScreen() {
     return () => controller.abort();
   }, [selected, admin, revision]);
   async function mutate(path: string, body?: unknown) {
-    if (busy) return;
+    if (pending.current || uncertain) return;
+    pending.current = true;
+    mutationEpoch.current++;
     setBusy(true);
     setError("");
     setSecret("");
     try {
-      const result = await apiRequest<{ id?: string; token?: string; key?: { token: string } }>(path, {
+      const result = await apiRequest<{
+        id?: string;
+        token?: string;
+        key?: { token: string };
+      }>(path, {
         method: "POST",
         body,
       });
+      if (!mounted.current) return;
       if (result.token) setSecret(result.token);
-      if (result.key) { setSecret(result.key.token); setSelected(result.id!); }
+      if (result.key) {
+        setSecret(result.key.token);
+        setSelected(result.id!);
+        selectedRef.current = result.id!;
+        createId.current = null;
+      }
       setRevision((value) => value + 1);
     } catch {
+      if (!mounted.current) return;
+      setUncertain(true);
       setError(
         "The operation was not confirmed. Refresh the list before trying again; a key may have been created.",
       );
     } finally {
-      setBusy(false);
+      pending.current = false;
+      if (mounted.current) setBusy(false);
     }
   }
   const comparable = experiments.filter((run) => run.mode !== "observed");
@@ -156,6 +224,7 @@ export function ApplicationsScreen() {
             onClick={() => {
               setError("");
               setComparison(null);
+              setReviewTrace("");
               setRevision((value) => value + 1);
             }}
           >
@@ -167,7 +236,11 @@ export function ApplicationsScreen() {
       <div className={styles.body}>
         {error && (
           <div role="alert">
-            <ErrorState className="" title="Something went wrong" message={error} />
+            <ErrorState
+              className=""
+              title="Something went wrong"
+              message={error}
+            />
           </div>
         )}
         {loading ? (
@@ -175,7 +248,11 @@ export function ApplicationsScreen() {
         ) : apps.length === 0 ? (
           <section className={`surface-card ${styles.card}`}>
             <EmptyState
-              title={admin ? "No applications yet" : "No applications shared with you"}
+              title={
+                admin
+                  ? "No applications yet"
+                  : "No applications shared with you"
+              }
               message={
                 admin
                   ? "Register an application to issue its keys and start receiving observations."
@@ -205,6 +282,8 @@ export function ApplicationsScreen() {
                 value={selected}
                 onChange={(event) => {
                   setSelected(event.target.value);
+                  selectedRef.current = event.target.value;
+                  setReviewTrace("");
                   setTraces([]);
                   setKeys([]);
                   setSecret("");
@@ -225,8 +304,20 @@ export function ApplicationsScreen() {
               <dl className={styles.facts}>
                 <div>
                   <dt>Retention</dt>
-                  <dd className="mono">{current.settings.retention_days === null ? "Keep" : `${current.settings.retention_days}d`}</dd>
+                  <dd className="mono">
+                    {current.settings.retention_days === null
+                      ? "Keep"
+                      : `${current.settings.retention_days}d`}
+                  </dd>
                 </div>
+                {admin && (
+                  <Link
+                    className="app-button secondary"
+                    href={`/applications/${selected}/settings`}
+                  >
+                    App settings
+                  </Link>
+                )}
               </dl>
             ) : null}
           </section>
@@ -247,10 +338,13 @@ export function ApplicationsScreen() {
               className={styles.registerForm}
               onSubmit={(event) => {
                 event.preventDefault();
+                createId.current ??= crypto.randomUUID();
                 void mutate("/applications", {
-                  id: crypto.randomUUID(),
+                  id: createId.current,
                   name,
-                  key: { expiresAt: Date.now() + Number(lifespan) * 86400000 },
+                  key: {
+                    expiresAt: Date.now() + Number(lifespan) * 86400000,
+                  },
                 });
               }}
             >
@@ -266,20 +360,28 @@ export function ApplicationsScreen() {
                 />
               </div>
               <div className="field">
-                <label htmlFor="application-lifespan">Key lifespan (days)</label>
+                <label htmlFor="application-lifespan">
+                  Key lifespan (days)
+                </label>
                 <input
                   id="application-lifespan"
                   className="app-input mono"
                   required
-                  type="number" min={1} max={90}
+                  type="number"
+                  min={1}
+                  max={90}
                   value={lifespan}
                   onChange={(event) => setLifespan(event.target.value)}
                 />
               </div>
               <p className={styles.note}>
-                Data is kept until explicitly deleted. The SDK registers its policy automatically.
+                The SDK registers policy and experiments automatically. App
+                settings can be changed after creation.
               </p>
-              <button className="app-button" disabled={busy}>
+              <button
+                className="app-button"
+                disabled={busy || uncertain || !validLifetime}
+              >
                 Register
               </button>
             </form>
@@ -303,27 +405,47 @@ export function ApplicationsScreen() {
               <section className={`surface-card ${styles.card}`}>
                 <h2 className={styles.heading}>Application keys</h2>
                 <div className={styles.endpoint}>
-                  <span>Ingest endpoint</span>
+                  <span>AUTOEVAL_ENDPOINT</span>
                   <code>{ingestEndpoint}</code>
                 </div>
+                <p className={styles.note}>
+                  Set AUTOEVAL_ENABLED=true and AUTOEVAL_SOURCE=production in
+                  the app backend. The SDK supplies policy and experiment IDs.
+                  User consent is off until granted in the app. Production and
+                  retention are separate app settings.
+                </p>
                 <div className={styles.row}>
                   <div className="field">
-                    <label htmlFor="key-scope">Permission</label>
+                    <label htmlFor="key-lifespan">Key lifespan (days)</label>
+                    <input
+                      id="key-lifespan"
+                      className="app-input"
+                      type="number"
+                      min={1}
+                      max={90}
+                      value={lifespan}
+                      onChange={(event) => setLifespan(event.target.value)}
+                    />
+                  </div>
+                  <div className="field">
+                    <label htmlFor="rotation-overlap">Rotation overlap</label>
                     <Select
-                      id="key-scope"
-                      value={scope}
-                      onChange={(event) => setScope(event.target.value)}
+                      id="rotation-overlap"
+                      value={overlap}
+                      onChange={(event) => setOverlap(event.target.value)}
                     >
-                      <option>application:connect</option>
+                      <option value="1">1 hour</option>
+                      <option value="24">24 hours</option>
+                      <option value="0">Revoke old key immediately</option>
                     </Select>
                   </div>
                   <button
                     type="button"
                     className="app-button"
-                    disabled={busy}
+                    disabled={busy || uncertain || !validLifetime}
                     onClick={() =>
                       void mutate(`/applications/${selected}/keys`, {
-                        expiresAt: Date.now() + 30 * 86400000,
+                        expiresAt: Date.now() + Number(lifespan) * 86400000,
                       })
                     }
                   >
@@ -332,7 +454,10 @@ export function ApplicationsScreen() {
                 </div>
                 {secret && (
                   <div role="status" className={styles.secret}>
-                    <p>Copy this key now. It is shown once.</p>
+                    <p>
+                      Copy this key to the app’s server-only
+                      AUTOEVAL_INGEST_KEY. It is shown once.
+                    </p>
                     <code>{secret}</code>
                     <button
                       type="button"
@@ -345,30 +470,54 @@ export function ApplicationsScreen() {
                 )}
                 {keys.length === 0 ? (
                   <p className={styles.note}>
-                    No keys issued. Start with <code>application:connect</code> to send
-                    observations.
+                    No keys issued. Start with <code>application:connect</code>{" "}
+                    to send observations.
                   </p>
                 ) : (
                   <ul className={styles.keys}>
                     {keys.map((key) => (
                       <li key={key.id}>
                         <code>{key.id}</code>
-                        <span className="mono">{key.scope}</span>
+                        <span>{key.label}</span>
                         <span className={styles.keyState}>
                           {key.revoked
                             ? "Revoked"
-                            : `Expires ${new Date(key.expiresAt).toLocaleDateString()}`}
+                            : key.expiresAt <= clock
+                              ? "Expired"
+                              : key.retireAt && key.retireAt <= clock
+                                ? "Retired"
+                                : `Expires ${new Date(key.expiresAt).toLocaleString()}`}
+                          {key.retireAt && key.retireAt > clock
+                            ? ` · Retires ${new Date(key.retireAt).toLocaleString()}`
+                            : ""}
                         </span>
                         {!key.revoked && (
                           <span className={styles.keyActions}>
                             <button
                               type="button"
                               className="app-button secondary"
-                              disabled={busy}
+                              disabled={
+                                busy ||
+                                uncertain ||
+                                !validLifetime ||
+                                key.expiresAt <= clock ||
+                                Boolean(key.retireAt && key.retireAt <= clock)
+                              }
                               onClick={() =>
                                 void mutate(
                                   `/applications/${selected}/keys/${key.id}/rotate`,
-                                  { expiresAt: Date.now() + 30 * 86400000 },
+                                  {
+                                    expiresAt:
+                                      Date.now() + Number(lifespan) * 86400000,
+                                    retireAt: Number(overlap)
+                                      ? Math.min(
+                                          Date.now() +
+                                            Number(overlap) * 3600000,
+                                          key.expiresAt,
+                                          key.retireAt ?? Infinity,
+                                        )
+                                      : null,
+                                  },
                                 )
                               }
                             >
@@ -377,7 +526,7 @@ export function ApplicationsScreen() {
                             <button
                               type="button"
                               className="app-button secondary"
-                              disabled={busy}
+                              disabled={busy || uncertain}
                               onClick={() =>
                                 void mutate(
                                   `/applications/${selected}/keys/${key.id}/revoke`,
@@ -407,7 +556,7 @@ export function ApplicationsScreen() {
                   title="No observations yet"
                   message={
                     admin
-                      ? "Issue a application:connect key and send traces through the SDK to the ingest endpoint."
+                      ? "Connect the SDK with this app’s key. Consented observations appear here."
                       : "Observations appear here once the application sends them."
                   }
                 />
@@ -427,7 +576,12 @@ export function ApplicationsScreen() {
                       {traces.map((trace) => (
                         <tr key={trace.id}>
                           <td>
-                            <code>{trace.id}</code>
+                            <button
+                              className={styles.traceButton}
+                              onClick={() => setReviewTrace(trace.id)}
+                            >
+                              <code>{trace.id}</code>
+                            </button>
                           </td>
                           <td>
                             <code>{trace.experimentId}</code>
@@ -449,6 +603,15 @@ export function ApplicationsScreen() {
                 </div>
               )}
             </section>
+            {reviewTrace && (
+              <TraceReview
+                key={`${selected}:${reviewTrace}`}
+                appId={selected}
+                traceId={reviewTrace}
+                admin={admin}
+                onClose={() => setReviewTrace("")}
+              />
+            )}
             <section className={`surface-card ${styles.card}`}>
               <h2 className={styles.heading}>Compare experiments</h2>
               <p className={styles.note}>
@@ -470,7 +633,8 @@ export function ApplicationsScreen() {
                     <option value="">Select experiment</option>
                     {comparable.map((run) => (
                       <option key={run.id} value={run.id}>
-                        {run.models.map((model) => model.model).join(", ")} / {run.id}
+                        {run.models.map((model) => model.model).join(", ")} /{" "}
+                        {run.id}
                       </option>
                     ))}
                   </Select>
@@ -489,7 +653,8 @@ export function ApplicationsScreen() {
                     <option value="">Select experiment</option>
                     {comparable.map((run) => (
                       <option key={run.id} value={run.id}>
-                        {run.models.map((model) => model.model).join(", ")} / {run.id}
+                        {run.models.map((model) => model.model).join(", ")} /{" "}
+                        {run.id}
                       </option>
                     ))}
                   </Select>
@@ -537,8 +702,16 @@ export function ApplicationsScreen() {
                       </p>
                       {item.values.map((check) => (
                         <p key={check.semanticId} className="mono">
-                          {check.semanticId}{check.compatible ? "" : " (not comparable)"}: {String(check.before)} →{" "}
-                          {String(check.after)}
+                          {check.semanticId}
+                          {check.compatible ? "" : " (not comparable)"}:{" "}
+                          {check.before === null
+                            ? "Unknown"
+                            : String(check.before)}{" "}
+                          ({check.beforeResult}) →{" "}
+                          {check.after === null
+                            ? "Unknown"
+                            : String(check.after)}{" "}
+                          ({check.afterResult})
                         </p>
                       ))}
                     </div>

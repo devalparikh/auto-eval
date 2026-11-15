@@ -1,7 +1,7 @@
 # Hosted instance and SDK contract
 
 The candidate implements Supabase numeric email OTP, server-wide authorization,
-app/environment scoped keys, PostgreSQL feed persistence, `/applications` dashboard,
+app-scoped keys, PostgreSQL feed persistence, `/applications` dashboard,
 paired synthetic comparisons, and explicit schema administration. It is not a
 published release or evidence of a deployed instance. No cloud settings were changed.
 
@@ -19,8 +19,7 @@ published release or evidence of a deployed instance. No cloud settings were cha
 | `AUTOEVAL_ENFORCE_LOOPBACK_CLIENTS` | `false` only with configured authentication |
 | `AUTOEVAL_ALLOWED_HOSTS` | Explicit nonlocal backend host names, comma separated |
 | `AUTOEVAL_WEB_ORIGINS` | Exact HTTPS dashboard origin, comma separated |
-| `AUTOEVAL_FEED_ALLOW_PRODUCTION` | Default false; separate review of participant consent and policy before true |
-| `AUTOEVAL_TRACE_RETENTION_DAYS` | Existing workbench retention; feed retention is per application (1–30 days) |
+| `AUTOEVAL_TRACE_RETENTION_DAYS` | Existing workbench retention; capture retention is per application (Keep by default, or 1–3650 days) |
 
 Example shape (synthetic identities only):
 
@@ -30,8 +29,8 @@ Example shape (synthetic identities only):
 
 An admin has instance-wide authority, including existing workbench/provider APIs.
 A viewer can read only listed application resources; all existing workbench APIs
-remain admin-only. Empty allowlists deny everyone. App/environment identity is one
-immutable application UUID: use distinct IDs and keys for preview and production.
+remain admin-only. Empty allowlists deny everyone. App identity is an immutable UUID. Use separate apps/keys for deployment isolation;
+each experiment also binds its declared source.
 The old proposed `AUTH_PROVIDER`, `AUTH_ALLOWED_SUBJECTS`, `PUBLIC_URL`, key-age and
 rotation-grace settings are **not** read. Use only the names above.
 
@@ -74,83 +73,118 @@ and hashed normalized email); forwarding headers are not trusted. OTP responses 
 non-enumerating, including upstream failures. Provider SMTP/network failure therefore
 looks like a sent request; verify delivery through approved provider operations.
 
-## App keys and feed
+## App keys and capture v2
 
-In `/applications`, admins register an immutable app/environment/policy, issue
-single-scope keys, list metadata, revoke, and rotate. Tokens have 32 random bytes,
-are shown once, and only SHA-256 digests are stored. Default expiry is 30 days,
-maximum 90. Rotation atomically revokes the old token and returns a same-scope
-replacement; there is **no grace overlap**. For planned overlap issue a separate
-key, update the app's secret binding, then revoke the old key explicitly.
+Create an app by naming it and choosing a key lifespan (1–90 days in the portal).
+One atomic create returns the app UUID and a one-time token. Only its SHA-256 digest
+is stored. The `application:connect` key can register that app's policies,
+experiments and consent grants, append traces/outcomes, withdraw grants and read
+its own policy declarations for delayed events. It cannot read diagnostic content,
+change settings, issue keys or reach workbench/provider/admin APIs. Browser-origin
+key use is rejected. The app owns the authenticated consent assertion.
 
-| Scope | Allowed operations |
-| --- | --- |
-| `traces:write` | `POST /v1/traces` only, with active matching consent |
-| `grants:write` | `POST /v1/grants`, `DELETE /v1/grants/{id}` |
-| `traces:read` | `GET /v1/traces/{id}`, `GET /v1/comparisons/{left}/{right}` |
+Expiration belongs to the key. Revocation is immediate; rotation optionally
+schedules a precise overlap deadline, capped by the old expiry. No implicit grace.
+The SDK stops sending after a 401 until reinitialized with a replacement key.
+Keep keys backend-only. The endpoint remains an env value:
+`https://INSTANCE/api/backend/v2/traces`.
 
-The same paths are available through the frontend service prefix `/api/backend`.
-Thus an instance ingest endpoint is `https://<instance>/api/backend/v1/traces`.
-Key expiry and revocation are checked against live rows on each operation; app row
-locks serialize PostgreSQL ingestion with consent withdrawal and key changes.
+Production capture and retention belong to the **app**, never the key. New apps
+allow production and keep all evidence by default. The first successful SDK policy
+sets the initially allowed privacy/content categories. Schema changes are accepted
+and versioned automatically. Later category additions are omitted with
+`not_authorized` until enabled in app settings and included in user consent;
+unchanged fields continue. Changing retention before first registration does not
+prevent first-policy setup. Existing migrated apps retain their finite retention,
+with production disabled and legacy keys revoked; no privilege is silently widened.
 
-Admin cookie APIs:
-- `POST /api/applications` with `id,name,environment,policy,retention_days`.
-- `POST /api/applications/{id}/keys` with `scope,expires_in_days`.
-- `GET …/keys`; `POST …/keys/{keyId}/revoke` or `/rotate`.
-- `POST …/datasets`: immutable `{schemaVersion:1,caseIds:[sorted SHA256s],rubricHash}`;
-  returns content hash. This is a finalized external dataset, not a mutable draft.
-- `POST …/experiments`: immutable SDK experiment contract, dataset hash required
-  for scripted/live candidate runs; observed mode has null dataset/case IDs.
-- `GET …/experiments`, `GET …/traces` and `GET …/comparisons/{left}/{right}`.
+App settings are at `/applications/{id}/settings`. The portal sends the loaded
+settings fingerprint with its save; an intervening change returns conflict and
+requires reload. Shortening retention applies to existing evidence. Lengthening
+it cannot extend existing deadlines or restore deleted content. Diagnostic content
+can be erased independently of summaries, outcomes and assessments. Old trace IDs
+cannot receive replacement content after that erasure.
 
-Use generated OpenAPI/types for exact validation. Experiment/dataset registration
-is currently an authenticated API operation; it is not a hidden ingest privilege.
-The dashboard displays up to 100 unexpired observations and compares named checks
-only on complete, unique, synthetic case sets from the same frozen dataset/mode.
-Missing/withdrawn/expired evidence rejects comparison; no aggregate quality claim.
+## Consent, privacy and evidence
 
-Consent synchronization is owned by the source app's authenticated opt-in/withdrawal
-flow. The server trusts only the separate `grants:write` key for that assertion;
-never put it in browser code or let model arguments select consent. A grant is
-`{id,source,expiresAt,policy:"metadata-v1"}`. Withdrawal creates a tombstone even for
-an unknown ID and deletes its observations. A withdrawn ID cannot be reused.
+Individual consent is resolved server-side by the app, **off by default**, and
+passed to `capture.begin({consent})`. `AUTOEVAL_CONSENTED_USER_IDS` and
+`AUTOEVAL_GRANTS_KEY` are removed. The same app key registers opaque consent grants;
+no user identifiers or user hashes are sent. Consent scopes are immutable and
+independent of policy versions. Widening/narrowing the user's choice creates a new
+grant ID; revoke the previous one when withdrawing/narrowing. Revocation creates a
+tombstone even for unknown IDs and deletes associated evidence. The app keeps a
+durable pending withdrawal until the instance confirms it, including across outages.
 
-Only explicitly allowlisted numeric metrics and boolean checks enter observations;
-raw prompts, messages, outputs, identities and arbitrary metadata are rejected.
-Production capture is off by default. Expiry is the earlier of event time + app
-retention and grant expiry; retries cannot extend it. Reads filter expired rows;
-startup/hourly maintenance and feed traffic physically purge expired observations.
-Inactive/serverless instances need an operator-controlled maintenance schedule for
-prompt physical deletion. Backups and app-side grant mappings require their own
-retention/erasure policy. Grants/experiments/dataset provenance persist; per-kind
-app storage is capped at 10,000 rows and app keys at 120 requests/minute.
+Apps declare exact data shapes. Metrics are finite numbers or null; checks are
+booleans or null; operational attributes are numbers, booleans or declared enums.
+Content fields have exact recursive schemas and named privacy categories. App-side
+projection/redaction runs first; the SDK removes common identifiers before sending,
+and ingest checks again. Neither redaction pass promises anonymity or catches every
+name/medical detail. Health and workout data remain sensitive. Admin-only content
+reads are explicit; viewers see permitted summaries and operational evidence.
 
-## SDK environment initializer
+The instance rejects undeclared fields. Invalid/unauthorized/oversized optional
+content is omitted with coverage, preserving summary measurements. Unknown cost
+stays null. Steps are bounded and truncation counted. Late outcomes retain the
+original trace's policy and expiry, with their own immutable IDs. A deleted/expired
+trace cannot accept events. Stored versions are never rewritten to a newer policy.
 
-```js
-import { createCaptureFromEnv } from '@devalparikh/autoeval';
-const capture = createCaptureFromEnv({
-  policy: { metrics: ['latency_ms'], checks: ['passed'] }
-});
-// App inference happens independently. Supply authenticated consent explicitly:
-await capture.capture({ consent, startedAt, endedAt,
-  project: () => ({ metrics: { latency_ms }, checks: { passed } }) });
-```
+For finite retention, reads hide expired data; startup/hourly maintenance and
+capture/dashboard traffic purge it. Inactive serverless instances need an
+operator-controlled maintenance schedule for prompt physical deletion. Backups and
+app-side consent mappings need their own deletion handling. Keep is the approved
+default; [retention follow-up](development-todos.md) tracks future optimization/privacy.
+Declarations, grants, audit and minimal non-content erasure receipts persist.
+Per-kind app storage is capped at 10,000 records, excluding permanent receipts;
+keys are limited to 120 requests/minute. These limits fail closed; monitor SDK
+status/coverage without logging payloads or secrets.
 
-The initializer reads env only when called. `AUTOEVAL_ENABLED=true` is the only
-activation value; otherwise capture is disabled. Enabled malformed configuration
-throws a sanitized contract error at initialization; applications must contain
-telemetry setup failures so inference remains independent.
-`AUTOEVAL_ENDPOINT`, `AUTOEVAL_INGEST_KEY`, `AUTOEVAL_EXPERIMENT_ID`,
-`AUTOEVAL_SOURCE`, `AUTOEVAL_REQUEST_TIMEOUT_MS` (10–2000, default 500) map directly
-to explicit options. Consent and read keys belong to separate server integration
-code; the capture initializer does not consume them. No provider credential is needed.
 
-The package remains `0.1.0`, `private:true`, `UNLICENSED`, unpublished. Tests install
-its packed tarball into an isolated consumer. Approved distribution plan: private
-GitHub Packages prerelease, npm later. License, namespace permissions, version and
-registry auth/access tests remain publication decisions; no license is invented.
+Consent generation ownership: the app retains a ledger of every active grant for
+each user. Widening may keep older generations/history, but full withdrawal must
+revoke all of them. Narrowing conservatively revokes all prior generations and
+erases their evidence. A delayed outcome uses its reference's original grant,
+resolved under the authenticated user's current enabled/scoped choice; a new grant
+ID cannot be substituted for an older trace's grant.
+
+## Identity and evaluation
+
+The SDK and backend compute identical domain-separated SHA-256 fingerprints of
+normalized declarations. A policy version covers field meanings, units, schema and
+categories. An experiment includes that policy, source, code revision, prompt,
+config/graph hashes and declared models. Observed experiments have no dataset/run
+ID. Controlled scripted/live runs require a finalized dataset manifest and a unique
+run UUID; provider mode remains separate from production provenance.
+
+Formal comparisons require complete, unique synthetic cases from the same finalized
+dataset and mode. Match fields by semantic ID and definition version/meaning/unit.
+Added/removed fields are not comparable, redefined fields are not pooled, and absent
+values stay unknown. Error/partial statuses fail rather than disappearing from the
+denominator. Production observations guide diagnosis and case authoring; they do
+not prove a causal improvement or automatically become finalized evaluation data.
+Human assessments append immutable ratings with a scorer/rubric digest. The portal's
+versioned rubric defaults every rating to unknown; it does not call a provider.
+
+## SDK and administration
+
+See the [package README](../packages/trace-feed/README.md) for the typed SDK API,
+environment variables and candidate package installation, and the
+[Lifty guide](lifty-integration.md) for the complete trainer integration.
+Missing/invalid config disables capture without throwing. `begin`/`step` do no I/O;
+`end`/`outcome` use a shared deadline of at most two seconds and no retries after the
+reply. The host must retain the request with its supported after-response hook.
+Registration and grants are cached per process; ingest always rechecks live authority.
+
+The app portal creates keys and manages settings. Admin APIs retain finalized dataset
+registration, trace review/assessments and comparisons. Observed experiment and
+policy registration belong to the SDK; there is no manifest upload or browser-console
+setup. Exact internal schemas are generated in OpenAPI. The SDK candidate is
+`0.2.0-private.1`, UNLICENSED, targeting restricted GitHub Packages; nothing is
+published by tests. The old SDK, v1 writes, separate grants/read keys, manual
+experiment env ID and Node receiver have no compatibility window.
+
+SDK-less clients are a future follow-up; the versioned backend contract leaves room for them.
 
 Primary references: [Supabase passwordless email](https://supabase.com/docs/guides/auth/auth-email-passwordless),
 [JWT verification](https://supabase.com/docs/guides/auth/jwts),

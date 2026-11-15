@@ -61,7 +61,7 @@ test("viewer dashboard reads allowed observations without key controls", async (
       return [
         { id: "app", name: "Demo", settings: { retention_days: null } },
       ];
-    if (path === "/applications/app/experiments") return [];
+    if (path.startsWith("/applications/app/experiments")) return [];
     if (path === "/applications/app/traces")
       return [
         {
@@ -97,7 +97,7 @@ test("comparison keeps the selected pair fixed until its response settles", asyn
         { id: "app", name: "Demo", settings: { retention_days: null } },
       ];
     if (path === "/applications/app/traces") return [];
-    if (path === "/applications/app/experiments")
+    if (path.startsWith("/applications/app/experiments"))
       return ["left", "right"].map((id) => ({
         id,
         models: [{ model: "mock" }],

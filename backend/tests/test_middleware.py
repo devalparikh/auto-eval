@@ -158,3 +158,27 @@ def test_basic_auth_handles_utf8_credentials(
     with TestClient(app) as client:
         response = client.get("/api/health", headers={"Authorization": "Basic " + authorization})
     assert response.status_code == expected
+
+
+def test_configured_frontend_can_preflight_settings_and_content_deletion(session_factory):
+    with _guarded_client(session_factory) as client:
+        for method, headers in [("PUT", "content-type,if-match"), ("DELETE", "content-type")]:
+            response = client.options(
+                "/api/applications/00000000-0000-4000-8000-000000000001/settings",
+                headers={
+                    "origin": "http://localhost:3000",
+                    "access-control-request-method": method,
+                    "access-control-request-headers": headers,
+                },
+            )
+            assert response.status_code == 200
+            assert response.headers["access-control-allow-origin"] == "http://localhost:3000"
+        rejected = client.options(
+            "/api/applications",
+            headers={
+                "origin": "https://untrusted.invalid",
+                "access-control-request-method": "PUT",
+                "access-control-request-headers": "if-match",
+            },
+        )
+        assert rejected.status_code in (400, 403)
