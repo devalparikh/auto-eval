@@ -47,6 +47,10 @@ Only authenticated HTTP 404 or a valid metadata response lacking the exact versi
 means absence. Unauthorized/forbidden responses, server errors, transport failures,
 redirects and malformed metadata fail the run. Do not interpret a failed lookup as
 permission to publish.
+Failures report allowlisted categories for unauthorized/forbidden/rate-limited
+responses, server/other HTTP errors, transport, invalid JSON/metadata, verification
+mismatch and npm pack/publish failures. Third-party exception text, response bodies
+and subprocess output are never included in these diagnostics.
 
 ## Credentials, access and visibility
 
@@ -103,13 +107,22 @@ every intermediate push. Retry a missed version only through a separately review
 change on main; the fallback does not select an arbitrary old source/ref.
 
 After publishing, the helper requires matching registry name/version,
-`dist-tags.private`, `dist.shasum` and `dist.integrity`. Failure after a successful
-upload requires inspection of that immutable version; a rerun will skip it rather
-than republish or silently repair a tag. The run summary and 90-day
-`sdk-publication-<source SHA>` artifact record status, source commit, run URL,
-version, registry, tag and computed hashes. Preserve that JSON in the consuming
-release/lock review for longer-lived evidence. A skipped run records the skip and
-source but makes no provenance claim about the already-existing version.
+`dist-tags.private`, `dist.shasum` and `dist.integrity`. Source and expected digests
+are saved atomically **before upload** outside the temporary config/cache directory.
+An upload-command failure leaves `publish-attempted-unverified`; a successful upload
+followed by lookup or verification failure leaves `uploaded-unverified`, with an
+allowlisted error category. Neither status claims verified publication. The workflow
+attempts to upload available evidence even when an earlier step fails; failures
+before evidence exists do not invent a record. The validated archive itself is
+temporary; the durable record retains its expected checksums.
+
+Failure after a successful upload requires inspection of that immutable version;
+a rerun will skip it rather than republish or silently repair a tag. The run summary
+and 90-day `sdk-publication-<source SHA>` artifact record status, source commit,
+run URL, version, registry, tag and computed hashes. Inspect the original failed
+run's artifact when reconciling an unverified upload. Preserve that JSON in the
+consuming release/lock review for longer-lived evidence. A skipped run records the
+skip and source but makes no provenance claim about the already-existing version.
 
 Consumers pin the exact version and integrity in a committed lockfile and use
 authenticated `npm ci` as described in the SDK README. This workflow's installed
@@ -118,11 +131,15 @@ claim a clean authenticated registry install or an access-control audit.
 
 ## Provenance limits
 
-Do not add `--provenance` or `id-token: write` here. npm's
-[provenance prerequisites](https://docs.npmjs.com/generating-provenance-statements/#prerequisites)
-describe the npm registry and a public source repository; its
-[trusted publishing documentation](https://docs.npmjs.com/trusted-publishers/)
-also excludes provenance generation for private repositories. That is not a
-supported provenance route for this private GitHub Packages publication.
+This source repository is public, while the intended package is private on the
+GitHub Packages registry and uses `GITHUB_TOKEN` authentication. npm documents
+provenance for **public packages from public repositories** in its
+[trusted publishing documentation](https://docs.npmjs.com/trusted-publishers/#automatic-provenance-generation)
+and GitHub's [provenance announcement](https://github.blog/changelog/2023-09-26-npm-provenance-general-availability/).
+This restricted package publication therefore does not enable `--provenance` or
+request `id-token: write`. The limitation here is the intended package visibility,
+not a claim that this source repository is private or that GitHub Packages can
+never support provenance. Reassess the registry and visibility requirements if
+the publication policy changes.
 The source/checksum record is auditable Actions evidence, **not** a signed npm
 provenance attestation. No OIDC credential or transparency-log claim is made.

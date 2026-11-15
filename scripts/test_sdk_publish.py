@@ -20,29 +20,52 @@ SHA = "a" * 40
 
 class PublisherTests(unittest.TestCase):
     def test_only_404_means_absence(self):
-        for code in (401, 403, 429, 500):
+        for code, category in (
+            (401, "registry-unauthorized"),
+            (403, "registry-forbidden"),
+            (429, "registry-rate-limited"),
+            (500, "registry-server-error"),
+            (302, "registry-http-error"),
+        ):
             with self.subTest(code=code), patch.object(sdk, "build_opener") as opener:
                 opener.return_value.open.side_effect = HTTPError(
                     "url", code, "", {}, None
                 )
-                with self.assertRaisesRegex(RuntimeError, f"HTTP {code}"):
+                with self.assertRaisesRegex(RuntimeError, category):
                     sdk.metadata("synthetic")
         with patch.object(sdk, "build_opener") as opener:
             opener.return_value.open.side_effect = HTTPError("url", 404, "", {}, None)
             self.assertEqual(sdk.metadata("synthetic")["versions"], {})
 
     def test_network_and_malformed_metadata_fail(self):
-        for failure in (URLError("offline"), ValueError("invalid JSON")):
+        for failure, category in (
+            (URLError("sensitive transport details"), "registry-transport"),
+            (ValueError("sensitive response body"), "registry-invalid-json"),
+        ):
             with patch.object(sdk, "build_opener") as opener:
                 opener.return_value.open.side_effect = failure
-                with self.assertRaises(RuntimeError):
+                with self.assertRaisesRegex(RuntimeError, category):
                     sdk.metadata("synthetic")
         with patch.object(sdk, "build_opener") as opener:
             opener.return_value.open.return_value.__enter__.return_value = io.BytesIO(
                 b"{}"
             )
-            with self.assertRaisesRegex(TypeError, "Invalid registry"):
+            with self.assertRaisesRegex(RuntimeError, "registry-invalid-metadata"):
                 sdk.metadata("synthetic")
+
+    def test_error_categories_never_include_untrusted_details(self):
+        for failure in (
+            RuntimeError("synthetic-secret"),
+            sdk.PublicationError("synthetic-secret"),
+            subprocess.CalledProcessError(1, ["synthetic-secret"]),
+        ):
+            self.assertEqual(
+                sdk.error_category(failure), "local-validation-or-runtime-error"
+            )
+        self.assertEqual(
+            sdk.error_category(sdk.PublicationError("registry-forbidden")),
+            "registry-forbidden",
+        )
 
     def test_real_npm_pack_matches_validated_inventory(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -151,7 +174,9 @@ class PublisherTests(unittest.TestCase):
         with self.assertRaises(RuntimeError):
             sdk.verify_registry(document, VERSION, {**digests, "integrity": "wrong"})
 
-    def exercise_publish(self, documents):
+    def exercise_publish(
+        self, documents, *, expect_error=False, upload_error=False, verify_error=None
+    ):
         with tempfile.TemporaryDirectory() as directory:
             output = Path(directory) / "record.json"
             summary = Path(directory) / "summary"
@@ -169,6 +194,15 @@ class PublisherTests(unittest.TestCase):
                 self.assertIn("--ignore-scripts", args)
                 self.assertIn("--access=restricted", args)
                 self.assertIn("--tag=private", args)
+                # Evidence must be durable BEFORE any upload can occur.
+                before_upload = json.loads(output.read_text())
+                self.assertEqual(
+                    before_upload["status"], "publish-attempted-unverified"
+                )
+                self.assertEqual(before_upload["source_commit"], SHA)
+                expected = sdk.validate_tarball(Path(args[2]), PACKAGE, VERSION)
+                for key, value in expected.items():
+                    self.assertEqual(before_upload[key], value)
                 self.assertEqual(
                     len(
                         list(
@@ -179,6 +213,10 @@ class PublisherTests(unittest.TestCase):
                     ),
                     1,
                 )
+                if upload_error:
+                    raise subprocess.CalledProcessError(
+                        1, args, output=b"synthetic-secret", stderr=b"synthetic-secret"
+                    )
                 return MagicMock()
 
             with (
@@ -186,11 +224,20 @@ class PublisherTests(unittest.TestCase):
                 patch.object(sdk, "verify_source"),
                 patch.object(sdk, "metadata", side_effect=documents),
                 patch.object(subprocess, "run", side_effect=npm) as run,
-                patch.object(sdk, "verify_registry") as verify,
+                patch.object(
+                    sdk, "verify_registry", side_effect=verify_error
+                ) as verify,
                 patch("builtins.print"),
             ):
-                sdk.publish(ROOT, SHA, "synthetic", output)
+                if expect_error:
+                    with self.assertRaises(RuntimeError):
+                        sdk.publish(ROOT, SHA, "synthetic", output)
+                else:
+                    sdk.publish(ROOT, SHA, "synthetic", output)
                 record = json.loads(output.read_text())
+                self.assertNotIn("synthetic-secret", output.read_text())
+                self.assertNotIn("synthetic-secret", summary.read_text())
+                self.assertIn(record["status"], summary.read_text())
                 if run.called:
                     config = Path(run.call_args.kwargs["env"]["NPM_CONFIG_USERCONFIG"])
                     self.assertFalse(config.exists())
@@ -218,6 +265,34 @@ class PublisherTests(unittest.TestCase):
         self.assertEqual(record["source_commit"], SHA)
         self.assertIn("shasum", record)
 
+    def test_successful_upload_retains_evidence_when_verification_fails(self):
+        for category in ("registry-transport", "registry-verification-mismatch"):
+            with self.subTest(category=category):
+                documents = [{"versions": {}}] * 3
+                verify_error = None
+                if category == "registry-transport":
+                    documents[-1] = sdk.PublicationError(category)
+                else:
+                    verify_error = sdk.PublicationError(category)
+                record, calls, _ = self.exercise_publish(
+                    documents, expect_error=True, verify_error=verify_error
+                )
+                self.assertEqual(calls, 2)
+                self.assertEqual(record["status"], "uploaded-unverified")
+                self.assertEqual(record["source_commit"], SHA)
+                self.assertEqual(record["error_category"], category)
+                self.assertTrue(record["integrity"].startswith("sha512-"))
+                self.assertEqual(len(record["shasum"]), 40)
+
+    def test_upload_command_failure_preserves_unverified_evidence(self):
+        record, calls, _ = self.exercise_publish(
+            [{"versions": {}}] * 2, expect_error=True, upload_error=True
+        )
+        self.assertEqual(calls, 2)
+        self.assertEqual(record["status"], "publish-attempted-unverified")
+        self.assertEqual(record["error_category"], "npm-publish-failed")
+        self.assertIn("integrity", record)
+
     def test_workflow_boundary_and_serialization(self):
         workflow = (ROOT / ".github/workflows/sdk-publish.yml").read_text()
         self.assertIn("branches: [main]", workflow)
@@ -226,6 +301,8 @@ class PublisherTests(unittest.TestCase):
         self.assertIn("cancel-in-progress: false", workflow)
         self.assertNotIn("pull_request:", workflow)
         self.assertNotIn("id-token:", workflow)
+        self.assertIn("if: ${{ always() }}", workflow)
+        self.assertIn("if-no-files-found: ignore", workflow)
         with (
             patch.dict(os.environ, {"GITHUB_ACTIONS": "false"}),
             self.assertRaises(RuntimeError),

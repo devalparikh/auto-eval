@@ -43,9 +43,10 @@ jobs:
           SOURCE_SHA: ${{ github.sha }}
         run: python3 scripts/sdk_publish.py
       - name: Retain source and checksum evidence
+        if: ${{ always() }}
         uses: actions/upload-artifact@v4
         with:
           name: sdk-publication-${{ github.sha }}
           path: ${{ runner.temp }}/sdk-publication.json
-          if-no-files-found: error
+          if-no-files-found: ignore
           retention-days: 90

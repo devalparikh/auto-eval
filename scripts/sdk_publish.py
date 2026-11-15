@@ -23,6 +23,31 @@ FILES = {
     "package/dist/contract.js": "src/contract.js",
     "package/dist/index.d.ts": "src/index.d.ts",
 }
+ERROR_CATEGORIES = {
+    "registry-unauthorized",
+    "registry-forbidden",
+    "registry-rate-limited",
+    "registry-server-error",
+    "registry-http-error",
+    "registry-transport",
+    "registry-invalid-json",
+    "registry-invalid-metadata",
+    "registry-verification-mismatch",
+    "npm-pack-failed",
+    "npm-publish-failed",
+}
+
+
+class PublicationError(RuntimeError):
+    def __init__(self, category):
+        self.category = category
+        super().__init__(category)
+
+
+def error_category(error):
+    if isinstance(error, PublicationError) and error.category in ERROR_CATEGORIES:
+        return error.category
+    return "local-validation-or-runtime-error"
 
 
 class NoRedirect(HTTPRedirectHandler):
@@ -42,13 +67,20 @@ def metadata(token):
         error.close()
         if error.code == 404:
             return {"versions": {}, "dist-tags": {}}
-        raise RuntimeError(f"Registry lookup failed: HTTP {error.code}") from None
-    except (OSError, ValueError):
-        raise RuntimeError(
-            "Registry lookup failed (transport or invalid JSON)"
-        ) from None
+        category = {
+            401: "registry-unauthorized",
+            403: "registry-forbidden",
+            429: "registry-rate-limited",
+        }.get(error.code, "registry-http-error")
+        if 500 <= error.code < 600:
+            category = "registry-server-error"
+        raise PublicationError(category) from None
+    except OSError:
+        raise PublicationError("registry-transport") from None
+    except ValueError:
+        raise PublicationError("registry-invalid-json") from None
     if not isinstance(result, dict) or not isinstance(result.get("versions"), dict):
-        raise TypeError("Invalid registry metadata")
+        raise PublicationError("registry-invalid-metadata")
     return result
 
 
@@ -105,7 +137,7 @@ def verify_registry(document, version, digests):
         or document.get("dist-tags", {}).get(TAG) != version
         or any(published.get("dist", {}).get(k) != v for k, v in digests.items())
     ):
-        raise RuntimeError("Published registry identity, tag or integrity mismatch")
+        raise PublicationError("registry-verification-mismatch")
 
 
 def verify_source(root, source):
@@ -120,6 +152,23 @@ def verify_source(root, source):
         ["git", "status", "--porcelain", "--untracked-files=no"], cwd=root
     ):
         raise RuntimeError("Tracked source changes are not allowed")
+
+
+def write_record(output, record):
+    # Replace atomically so a failed later update cannot truncate pre-upload evidence.
+    temporary = output.with_suffix(".tmp")
+    temporary.write_text(json.dumps(record, indent=2) + "\n")
+    temporary.replace(output)
+    print(json.dumps(record, indent=2))
+    with open(os.environ["GITHUB_STEP_SUMMARY"], "a") as summary:
+        summary.write("```json\n" + json.dumps(record, indent=2) + "\n```\n")
+
+
+def npm(args, *, category, **kwargs):
+    try:
+        return subprocess.run(args, capture_output=True, check=True, **kwargs)
+    except (subprocess.CalledProcessError, OSError):
+        raise PublicationError(category) from None
 
 
 def publish(root, source, token, output):
@@ -151,7 +200,7 @@ def publish(root, source, token, output):
                 "NPM_CONFIG_LOGS_MAX": "0",
             }
             # Build/test ran before credentials were made available. No lifecycle scripts here.
-            packed = subprocess.run(
+            packed = npm(
                 [
                     "npm",
                     "pack",
@@ -162,9 +211,8 @@ def publish(root, source, token, output):
                 ],
                 cwd=package_root,
                 env=env,
-                capture_output=True,
                 text=True,
-                check=True,
+                category="npm-pack-failed",
             )
             filename = json.loads(packed.stdout)[0]["filename"]
             if Path(filename).name != filename:
@@ -173,31 +221,40 @@ def publish(root, source, token, output):
             digests = validate_tarball(archive, package_root, version)
             record.update(digests)
             verify_source(root, source)
+            record["status"] = "prepared-not-published"
+            write_record(output, record)
             # Recheck after packing under the workflow's shared concurrency group.
             if version in metadata(token)["versions"]:
                 record["status"] = "skipped-existing"
             else:
-                subprocess.run(
-                    [
-                        "npm",
-                        "publish",
-                        str(archive),
-                        "--ignore-scripts",
-                        "--registry=" + REGISTRY,
-                        "--access=restricted",
-                        "--tag=" + TAG,
-                    ],
-                    cwd=package_root,
-                    env=env,
-                    capture_output=True,
-                    check=True,
-                )
-                verify_registry(metadata(token), version, digests)
+                # An upload can succeed even when its response/verification fails.
+                # Save expected digests outside the temporary credential/cache directory.
+                record["status"] = "publish-attempted-unverified"
+                write_record(output, record)
+                try:
+                    npm(
+                        [
+                            "npm",
+                            "publish",
+                            str(archive),
+                            "--ignore-scripts",
+                            "--registry=" + REGISTRY,
+                            "--access=restricted",
+                            "--tag=" + TAG,
+                        ],
+                        cwd=package_root,
+                        env=env,
+                        category="npm-publish-failed",
+                    )
+                    record["status"] = "uploaded-unverified"
+                    write_record(output, record)
+                    verify_registry(metadata(token), version, digests)
+                except Exception as error:
+                    record["error_category"] = error_category(error)
+                    write_record(output, record)
+                    raise
                 record["status"] = "published-and-verified"
-    output.write_text(json.dumps(record, indent=2) + "\n")
-    print(json.dumps(record, indent=2))
-    with open(os.environ["GITHUB_STEP_SUMMARY"], "a") as summary:
-        summary.write("```json\n" + json.dumps(record, indent=2) + "\n```\n")
+    write_record(output, record)
 
 
 def main():
@@ -222,5 +279,5 @@ if __name__ == "__main__":
     except Exception as error:  # noqa: BLE001 - never leak third-party exception payloads
         # Do not emit subprocess output, request bodies, headers or credential values.
         raise SystemExit(
-            f"SDK publication failed ({type(error).__name__}); inspect safe step/checksum evidence"
+            f"SDK publication failed ({error_category(error)}); inspect safe step/checksum evidence"
         ) from None
