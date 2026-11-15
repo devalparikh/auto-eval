@@ -4,6 +4,9 @@ on:
     paths:
       - packages/trace-feed/**
       - .github/workflows/trace-feed.yml
+      - .github/workflows/sdk-publish.yml
+      - scripts/sdk_publish.py
+      - scripts/test_sdk_publish.py
 permissions:
   contents: read
 jobs:
@@ -16,3 +19,4 @@ jobs:
           node-version: "24"
       - run: npm run test:package
         working-directory: packages/trace-feed
+      - run: python3 -m unittest discover -s scripts -p test_sdk_publish.py -v

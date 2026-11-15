@@ -149,6 +149,10 @@ Pin the approved package version and commit the app lockfile. Use `npm ci`, with
 Build/test locally with `npm run test:package`; this packs and offline-installs a
 consumer to validate exports. Never publish or deploy as part of a test.
 
+Maintainers: see [SDK publishing](../../docs/sdk-publishing.md) for automatic
+publication after an explicitly approved merge to `main`, version bumps, registry
+access prerequisites, verification and the Actions manual fallback.
+
 Capture limits: up to 128 steps and 96 KiB of serialized step data, with
 `droppedSteps` reporting omissions; up to 128 KiB total optional content and
 64 KiB per content field. Recursive content validation stops at 2,048 values or
