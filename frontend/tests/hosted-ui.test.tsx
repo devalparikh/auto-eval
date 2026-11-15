@@ -1,3 +1,4 @@
+import { StrictMode } from "react";
 import {
   fireEvent,
   render,
@@ -149,4 +150,56 @@ test("verified registration shows only own pending ID and never mounts private c
   fireEvent.click(screen.getByRole("button", { name: "Return to sign in" }));
   expect(screen.queryByText(subject)).toBeNull();
   expect(screen.getByRole("button", { name: "Send code" })).toBeEnabled();
+});
+
+test("email-link callback strips the code and keeps verified registration pending", async () => {
+  window.history.replaceState(null, "", "/?code=" + "a".repeat(36));
+  const api = vi.mocked(apiRequest);
+  const subject = "00000000-0000-4000-8000-000000000001";
+  api.mockImplementation(async (path) => {
+    expect(window.location.search).toBe("");
+    expect(path).toBe("/auth/exchange");
+    return { authenticated: false, status: "pending", subject };
+  });
+  render(<AuthGate enabled emailLink><p>Private workspace</p></AuthGate>);
+  await screen.findByText("Approval pending");
+  expect(screen.getByText(subject)).toBeVisible();
+  expect(screen.queryByText("Private workspace")).toBeNull();
+  expect(api).toHaveBeenCalledTimes(1);
+  expect(window.localStorage.length).toBe(0);
+  expect(window.sessionStorage.length).toBe(0);
+});
+
+test("implicit tokens are stripped and rejected without any token exchange", async () => {
+  window.history.replaceState(null, "", "/#access_token=synthetic&refresh_token=discarded");
+  const api = vi.mocked(apiRequest);
+  render(<AuthGate enabled emailLink><p>Private workspace</p></AuthGate>);
+  await screen.findByRole("alert");
+  expect(window.location.hash).toBe("");
+  expect(api).not.toHaveBeenCalled();
+  expect(screen.queryByText("Private workspace")).toBeNull();
+});
+
+test("email link request instructs same browser use without showing a numeric code field", async () => {
+  const api = vi.mocked(apiRequest);
+  api.mockRejectedValueOnce(new Error("401"));
+  render(<AuthGate enabled emailLink><p>Private workspace</p></AuthGate>);
+  fireEvent.change(await screen.findByLabelText("Email"), { target: { value: "team@example.invalid" } });
+  api.mockResolvedValueOnce({});
+  fireEvent.click(screen.getByRole("button", { name: "Send sign-in link" }));
+  await screen.findByText(/Open it in the same browser/);
+  expect(screen.queryByLabelText("Email code")).toBeNull();
+  expect(screen.queryByText("Private workspace")).toBeNull();
+});
+
+
+test("PKCE callback has one exchange under StrictMode and a failed proof never reveals content", async () => {
+  window.history.replaceState(null, "", "/?code=" + "b".repeat(36));
+  const api = vi.mocked(apiRequest);
+  api.mockRejectedValueOnce(new Error("Proof rejected"));
+  render(<StrictMode><AuthGate enabled emailLink><p>Private workspace</p></AuthGate></StrictMode>);
+  await screen.findByRole("alert");
+  expect(api).toHaveBeenCalledTimes(1);
+  expect(screen.queryByText("Private workspace")).toBeNull();
+  expect(window.location.search).toBe("");
 });
