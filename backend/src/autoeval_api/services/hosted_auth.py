@@ -221,7 +221,12 @@ class HostedAuth:
                         ApplicationKeyRecord.digest == digest(auth[7:])
                     )
                 )
-                if not key or key.revoked or key.expires <= time.time():
+                if (
+                    not key
+                    or key.revoked
+                    or key.expires <= time.time()
+                    or (key.retire_at and key.retire_at <= time.time())
+                ):
                     denied()
                 return {"key_id": key.id, "application_id": key.application_id, "scope": key.scope}
         value = request.cookies.get(COOKIE, "")
@@ -244,9 +249,9 @@ class HostedAuth:
         principal = self.authenticate(request)
         request.state.principal = principal
         if "key_id" in principal:
-            if not path.startswith("/v1/"):
+            if not path.startswith("/v2/"):
                 denied(403)
-        elif path.startswith("/v1/"):
+        elif path.startswith("/v2/"):
             denied(403)
         elif (
             not path.startswith(("/api/applications", "/api/auth/"))

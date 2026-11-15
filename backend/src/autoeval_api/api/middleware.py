@@ -66,8 +66,8 @@ class RequestGuardMiddleware:
         messages = await self._read_request_messages(receive)
         if (
             messages is not None
-            and scope["path"].startswith("/v1/")
-            and sum(len(message.get("body", b"")) for message in messages) > 16384
+            and scope["path"].startswith("/v2/")
+            and sum(len(message.get("body", b"")) for message in messages) > 262144
         ):
             messages = None
         if messages is None:

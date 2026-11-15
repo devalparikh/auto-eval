@@ -370,38 +370,30 @@
       "ApplicationInput": {
         "additionalProperties": false,
         "properties": {
-          "environment": {
-            "pattern": "^[a-z][a-z0-9_]{0,47}$",
-            "title": "Environment",
-            "type": "string"
-          },
           "id": {
             "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
             "title": "Id",
             "type": "string"
+          },
+          "key": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/KeyInput"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "name": {
             "maxLength": 96,
             "minLength": 1,
             "title": "Name",
             "type": "string"
-          },
-          "policy": {
-            "$ref": "#/components/schemas/Policy"
-          },
-          "retention_days": {
-            "maximum": 30.0,
-            "minimum": 1.0,
-            "title": "Retention Days",
-            "type": "integer"
           }
         },
         "required": [
-          "id",
-          "name",
-          "environment",
-          "policy",
-          "retention_days"
+          "name"
         ],
         "title": "ApplicationInput",
         "type": "object"
@@ -613,6 +605,43 @@
         "title": "ArtifactSummary",
         "type": "object"
       },
+      "Assessment": {
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+            "title": "Id",
+            "type": "string"
+          },
+          "ratings": {
+            "maxProperties": 32,
+            "patternProperties": {
+              "^[a-z][a-z0-9_]{0,47}$": {
+                "enum": [
+                  "pass",
+                  "fail",
+                  "unknown"
+                ],
+                "type": "string"
+              }
+            },
+            "title": "Ratings",
+            "type": "object"
+          },
+          "scorerHash": {
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Scorerhash",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "scorerHash",
+          "ratings"
+        ],
+        "title": "Assessment",
+        "type": "object"
+      },
       "AutoEvalManifest": {
         "additionalProperties": false,
         "properties": {
@@ -658,6 +687,53 @@
         "title": "CaptureReview",
         "type": "object"
       },
+      "CaptureSettings": {
+        "additionalProperties": false,
+        "properties": {
+          "content_categories": {
+            "items": {
+              "pattern": "^[a-z][a-z0-9_]{0,47}$",
+              "type": "string"
+            },
+            "maxItems": 32,
+            "title": "Content Categories",
+            "type": "array"
+          },
+          "content_retention_days": {
+            "anyOf": [
+              {
+                "maximum": 3650.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Content Retention Days"
+          },
+          "production_enabled": {
+            "default": true,
+            "title": "Production Enabled",
+            "type": "boolean"
+          },
+          "retention_days": {
+            "anyOf": [
+              {
+                "maximum": 3650.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Retention Days"
+          }
+        },
+        "title": "CaptureSettings",
+        "type": "object"
+      },
       "CatalogResponse": {
         "properties": {
           "agent_systems": {
@@ -698,6 +774,40 @@
         "title": "CatalogResponse",
         "type": "object"
       },
+      "Check": {
+        "additionalProperties": false,
+        "properties": {
+          "definitionVersion": {
+            "maximum": 1000000.0,
+            "minimum": 1.0,
+            "title": "Definitionversion",
+            "type": "integer"
+          },
+          "expected": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expected"
+          },
+          "semanticId": {
+            "pattern": "^[a-z][a-z0-9_.-]{0,95}$",
+            "title": "Semanticid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "semanticId",
+          "definitionVersion",
+          "expected"
+        ],
+        "title": "Check",
+        "type": "object"
+      },
       "ConnectHarness": {
         "additionalProperties": false,
         "properties": {
@@ -731,6 +841,51 @@
           "harness"
         ],
         "title": "ConnectHarness",
+        "type": "object"
+      },
+      "Connection": {
+        "additionalProperties": false,
+        "properties": {
+          "experiment": {
+            "$ref": "#/components/schemas/Experiment"
+          },
+          "policy": {
+            "$ref": "#/components/schemas/Policy"
+          },
+          "source": {
+            "default": "synthetic",
+            "enum": [
+              "synthetic",
+              "production"
+            ],
+            "title": "Source",
+            "type": "string"
+          }
+        },
+        "required": [
+          "policy",
+          "experiment"
+        ],
+        "title": "Connection",
+        "type": "object"
+      },
+      "ContentField": {
+        "additionalProperties": false,
+        "properties": {
+          "category": {
+            "pattern": "^[a-z][a-z0-9_]{0,47}$",
+            "title": "Category",
+            "type": "string"
+          },
+          "valueSchema": {
+            "$ref": "#/components/schemas/ValueSchema"
+          }
+        },
+        "required": [
+          "category",
+          "valueSchema"
+        ],
+        "title": "ContentField",
         "type": "object"
       },
       "CreateAgentVersionRequest": {
@@ -1737,6 +1892,23 @@
         "title": "EvalRunResponse",
         "type": "object"
       },
+      "EventDefinition": {
+        "additionalProperties": false,
+        "properties": {
+          "attributes": {
+            "maxProperties": 16,
+            "patternProperties": {
+              "^[a-z][a-z0-9_]{0,47}$": {
+                "$ref": "#/components/schemas/ValueSchema"
+              }
+            },
+            "title": "Attributes",
+            "type": "object"
+          }
+        },
+        "title": "EventDefinition",
+        "type": "object"
+      },
       "ExchangeRequest": {
         "additionalProperties": false,
         "properties": {
@@ -1784,45 +1956,58 @@
             ],
             "title": "Graphhash"
           },
-          "id": {
-            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
-            "title": "Id",
-            "type": "string"
-          },
           "mode": {
+            "default": "observed",
             "enum": [
+              "observed",
               "scripted",
-              "live",
-              "observed"
+              "live"
             ],
             "title": "Mode",
             "type": "string"
           },
-          "model": {
-            "pattern": "^[a-zA-Z][a-zA-Z0-9_.:/-]{0,95}$",
-            "title": "Model",
-            "type": "string"
+          "models": {
+            "items": {
+              "$ref": "#/components/schemas/Model"
+            },
+            "maxItems": 16,
+            "title": "Models",
+            "type": "array"
           },
           "promptHash": {
-            "pattern": "^[0-9a-f]{64}$",
-            "title": "Prompthash",
-            "type": "string"
+            "anyOf": [
+              {
+                "pattern": "^[0-9a-f]{64}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Prompthash"
           },
           "revision": {
-            "pattern": "^[0-9a-f]{40}$",
-            "title": "Revision",
-            "type": "string"
+            "$ref": "#/components/schemas/Revision"
+          },
+          "runId": {
+            "anyOf": [
+              {
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Runid"
           }
         },
         "required": [
-          "id",
           "revision",
           "promptHash",
           "configHash",
           "graphHash",
-          "model",
-          "mode",
-          "datasetHash"
+          "models"
         ],
         "title": "Experiment",
         "type": "object"
@@ -1830,20 +2015,31 @@
       "Grant": {
         "additionalProperties": false,
         "properties": {
+          "categories": {
+            "items": {
+              "pattern": "^[a-z][a-z0-9_]{0,47}$",
+              "type": "string"
+            },
+            "maxItems": 32,
+            "title": "Categories",
+            "type": "array"
+          },
           "expiresAt": {
-            "maximum": 9007199254740991.0,
-            "minimum": 0.0,
-            "title": "Expiresat",
-            "type": "integer"
+            "anyOf": [
+              {
+                "maximum": 9007199254740991.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expiresat"
           },
           "id": {
             "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
             "title": "Id",
-            "type": "string"
-          },
-          "policy": {
-            "const": "metadata-v1",
-            "title": "Policy",
             "type": "string"
           },
           "source": {
@@ -1857,9 +2053,7 @@
         },
         "required": [
           "id",
-          "source",
-          "expiresAt",
-          "policy"
+          "source"
         ],
         "title": "Grant",
         "type": "object"
@@ -2588,25 +2782,22 @@
       "KeyInput": {
         "additionalProperties": false,
         "properties": {
-          "expires_in_days": {
-            "default": 30,
-            "maximum": 90.0,
-            "minimum": 1.0,
-            "title": "Expires In Days",
+          "expiresAt": {
+            "maximum": 9007199254740991.0,
+            "minimum": 0.0,
+            "title": "Expiresat",
             "type": "integer"
           },
-          "scope": {
-            "enum": [
-              "traces:write",
-              "grants:write",
-              "traces:read"
-            ],
-            "title": "Scope",
+          "label": {
+            "default": "App connection",
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Label",
             "type": "string"
           }
         },
         "required": [
-          "scope"
+          "expiresAt"
         ],
         "title": "KeyInput",
         "type": "object"
@@ -2658,6 +2849,83 @@
           "name"
         ],
         "title": "ManifestSystem",
+        "type": "object"
+      },
+      "Metric": {
+        "additionalProperties": false,
+        "properties": {
+          "definitionVersion": {
+            "maximum": 1000000.0,
+            "minimum": 1.0,
+            "title": "Definitionversion",
+            "type": "integer"
+          },
+          "max": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max"
+          },
+          "min": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Min"
+          },
+          "semanticId": {
+            "pattern": "^[a-z][a-z0-9_.-]{0,95}$",
+            "title": "Semanticid",
+            "type": "string"
+          },
+          "unit": {
+            "pattern": "^[a-z][a-z0-9_]{0,47}$",
+            "title": "Unit",
+            "type": "string"
+          }
+        },
+        "required": [
+          "semanticId",
+          "definitionVersion",
+          "unit"
+        ],
+        "title": "Metric",
+        "type": "object"
+      },
+      "Model": {
+        "additionalProperties": false,
+        "properties": {
+          "model": {
+            "pattern": "^[a-zA-Z0-9][a-zA-Z0-9_.:/-]{0,95}$",
+            "title": "Model",
+            "type": "string"
+          },
+          "provider": {
+            "pattern": "^[a-z][a-z0-9_]{0,47}$",
+            "title": "Provider",
+            "type": "string"
+          },
+          "role": {
+            "pattern": "^[a-z][a-z0-9_]{0,47}$",
+            "title": "Role",
+            "type": "string"
+          }
+        },
+        "required": [
+          "role",
+          "provider",
+          "model"
+        ],
+        "title": "Model",
         "type": "object"
       },
       "ModelOption": {
@@ -3398,18 +3666,33 @@
           "checks": {
             "maxProperties": 32,
             "patternProperties": {
-              "^[a-z][a-z0-9_]{0,47}$": {
-                "anyOf": [
-                  {
-                    "type": "boolean"
-                  },
-                  {
-                    "type": "null"
-                  }
-                ]
-              }
+              "^[a-z][a-z0-9_]{0,47}$": {}
             },
             "title": "Checks",
+            "type": "object"
+          },
+          "content": {
+            "maxProperties": 16,
+            "patternProperties": {
+              "^[a-z][a-z0-9_]{0,47}$": {}
+            },
+            "title": "Content",
+            "type": "object"
+          },
+          "coverage": {
+            "additionalProperties": {
+              "enum": [
+                "not_measured",
+                "not_authorized",
+                "invalid_value",
+                "redaction_failed",
+                "size_limit",
+                "retention_expired"
+              ],
+              "type": "string"
+            },
+            "maxProperties": 96,
+            "title": "Coverage",
             "type": "object"
           },
           "endedAt": {
@@ -3419,7 +3702,7 @@
             "type": "integer"
           },
           "experimentId": {
-            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+            "pattern": "^[0-9a-f]{64}$",
             "title": "Experimentid",
             "type": "string"
           },
@@ -3436,29 +3719,30 @@
           "metrics": {
             "maxProperties": 32,
             "patternProperties": {
-              "^[a-z][a-z0-9_]{0,47}$": {
-                "anyOf": [
-                  {
-                    "maximum": 9007199254740991.0,
-                    "minimum": 0.0,
-                    "type": "number"
-                  },
-                  {
-                    "type": "null"
-                  }
-                ]
-              }
+              "^[a-z][a-z0-9_]{0,47}$": {}
             },
             "title": "Metrics",
             "type": "object"
           },
-          "policy": {
-            "const": "metadata-v1",
-            "title": "Policy",
+          "policyVersion": {
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Policyversion",
             "type": "string"
           },
+          "redactorVersion": {
+            "anyOf": [
+              {
+                "pattern": "^[0-9a-f]{64}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Redactorversion"
+          },
           "schemaVersion": {
-            "const": 1,
+            "const": 2,
             "title": "Schemaversion",
             "type": "integer"
           },
@@ -3480,54 +3764,170 @@
             "enum": [
               "ok",
               "error",
-              "partial"
+              "partial",
+              "cancelled"
             ],
             "title": "Status",
             "type": "string"
+          },
+          "steps": {
+            "items": {
+              "$ref": "#/components/schemas/Step"
+            },
+            "maxItems": 128,
+            "title": "Steps",
+            "type": "array"
           }
         },
         "required": [
           "schemaVersion",
           "id",
           "experimentId",
+          "policyVersion",
           "grantId",
           "source",
-          "policy",
-          "caseId",
           "startedAt",
           "endedAt",
-          "status",
-          "metrics",
-          "checks"
+          "status"
         ],
         "title": "Observation",
+        "type": "object"
+      },
+      "Outcome": {
+        "additionalProperties": false,
+        "properties": {
+          "attributes": {
+            "maxProperties": 16,
+            "patternProperties": {
+              "^[a-z][a-z0-9_]{0,47}$": {}
+            },
+            "title": "Attributes",
+            "type": "object"
+          },
+          "content": {
+            "maxProperties": 16,
+            "patternProperties": {
+              "^[a-z][a-z0-9_]{0,47}$": {}
+            },
+            "title": "Content",
+            "type": "object"
+          },
+          "id": {
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "pattern": "^[a-z][a-z0-9_]{0,47}$",
+            "title": "Name",
+            "type": "string"
+          },
+          "occurredAt": {
+            "maximum": 9007199254740991.0,
+            "minimum": 0.0,
+            "title": "Occurredat",
+            "type": "integer"
+          },
+          "policyVersion": {
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Policyversion",
+            "type": "string"
+          },
+          "redactorVersion": {
+            "anyOf": [
+              {
+                "pattern": "^[0-9a-f]{64}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Redactorversion"
+          },
+          "schemaVersion": {
+            "const": 2,
+            "title": "Schemaversion",
+            "type": "integer"
+          },
+          "traceId": {
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+            "title": "Traceid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "schemaVersion",
+          "id",
+          "traceId",
+          "policyVersion",
+          "occurredAt",
+          "name"
+        ],
+        "title": "Outcome",
         "type": "object"
       },
       "Policy": {
         "additionalProperties": false,
         "properties": {
           "checks": {
-            "items": {
-              "pattern": "^[a-z][a-z0-9_]{0,47}$",
-              "type": "string"
+            "maxProperties": 32,
+            "patternProperties": {
+              "^[a-z][a-z0-9_]{0,47}$": {
+                "$ref": "#/components/schemas/Check"
+              }
             },
-            "maxItems": 32,
             "title": "Checks",
-            "type": "array"
+            "type": "object"
+          },
+          "content": {
+            "maxProperties": 16,
+            "patternProperties": {
+              "^[a-z][a-z0-9_]{0,47}$": {
+                "$ref": "#/components/schemas/ContentField"
+              }
+            },
+            "title": "Content",
+            "type": "object"
           },
           "metrics": {
-            "items": {
-              "pattern": "^[a-z][a-z0-9_]{0,47}$",
-              "type": "string"
+            "maxProperties": 32,
+            "patternProperties": {
+              "^[a-z][a-z0-9_]{0,47}$": {
+                "$ref": "#/components/schemas/Metric"
+              }
             },
-            "maxItems": 32,
             "title": "Metrics",
-            "type": "array"
+            "type": "object"
+          },
+          "outcomes": {
+            "maxProperties": 32,
+            "patternProperties": {
+              "^[a-z][a-z0-9_]{0,47}$": {
+                "$ref": "#/components/schemas/EventDefinition"
+              }
+            },
+            "title": "Outcomes",
+            "type": "object"
+          },
+          "schemaVersion": {
+            "const": 2,
+            "title": "Schemaversion",
+            "type": "integer"
+          },
+          "steps": {
+            "maxProperties": 32,
+            "patternProperties": {
+              "^[a-z][a-z0-9_]{0,47}$": {
+                "$ref": "#/components/schemas/EventDefinition"
+              }
+            },
+            "title": "Steps",
+            "type": "object"
           }
         },
         "required": [
-          "metrics",
-          "checks"
+          "schemaVersion"
         ],
         "title": "Policy",
         "type": "object"
@@ -3773,6 +4173,67 @@
           "created_at"
         ],
         "title": "PromptVersionDetail",
+        "type": "object"
+      },
+      "Revision": {
+        "additionalProperties": false,
+        "properties": {
+          "kind": {
+            "enum": [
+              "git-sha1",
+              "git-sha256",
+              "artifact-sha256"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "value": {
+            "pattern": "^[0-9a-f]{40}([0-9a-f]{24})?$",
+            "title": "Value",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "value"
+        ],
+        "title": "Revision",
+        "type": "object"
+      },
+      "RotationInput": {
+        "additionalProperties": false,
+        "properties": {
+          "expiresAt": {
+            "maximum": 9007199254740991.0,
+            "minimum": 0.0,
+            "title": "Expiresat",
+            "type": "integer"
+          },
+          "label": {
+            "default": "App connection",
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Label",
+            "type": "string"
+          },
+          "retireAt": {
+            "anyOf": [
+              {
+                "maximum": 9007199254740991.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Retireat"
+          }
+        },
+        "required": [
+          "expiresAt"
+        ],
+        "title": "RotationInput",
         "type": "object"
       },
       "RunTraceRequest": {
@@ -4092,6 +4553,83 @@
           "created_at"
         ],
         "title": "RuntimeInputSnapshotSummary",
+        "type": "object"
+      },
+      "Step": {
+        "additionalProperties": false,
+        "properties": {
+          "attributes": {
+            "maxProperties": 16,
+            "patternProperties": {
+              "^[a-z][a-z0-9_]{0,47}$": {}
+            },
+            "title": "Attributes",
+            "type": "object"
+          },
+          "durationMs": {
+            "anyOf": [
+              {
+                "maximum": 86400000.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Durationms"
+          },
+          "id": {
+            "pattern": "^[a-z][a-z0-9_]{0,47}$",
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "model",
+              "tool",
+              "validation",
+              "persistence",
+              "admission"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "name": {
+            "pattern": "^[a-z][a-z0-9_]{0,47}$",
+            "title": "Name",
+            "type": "string"
+          },
+          "parentId": {
+            "anyOf": [
+              {
+                "pattern": "^[a-z][a-z0-9_]{0,47}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parentid"
+          },
+          "status": {
+            "enum": [
+              "ok",
+              "error",
+              "partial",
+              "cancelled"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "name",
+          "status"
+        ],
+        "title": "Step",
         "type": "object"
       },
       "SystemImportCommitRequest": {
@@ -5206,6 +5744,79 @@
         "title": "ValidationError",
         "type": "object"
       },
+      "ValueSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "enum": {
+            "anyOf": [
+              {
+                "items": {
+                  "pattern": "^[a-z][a-z0-9_]{0,47}$",
+                  "type": "string"
+                },
+                "maxItems": 32,
+                "minItems": 1,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Enum"
+          },
+          "items": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ValueSchema"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "maxItems": {
+            "default": 32,
+            "maximum": 128.0,
+            "minimum": 1.0,
+            "title": "Maxitems",
+            "type": "integer"
+          },
+          "maxLength": {
+            "default": 1000,
+            "maximum": 16000.0,
+            "minimum": 1.0,
+            "title": "Maxlength",
+            "type": "integer"
+          },
+          "properties": {
+            "maxProperties": 32,
+            "patternProperties": {
+              "^[a-z][a-z0-9_]{0,47}$": {
+                "$ref": "#/components/schemas/ValueSchema"
+              }
+            },
+            "title": "Properties",
+            "type": "object"
+          },
+          "type": {
+            "enum": [
+              "string",
+              "number",
+              "integer",
+              "boolean",
+              "object",
+              "array"
+            ],
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type"
+        ],
+        "title": "ValueSchema",
+        "type": "object"
+      },
       "VerifyRequest": {
         "additionalProperties": false,
         "properties": {
@@ -5572,6 +6183,7 @@
             "name": "app_id",
             "required": true,
             "schema": {
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
               "title": "App Id",
               "type": "string"
             }
@@ -5581,7 +6193,7 @@
             "name": "left",
             "required": true,
             "schema": {
-              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+              "pattern": "^[0-9a-f]{64}$",
               "title": "Left",
               "type": "string"
             }
@@ -5591,7 +6203,7 @@
             "name": "right",
             "required": true,
             "schema": {
-              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+              "pattern": "^[0-9a-f]{64}$",
               "title": "Right",
               "type": "string"
             }
@@ -5627,6 +6239,51 @@
         ]
       }
     },
+    "/api/applications/{app_id}/content": {
+      "delete": {
+        "operationId": "erase_content_api_applications__app_id__content_delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "app_id",
+            "required": true,
+            "schema": {
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+              "title": "App Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Erase Content Api Applications  App Id  Content Delete",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Erase Content",
+        "tags": [
+          "application feed"
+        ]
+      }
+    },
     "/api/applications/{app_id}/datasets": {
       "post": {
         "operationId": "dataset_api_applications__app_id__datasets_post",
@@ -5636,6 +6293,7 @@
             "name": "app_id",
             "required": true,
             "schema": {
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
               "title": "App Id",
               "type": "string"
             }
@@ -5690,6 +6348,7 @@
             "name": "app_id",
             "required": true,
             "schema": {
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
               "title": "App Id",
               "type": "string"
             }
@@ -5726,58 +6385,6 @@
         "tags": [
           "application feed"
         ]
-      },
-      "post": {
-        "operationId": "experiment_api_applications__app_id__experiments_post",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "app_id",
-            "required": true,
-            "schema": {
-              "title": "App Id",
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/Experiment"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "201": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Experiment Api Applications  App Id  Experiments Post",
-                  "type": "object"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "summary": "Experiment",
-        "tags": [
-          "application feed"
-        ]
       }
     },
     "/api/applications/{app_id}/keys": {
@@ -5789,6 +6396,7 @@
             "name": "app_id",
             "required": true,
             "schema": {
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
               "title": "App Id",
               "type": "string"
             }
@@ -5834,6 +6442,7 @@
             "name": "app_id",
             "required": true,
             "schema": {
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
               "title": "App Id",
               "type": "string"
             }
@@ -5879,15 +6488,16 @@
         ]
       }
     },
-    "/api/applications/{app_id}/keys/{key_id}/{action}": {
+    "/api/applications/{app_id}/keys/{key_id}/revoke": {
       "post": {
-        "operationId": "change_key_api_applications__app_id__keys__key_id___action__post",
+        "operationId": "revoke_key_api_applications__app_id__keys__key_id__revoke_post",
         "parameters": [
           {
             "in": "path",
             "name": "app_id",
             "required": true,
             "schema": {
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
               "title": "App Id",
               "type": "string"
             }
@@ -5897,16 +6507,8 @@
             "name": "key_id",
             "required": true,
             "schema": {
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
               "title": "Key Id",
-              "type": "string"
-            }
-          },
-          {
-            "in": "path",
-            "name": "action",
-            "required": true,
-            "schema": {
-              "title": "Action",
               "type": "string"
             }
           }
@@ -5917,7 +6519,7 @@
               "application/json": {
                 "schema": {
                   "additionalProperties": true,
-                  "title": "Response Change Key Api Applications  App Id  Keys  Key Id   Action  Post",
+                  "title": "Response Revoke Key Api Applications  App Id  Keys  Key Id  Revoke Post",
                   "type": "object"
                 }
               }
@@ -5935,7 +6537,175 @@
             "description": "Validation Error"
           }
         },
-        "summary": "Change Key",
+        "summary": "Revoke Key",
+        "tags": [
+          "application feed"
+        ]
+      }
+    },
+    "/api/applications/{app_id}/keys/{key_id}/rotate": {
+      "post": {
+        "operationId": "rotate_key_api_applications__app_id__keys__key_id__rotate_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "app_id",
+            "required": true,
+            "schema": {
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+              "title": "App Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "key_id",
+            "required": true,
+            "schema": {
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+              "title": "Key Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RotationInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Rotate Key Api Applications  App Id  Keys  Key Id  Rotate Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Rotate Key",
+        "tags": [
+          "application feed"
+        ]
+      }
+    },
+    "/api/applications/{app_id}/policies": {
+      "get": {
+        "operationId": "policies_api_applications__app_id__policies_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "app_id",
+            "required": true,
+            "schema": {
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+              "title": "App Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  "title": "Response Policies Api Applications  App Id  Policies Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Policies",
+        "tags": [
+          "application feed"
+        ]
+      }
+    },
+    "/api/applications/{app_id}/settings": {
+      "put": {
+        "operationId": "settings_api_applications__app_id__settings_put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "app_id",
+            "required": true,
+            "schema": {
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+              "title": "App Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CaptureSettings"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Settings Api Applications  App Id  Settings Put",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Settings",
         "tags": [
           "application feed"
         ]
@@ -5950,6 +6720,7 @@
             "name": "app_id",
             "required": true,
             "schema": {
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
               "title": "App Id",
               "type": "string"
             }
@@ -5983,6 +6754,181 @@
           }
         },
         "summary": "Dashboard",
+        "tags": [
+          "application feed"
+        ]
+      }
+    },
+    "/api/applications/{app_id}/traces/{trace_id}": {
+      "get": {
+        "operationId": "detail_api_applications__app_id__traces__trace_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "app_id",
+            "required": true,
+            "schema": {
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+              "title": "App Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "trace_id",
+            "required": true,
+            "schema": {
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+              "title": "Trace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Detail Api Applications  App Id  Traces  Trace Id  Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Detail",
+        "tags": [
+          "application feed"
+        ]
+      }
+    },
+    "/api/applications/{app_id}/traces/{trace_id}/assessments": {
+      "post": {
+        "operationId": "assess_api_applications__app_id__traces__trace_id__assessments_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "app_id",
+            "required": true,
+            "schema": {
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+              "title": "App Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "trace_id",
+            "required": true,
+            "schema": {
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+              "title": "Trace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Assessment"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Assess Api Applications  App Id  Traces  Trace Id  Assessments Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Assess",
+        "tags": [
+          "application feed"
+        ]
+      }
+    },
+    "/api/applications/{app_id}/traces/{trace_id}/content": {
+      "get": {
+        "operationId": "content_api_applications__app_id__traces__trace_id__content_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "app_id",
+            "required": true,
+            "schema": {
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+              "title": "App Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "trace_id",
+            "required": true,
+            "schema": {
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+              "title": "Trace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Content Api Applications  App Id  Traces  Trace Id  Content Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Content",
         "tags": [
           "application feed"
         ]
@@ -8354,38 +9300,26 @@
         "summary": "Dataset Targets"
       }
     },
-    "/v1/comparisons/{left}/{right}": {
-      "get": {
-        "operationId": "read_comparison_v1_comparisons__left___right__get",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "left",
-            "required": true,
-            "schema": {
-              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
-              "title": "Left",
-              "type": "string"
+    "/v2/connect": {
+      "post": {
+        "operationId": "connect_v2_connect_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Connection"
+              }
             }
           },
-          {
-            "in": "path",
-            "name": "right",
-            "required": true,
-            "schema": {
-              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
-              "title": "Right",
-              "type": "string"
-            }
-          }
-        ],
+          "required": true
+        },
         "responses": {
           "200": {
             "content": {
               "application/json": {
                 "schema": {
                   "additionalProperties": true,
-                  "title": "Response Read Comparison V1 Comparisons  Left   Right  Get",
+                  "title": "Response Connect V2 Connect Post",
                   "type": "object"
                 }
               }
@@ -8403,15 +9337,15 @@
             "description": "Validation Error"
           }
         },
-        "summary": "Read Comparison",
+        "summary": "Connect",
         "tags": [
           "application feed"
         ]
       }
     },
-    "/v1/grants": {
+    "/v2/grants": {
       "post": {
-        "operationId": "grant_v1_grants_post",
+        "operationId": "grant_v2_grants_post",
         "requestBody": {
           "content": {
             "application/json": {
@@ -8428,7 +9362,7 @@
               "application/json": {
                 "schema": {
                   "additionalProperties": true,
-                  "title": "Response Grant V1 Grants Post",
+                  "title": "Response Grant V2 Grants Post",
                   "type": "object"
                 }
               }
@@ -8452,9 +9386,9 @@
         ]
       }
     },
-    "/v1/grants/{id}": {
+    "/v2/grants/{id}": {
       "delete": {
-        "operationId": "revoke_grant_v1_grants__id__delete",
+        "operationId": "revoke_grant_v2_grants__id__delete",
         "parameters": [
           {
             "in": "path",
@@ -8473,7 +9407,7 @@
               "application/json": {
                 "schema": {
                   "additionalProperties": true,
-                  "title": "Response Revoke Grant V1 Grants  Id  Delete",
+                  "title": "Response Revoke Grant V2 Grants  Id  Delete",
                   "type": "object"
                 }
               }
@@ -8497,9 +9431,52 @@
         ]
       }
     },
-    "/v1/traces": {
+    "/v2/outcomes": {
       "post": {
-        "operationId": "ingest_v1_traces_post",
+        "operationId": "outcome_v2_outcomes_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Outcome"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Outcome V2 Outcomes Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Outcome",
+        "tags": [
+          "application feed"
+        ]
+      }
+    },
+    "/v2/traces": {
+      "post": {
+        "operationId": "ingest_v2_traces_post",
         "requestBody": {
           "content": {
             "application/json": {
@@ -8516,7 +9493,7 @@
               "application/json": {
                 "schema": {
                   "additionalProperties": true,
-                  "title": "Response Ingest V1 Traces Post",
+                  "title": "Response Ingest V2 Traces Post",
                   "type": "object"
                 }
               }
@@ -8535,51 +9512,6 @@
           }
         },
         "summary": "Ingest",
-        "tags": [
-          "application feed"
-        ]
-      }
-    },
-    "/v1/traces/{id}": {
-      "get": {
-        "operationId": "read_trace_v1_traces__id__get",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "id",
-            "required": true,
-            "schema": {
-              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
-              "title": "Id",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Read Trace V1 Traces  Id  Get",
-                  "type": "object"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "summary": "Read Trace",
         "tags": [
           "application feed"
         ]

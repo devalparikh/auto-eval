@@ -175,7 +175,7 @@ def create_application(
 
     @app.exception_handler(RequestValidationError)
     async def validation_error(request, error):
-        if request.url.path.startswith(("/api/auth/", "/api/applications", "/v1/")):
+        if request.url.path.startswith(("/api/auth/", "/api/applications", "/v2/")):
             return JSONResponse({"detail": "Invalid request"}, status_code=422)
         return await request_validation_exception_handler(request, error)
 

@@ -60,7 +60,6 @@ class Settings(BaseSettings):
     allow_self_registration: bool = False
     allow_email_link_sign_in: bool = False
     session_seconds: int = Field(default=900, ge=60, le=3600)
-    feed_allow_production: bool = False
 
     trace_retention_days: int = Field(default=30, ge=1, le=3650)
     evaluation_max_pending_runs: int = Field(default=4, ge=1, le=100)

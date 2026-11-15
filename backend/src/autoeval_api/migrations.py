@@ -1139,6 +1139,99 @@ def _apply_version_twenty(connection) -> None:
             connection.execute(text(f'REVOKE ALL ON "{table}" FROM "{role}"'))
 
 
+def _apply_version_twenty_one(connection) -> None:
+    from autoeval_api.models import ApplicationCaptureSettingsRecord
+
+    _add_column_if_missing(
+        connection,
+        "feed_keys",
+        "label",
+        "VARCHAR(80) NOT NULL DEFAULT 'App connection'",
+    )
+    _add_column_if_missing(connection, "feed_keys", "created", "FLOAT NOT NULL DEFAULT 0")
+    _add_column_if_missing(connection, "feed_keys", "retire_at", "FLOAT")
+    _add_column_if_missing(connection, "feed_objects", "parent_id", "VARCHAR(64)")
+    _add_column_if_missing(connection, "feed_objects", "request_digest", "VARCHAR(64)")
+    connection.execute(
+        text("CREATE INDEX IF NOT EXISTS ix_feed_objects_parent_id ON feed_objects (parent_id)")
+    )
+    ApplicationCaptureSettingsRecord.__table__.create(connection, checkfirst=True)
+    # Historical policies/observations stay immutable; old credentials gain no new privilege.
+    connection.execute(
+        text("UPDATE feed_keys SET revoked=true WHERE scope <> 'application:connect'")
+    )
+    connection.execute(
+        text("""
+        INSERT INTO feed_capture_settings
+          (application_id, production_enabled, categories_initialized, retention_days,
+           content_retention_days, content_categories)
+        SELECT id, false, true, retention_days, retention_days, '[]'
+        FROM feed_applications WHERE id NOT IN (SELECT application_id FROM feed_capture_settings)
+    """)
+    )
+    evidence = "'trace','trace2','content2','outcome2','assessment2'"
+    if connection.dialect.name == "postgresql":
+        schema = connection.scalar(text("SELECT current_schema()"))
+        quoted = connection.dialect.identifier_preparer.quote(schema)
+        connection.execute(
+            text(f"""
+            CREATE OR REPLACE FUNCTION {quoted}.autoeval_feed_guard() RETURNS trigger
+            LANGUAGE plpgsql SECURITY INVOKER SET search_path = pg_catalog, {quoted}, pg_temp AS $$
+            BEGIN
+                IF TG_OP = 'DELETE' THEN
+                    IF OLD.kind NOT IN ({evidence}) THEN RAISE EXCEPTION 'immutable_record'; END IF;
+                    RETURN OLD;
+                END IF;
+                IF OLD.kind IN ('grant','grant2') AND NEW.revoked AND
+                   (to_jsonb(OLD) - 'revoked') = (to_jsonb(NEW) - 'revoked')
+                   THEN RETURN NEW; END IF;
+                IF OLD.kind IN ({evidence},'receipt2') AND NEW.expires > 0 AND
+                   (OLD.expires = 0 OR NEW.expires <= OLD.expires) AND
+                   (to_jsonb(OLD) - 'expires') = (to_jsonb(NEW) - 'expires')
+                   THEN RETURN NEW; END IF;
+                RAISE EXCEPTION 'immutable_record';
+            END; $$;
+        """)
+        )
+        connection.execute(text("ALTER TABLE feed_capture_settings ENABLE ROW LEVEL SECURITY"))
+        connection.execute(text("REVOKE ALL ON feed_capture_settings FROM PUBLIC"))
+        roles = set(connection.execute(text("SELECT rolname FROM pg_roles")).scalars())
+        for role in ("anon", "authenticated"):
+            if role in roles:
+                connection.execute(text(f'REVOKE ALL ON feed_capture_settings FROM "{role}"'))
+    else:
+        unchanged = " AND ".join(
+            f"NEW.{column} IS OLD.{column}"
+            for column in (
+                "application_id",
+                "kind",
+                "id",
+                "body",
+                "grant_id",
+                "parent_id",
+                "request_digest",
+            )
+        )
+        connection.execute(
+            text(f"""
+            CREATE TRIGGER IF NOT EXISTS feed_v2_delete_guard BEFORE DELETE ON feed_objects
+            WHEN OLD.kind NOT IN ({evidence})
+            BEGIN SELECT RAISE(ABORT, 'immutable_record'); END
+        """)
+        )
+        connection.execute(
+            text(f"""
+            CREATE TRIGGER IF NOT EXISTS feed_v2_update_guard BEFORE UPDATE ON feed_objects
+            WHEN NOT (({unchanged}) AND (
+                (OLD.kind IN ('grant','grant2') AND NEW.revoked=1 AND NEW.expires IS OLD.expires)
+                OR (OLD.kind IN ({evidence},'receipt2') AND NEW.revoked IS OLD.revoked
+                    AND NEW.expires>0
+                    AND (OLD.expires=0 OR NEW.expires<=OLD.expires))))
+            BEGIN SELECT RAISE(ABORT, 'immutable_record'); END
+        """)
+        )
+
+
 # Ordered by version: index 0 is version 1, and a version is recorded as applied
 # only after its function returns. Append new migrations; never reorder or edit
 # one that has shipped.
@@ -1163,6 +1256,7 @@ MIGRATIONS: tuple[Migration, ...] = (
     _apply_version_eighteen,
     _apply_version_nineteen,
     _apply_version_twenty,
+    _apply_version_twenty_one,
 )
 
 MIGRATION_VERSION = len(MIGRATIONS)
