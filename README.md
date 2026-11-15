@@ -1,6 +1,6 @@
 # AutoEval
 
-AutoEval is a hosted evaluation and observation workspace with a FastAPI backend and Next.js dashboard. Applications use the private `@devalparikh/autoeval` SDK in `packages/trace-feed` to send approved observations to `/api/backend/v1/traces`, retaining their own inference and tool loops. Operators review the feed in `/applications` on the Vercel/Supabase instance.
+AutoEval is a hosted evaluation and observation workspace with a FastAPI backend and Next.js dashboard. Applications use the private `@devalparikh/autoeval` SDK in `packages/trace-feed` to send consented observations to `/api/backend/v2/traces`, retaining their own inference and tool loops. Operators create app keys and review observations in `/applications` on the Vercel/Supabase instance. See the [Lifty integration guide](docs/lifty-integration.md) and [SDK contract](packages/trace-feed/README.md).
 
 The workbench also builds, traces, versions, and evaluates LangGraph agent systems. Each system owns its graphs, prompts, traces, datasets, evaluation runs, and results so every run is reproducible and cross-system combinations are rejected. Local development and self-hosting remain supported paths; hosted ingestion does not require moving application execution into AutoEval.
 

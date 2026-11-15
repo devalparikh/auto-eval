@@ -341,6 +341,12 @@ def test_finalized_comparison_across_policy_versions_and_run_identity(feed):
         }
         assert sdk.post("/v2/traces", json=item).status_code == 201
     compared = admin.get(base + f"/comparisons/{runs[0]}/{runs[1]}")
+    available = admin.get(base + "/experiments", params={"evaluations_only": True}).json()
+    assert [row["id"] for row in available] == sorted(runs)
+    remaining = admin.get(
+        base + "/experiments", params={"evaluations_only": True, "after": available[0]["id"]}
+    ).json()
+    assert [row["id"] for row in remaining] == [available[1]["id"]]
     assert compared.status_code == 200, compared.text
     assert all(field["compatible"] for field in compared.json()["fields"])
     assert compared.json()["cases"][0]["afterStatus"] == "partial"
@@ -596,3 +602,59 @@ def test_sqlite_withdrawal_serializes_with_inflight_capture(tmp_path):
         assert service.observations(session, app_id) == []
         assert session.get(FeedObjectRecord, (app_id, "grant2", grant_id)).revoked
     engine.dispose()
+
+
+def test_settings_precondition_and_retention_edit_before_first_policy(feed):
+    admin, sdk, _, base, _, _, _ = feed
+    state = next(
+        item for item in admin.get("/api/applications").json() if item["id"] == base.split("/")[-1]
+    )
+    assert (
+        admin.put(
+            base + "/settings",
+            json={**state["settings"], "production_enabled": False},
+            headers={"if-match": state["settingsVersion"]},
+        ).status_code
+        == 200
+    )
+    assert (
+        admin.put(
+            base + "/settings",
+            json=state["settings"],
+            headers={"if-match": state["settingsVersion"]},
+        ).status_code
+        == 409
+    )
+    created = admin.post(
+        "/api/applications",
+        json={"name": "First policy later", "key": {"expiresAt": int(time.time() * 1000) + 60000}},
+    ).json()
+    newbase = "/api/applications/" + created["id"]
+    assert admin.put(newbase + "/settings", json={"retention_days": 90}).status_code == 200
+    sdk.headers["authorization"] = "Bearer " + created["key"]["token"]
+    connected = sdk.post("/v2/connect", json={"policy": policy(), "experiment": experiment()})
+    assert connected.json()["settings"]["content_categories"] == ["body_scans", "conversation"]
+
+
+def test_category_discovery_pages_beyond_one_hundred_versions(feed):
+    admin, sdk, _, base, _, _, _ = feed
+    for index in range(101):
+        changed = policy()
+        changed["content"]["added"] = {
+            "category": f"scope_{index}",
+            "valueSchema": {"type": "boolean"},
+        }
+        assert (
+            sdk.post(
+                "/v2/connect", json={"policy": changed, "experiment": experiment()}
+            ).status_code
+            == 200
+        )
+    first = admin.get(base + "/policy-categories").json()
+    assert len(first) == 100
+    second = admin.get(base + "/policy-categories", params={"after": first[-1]["id"]}).json()
+    assert len(second) == 2
+    assert set(item["id"] for item in first).isdisjoint(item["id"] for item in second)
+    assert {f"scope_{index}" for index in range(101)} <= {
+        category for item in [*first, *second] for category in item["categories"]
+    }

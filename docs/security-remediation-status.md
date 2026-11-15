@@ -74,7 +74,7 @@ implemented, with synthetic regression evidence; this is not a production approv
   missing parents. PostgreSQL regressions attempt the runtime-role TEMP shadow
   against fresh and upgraded v18 schemas. Existing migrations remain unchanged;
   the official fresh-schema path also applies migration 19 (no ORM columns change).
-- Both explicit SDK initializers normalize failures to `Invalid feed contract`,
+- The pre-v2 SDK initializers normalized failures to `Invalid feed contract`,
   without raw endpoint input, nested cause, or credential-bearing properties.
   The package-consumer tests exercise malformed synthetic credentials.
 
@@ -82,3 +82,32 @@ Required review surfaces: `api-session.ts`, `use-api-resource.ts`, `api.ts`,
 `auth-gate.tsx`, migration 19 and its runtime-role regression, and the SDK
 initializer/receiver changes inherited from PR26. Re-run independent review at
 all new stack heads before merging. License and publication settings are unchanged.
+
+
+## Capture v2 integration disposition
+
+The v2 SDK supersedes the earlier throwing initializer: missing/invalid configuration
+returns an inert client with a sanitized reason. Consent is app-owned and off by
+default; there is no environment user-ID allowlist or separate grants credential.
+The one app key can assert grants only for its own app, and ingest independently
+checks grant/source/policy and live key state. App creation defaults to production
+on and Keep; the first SDK policy establishes content categories, while later
+additions require settings permission and consent. These are explicit product
+defaults, separate from user opt-in.
+
+Diagnostic content is projected/redacted before transmission, schema-bounded and
+checked at ingest, stored separately and readable only through an explicit admin
+route. Redaction does not guarantee anonymity, especially for health information.
+Withdrawal deletes evidence, content erasure is independent, and durable non-content
+receipts prevent resurrection. PostgreSQL row locks and SQLite write reservations
+serialize capture with withdrawal. Existing migrated apps retain conservative
+permissions and old-scope credentials are revoked.
+
+Independent backend/SDK review addressed expiry resurrection, expired late content,
+regex CPU cost, huge integers, malformed Unicode, SQLite consent races, recursive
+SDK input budgets, withdrawal exception leakage, wire-size loss of valid summaries
+and mutable event references. Regression tests cover these boundaries. The packed
+SDK has no runtime dependencies. Registry metadata prepares restricted GitHub
+Packages publication only; publishing, release and deployment remain separate
+explicit approvals. Keep retention and backup deletion tradeoffs are tracked in
+[development-todos.md](development-todos.md).

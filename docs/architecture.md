@@ -237,19 +237,22 @@ newest snapshot for an identity — exists only on the interactive run path, whe
 
 ## Imported application observations
 
-`packages/trace-feed` provides the private `@devalparikh/autoeval` SDK. Applications
-retain their inference/tool loop and submit approved metadata after completion to
-FastAPI's `/v1/traces`, exposed by Vercel at `/api/backend/v1/traces`. The
-`/applications` dashboard reviews these observations. See the hosted implementation
-below and the [hosted client contract](hosted-client-contract.md) for the exact
-capture, authorization and registration contract.
+`packages/trace-feed` provides the server-only `@devalparikh/autoeval` SDK. Apps
+retain inference and tools. Local `begin`/`step` calls collect only consented,
+bounded evidence; after-response `end` auto-registers immutable policy and
+experiment versions and sends traces to `/api/backend/v2/traces`. Capture never
+executes provider calls on the instance. The `/applications` portal creates app
+keys, manages app settings and reviews summaries, steps, outcomes and optional
+admin-only diagnostic content. The separate Node receiver and v1 write API are removed.
 
-The package's optional `/server` entry point still provides `startFeed`, a
-loopback-only Node receiver with its own SQLite receipts. It supports isolated
-local consumers and package tests; it is not the hosted persistence layer. Neither
-receiver turns observations into mutable workbench graph/prompt versions or
-finalized datasets. See [package and feed architecture](package-and-feed.md) for
-current boundaries and the historical adoption decisions.
+Policy and experiment declarations, consent grants and content-free erasure
+receipts remain immutable. Retention defaults to Keep. Expiry, explicit erasure
+and consent withdrawal remove evidence without permitting delayed resends to
+recreate it. SQLite uses a write reservation and PostgreSQL locks the app row to
+serialize capture with consent/key/settings changes. A production source is bound
+to its experiment and cannot become a synthetic evaluation. See the
+[hosted contract](hosted-client-contract.md), [architecture](package-and-feed.md)
+and [Lifty guide](lifty-integration.md).
 
 ## Product versus customer deployment repositories
 
@@ -260,9 +263,9 @@ AutoEval owns the generic SDKs, server, UI, self-host artifacts, public configur
 `services/hosted_auth.py` owns verified enrollment, opaque sessions and durable rate
 limits; the request guard is the server-wide authorization boundary. Existing
 workbench resources are instance-admin-only. `services/application_feed.py` owns
-immutable application policies, datasets/experiments, consent and metadata-only
-observations. `api/routes/auth.py` and `applications.py` expose thin HTTP boundaries.
-The application key determines the app/environment; payloads cannot choose an owner.
+immutable policy/dataset/experiment declarations, consented observations and
+separate diagnostic content. `api/routes/auth.py` and `applications.py` expose thin HTTP boundaries.
+The application key determines the app; payloads cannot choose an owner.
 The domain app owns inference. No hosted ingest route executes providers or imported
 code. Frontend auth and application features own their async request state.
 
@@ -280,11 +283,11 @@ because they still serve distinct consumers:
 - `python -m autoeval_api.application_benchmark`, harness routes/services and
   migration-13 tables: frozen-case local adapter benchmarks, including the
   dependent deval-blog integration. Hosted ingestion does not replace execution.
-- Node `startFeed`: a separately testable local SDK receiver without FastAPI.
 - Basic preview authentication: supported single-user deployment compatibility.
 - Workbench graphs, datasets, evaluations and opt-in local inference/training:
   reproducible execution and hardware-local workflows beyond observation capture.
 - Self-host and server-release tooling/docs: installation and upgrade boundaries
   for other operators, independent of the author's hosted instance.
 
-No runtime code, schema history or scripts are retired by this framing cleanup.
+Capture v2 retires the standalone Node receiver and v1 write APIs. Shipped schema
+history and the independent benchmark/runner paths remain.

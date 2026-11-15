@@ -105,8 +105,10 @@ installation capabilities belong upstream, not in a private source fork.
 A supported public container on a compatible host is another customer path once
 that image is released and verified. Other customers may choose other supported targets; that does not reopen the
 confirmed Vercel decision for this instance. Provisioning still needs separate
-operator approval. The current loopback Node/SQLite receipt service is a
-local development option, not a serverless or public hosted receiver.
+operator approval. Capture v2 uses the FastAPI backend for hosted and loopback development. The
+standalone Node receiver is removed. App keys/settings and consent follow the
+[hosted contract](hosted-client-contract.md); the [rollout handoff](application-capture-rollout.md)
+separates product publication, instance migration and Lifty-owner work.
 
 A link or authorized facade in a consuming application can lead to the customer's
 AutoEval UI. It does not move product ownership into the application repo and must

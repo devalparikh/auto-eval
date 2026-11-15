@@ -193,8 +193,8 @@ def create_application(
         CORSMiddleware,
         allow_origins=settings.web_origins,
         allow_credentials=False,
-        allow_methods=["GET", "POST", "PUT", "OPTIONS"],
-        allow_headers=["Content-Type", "Accept"],
+        allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+        allow_headers=["Content-Type", "Accept", "If-Match"],
     )
     from autoeval_api.services.hosted_auth import HostedAuth
 

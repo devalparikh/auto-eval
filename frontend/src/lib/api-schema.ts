@@ -227,6 +227,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/applications/{app_id}/policy-categories": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Policy Categories */
+        get: operations["policy_categories_api_applications__app_id__policy_categories_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/applications/{app_id}/settings": {
         parameters: {
             query?: never;
@@ -3799,7 +3816,10 @@ export interface operations {
     };
     experiments_api_applications__app_id__experiments_get: {
         parameters: {
-            query?: never;
+            query?: {
+                after?: string | null;
+                evaluations_only?: boolean;
+            };
             header?: never;
             path: {
                 app_id: string;
@@ -3975,6 +3995,41 @@ export interface operations {
     policies_api_applications__app_id__policies_get: {
         parameters: {
             query?: never;
+            header?: never;
+            path: {
+                app_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    }[];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    policy_categories_api_applications__app_id__policy_categories_get: {
+        parameters: {
+            query?: {
+                after?: string | null;
+            };
             header?: never;
             path: {
                 app_id: string;

@@ -156,3 +156,10 @@ Capture limits: up to 128 steps and 96 KiB of serialized step data, with
 summary inside the 256 KiB ingest limit. Lazy projection callbacks are app code:
 keep them synchronous and bounded, and do not perform I/O or arbitrary deep
 cloning inside them. The SDK's abort deadline cannot preempt a blocking app callback.
+
+Consent generation ownership: the app retains a ledger of every active grant for
+each user. Widening may keep older generations/history, but full withdrawal must
+revoke all of them. Narrowing conservatively revokes all prior generations and
+erases their evidence. A delayed outcome uses its reference's original grant,
+resolved under the authenticated user's current enabled/scoped choice; a new grant
+ID cannot be substituted for an older trace's grant.

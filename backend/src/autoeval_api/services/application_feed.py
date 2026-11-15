@@ -87,10 +87,12 @@ def settings_dict(row):
 
 
 def application_dict(session, app):
+    snapshot = settings_dict(settings(session, app))
     return {
         "id": app.id,
         "name": app.name,
-        "settings": settings_dict(settings(session, app)),
+        "settings": snapshot,
+        "settingsVersion": fingerprint("settings", snapshot),
     }
 
 
@@ -130,10 +132,15 @@ def create_application(session, principal, body):
     return {"id": app.id, "key": key}
 
 
-def update_settings(session, app, principal, body):
+def update_settings(session, app, principal, body, expected_version=None):
     row = settings(session, app)
+    if expected_version is not None and expected_version != fingerprint(
+        "settings", settings_dict(row)
+    ):
+        raise HTTPException(409, "Settings changed; reload before saving")
     # An explicit admin choice before first connect must not be overwritten by the SDK.
-    row.categories_initialized = True
+    if body.content_categories != row.content_categories:
+        row.categories_initialized = True
     for key, value in body.model_dump().items():
         setattr(row, key, value)
     # Decreasing a deadline never changes content and can never extend an existing record.
@@ -627,19 +634,29 @@ def outcome(session, app, body):
     return {"id": body.id, "coverage": coverage}
 
 
-def objects(session, app_id, kind, limit=100):
+def objects(session, app_id, kind, limit=100, *, after=None, evaluations_only=False):
+    query = select(FeedObjectRecord).where(
+        FeedObjectRecord.application_id == app_id, FeedObjectRecord.kind == kind, active_clause()
+    )
+    if after is not None:
+        query = query.where(FeedObjectRecord.id > after)
+    if evaluations_only:
+        query = query.where(FeedObjectRecord.body["mode"].as_string().in_(("scripted", "live")))
     return [
         {**row.body, "id": row.id}
-        for row in session.scalars(
-            select(FeedObjectRecord)
-            .where(
-                FeedObjectRecord.application_id == app_id,
-                FeedObjectRecord.kind == kind,
-                active_clause(),
-            )
-            .order_by(FeedObjectRecord.id)
-            .limit(limit)
-        )
+        for row in session.scalars(query.order_by(FeedObjectRecord.id).limit(limit))
+    ]
+
+
+def policy_categories(session, app_id, after=None):
+    query = select(FeedObjectRecord.id, FeedObjectRecord.body["content"]).where(
+        FeedObjectRecord.application_id == app_id, FeedObjectRecord.kind == "policy2"
+    )
+    if after is not None:
+        query = query.where(FeedObjectRecord.id > after)
+    return [
+        {"id": id, "categories": sorted({field["category"] for field in content.values()})}
+        for id, content in session.execute(query.order_by(FeedObjectRecord.id).limit(100))
     ]
 
 

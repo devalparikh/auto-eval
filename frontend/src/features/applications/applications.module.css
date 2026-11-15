@@ -51,6 +51,7 @@
 }
 
 .note {
+  overflow-wrap: anywhere;
   margin: 6px 0 0;
   max-width: 68ch;
   color: var(--text-muted);
@@ -223,4 +224,45 @@
   border-radius: 10px;
   padding: 10px 12px;
   background: var(--card-inset);
+}
+
+.settingsForm {
+  max-width: 880px;
+}
+.fieldset {
+  display: grid;
+  gap: 12px;
+  padding: 0;
+  margin: 0;
+  border: 0;
+  min-width: 0;
+}
+.checkRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 12px 0;
+  font-size: 13px;
+}
+.detail {
+  display: grid;
+  gap: 12px;
+  margin-top: 16px;
+}
+.detail pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 12px;
+  max-height: 440px;
+  overflow-y: auto;
+}
+.traceButton {
+  all: unset;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.traceButton:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
 }
