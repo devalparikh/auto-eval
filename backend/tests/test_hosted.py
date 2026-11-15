@@ -506,3 +506,32 @@ def test_pending_registration_still_requires_verified_identity_and_numeric_otp(h
         result = client.post("/api/auth/verify", json=body, headers=headers)
         assert result.status_code == 401
         assert "subject" not in result.json()
+
+
+def test_hosted_service_prefix_preserves_authorization(hosted):
+    from autoeval_api.api.middleware import HostedPrefixMiddleware
+
+    _, app, _, _, _ = hosted
+    with TestClient(HostedPrefixMiddleware(app), base_url=ORIGIN) as client:
+        assert client.get("/api/backend/api/health").status_code == 200
+        assert client.get("/api/backend/api/auth/bootstrap").json() == {"mode": "supabase"}
+        for prefix in ["", "/api/backend"]:
+            for path in ["/api/catalog", "/api/applications", "/api/auth/session"]:
+                assert client.get(prefix + path).status_code == 401
+        result = client.post(
+            "/api/backend/api/auth/verify",
+            json={"email": EMAIL, "token": "123456"},
+            headers={"origin": ORIGIN},
+        )
+        assert result.status_code == 200
+        assert client.get("/api/backend/api/catalog").status_code == 200
+        app.state.settings.operator_allowlist = {}
+        assert client.get("/api/backend/api/catalog").status_code == 401
+        app.state.settings.allow_self_registration = True
+        result = client.post(
+            "/api/backend/api/auth/verify",
+            json={"email": EMAIL, "token": "123456"},
+            headers={"origin": ORIGIN},
+        )
+        assert result.json() == {"authenticated": False, "status": "pending", "subject": SUBJECT}
+        assert client.get("/api/backend/api/applications").status_code == 401
