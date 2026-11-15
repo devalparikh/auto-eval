@@ -111,3 +111,20 @@ application's authorization middleware and routers run. Local ASGI entrypoints
 remain unchanged. Direct backend paths receive the same authorization checks;
 forwarded-prefix headers cannot select an alternate path. This is part of the
 new server candidate and requires a new release pin before deployment.
+
+## Hosted Python dependencies in Services
+
+The backend service selects its existing `hosted` optional dependency extra with
+`uv pip install --link-mode=copy '.[hosted]'`. Vercel executes this in its managed service virtual
+environment. Its default `uv sync` uses `pyproject.toml` and omits optional extras
+even when `requirements.txt` requests them. The resulting function otherwise
+fails to import `psycopg` before startup. Project-level install overrides do not
+configure individual Services.
+
+This installs dependencies already declared by the product; it changes no schema,
+auth policy, migration behavior, dependency bounds or license. See the official
+[Services build-setting rules](https://vercel.com/kb/guide/vercel-services).
+
+Copy mode is explicit because Vercel can place its restored uv cache and managed
+service environment on different filesystems. It avoids cross-device hard-link
+errors without disabling TLS, package integrity checks, or the existing cache.

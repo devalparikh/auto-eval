@@ -4,6 +4,8 @@ import io
 import json
 import tarfile
 import tempfile
+import shlex
+import tomllib
 import unittest
 from pathlib import Path
 
@@ -53,6 +55,16 @@ class ReleaseTests(unittest.TestCase):
             (stage / "frontend/package-lock.json").read_bytes(),
             (ROOT / "frontend/package-lock.json").read_bytes(),
         )
+
+    def test_backend_service_installs_declared_postgres_extra(self):
+        self.install()
+        stage = self.root / "stage"
+        service = json.loads((stage / "vercel.json").read_text())["services"]["backend"]
+        command = shlex.split(service["installCommand"])
+        self.assertEqual(command, ["uv", "pip", "install", "--link-mode=copy", ".[hosted]"])
+        manifest = tomllib.loads((stage / service["root"] / "pyproject.toml").read_text())
+        self.assertIn("psycopg[binary]>=3.2,<4", manifest["project"]["optional-dependencies"]["hosted"])
+        self.assertNotIn("installCommand", json.loads((stage / "vercel.json").read_text()))
 
     def test_archive_tamper(self):
         self.bundle.write_bytes(self.bundle.read_bytes() + b"tamper")
