@@ -1,142 +1,158 @@
-# AutoEval application feed (unpublished 0.1.0)
+# AutoEval SDK
 
-A Node ESM package for **importing after app-owned inference**, with an authenticated
-local receipt service. No model gateway, subprocess runner, provider key, framework
-instrumentation, app-specific schema, import-time network call or background exporter.
+Server-only capture for apps that own their model and tool calls. Requires the
+capture-v2 backend. Candidate version `0.2.0-private.1`; publication is a separate
+operator action. No dependency on an agent framework, background exporter or
+provider. Node.js 22.22.1 or later.
 
-This is a local metadata feed, separate from the existing FastAPI workbench. It does
-not add observations to the workbench UI or its finalized datasets. Hosted Postgres,
-SSO, raw-content replay and Python packaging are not implemented. Node >=22.22.1 is
-required; only Node 24.22.1 was tested in this change. The local server uses
-`node:sqlite`, which is experimental on some supported Node releases.
+Create an application in AutoEval by naming it and choosing a key lifespan. Keep
+its key in the app's backend environment. The SDK registers immutable policies and
+experiment fingerprints automatically; no console snippets or manual experiment
+IDs. Production capture defaults on, retention defaults to **Keep**, and the first
+policy establishes content permissions. Those are editable app settings. Later
+content categories require app permission and explicit user consent.
 
-## Build and consume without publishing
+```ts
+import { artifactHash, createCaptureFromEnv, type Policy } from '@devalparikh/autoeval';
 
-```sh
-npm test
-npm pack --pack-destination /tmp
-# In a consumer, install the exact locally built artifact:
-npm install /tmp/devalparikh-autoeval-0.1.0.tgz
+const policy = {
+  schemaVersion: 2,
+  metrics: { latency_ms: { semanticId: 'run.latency', definitionVersion: 1, unit: 'ms', min: 0 } },
+  checks: { validated: { semanticId: 'reply.valid', definitionVersion: 1, expected: true } },
+  steps: { read_records: { attributes: { rows: { type: 'integer' } } } },
+  outcomes: { proposal_decision: { attributes: {
+    decision: { type: 'string', enum: ['applied', 'dismissed', 'stale'] },
+  } } },
+  content: { conversation: { category: 'conversation', valueSchema: { type: 'string', maxLength: 8000 } } },
+} satisfies Policy;
+
+const capture = createCaptureFromEnv({
+  policy,
+  experiment: {
+    revision: { kind: 'git-sha1', value: buildCommit },
+    promptHash: artifactHash(systemPrompt),
+    configHash: artifactHash(reviewedStaticConfig),
+    graphHash: null,
+    models: [{ role: 'trainer', provider: 'openrouter', model: configuredModel }],
+  },
+  redactorVersion: artifactHash(reviewedRedactorSource),
+});
+
+// Resolve from the authenticated user's saved choice; default is undefined/off.
+// grantId is a random, durable UUID, never the user's ID or an ID hash.
+const run = capture.begin({ consent: savedConsent });
+run.step({ id: 'read_1', kind: 'tool', name: 'read_records', status: 'ok', attributes: { rows: 3 } });
+// Persist run.reference with the app's saved reply for later outcomes.
+// Schedule AFTER the complete SSE/JSON response using the host lifecycle hook.
+after(() => run.end({
+  status: 'ok', metrics: { latency_ms: 420 }, checks: { validated: true },
+  content: () => ({ conversation: appRedactedConversation }),
+}));
 ```
 
-`prepack` builds `dist` from dependency-free ESM and declaration files. The archive
-contains only `dist`, this README and package metadata; no tests, database, tokens,
-application source, fixture content or environment files. There are no consumer
-install scripts. `private: true` prevents accidental registry publication; the
-repository currently has no declared open-source license. An approved license,
-namespace ownership and publication decision must precede public distribution.
-The intended public name is `@devalparikh/autoeval`, subject to registry ownership.
-Use an access-restricted registry if private distribution is approved instead.
-Never overwrite a published version. Patch for compatible fixes, minor for additive
-opt-in features, major for incompatible API changes; wire `schemaVersion` versions
-independently and retain v1 readers. Pin exact artifacts and lockfile integrity.
-A pip client is deferred until a real Python consumer needs it; the JSON contract
-is language-neutral, but cross-language hash compatibility has not been tested.
+`begin` and `step` are local and synchronous. `end` is single-use and performs at
+most one attempt per operation, within one total deadline (default/max 2 seconds),
+including registration, grants and ingestion. Do not await it before sending the
+reply or before closing SSE. Use Next.js `after` or the host's supported request
+lifecycle extension; an untracked promise can be killed by serverless runtimes.
+Invalid configuration returns an inert capture object; network failures return a
+small status and never throw into the app. The SDK does not retry or queue traces.
 
-## App capture
+## Consent
 
-```js
-import { createCapture } from "@devalparikh/autoeval";
-const capture = createCapture(); // disabled, no credentials or network required
-// After approval, pass enabled, endpoint, ingest token, registered experimentId,
-// source and an exact { metrics: [...], checks: [...] } projection policy.
-// await capture.capture({ consent, startedAt, endedAt, caseId, project: () => ({
-//   metrics: { model_calls: 1 }, checks: { validated: true }
-// }) });
+Consent is app-owned, per user and **off by default**. There is no SDK environment
+allowlist or portal list of user identities. The app must load consent server-side
+after authenticating the caller; never trust a boolean from a request body.
+
+```ts
+const savedConsent = {
+  granted: true,
+  id: opaqueGrantId,
+  categories: ['conversation', 'workout_records', 'body_scans'],
+  expiresAt: null,
+};
 ```
 
-Only the application's trusted server may use capture. Obtain current explicit
-consent from the authenticated account outside model arguments, map it to a random
-grant ID locally and check revocation before capture. An admin separately registers
-the matching grant in the receiver. Synthetic grants are fixture authorization,
-**not user consent**. Do not grant an application admin credentials.
+Missing, false, expired or locally withdrawn consent produces no reference, steps,
+content projection or network requests. The instance independently requires an
+active grant. New consent categories require a new grant ID; immutable grants
+cannot be widened in place. Revoke the previous grant if the user withdraws or
+narrows consent. Revocation deletes its evidence and leaves a non-content
+tombstone. Store the user's disabled setting first, call
+`capture.withdraw({ grantId })`, and retain a durable pending-withdrawal record
+until `status: 'revoked'` is confirmed. An outage must not silently discard a
+privacy deletion. This reconciliation is app work, separate from trace retries.
 
-The SDK evaluates `project()` only after enablement and consent checks. Projection
-must return exactly numeric/null metrics and boolean/null checks with the approved
-keys. Free text, user/request/session IDs, tool arguments/results, prompts, tokens,
-account state and arbitrary labels are not allowed. Null means unknown, not zero
-or pass. Redaction is structural omission, not a promise that a PII regex is enough.
-App operators still must review metric semantics: a number can encode private data.
-Do not hash identities or sensitive low-entropy text and call it anonymization.
+## Content and outcomes
 
-One explicit awaited call, at most two seconds (500 ms default), no buffering or
-retries. A dropped observation is reported as `dropped`; caller-owned counters may
-record that status without raw errors. Delivery is best effort, not an outbox.
-Serverless code must await completion inside its request; no flush-on-exit promises.
-Do not retry the SDK call blindly (it generates a new ID). The HTTP contract accepts
-exact-body duplicate IDs and rejects conflicting duplicates.
+The app first removes names, user/session/message IDs, dates of birth, locations,
+URLs, contact information and domain identifiers. Allowlist selected evidence;
+never hand the SDK whole database rows, provider requests, errors or tool outputs.
+Declare exact shapes and a digest of the reviewed app redactor. The SDK performs a
+bounded second identifier pass before sending; ingest performs a final backstop.
+Redacted workout or health information is still sensitive, not anonymous.
 
-## Receiver and contract
+Content failures omit the affected fields and report coverage. Numeric unknowns
+stay `null`, including unreported cost. Operational step/outcome attributes allow
+only numbers, booleans, declared enum strings or null, not arbitrary text.
 
-```js
-import { startFeed } from "@devalparikh/autoeval/server";
-// await startFeed({ path: privateSqlitePath, projects, principals });
+```ts
+// After a later apply/dismiss request succeeds, using its freshly loaded consent:
+after(() => capture.outcome({
+  consent: savedConsent,
+  reference: savedReply.captureReference,
+  id: durableEventId,
+  name: 'proposal_decision',
+  attributes: { decision: 'applied' },
+}));
 ```
 
-The receiver binds **127.0.0.1 only**, with a separate SQLite file in a caller-created
-private directory. It is for low-volume local development or a supervised dedicated
-host accessed locally. Do not deploy this SQLite service to Vercel or expose it via
-a public proxy. The SDK accepts HTTPS for a future compatible hosted receiver.
-Ingestion has no inference dependencies or access to the workbench database.
+The SDK resolves the original policy when a delayed event refers to an older
+deployment. It can read its own immutable declarations, never stored trace
+content. Outcome names and attributes must match that original declaration;
+unsupported later event kinds are skipped, not reinterpreted. Preserve stable
+outcome semantics when evolving the agent. Expired/withdrawn traces cannot accept
+new events. Duplicate event IDs are idempotent; changed reuse is refused.
 
-Each credential is bound to one project and exactly one role:
+## Environment
 
-- Admin: `POST /v1/datasets`, `POST /v1/experiments`, `POST /v1/grants`,
-  `DELETE /v1/grants/{id}`.
-- Ingest: `POST /v1/traces` only.
-- Read: `GET /v1/traces/{id}`, `GET /v1/comparisons/{left}/{right}` only.
+| Variable | Value |
+| --- | --- |
+| `AUTOEVAL_ENABLED` | `true` to enable; absent means off |
+| `AUTOEVAL_ENDPOINT` | `https://INSTANCE/api/backend/v2/traces` |
+| `AUTOEVAL_INGEST_KEY` | The one app-scoped backend key |
+| `AUTOEVAL_SOURCE` | `production` for real users, `synthetic` for controlled fixtures |
+| `AUTOEVAL_REQUEST_TIMEOUT_MS` | Optional 10–2000; default 2000 for the entire capture |
+| `AUTOEVAL_NPM_TOKEN` | Build-only GitHub Packages read token; never a browser/runtime secret |
 
-Tokens are injected in process memory, never persisted; use independent random
-32-byte base64url values. Authorization precedes body reads; requests with browser
-Origin/Fetch metadata are denied. Exact shapes, 16 KiB streamed body limit, short
-timeouts, 120 authenticated requests/minute/credential, 32 connections and 10,000
-records/type/project bound this local service. They are not a public DDoS control.
-Project policies persist and cannot silently widen on restart. Use a new project
-for incompatible projection changes. Tokens rotate by restarting with new keys.
+Policy, experiment and redactor identities are declared in code, not new env vars.
+Remove `AUTOEVAL_EXPERIMENT_ID`, `AUTOEVAL_GRANTS_KEY`,
+`AUTOEVAL_CONSENTED_USER_IDS` and the instance's
+`AUTOEVAL_FEED_ALLOW_PRODUCTION`. There is no compatibility with the old SDK,
+`/v1` ingestion or the `@devalparikh/autoeval/server` receiver. Existing local
+AutoEval development remains supported by the FastAPI backend.
 
-Datasets register immutable sorted case-ID hashes plus a rubric hash; returned
-SHA-256 is over sorted-key canonical JSON. Actual fixtures/rubrics stay in the app's
-versioned repository. This is a finalized manifest, not the FastAPI dataset model.
-Experiments pin a full Git revision, prompt/config hashes, optional graph hash,
-declared model, mode (`scripted`, `live`, `observed`) and finalized dataset hash.
-Observed traffic must have null dataset/case IDs. New code, prompt, loop config,
-model or graph means a new experiment ID; conflicting registration returns 409.
-No server runs uploaded code, reconstructs a graph or invokes a model.
+Connection and grant results are cached per process for one minute, with bounded
+maps and concurrent work. Ingest always enforces current settings and revocation.
+401 disables further sending for that SDK instance; deploy the replacement key and
+reinitialize. Explicit portal rotation can keep the old key valid until its chosen
+retirement time. There is no grace period after expiration or revocation.
 
-Traces contain schema/version IDs, grant, source, timestamps, terminal/partial
-status and the projected metrics/checks. Model provenance is declared, not attested.
-A dataset-bound trace must match a registered case and use synthetic source in v1.
-Comparison requires the same finalized manifest and mode, exactly one observation
-per case per experiment, and reports named checks including nulls and error/partial
-status. Missing, expired or duplicate case evidence rejects comparison (409).
-This is paired structural evidence, not a statistical or model-quality estimate.
+Pin the approved package version and commit the app lockfile. Use `npm ci`, with an
+`.npmrc` that references `${AUTOEVAL_NPM_TOKEN}` instead of containing a token:
 
-## Lifecycle and limits
+```ini
+@devalparikh:registry=https://npm.pkg.github.com
+//npm.pkg.github.com/:_authToken=${AUTOEVAL_NPM_TOKEN}
+```
 
-Default TTL is 24 hours, configurable to at most 30 days. Expiry is the earlier of
-event start + TTL or grant expiry; duplicate imports never extend it. Purge runs at
-startup, every minute and before reads. Withdrawals erase all observations for the
-grant in one transaction and retain an opaque revocation tombstone; renewal needs
-a new grant ID. Experiments and dataset manifests retain non-personal digests/IDs;
-no trace content is copied into them. SQLite secure-delete removes deleted cell
-content; backups, filesystem snapshots and storage remanence need an operator
-policy. Do not promise physical erasure from unmanaged backups.
+Build/test locally with `npm run test:package`; this packs and offline-installs a
+consumer to validate exports. Never publish or deploy as part of a test.
 
-Production source is refused by default. `allowProduction` is an operator gate,
-not consent or deployment approval. A real pilot additionally requires approved
-source projection, authenticated opt-in, account-to-grant mapping and withdrawal,
-retention/backups, protected durable hosting, access review and separate approval
-for any live/judge calls. Lifty's first integration also blocks production capture
-in its own code. This package contains no production records or credentials.
-
-## Hosted environment initialization (unpublished candidate)
-
-`createCaptureFromEnv({policy})` reads `AUTOEVAL_ENABLED`, `AUTOEVAL_ENDPOINT`,
-`AUTOEVAL_INGEST_KEY`, `AUTOEVAL_EXPERIMENT_ID`, `AUTOEVAL_SOURCE` and
-`AUTOEVAL_REQUEST_TIMEOUT_MS` when explicitly called. Only `true` enables capture.
-Import is inert. Keep app inference independent of initialization/capture failures.
-Use `/v1/traces` directly or `/api/backend/v1/traces` through the hosted service.
-The app must still pass authenticated consent and its structural projection.
-Consent/read keys are separate and are not consumed by capture. See the product's
-`docs/hosted-client-contract.md` and `docs/SETUP.md`. This package remains private,
-UNLICENSED and unpublished; private GitHub Packages prerelease is planned, npm later.
+Capture limits: up to 128 steps and 96 KiB of serialized step data, with
+`droppedSteps` reporting omissions; up to 128 KiB total optional content and
+64 KiB per content field. Recursive content validation stops at 2,048 values or
+128 KiB of strings per field before redaction/copying. These bounds keep the
+summary inside the 256 KiB ingest limit. Lazy projection callbacks are app code:
+keep them synchronous and bounded, and do not perform I/O or arbitrary deep
+cloning inside them. The SDK's abort deadline cannot preempt a blocking app callback.

@@ -308,6 +308,13 @@ def check_source(config, source):
         denied(403)
 
 
+def policy_contract(session, app, policy_id):
+    row = session.get(FeedObjectRecord, (app.id, "policy2", policy_id))
+    if row is None:
+        raise HTTPException(404, "Policy unavailable")
+    return row.body
+
+
 def grant(session, app, body):
     check_source(settings(session, app), body.source)
     if body.expiresAt is not None and body.expiresAt <= now_ms():

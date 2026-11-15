@@ -21,20 +21,48 @@ try {
       "--offline",
       "--no-audit",
       "--no-fund",
-      "./devalparikh-autoeval-0.1.0.tgz",
+      `./devalparikh-autoeval-${JSON.parse(await readFile(join(root, "package.json"), "utf8")).version}.tgz`,
     ],
     { cwd: directory, stdio: "inherit" },
   );
   const source = (
     await readFile(new URL("../test/feed.test.mjs", import.meta.url), "utf8")
-  )
-    .replace('"../src/index.js"', '"@devalparikh/autoeval"')
-    .replace('"../src/server.js"', '"@devalparikh/autoeval/server"');
+  ).replace(/(["'])\.\.\/src\/index\.js\1/g, '"@devalparikh/autoeval"');
   await writeFile(join(directory, "consumer.test.mjs"), source);
   const envTest = (
     await readFile(new URL("../test/env.test.mjs", import.meta.url), "utf8")
   ).replace(/(["'])\.\.\/src\/index\.js\1/g, '"@devalparikh/autoeval"');
   await writeFile(join(directory, "env.test.mjs"), envTest);
+  const types = await readFile(
+    new URL("../test/types.mts", import.meta.url),
+    "utf8",
+  );
+  await writeFile(join(directory, "types.mts"), types);
+  const compiler = new URL(
+    "../../../frontend/node_modules/typescript/bin/tsc",
+    import.meta.url,
+  );
+  // Full repo checks compile the installed consumer too; package-only CI has no TS dependency.
+  try {
+    await readFile(compiler);
+    execFileSync(
+      process.execPath,
+      [
+        fileURLToPath(compiler),
+        "--noEmit",
+        "--strict",
+        "--skipLibCheck",
+        "--module",
+        "NodeNext",
+        "--target",
+        "ES2022",
+        "types.mts",
+      ],
+      { cwd: directory, stdio: "inherit" },
+    );
+  } catch (error) {
+    if (error.code !== "ENOENT") throw error;
+  }
   execFileSync(
     process.execPath,
     ["--test", "consumer.test.mjs", "env.test.mjs"],

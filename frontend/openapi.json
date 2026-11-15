@@ -3695,6 +3695,13 @@
             "title": "Coverage",
             "type": "object"
           },
+          "droppedSteps": {
+            "default": 0,
+            "maximum": 1000000.0,
+            "minimum": 0.0,
+            "title": "Droppedsteps",
+            "type": "integer"
+          },
           "endedAt": {
             "maximum": 9007199254740991.0,
             "minimum": 0.0,
@@ -9469,6 +9476,52 @@
           }
         },
         "summary": "Outcome",
+        "tags": [
+          "application feed"
+        ]
+      }
+    },
+    "/v2/policies/{policy_id}": {
+      "get": {
+        "description": "Only the app's declaration, for delayed outcomes across deployments. No evidence.",
+        "operationId": "sdk_policy_v2_policies__policy_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "policy_id",
+            "required": true,
+            "schema": {
+              "pattern": "^[0-9a-f]{64}$",
+              "title": "Policy Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Sdk Policy V2 Policies  Policy Id  Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Sdk Policy",
         "tags": [
           "application feed"
         ]

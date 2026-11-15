@@ -1220,6 +1220,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v2/policies/{policy_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Sdk Policy
+         * @description Only the app's declaration, for delayed outcomes across deployments. No evidence.
+         */
+        get: operations["sdk_policy_v2_policies__policy_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v2/traces": {
         parameters: {
             query?: never;
@@ -2613,6 +2633,11 @@ export interface components {
             coverage?: {
                 [key: string]: "not_measured" | "not_authorized" | "invalid_value" | "redaction_failed" | "size_limit" | "retention_expired";
             };
+            /**
+             * Droppedsteps
+             * @default 0
+             */
+            droppedSteps: number;
             /** Endedat */
             endedAt: number;
             /** Experimentid */
@@ -5917,6 +5942,39 @@ export interface operations {
         responses: {
             /** @description Successful Response */
             201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    sdk_policy_v2_policies__policy_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                policy_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };
