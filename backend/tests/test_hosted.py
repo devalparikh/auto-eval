@@ -535,3 +535,125 @@ def test_hosted_service_prefix_preserves_authorization(hosted):
         )
         assert result.json() == {"authenticated": False, "status": "pending", "subject": SUBJECT}
         assert client.get("/api/backend/api/applications").status_code == 401
+
+
+def test_email_link_mode_is_opt_in_and_requires_browser_proof(hosted):
+    client, app, calls, _, _ = hosted
+    assert app.state.settings.allow_email_link_sign_in is False
+    body = {"code": "a" * 36}
+    assert (
+        client.post("/api/auth/exchange", json=body, headers={"origin": ORIGIN}).status_code == 404
+    )
+    app.state.settings.allow_email_link_sign_in = True
+    assert client.post("/api/auth/exchange", json=body).status_code == 403
+    assert (
+        client.post("/api/auth/exchange", json=body, headers={"origin": ORIGIN}).status_code == 403
+    )
+    assert calls == []
+
+
+def test_pkce_link_pending_approval_and_same_browser_binding(hosted, monkeypatch):
+    import base64
+    import hashlib
+
+    from autoeval_api.api.routes.auth import PKCE_COOKIE
+
+    client, app, _, private, claims = hosted
+    app.state.settings.allow_email_link_sign_in = True
+    app.state.settings.allow_self_registration = True
+    app.state.settings.operator_allowlist = {}
+    issued = {}
+    verified_calls = []
+
+    def provider(url, **kwargs):
+        payload = kwargs["json"]
+        if url.endswith("/otp"):
+            assert kwargs["params"] == {"redirect_to": ORIGIN + "/"}
+            assert payload["create_user"] is True
+            assert payload["code_challenge_method"] == "s256"
+            issued["challenge"] = payload["code_challenge"]
+            issued["used"] = False
+            return httpx.Response(200, json={})
+        assert url == "https://auth.example.invalid/auth/v1/token"
+        assert kwargs["params"] == {"grant_type": "pkce"}
+        verified_calls.append(payload)
+        expected = (
+            base64.urlsafe_b64encode(hashlib.sha256(payload["code_verifier"].encode()).digest())
+            .rstrip(b"=")
+            .decode()
+        )
+        if issued["used"] or expected != issued["challenge"] or payload["auth_code"] != "a" * 36:
+            return httpx.Response(400, json={})
+        issued["used"] = True
+        token = jwt.encode(claims, private, algorithm="RS256", headers={"kid": "test"})
+        return httpx.Response(200, json={"access_token": token, "refresh_token": "never-persist"})
+
+    monkeypatch.setattr("autoeval_api.api.routes.auth.httpx.post", provider)
+    headers = {"origin": ORIGIN}
+    response = client.post("/api/auth/request", json={"email": EMAIL}, headers=headers)
+    assert response.status_code == 200
+    assert "HttpOnly" in response.headers["set-cookie"]
+    assert "Secure" in response.headers["set-cookie"]
+    assert "SameSite=lax" in response.headers["set-cookie"]
+    assert "Max-Age=600" in response.headers["set-cookie"]
+    verifier = client.cookies.get(PKCE_COOKIE)
+    body = {"code": "a" * 36}
+    client.cookies.clear()
+    assert client.post("/api/auth/exchange", json=body, headers=headers).status_code == 403
+    assert verified_calls == []
+    client.cookies.set(PKCE_COOKIE, "b" * 43)
+    assert client.post("/api/auth/exchange", json=body, headers=headers).status_code == 401
+    client.cookies.clear()
+    client.cookies.set(PKCE_COOKIE, verifier, domain="testserver.local", path="/")
+    response = client.post("/api/auth/exchange", json=body, headers=headers)
+    assert response.json() == {"authenticated": False, "status": "pending", "subject": SUBJECT}
+    assert "Max-Age=0" in response.headers["set-cookie"]
+    assert client.get("/api/catalog").status_code == 401
+    with app.state.session_factory() as session:
+        assert list(session.scalars(select(HostedSessionRecord))) == []
+    client.cookies.clear()
+    client.cookies.set(PKCE_COOKIE, verifier)
+    assert client.post("/api/auth/exchange", json=body, headers=headers).status_code == 401
+    # A separately approved UUID/email may get the same opaque session as OTP.
+    client.cookies.clear()
+    app.state.settings.operator_allowlist = {SUBJECT: {"email": EMAIL, "role": "admin"}}
+    client.post("/api/auth/request", json={"email": EMAIL}, headers=headers)
+    response = client.post("/api/auth/exchange", json=body, headers=headers)
+    assert response.json() == {"authenticated": True}
+    assert client.get("/api/catalog").status_code == 200
+    assert "refresh_token" not in response.text and "access_token" not in response.text
+    app.state.settings.operator_allowlist = {}
+    assert client.get("/api/catalog").status_code == 401
+
+
+def test_pkce_exchange_still_rejects_wrong_jwt_and_unverified_email(hosted, monkeypatch):
+    from autoeval_api.api.routes.auth import PKCE_COOKIE
+
+    client, app, _, private, claims = hosted
+    app.state.settings.allow_email_link_sign_in = True
+    app.state.settings.allow_self_registration = True
+    app.state.settings.operator_allowlist = {}
+    client.cookies.set(PKCE_COOKIE, "a" * 43)
+    token = jwt.encode(
+        {**claims, "iss": "https://other.invalid/auth/v1"}, private, algorithm="RS256"
+    )
+    monkeypatch.setattr(
+        "autoeval_api.api.routes.auth.httpx.post",
+        lambda *a, **k: httpx.Response(200, json={"access_token": token}),
+    )
+    body = {"code": "a" * 36}
+    assert (
+        client.post("/api/auth/exchange", json=body, headers={"origin": ORIGIN}).status_code == 401
+    )
+    token = jwt.encode(claims, private, algorithm="RS256")
+    monkeypatch.setattr(
+        "autoeval_api.services.hosted_auth.httpx.get",
+        lambda *a, **k: httpx.Response(
+            200, json={"id": SUBJECT, "email": EMAIL, "email_confirmed_at": None}
+        ),
+    )
+    assert (
+        client.post("/api/auth/exchange", json=body, headers={"origin": ORIGIN}).status_code == 401
+    )
+    with app.state.session_factory() as session:
+        assert list(session.scalars(select(HostedSessionRecord))) == []

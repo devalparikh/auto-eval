@@ -70,7 +70,8 @@ export default async function RootLayout({
   return (
     <html lang="en" data-theme={theme} data-scroll-behavior="smooth">
       <body>
-        <AuthGate enabled={process.env.AUTOEVAL_AUTH_MODE === "supabase"}>
+        <AuthGate enabled={process.env.AUTOEVAL_AUTH_MODE === "supabase"}
+          emailLink={process.env.AUTOEVAL_ALLOW_EMAIL_LINK_SIGN_IN === "true"}>
           <AppShell initialTheme={theme} initialSidebar={sidebar}>
             {children}
           </AppShell>

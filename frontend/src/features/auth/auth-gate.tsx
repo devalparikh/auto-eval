@@ -6,12 +6,14 @@ import { clearApiResourceCache } from "@/lib/use-api-resource";
 
 export function AuthGate({
   enabled,
+  emailLink = false,
   children,
 }: {
   enabled: boolean;
+  emailLink?: boolean;
   children: ReactNode;
 }) {
-  const [phase, setPhase] = useState<"loading" | "email" | "code" | "pending" | "ready">(
+  const [phase, setPhase] = useState<"loading" | "email" | "code" | "link" | "pending" | "ready">(
     enabled ? "loading" : "ready",
   );
   const [pendingSubject, setPendingSubject] = useState("");
@@ -20,6 +22,7 @@ export function AuthGate({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const active = useRef<AbortController | null>(null);
+  const callback = useRef<Promise<{authenticated?: boolean; status?: string; subject?: string}> | null>(null);
   useEffect(() => {
     if (!enabled) return;
     const unauthorized = () => {
@@ -28,7 +31,46 @@ export function AuthGate({
     };
     window.addEventListener("autoeval:unauthorized", unauthorized);
     const controller = new AbortController();
-    apiRequest<{subject: string}>("/auth/session", { signal: controller.signal })
+    const url = new URL(window.location.href);
+    const code = url.searchParams.get("code");
+    const hasCallback = code !== null || url.hash.includes("access_token=") || url.hash.includes("error=");
+    if (hasCallback) {
+      // Strip credentials/errors before any application request. Never persist
+      // access/refresh tokens from legacy implicit redirects or exchange them.
+      url.searchParams.delete("code");
+      url.hash = "";
+      window.history.replaceState(null, "", url.pathname + url.search);
+      if (!callback.current) {
+        clearApiResourceCache();
+        callback.current = emailLink && code && /^[A-Za-z0-9_-]{16,256}$/.test(code)
+          ? apiRequest("/auth/exchange", { method: "POST", body: { code } })
+          : Promise.reject(new Error("Unsupported callback"));
+      }
+    }
+    if (callback.current) {
+      // One transport survives StrictMode's effect replay; each subscriber still
+      // checks its own lifetime before rendering any identity/private children.
+      callback.current.then(async (result) => {
+        if (controller.signal.aborted) return;
+        clearApiResourceCache();
+        if (result.authenticated === false && result.status === "pending" && result.subject) {
+          setPendingSubject(result.subject);
+          setPhase("pending");
+          return;
+        }
+        if (result.authenticated !== true) throw new Error("Invalid exchange");
+        const principal = await apiRequest<{subject: string}>("/auth/session", { signal: controller.signal });
+        if (controller.signal.aborted) return;
+        if (!principal?.subject) throw new Error("Invalid session");
+        clearApiResourceCache(principal.subject);
+        setPhase("ready");
+      }).catch(() => {
+        if (!controller.signal.aborted) {
+          setPhase("email");
+          setError("Sign-in link could not be verified. Request a new link and open it in the same browser.");
+        }
+      });
+    } else apiRequest<{subject: string}>("/auth/session", { signal: controller.signal })
       .then((principal) => {
         if (!controller.signal.aborted) {
           if (!principal?.subject) throw new Error("Invalid session");
@@ -44,7 +86,7 @@ export function AuthGate({
       window.removeEventListener("autoeval:unauthorized", unauthorized);
       active.current?.abort();
     };
-  }, [enabled]);
+  }, [enabled, emailLink]);
 
   async function submit() {
     if (busy) return;
@@ -73,7 +115,7 @@ export function AuthGate({
           if (!principal?.subject) throw new Error("Invalid session");
           clearApiResourceCache(principal.subject);
         }
-        setPhase(phase === "email" ? "code" : "ready");
+        setPhase(phase === "email" ? (emailLink ? "link" : "code") : "ready");
         setToken("");
       }
     } catch {
@@ -133,6 +175,12 @@ export function AuthGate({
         <h1>Sign in to AutoEval</h1>
         {phase === "loading" ? (
           <p role="status">Checking session…</p>
+        ) : phase === "link" ? (
+          <div>
+            <p role="status">If email delivery is available, a sign-in link will arrive shortly. Open it in the same browser that requested it.</p>
+            <p>Email verification alone does not grant dashboard access.</p>
+            <button onClick={() => setPhase("email")}>Request another link</button>
+          </div>
         ) : phase === "pending" ? (
           <div>
             <h2>Approval pending</h2>
@@ -187,7 +235,7 @@ export function AuthGate({
               {busy
                 ? "Working…"
                 : phase === "email"
-                  ? "Send code"
+                  ? (emailLink ? "Send sign-in link" : "Send code")
                   : "Verify code"}
             </button>
             {phase === "code" && (

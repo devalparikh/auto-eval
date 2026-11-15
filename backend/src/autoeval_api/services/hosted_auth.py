@@ -15,7 +15,13 @@ from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from autoeval_api.models import ApplicationKeyRecord, HostedRateRecord, HostedSessionRecord
 
 COOKIE = "__Host-autoeval"
-PUBLIC = {"/api/health", "/api/auth/bootstrap", "/api/auth/request", "/api/auth/verify"}
+PUBLIC = {
+    "/api/health",
+    "/api/auth/bootstrap",
+    "/api/auth/request",
+    "/api/auth/verify",
+    "/api/auth/exchange",
+}
 
 
 def digest(value):

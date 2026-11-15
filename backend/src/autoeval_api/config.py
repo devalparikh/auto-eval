@@ -58,6 +58,7 @@ class Settings(BaseSettings):
     # Subject -> approved email, role and explicit app/environment resource IDs.
     operator_allowlist: dict[str, dict] = Field(default_factory=dict)
     allow_self_registration: bool = False
+    allow_email_link_sign_in: bool = False
     session_seconds: int = Field(default=900, ge=60, le=3600)
     feed_allow_production: bool = False
 

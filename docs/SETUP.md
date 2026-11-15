@@ -67,3 +67,9 @@ For signup followed by separate operator approval, use the optional
 `AUTOEVAL_ALLOW_SELF_REGISTRATION=true` mode documented in
 [the hosted contract](hosted-client-contract.md#optional-self-registration-pending-approval).
 Keep `AUTOEVAL_OPERATOR_ALLOWLIST={}` until the verified UUID is explicitly approved.
+
+When retaining Supabase's default link-only email templates, use the opt-in
+PKCE email-link mode in [the hosted contract](hosted-client-contract.md#optional-built-in-email-link-sign-in-pkce)
+on both services. Built-in delivery is for organization team addresses under the
+configured low rate limit. Custom SMTP remains an optional later setup task;
+request no SMTP credential when the operator has chosen the built-in sender.

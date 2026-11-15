@@ -181,3 +181,35 @@ application access, including when registration is enabled. Supabase user metada
 email verification, signup and SQL inserts do not grant application roles. There
 is **no SQL approval command** under this environment-allowlist model; do not create
 an admin SQL bypass. No email pre-enrollment is needed in opt-in registration mode.
+
+## Optional built-in email-link sign-in (PKCE)
+
+`AUTOEVAL_ALLOW_EMAIL_LINK_SIGN_IN=true` on both services opts into Supabase's
+standard confirmation-link templates. Default remains false/numeric OTP. This
+supports projects that cannot customize templates without custom SMTP.
+
+The backend generates an S256 challenge and a ten-minute, Secure/HttpOnly,
+SameSite=Lax `__Host-autoeval-pkce` verifier cookie. The fixed redirect is the
+already allowed request Origin plus `/`; clients cannot submit redirect URLs.
+Supabase's default confirmation URL recognizes the PKCE flow and returns a
+one-use authorization code. Open the email link in the same browser that requested
+it. The frontend removes the code from the URL, then exchanges it through the
+same-origin backend. Callback responses use no-referrer/no-store headers.
+
+The backend requires the exact allowed Origin, the verifier cookie and Supabase's
+successful code/verifier exchange, then applies the existing JWT signature,
+issuer/audience/expiry, current confirmed email and UUID/email allowlist checks.
+Pending registration creates no application session and reveals only that user's
+verified UUID. Approved users receive the same bounded opaque application cookie.
+No access/refresh token is returned to the browser or stored by this application;
+implicit token fragments are removed and rejected. No schema or SDK change.
+
+Built-in Supabase mail is limited to organization team-member addresses and its
+configured low send rate; do not describe this as general external delivery.
+Custom SMTP and numeric-template customization can be configured later. Neither
+email verification nor SQL user metadata grants dashboard access: a separately
+approved UUID/email must be placed in `AUTOEVAL_OPERATOR_ALLOWLIST` and deployed
+to all workers, followed by a new sign-in.
+
+Provider references: [PKCE](https://supabase.com/docs/guides/auth/sessions/pkce-flow),
+[default-link PKCE handling](https://github.com/supabase/auth/blob/master/internal/api/verify.go).
