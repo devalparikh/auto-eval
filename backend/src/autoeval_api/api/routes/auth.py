@@ -50,10 +50,10 @@ def request_code(body: EmailRequest, request: Request) -> dict:
         httpx.post(
             settings.supabase_url + "/auth/v1/otp",
             headers={"apikey": settings.supabase_publishable_key.get_secret_value()},
-            json={"email": body.email, "create_user": False},
+            json={"email": body.email, "create_user": settings.allow_self_registration},
             timeout=5,
         )
-    return {"message": "If this email is enrolled, a code will arrive shortly."}
+    return {"message": "If email delivery is available, a code will arrive shortly."}
 
 
 @router.post("/verify")
@@ -70,9 +70,20 @@ def verify(body: VerifyRequest, request: Request, response: Response) -> dict:
         )
         if result.status_code != 200:
             raise ValueError()
-        value, age = request.app.state.hosted_auth.new_session(result.json()["access_token"])
+        value, age, pending_subject = request.app.state.hosted_auth.new_session(
+            result.json()["access_token"]
+        )
     except (httpx.HTTPError, ValueError, KeyError):
         raise HTTPException(401, "Code could not be verified") from None
+    if pending_subject is not None:
+        # Clear any previous browser identity; verification alone grants no access.
+        with request.app.state.session_factory() as session:
+            row = session.get(HostedSessionRecord, digest(request.cookies.get(COOKIE, "")))
+            if row:
+                session.delete(row)
+                session.commit()
+        response.delete_cookie(COOKIE, secure=True, httponly=True, samesite="strict", path="/")
+        return {"authenticated": False, "status": "pending", "subject": pending_subject}
     response.set_cookie(
         COOKIE, value, max_age=age, secure=True, httponly=True, samesite="strict", path="/"
     )

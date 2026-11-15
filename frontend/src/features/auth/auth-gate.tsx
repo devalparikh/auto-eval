@@ -11,9 +11,10 @@ export function AuthGate({
   enabled: boolean;
   children: ReactNode;
 }) {
-  const [phase, setPhase] = useState<"loading" | "email" | "code" | "ready">(
+  const [phase, setPhase] = useState<"loading" | "email" | "code" | "pending" | "ready">(
     enabled ? "loading" : "ready",
   );
+  const [pendingSubject, setPendingSubject] = useState("");
   const [email, setEmail] = useState("");
   const [token, setToken] = useState("");
   const [busy, setBusy] = useState(false);
@@ -53,7 +54,7 @@ export function AuthGate({
     active.current = controller;
     const timeout = setTimeout(() => controller.abort(), 15000);
     try {
-      await apiRequest(phase === "email" ? "/auth/request" : "/auth/verify", {
+      const result = await apiRequest<{ authenticated?: boolean; status?: string; subject?: string }>(phase === "email" ? "/auth/request" : "/auth/verify", {
         method: "POST",
         body: phase === "email" ? { email } : { email, token },
         signal: controller.signal,
@@ -61,6 +62,12 @@ export function AuthGate({
       if (!controller.signal.aborted) {
         if (phase === "code") {
           clearApiResourceCache();
+          if (result?.authenticated === false && result.status === "pending" && result.subject) {
+            setPendingSubject(result.subject);
+            setToken("");
+            setPhase("pending");
+            return;
+          }
           const principal = await apiRequest<{subject: string}>("/auth/session", { signal: controller.signal });
           if (controller.signal.aborted) return;
           if (!principal?.subject) throw new Error("Invalid session");
@@ -126,6 +133,18 @@ export function AuthGate({
         <h1>Sign in to AutoEval</h1>
         {phase === "loading" ? (
           <p role="status">Checking session…</p>
+        ) : phase === "pending" ? (
+          <div>
+            <h2>Approval pending</h2>
+            <p>Your email is verified. Ask the instance operator to approve this user ID:</p>
+            <p><code>{pendingSubject}</code></p>
+            <p>Dashboard access requires separate approval. Sign in again after approval.</p>
+            <button onClick={() => {
+              clearApiResourceCache();
+              setPendingSubject("");
+              setPhase("email");
+            }}>Return to sign in</button>
+          </div>
         ) : (
           <form
             onSubmit={(event) => {
@@ -147,7 +166,7 @@ export function AuthGate({
             {phase === "code" && (
               <>
                 <p role="status">
-                  If this email is enrolled, a numeric code will arrive shortly.
+                  If email delivery is available, a numeric code will arrive shortly.
                 </p>
                 <label>
                   Email code

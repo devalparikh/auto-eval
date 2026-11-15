@@ -128,3 +128,25 @@ test("comparison keeps the selected pair fixed until its response settles", asyn
   fireEvent.click(screen.getByRole("button", { name: "Refresh" }));
   expect(screen.queryByText("Mode: scripted")).toBeNull();
 });
+
+test("verified registration shows only own pending ID and never mounts private content", async () => {
+  const api = vi.mocked(apiRequest);
+  api.mockRejectedValueOnce(new Error("401"));
+  const privateMount = vi.fn();
+  function PrivateContent() { privateMount(); return <p>Private workspace</p>; }
+  render(<AuthGate enabled><PrivateContent /></AuthGate>);
+  fireEvent.change(await screen.findByLabelText("Email"), { target: { value: "new@example.invalid" } });
+  api.mockResolvedValueOnce({});
+  fireEvent.click(screen.getByRole("button", { name: "Send code" }));
+  fireEvent.change(await screen.findByLabelText("Email code"), { target: { value: "12345678" } });
+  const subject = "00000000-0000-4000-8000-000000000001";
+  api.mockResolvedValueOnce({ authenticated: false, status: "pending", subject });
+  fireEvent.click(screen.getByRole("button", { name: "Verify code" }));
+  await screen.findByText("Approval pending");
+  expect(screen.getByText(subject)).toBeVisible();
+  expect(privateMount).not.toHaveBeenCalled();
+  expect(api).toHaveBeenCalledTimes(3);
+  fireEvent.click(screen.getByRole("button", { name: "Return to sign in" }));
+  expect(screen.queryByText(subject)).toBeNull();
+  expect(screen.getByRole("button", { name: "Send code" })).toBeEnabled();
+});

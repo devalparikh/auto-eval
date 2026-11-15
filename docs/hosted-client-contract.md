@@ -155,3 +155,29 @@ registry auth/access tests remain publication decisions; no license is invented.
 Primary references: [Supabase passwordless email](https://supabase.com/docs/guides/auth/auth-email-passwordless),
 [JWT verification](https://supabase.com/docs/guides/auth/jwts),
 [email templates](https://supabase.com/docs/guides/auth/auth-email-templates).
+
+## Optional self-registration (pending approval)
+
+`AUTOEVAL_ALLOW_SELF_REGISTRATION` defaults to `false`, preserving pre-enrollment.
+An operator may explicitly set it to `true` on the backend and enable email signup
+in Supabase for an instance that accepts registration requests. This changes only
+`create_user` in the numeric OTP request. Configure **both** confirmation and
+magic-link email templates with `{{ .Token }}` so new and returning users receive
+a numeric code; the application does not consume magic links.
+
+After signature/issuer/audience/expiry and current verified identity checks, an
+unapproved caller receives only `{authenticated:false,status:"pending",subject}`.
+No opaque session is created; any previous browser session is revoked. The UI
+shows that caller's verified UUID and never mounts dashboard children. No pending
+identity endpoint, role table, or schema migration is introduced. All protected
+APIs still reject the caller. Invalid codes and unverified identities disclose no
+subject. Disabling the flag restores the pre-enrolled-only verification behavior.
+
+After explicit approval of the supplied UUID, the operator verifies its current
+email in Supabase Auth and updates the backend's `AUTOEVAL_OPERATOR_ALLOWLIST`
+with that exact UUID, email, and approved role/resources. Roll that configuration
+out to every worker, then have the user sign in again. An empty map denies all
+application access, including when registration is enabled. Supabase user metadata,
+email verification, signup and SQL inserts do not grant application roles. There
+is **no SQL approval command** under this environment-allowlist model; do not create
+an admin SQL bypass. No email pre-enrollment is needed in opt-in registration mode.
