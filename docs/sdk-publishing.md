@@ -13,14 +13,14 @@ publication. Other branch pushes and PR events cannot publish. PR CI tests the
 helper without registry credentials or publication.
 
 The workflow checks out the immutable event `github.sha`, not the moving `main`
-branch. A normal merge commit runs against that merge commit's source. This PR
-changes the package README and repository metadata, so its merge matches the path
-filter. Main after the capture stack was
-`efe3e35f95f8f9a963ef74afd6c6438cf2db8d8a`, with version `0.2.0-private.1`.
-That version has **not been published manually**. The last authorized registry
-read found only `0.1.0-private.1` (`private` pointed to it). If the target remains
-absent and Actions has package access, merging this workflow PR will immediately
-attempt to publish `0.2.0-private.1` from the new merge commit.
+branch. A normal merge commit runs against that merge commit's source. PR #40
+changed SDK paths, so its merge triggered the workflow. After the owner granted
+package Actions access, one approved manual dispatch
+[published and verified `0.2.0-private.1`](https://github.com/devalparikh/auto-eval/actions/runs/43768301683)
+from source `55308bb52eebfdd1638ef438372aa0079412be4a`. The `private` tag, registry
+hashes and clean authenticated install were verified. No local/manual npm
+publication occurred. Subsequent runs skip that immutable version; new package
+bytes require a version bump.
 
 Fallback: explicitly approved `workflow_dispatch` of `Publish SDK` on `main`
 retries the version at the event's pinned commit. There is no local/PAT publishing
@@ -63,8 +63,10 @@ environment-variable reference and is removed with its temporary cache on succes
 or error. Npm subprocess output is suppressed; tokens/config contents are never
 logged or uploaded.
 
-For the existing package, its owner must ensure **Manage Actions access** grants
-`devalparikh/auto-eval` write access, or that the package is connected to this repo
+For the existing package, open its
+[package settings](https://github.com/users/devalparikh/packages/npm/autoeval/settings).
+Under **Manage Actions access**, ensure `devalparikh/auto-eval` has **Write**
+access, or that the package is connected to this repo
 and inherits the appropriate permissions. The SDK `repository` metadata identifies
 that association; adding metadata alone does not grant access to an existing
 package. Repository/organization policies must also permit the requested token
