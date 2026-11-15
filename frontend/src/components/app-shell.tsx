@@ -7,6 +7,7 @@ import {
   ListIcon,
   MagnifyingGlassIcon,
   MoonIcon,
+  SignOutIcon,
   SunIcon,
 } from "@phosphor-icons/react";
 import Link from "next/link";
@@ -23,6 +24,7 @@ import {
 } from "react";
 import { AppSidebar } from "@/components/app-sidebar";
 import { CommandMenu } from "@/components/command-menu";
+import { useHostedSession } from "@/features/auth/hosted-session";
 import { routeContentKey } from "@/components/sidebar-nav";
 import { SIDEBAR_COOKIE_NAME, type SidebarState } from "@/lib/sidebar";
 import { playUiSound, UI_SOUND_STORAGE_KEY, type UiSound } from "@/lib/sound";
@@ -273,6 +275,7 @@ function MarketingHeader({
   theme: ColorTheme;
   onToggleTheme: () => void;
 }) {
+  const session = useHostedSession();
   const [menuOpen, setMenuOpen] = useState(false);
   const [activeItemKey, setActiveItemKey] =
     useState<MarketingNavKey>("workflow");
@@ -478,9 +481,29 @@ function MarketingHeader({
         >
           {theme === "dark" ? <MoonIcon size={15} /> : <SunIcon size={15} />}
         </button>
-        <Link href="/systems" className="marketing-cta" data-sound="navigate">
-          open autoeval <span aria-hidden="true">↗</span>
-        </Link>
+        {/* A signed-in hosted session lands here after an email link, with no
+            sidebar, so its account actions live in this header too. */}
+        {session ? (
+          <button
+            type="button"
+            className="marketing-theme"
+            aria-label="Sign out"
+            title="Sign out"
+            disabled={session.signingOut}
+            onClick={session.signOut}
+          >
+            <SignOutIcon size={15} aria-hidden="true" />
+          </button>
+        ) : null}
+        {session ? (
+          <Link href="/applications" className="marketing-cta" data-sound="navigate">
+            applications <span aria-hidden="true">↗</span>
+          </Link>
+        ) : (
+          <Link href="/systems" className="marketing-cta" data-sound="navigate">
+            open autoeval <span aria-hidden="true">↗</span>
+          </Link>
+        )}
       </div>
     </header>
   );

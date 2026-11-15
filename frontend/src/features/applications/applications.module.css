@@ -1,0 +1,226 @@
+.screen {
+  padding-bottom: 48px;
+}
+
+.body {
+  display: grid;
+  gap: 16px;
+  padding: 20px var(--page-gutter) 0;
+}
+
+.card {
+  min-width: 0;
+  padding: 24px;
+}
+
+.picker {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.picker > :global(.field) {
+  flex: 1 1 280px;
+  max-width: 420px;
+}
+
+.facts {
+  display: flex;
+  gap: 24px;
+  margin: 0;
+}
+
+.facts dt {
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 10px;
+}
+
+.facts dd {
+  margin: 4px 0 0;
+  font-size: 13px;
+}
+
+.heading {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+}
+
+.note {
+  margin: 6px 0 0;
+  max-width: 68ch;
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.note code,
+.endpoint code,
+.keys code,
+.table code,
+.case code,
+.secret code {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  overflow-wrap: anywhere;
+}
+
+.register summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+  list-style: none;
+}
+
+.register summary::-webkit-details-marker {
+  display: none;
+}
+
+.register[open] summary {
+  margin-bottom: 16px;
+}
+
+.registerForm {
+  display: grid;
+  max-width: 420px;
+  gap: 14px;
+}
+
+.registerForm > button {
+  justify-self: start;
+}
+
+.endpoint {
+  display: grid;
+  gap: 4px;
+  margin-top: 14px;
+  border-radius: var(--radius-inset);
+  padding: 12px 14px;
+  background: var(--card-inset);
+}
+
+.endpoint span {
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 10px;
+}
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.row > :global(.field) {
+  flex: 1 1 200px;
+  max-width: 320px;
+}
+
+.secret {
+  display: grid;
+  justify-items: start;
+  gap: 8px;
+  margin-top: 16px;
+  border-radius: var(--radius-inset);
+  padding: 12px 14px;
+  background: color-mix(in srgb, var(--warning) 12%, transparent);
+}
+
+.secret p {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.keys {
+  display: grid;
+  gap: 2px;
+  margin: 16px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.keys li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+  border-radius: 10px;
+  padding: 8px 10px;
+  font-size: 12px;
+}
+
+.keys li:nth-child(odd) {
+  background: var(--card-inset);
+}
+
+.keyState {
+  color: var(--text-muted);
+}
+
+.keyActions {
+  display: inline-flex;
+  gap: 6px;
+  margin-left: auto;
+}
+
+.keyActions :global(.app-button) {
+  min-height: 28px;
+  padding: 0 10px;
+}
+
+.tableWrap {
+  margin-top: 16px;
+  overflow-x: auto;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.table th {
+  padding: 0 12px 8px 0;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 500;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.table td {
+  border-top: 1px solid var(--border);
+  padding: 10px 12px 10px 0;
+  vertical-align: top;
+}
+
+.comparison {
+  display: grid;
+  gap: 8px;
+  margin-top: 16px;
+  font-size: 12px;
+}
+
+.comparison p {
+  margin: 0;
+}
+
+.case {
+  display: grid;
+  gap: 2px;
+  border-radius: 10px;
+  padding: 10px 12px;
+  background: var(--card-inset);
+}

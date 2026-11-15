@@ -7,6 +7,7 @@ import {
   GitBranchIcon,
   HouseSimpleIcon,
   PlayIcon,
+  PlugsConnectedIcon,
   PulseIcon,
   StackIcon,
   UploadSimpleIcon,
@@ -35,6 +36,11 @@ export const workspaceNavItems: SidebarNavItem[] = [
   { href: "/systems", label: "All systems", icon: StackIcon, exact: true },
   { href: "/import", label: "Import", icon: UploadSimpleIcon },
   { href: "/docs", label: "Docs", icon: BookOpenTextIcon },
+];
+
+/** Shown beside the workspace rows when a hosted instance has a signed-in session. */
+export const hostedNavItems: SidebarNavItem[] = [
+  { href: "/applications", label: "Applications", icon: PlugsConnectedIcon },
 ];
 
 export function systemKeyFromPath(pathname: string): string | null {

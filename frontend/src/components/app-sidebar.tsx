@@ -6,6 +6,7 @@ import {
   GitBranchIcon,
   MagnifyingGlassIcon,
   MoonIcon,
+  SignOutIcon,
   SidebarSimpleIcon,
   SpeakerHighIcon,
   SpeakerSlashIcon,
@@ -28,6 +29,7 @@ import {
 import { useHoverGlide } from "@/components/hover-glide";
 import {
   docsNavGroups,
+  hostedNavItems,
   isNavItemActive,
   modelsNavItems,
   pathForSystem,
@@ -38,6 +40,7 @@ import {
   type SidebarNavGroup,
   type SidebarNavItem,
 } from "@/components/sidebar-nav";
+import { useHostedSession } from "@/features/auth/hosted-session";
 import { systemByKey } from "@/features/catalog/catalog-options";
 import { isDocsPath } from "@/features/docs/docs-pages";
 import type { ColorTheme } from "@/lib/theme";
@@ -73,6 +76,10 @@ export function AppSidebar({
   onOpenCommandMenu: () => void;
 }) {
   const catalog = useCatalog();
+  const session = useHostedSession();
+  const workspace = session
+    ? [...workspaceNavItems, ...hostedNavItems]
+    : workspaceNavItems;
   const systems = catalog.data?.agent_systems ?? [];
   const systemKey = systemKeyFromPath(pathname);
   const system = systemKey ? systemByKey(catalog.data, systemKey) : null;
@@ -121,7 +128,7 @@ export function AppSidebar({
 
   const activeHref =
     navigation.pendingHref ??
-    [...groups.flatMap((group) => group.items), ...workspaceNavItems].find(
+    [...groups.flatMap((group) => group.items), ...workspace].find(
       (item) => isNavItemActive(item, pathname),
     )?.href ??
     null;
@@ -192,7 +199,7 @@ export function AppSidebar({
       <SidebarNav
         groups={groups}
         rowsKey={rowsKey}
-        workspace={workspaceNavItems}
+        workspace={workspace}
         activeHref={activeHref}
         onNavigate={handleNavigate}
         onRowHover={showTooltip}
@@ -216,13 +223,21 @@ export function AppSidebar({
           data-offline={Boolean(catalog.error)}
           aria-label={
             catalog.error
-              ? "Local API unreachable"
-              : "Local workspace connected"
+              ? session
+                ? "API unreachable"
+                : "Local API unreachable"
+              : session
+                ? "Signed in"
+                : "Local workspace connected"
           }
         >
           <span className="shell-status-dot" aria-hidden="true" />
           <span className="shell-nav-label">
-            {catalog.error ? "api offline" : "loopback / local"}
+            {catalog.error
+              ? "api offline"
+              : session
+                ? "signed in"
+                : "loopback / local"}
           </span>
         </span>
         <div className="shell-sidebar-actions">
@@ -253,6 +268,18 @@ export function AppSidebar({
               <SpeakerSlashIcon size={15} />
             )}
           </button>
+          {session ? (
+            <button
+              type="button"
+              className="shell-icon-button"
+              aria-label="Sign out"
+              title="Sign out"
+              disabled={session.signingOut}
+              onClick={session.signOut}
+            >
+              <SignOutIcon size={15} aria-hidden="true" />
+            </button>
+          ) : null}
         </div>
       </div>
 

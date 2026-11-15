@@ -1,8 +1,19 @@
 "use client";
 
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import {
+  CheckIcon,
+  CopyIcon,
+  EnvelopeSimpleIcon,
+  HourglassMediumIcon,
+  WarningCircleIcon,
+} from "@phosphor-icons/react";
+import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { apiRequest } from "@/lib/api";
 import { clearApiResourceCache } from "@/lib/use-api-resource";
+import { HostedSessionContext } from "./hosted-session";
+import styles from "./auth-gate.module.css";
+
+type Phase = "loading" | "callback" | "email" | "code" | "link" | "pending" | "ready";
 
 export function AuthGate({
   enabled,
@@ -13,14 +24,14 @@ export function AuthGate({
   emailLink?: boolean;
   children: ReactNode;
 }) {
-  const [phase, setPhase] = useState<"loading" | "email" | "code" | "link" | "pending" | "ready">(
-    enabled ? "loading" : "ready",
-  );
+  const [phase, setPhase] = useState<Phase>(enabled ? "loading" : "ready");
   const [pendingSubject, setPendingSubject] = useState("");
   const [email, setEmail] = useState("");
   const [token, setToken] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  // The server renders no host; the browser fills it in without a mismatch.
+  const host = useSyncExternalStore(subscribeNever, readHost, () => "");
   const active = useRef<AbortController | null>(null);
   const callback = useRef<Promise<{authenticated?: boolean; status?: string; subject?: string}> | null>(null);
   useEffect(() => {
@@ -48,6 +59,7 @@ export function AuthGate({
       }
     }
     if (callback.current) {
+      setPhase((current) => (current === "loading" ? "callback" : current));
       // One transport survives StrictMode's effect replay; each subscriber still
       // checks its own lifetime before rendering any identity/private children.
       callback.current.then(async (result) => {
@@ -67,7 +79,7 @@ export function AuthGate({
       }).catch(() => {
         if (!controller.signal.aborted) {
           setPhase("email");
-          setError("Sign-in link could not be verified. Request a new link and open it in the same browser.");
+          setError("This sign-in link couldn't be verified. It may have expired, been replaced by a newer link, or been opened in a different browser. Request a new link here.");
         }
       });
     } else apiRequest<{subject: string}>("/auth/session", { signal: controller.signal })
@@ -121,11 +133,13 @@ export function AuthGate({
     } catch {
       if (!controller.signal.aborted)
         setError(
-          "Sign-in could not be completed. Check the code or request a new one.",
+          phase === "code"
+            ? "That code didn't work. Check it and try again, or request a new one."
+            : "Sign-in could not be started. Try again in a moment.",
         );
       else
         setError(
-          "The request timed out. Check your email before requesting another code.",
+          `The request timed out. Check your email before requesting another ${emailLink ? "link" : "code"}.`,
         );
     } finally {
       clearTimeout(timeout);
@@ -133,128 +147,352 @@ export function AuthGate({
     }
   }
 
+  async function signOut() {
+    if (busy) return;
+    setBusy(true);
+    clearApiResourceCache();
+    setPhase("loading");
+    try {
+      await apiRequest("/auth/logout", { method: "POST" });
+      clearApiResourceCache();
+      setPhase("email");
+    } catch {
+      setPhase("email");
+      setError("Sign-out could not be confirmed. Sign in to try again.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function startOver() {
+    setPhase("email");
+    setToken("");
+    setError("");
+  }
+
   if (phase === "ready")
-    return (
-      <>
-        {enabled && (
-          <div className="page-actions">
-            <a href="/applications">Applications</a>
+    return enabled ? (
+      <HostedSessionContext.Provider value={{ signOut: () => void signOut(), signingOut: busy }}>
+        {children}
+      </HostedSessionContext.Provider>
+    ) : (
+      <>{children}</>
+    );
+
+  return (
+    <SignInFrame host={host}>
+      {phase === "loading" || phase === "callback" ? (
+        <WorkingPanel
+          title={phase === "callback" ? "Verifying your sign-in link" : "Checking your session"}
+        />
+      ) : phase === "link" ? (
+        <StatePanel
+          tone="info"
+          icon={<EnvelopeSimpleIcon size={18} weight="duotone" aria-hidden="true" />}
+          title="Check your email"
+        >
+          <p className={styles.lead} role="status">
+            If <strong className={styles.address}>{email}</strong> can sign in, a link is on its way.
+            Open it in the same browser that requested it.
+          </p>
+          <ul className={styles.notes}>
+            <li>Use the newest link you requested in this browser, within 10 minutes. It may expire sooner.</li>
+            <li>Access also needs approval from the instance operator.</li>
+          </ul>
+          <div className={styles.actions}>
+            <button type="button" className="app-button secondary" onClick={startOver}>
+              Request another link
+            </button>
+          </div>
+        </StatePanel>
+      ) : phase === "pending" ? (
+        <StatePanel
+          tone="warning"
+          icon={<HourglassMediumIcon size={18} weight="duotone" aria-hidden="true" />}
+          title="Approval pending"
+        >
+          <p className={styles.lead}>
+            Your email is verified. An operator still needs to approve this account before the
+            dashboard opens.
+          </p>
+          <SubjectCard subject={pendingSubject} />
+          <p className={styles.hint}>
+            Send this ID to the instance operator, then sign in again once you’re approved.
+          </p>
+          <div className={styles.actions}>
             <button
-              disabled={busy}
-              onClick={async () => {
-                if (busy) return;
-                setBusy(true);
+              type="button"
+              className="app-button secondary"
+              onClick={() => {
                 clearApiResourceCache();
-                setPhase("loading");
-                try {
-                  await apiRequest("/auth/logout", { method: "POST" });
-                  clearApiResourceCache();
-                  setPhase("email");
-                } catch {
-                  setPhase("email");
-                  setError("Sign-out could not be confirmed. Sign in to try again.");
-                } finally {
-                  setBusy(false);
-                }
+                setPendingSubject("");
+                setPhase("email");
               }}
             >
-              Sign out
+              Return to sign in
             </button>
-            {error && <p role="alert">{error}</p>}
           </div>
-        )}
-        {children}
-      </>
-    );
+        </StatePanel>
+      ) : (
+        <SignInForm
+          phase={phase}
+          emailLink={emailLink}
+          email={email}
+          token={token}
+          busy={busy}
+          error={error}
+          onEmail={setEmail}
+          onToken={setToken}
+          onSubmit={() => void submit()}
+          onStartOver={startOver}
+        />
+      )}
+    </SignInFrame>
+  );
+}
+
+const subscribeNever = () => () => {};
+const readHost = () => window.location.host;
+
+function SignInFrame({ host, children }: { host: string; children: ReactNode }) {
   return (
-    <main
-      className="page-container"
-      style={{ maxWidth: 480, margin: "10vh auto" }}
-    >
-      <section className="surface-card" style={{ padding: 32 }}>
-        <h1>Sign in to AutoEval</h1>
-        {phase === "loading" ? (
-          <p role="status">Checking session…</p>
-        ) : phase === "link" ? (
-          <div>
-            <p role="status">If email delivery is available, a sign-in link will arrive shortly. Open it in the same browser that requested it.</p>
-            <p>Email verification alone does not grant dashboard access.</p>
-            <button onClick={() => setPhase("email")}>Request another link</button>
-          </div>
-        ) : phase === "pending" ? (
-          <div>
-            <h2>Approval pending</h2>
-            <p>Your email is verified. Ask the instance operator to approve this user ID:</p>
-            <p><code>{pendingSubject}</code></p>
-            <p>Dashboard access requires separate approval. Sign in again after approval.</p>
-            <button onClick={() => {
-              clearApiResourceCache();
-              setPendingSubject("");
-              setPhase("email");
-            }}>Return to sign in</button>
+    <div className={styles.screen}>
+      <header className={styles.brand}>
+        <span className={styles.brandMark} aria-hidden="true">
+          a/e
+        </span>
+        <span className={styles.brandName}>AutoEval</span>
+      </header>
+      <main id="main-content" className={styles.main}>
+        <section className={`surface-card ${styles.card}`} aria-labelledby="auth-title">
+          {children}
+        </section>
+        <p className={`mono ${styles.instance}`}>{host}</p>
+      </main>
+    </div>
+  );
+}
+
+function Title({ children }: { children: ReactNode }) {
+  const ref = useRef<HTMLHeadingElement>(null);
+  // A state that replaces the form moves focus to its heading, so a screen
+  // reader announces where the user landed instead of losing focus with the
+  // removed control.
+  useEffect(() => {
+    ref.current?.focus({ preventScroll: true });
+  }, []);
+  return (
+    <h1 id="auth-title" ref={ref} tabIndex={-1} className={styles.title}>
+      {children}
+    </h1>
+  );
+}
+
+function WorkingPanel({ title }: { title: string }) {
+  return (
+    <div className={styles.working} role="status" aria-live="polite">
+      <span className={styles.spinner} aria-hidden="true" />
+      <h1 id="auth-title" className={styles.title}>
+        {title}…
+      </h1>
+    </div>
+  );
+}
+
+function StatePanel({
+  tone,
+  icon,
+  title,
+  children,
+}: {
+  tone: "info" | "warning";
+  icon: ReactNode;
+  title: string;
+  children: ReactNode;
+}) {
+  return (
+    <div className={styles.panel}>
+      <span className={styles.icon} data-tone={tone}>
+        {icon}
+      </span>
+      <Title>{title}</Title>
+      {children}
+    </div>
+  );
+}
+
+function SubjectCard({ subject }: { subject: string }) {
+  const [copy, setCopy] = useState<"idle" | "copied" | "failed">("idle");
+  const reset = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(
+    () => () => {
+      if (reset.current) clearTimeout(reset.current);
+    },
+    [],
+  );
+  async function copySubject() {
+    if (reset.current) clearTimeout(reset.current);
+    try {
+      await navigator.clipboard.writeText(subject);
+      setCopy("copied");
+      reset.current = setTimeout(() => setCopy("idle"), 1600);
+    } catch {
+      setCopy("failed");
+    }
+  }
+  return (
+    <div className={styles.subject}>
+      <div className={styles.subjectHead}>
+        <span className={styles.label}>Your user ID</span>
+        <button
+          type="button"
+          className={styles.copy}
+          data-copied={copy === "copied"}
+          aria-label="Copy user ID"
+          onClick={() => void copySubject()}
+        >
+          {copy === "copied" ? (
+            <CheckIcon size={12} weight="bold" aria-hidden="true" />
+          ) : (
+            <CopyIcon size={12} aria-hidden="true" />
+          )}
+          {copy === "copied" ? "Copied" : "Copy"}
+        </button>
+      </div>
+      <code className={styles.subjectValue}>{subject}</code>
+      <span className={styles.srOnly} role="status">
+        {copy === "copied" ? "User ID copied" : copy === "failed" ? "Copy unavailable. Select the ID to copy it." : ""}
+      </span>
+      {copy === "failed" && (
+        <span className={styles.hint} aria-hidden="true">
+          Copy unavailable here. Select the ID to copy it.
+        </span>
+      )}
+    </div>
+  );
+}
+
+function SignInForm({
+  phase,
+  emailLink,
+  email,
+  token,
+  busy,
+  error,
+  onEmail,
+  onToken,
+  onSubmit,
+  onStartOver,
+}: {
+  phase: "email" | "code";
+  emailLink: boolean;
+  email: string;
+  token: string;
+  busy: boolean;
+  error: string;
+  onEmail: (value: string) => void;
+  onToken: (value: string) => void;
+  onSubmit: () => void;
+  onStartOver: () => void;
+}) {
+  const code = phase === "code";
+  const emailInput = useRef<HTMLInputElement>(null);
+  const codeInput = useRef<HTMLInputElement>(null);
+  // Focus follows the step: the email field on arrival or return, the code
+  // field once a code is sent, and back to the field after a failed attempt
+  // re-enables it. The two fields are keyed apart, so neither inherits the
+  // other's DOM node or focus state.
+  useEffect(() => {
+    if (busy) return;
+    (code ? codeInput : emailInput).current?.focus();
+  }, [code, busy]);
+  return (
+    <div className={styles.panel}>
+      {/* The code field takes focus itself, so neither heading claims it. */}
+      <h1 id="auth-title" className={styles.title}>
+        {code ? "Enter your code" : "Sign in to AutoEval"}
+      </h1>
+      {code ? (
+        <p className={styles.lead} role="status">
+          If <strong className={styles.address}>{email}</strong> can sign in, a code is on its way.
+        </p>
+      ) : (
+        <p className={styles.lead}>
+          {emailLink
+            ? "Enter your email and we’ll send you a sign-in link."
+            : "Enter your email and we’ll send you a one-time code."}
+        </p>
+      )}
+      {error && (
+        <div className={styles.error} role="alert">
+          <WarningCircleIcon size={15} weight="fill" aria-hidden="true" />
+          <p>{error}</p>
+        </div>
+      )}
+      <form
+        className={styles.form}
+        aria-busy={busy}
+        onSubmit={(event) => {
+          event.preventDefault();
+          onSubmit();
+        }}
+      >
+        {code ? (
+          <div className="field">
+            <label htmlFor="auth-code">Email code</label>
+            {/* No maxLength: the browser would cut a pasted "12345 67890"
+                before the spaces are removed. The pattern bounds the digits. */}
+            <input
+              key="code"
+              ref={codeInput}
+              id="auth-code"
+              className={`app-input ${styles.codeInput}`}
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              pattern="[0-9]{6,10}"
+              title="6 to 10 digits"
+              required
+              value={token}
+              disabled={busy}
+              onChange={(event) => onToken(event.target.value.replace(/\s+/g, ""))}
+            />
           </div>
         ) : (
-          <form
-            onSubmit={(event) => {
-              event.preventDefault();
-              void submit();
-            }}
-          >
-            <label>
-              Email
-              <input
-                type="email"
-                required
-                autoComplete="email"
-                value={email}
-                disabled={busy || phase === "code"}
-                onChange={(event) => setEmail(event.target.value)}
-              />
-            </label>
-            {phase === "code" && (
-              <>
-                <p role="status">
-                  If email delivery is available, a numeric code will arrive shortly.
-                </p>
-                <label>
-                  Email code
-                  <input
-                    autoFocus
-                    inputMode="numeric"
-                    autoComplete="one-time-code"
-                    pattern="[0-9]{6,10}"
-                    required
-                    value={token}
-                    disabled={busy}
-                    onChange={(event) => setToken(event.target.value)}
-                  />
-                </label>
-              </>
-            )}
-            <button disabled={busy} type="submit">
-              {busy
-                ? "Working…"
-                : phase === "email"
-                  ? (emailLink ? "Send sign-in link" : "Send code")
-                  : "Verify code"}
-            </button>
-            {phase === "code" && (
-              <button
-                type="button"
-                disabled={busy}
-                onClick={() => {
-                  setPhase("email");
-                  setToken("");
-                  setError("");
-                }}
-              >
-                Use another email or request a new code
-              </button>
-            )}
-            {error && <p role="alert">{error}</p>}
-          </form>
+          <div className="field">
+            <label htmlFor="auth-email">Email</label>
+            <input
+              key="email"
+              ref={emailInput}
+              id="auth-email"
+              className={`app-input ${styles.input}`}
+              type="email"
+              required
+              autoComplete="email"
+              placeholder="name@example.com"
+              value={email}
+              disabled={busy}
+              onChange={(event) => onEmail(event.target.value)}
+            />
+          </div>
         )}
-      </section>
-    </main>
+        <button className={`app-button ${styles.submit}`} disabled={busy} type="submit">
+          {busy && <span className={styles.buttonSpinner} aria-hidden="true" />}
+          {busy
+            ? code
+              ? "Verifying…"
+              : "Sending…"
+            : code
+              ? "Verify code"
+              : emailLink
+                ? "Send sign-in link"
+                : "Send code"}
+        </button>
+        {code && (
+          <button type="button" className={styles.textButton} disabled={busy} onClick={onStartOver}>
+            Use another email or request a new code
+          </button>
+        )}
+      </form>
+    </div>
   );
 }

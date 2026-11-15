@@ -9,6 +9,7 @@ import {
 import { afterEach, expect, test, vi } from "vitest";
 import { AuthGate } from "@/features/auth/auth-gate";
 import { ApplicationsScreen } from "@/features/applications/applications-screen";
+import { useHostedSession } from "@/features/auth/hosted-session";
 import { apiRequest } from "@/lib/api";
 vi.mock("@/lib/api", () => ({
   apiRequest: vi.fn(),
@@ -202,4 +203,86 @@ test("PKCE callback has one exchange under StrictMode and a failed proof never r
   expect(api).toHaveBeenCalledTimes(1);
   expect(screen.queryByText("Private workspace")).toBeNull();
   expect(window.location.search).toBe("");
+});
+
+test("PKCE callback says it is verifying the link until the exchange settles", async () => {
+  window.history.replaceState(null, "", "/?code=" + "c".repeat(36));
+  let settle!: (value: unknown) => void;
+  const api = vi.mocked(apiRequest);
+  api.mockImplementationOnce(() => new Promise((resolve) => { settle = resolve; }));
+  render(<AuthGate enabled emailLink><p>Private workspace</p></AuthGate>);
+  expect(await screen.findByRole("status")).toHaveTextContent("Verifying your sign-in link");
+  expect(screen.queryByText("Private workspace")).toBeNull();
+  settle({ authenticated: false, status: "pending", subject: "00000000-0000-4000-8000-000000000002" });
+  await screen.findByText("Approval pending");
+});
+
+test("pending approval focuses its heading and copies only the caller's own ID", async () => {
+  window.history.replaceState(null, "", "/?code=" + "d".repeat(36));
+  const subject = "00000000-0000-4000-8000-000000000003";
+  vi.mocked(apiRequest).mockResolvedValueOnce({ authenticated: false, status: "pending", subject });
+  const writeText = vi.fn().mockResolvedValue(undefined);
+  Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText } });
+  render(<AuthGate enabled emailLink><p>Private workspace</p></AuthGate>);
+  const heading = await screen.findByRole("heading", { name: "Approval pending" });
+  await waitFor(() => expect(heading).toHaveFocus());
+  fireEvent.click(screen.getByRole("button", { name: "Copy user ID" }));
+  await screen.findByText("Copied");
+  expect(writeText).toHaveBeenCalledWith(subject);
+  expect(screen.queryByText("Private workspace")).toBeNull();
+});
+
+test("a rejected code keeps the code step with a specific, retryable error", async () => {
+  const api = vi.mocked(apiRequest);
+  api.mockRejectedValueOnce(new Error("401"));
+  render(<AuthGate enabled><p>Private workspace</p></AuthGate>);
+  fireEvent.change(await screen.findByLabelText("Email"), { target: { value: "team@example.invalid" } });
+  api.mockResolvedValueOnce({});
+  fireEvent.click(screen.getByRole("button", { name: "Send code" }));
+  expect(await screen.findByRole("heading", { name: "Enter your code" })).toBeVisible();
+  expect(screen.getByText("team@example.invalid")).toBeVisible();
+  fireEvent.change(screen.getByLabelText("Email code"), { target: { value: "123 456" } });
+  expect(screen.getByLabelText("Email code")).toHaveValue("123456");
+  api.mockRejectedValueOnce(new Error("invalid"));
+  fireEvent.click(screen.getByRole("button", { name: "Verify code" }));
+  expect(await screen.findByRole("alert")).toHaveTextContent("That code didn't work");
+  fireEvent.click(screen.getByRole("button", { name: "Use another email or request a new code" }));
+  expect(screen.getByLabelText("Email")).toHaveValue("team@example.invalid");
+  expect(screen.getByLabelText("Email")).toHaveFocus();
+});
+
+test("signed-in chrome gets a sign-out action only on a hosted instance", async () => {
+  function Account() {
+    const session = useHostedSession();
+    return session ? <button onClick={session.signOut}>Sign out</button> : <p>Local workspace</p>;
+  }
+  render(<AuthGate enabled={false}><Account /></AuthGate>);
+  expect(screen.getByText("Local workspace")).toBeVisible();
+  cleanup();
+  const api = vi.mocked(apiRequest);
+  api.mockResolvedValueOnce({ subject: "viewer-subject" });
+  render(<AuthGate enabled><Account /></AuthGate>);
+  api.mockResolvedValueOnce({});
+  fireEvent.click(await screen.findByRole("button", { name: "Sign out" }));
+  await screen.findByRole("button", { name: "Send code" });
+  expect(api).toHaveBeenLastCalledWith("/auth/logout", { method: "POST" });
+});
+
+test("first-use dashboard tells an admin to register and a viewer to ask for access", async () => {
+  const empty = (role: string) =>
+    vi.mocked(apiRequest).mockImplementation(async (path) => {
+      if (path === "/auth/session") return { role };
+      if (path === "/applications") return [];
+      throw new Error("unexpected request");
+    });
+  empty("admin");
+  render(<ApplicationsScreen />);
+  await screen.findByText("No applications yet");
+  fireEvent.click(screen.getAllByRole("button", { name: "Register application" })[0]);
+  expect(screen.getByLabelText("Name")).toBeVisible();
+  cleanup();
+  empty("viewer");
+  render(<ApplicationsScreen />);
+  await screen.findByText("No applications shared with you");
+  expect(screen.queryByRole("button", { name: "Register application" })).toBeNull();
 });

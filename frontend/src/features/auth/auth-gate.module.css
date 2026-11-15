@@ -1,0 +1,362 @@
+/* The sign-in screen stands in for the whole app on a hosted instance, so it
+   draws its own page: brand at the top, one flat card centered on the page,
+   and the instance host beneath it in mono. Tokens come from globals.css. */
+
+.screen {
+  display: grid;
+  min-height: 100dvh;
+  grid-template-rows: auto 1fr;
+  background: var(--bg);
+  color: var(--text);
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 20px var(--page-gutter);
+}
+
+.brandMark {
+  display: grid;
+  width: 26px;
+  height: 26px;
+  place-items: center;
+  border-radius: 8px;
+  background: var(--card);
+  color: var(--accent);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: -0.08em;
+}
+
+.brandName {
+  font-size: 14px;
+  font-weight: 550;
+  letter-spacing: -0.03em;
+}
+
+.main {
+  display: grid;
+  /* The card's top edge stays put while its height changes between states. */
+  align-content: start;
+  justify-items: center;
+  gap: 16px;
+  padding: max(48px, 16vh) 16px 48px;
+}
+
+.card {
+  width: min(400px, 100%);
+  padding: 32px;
+}
+
+.instance {
+  min-height: 16px;
+  margin: 0;
+  color: var(--text-faint);
+  font-size: 11px;
+  letter-spacing: 0.02em;
+}
+
+.panel {
+  display: grid;
+  gap: 12px;
+}
+
+.title {
+  margin: 0;
+  font-size: 1.375rem;
+  font-weight: 500;
+  letter-spacing: -0.035em;
+  line-height: 1.2;
+}
+
+/* The heading takes focus only so a screen reader announces the new state;
+   it is not a control, so it draws no ring. */
+.title:focus {
+  outline: none;
+}
+
+.lead {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 14px;
+  line-height: 1.6;
+  text-wrap: pretty;
+}
+
+.address {
+  overflow-wrap: anywhere;
+  color: var(--text);
+  font-weight: 500;
+}
+
+.hint {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.notes {
+  display: grid;
+  gap: 6px;
+  margin: 4px 0 0;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: var(--card-inset);
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.5;
+  list-style: none;
+}
+
+.notes li {
+  position: relative;
+  padding-left: 14px;
+}
+
+.notes li::before {
+  position: absolute;
+  top: 0.62em;
+  left: 2px;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--text-faint);
+  content: "";
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+/* Semantic color sits on the icon, never on the card. */
+.icon {
+  display: grid;
+  width: 36px;
+  height: 36px;
+  place-items: center;
+  margin-bottom: 4px;
+  border-radius: 11px;
+}
+
+.icon[data-tone="info"] {
+  background: color-mix(in srgb, var(--node-live) 14%, transparent);
+  color: var(--node-live);
+}
+
+.icon[data-tone="warning"] {
+  background: color-mix(in srgb, var(--warning) 14%, transparent);
+  color: var(--warning);
+}
+
+.form {
+  display: grid;
+  gap: 14px;
+  margin-top: 8px;
+}
+
+.form :global(.field) > label {
+  font-size: 11px;
+}
+
+.input,
+.codeInput {
+  min-height: 42px;
+  font-size: 15px;
+}
+
+.codeInput {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 20px;
+  letter-spacing: 0.32em;
+  text-align: center;
+}
+
+.submit {
+  width: 100%;
+  min-height: 40px;
+  font-size: 13px;
+}
+
+.textButton {
+  justify-self: center;
+  border: 0;
+  border-radius: 6px;
+  padding: 4px 6px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 12px;
+  text-decoration: underline;
+  text-decoration-color: var(--border-strong);
+  text-underline-offset: 3px;
+  transition: color var(--hover-out) ease;
+}
+
+.textButton:hover:not(:disabled) {
+  color: var(--text);
+  transition-duration: var(--hover-in);
+}
+
+.textButton:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+/* A blocking error in front of the user is tinted, unlike a failed view. */
+.error {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  border-radius: 12px;
+  padding: 10px 12px;
+  background: color-mix(in srgb, var(--danger) 12%, transparent);
+  color: var(--danger);
+}
+
+.error svg {
+  flex: 0 0 auto;
+  margin-top: 2px;
+}
+
+.error p {
+  margin: 0;
+  color: var(--text);
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+
+.subject {
+  display: grid;
+  gap: 6px;
+  margin-top: 4px;
+  border-radius: var(--radius-inset);
+  padding: 10px 12px 14px;
+  background: var(--card-inset);
+}
+
+.subjectHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.label {
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.01em;
+}
+
+.subjectValue {
+  overflow-wrap: anywhere;
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 1.5;
+  user-select: all;
+}
+
+.copy {
+  display: inline-flex;
+  min-height: 26px;
+  align-items: center;
+  gap: 6px;
+  border: 0;
+  border-radius: 8px;
+  padding: 0 8px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 11px;
+  transition:
+    background-color var(--hover-out) ease,
+    color var(--hover-out) ease;
+}
+
+.copy:hover {
+  background: var(--shell-hover);
+  color: var(--text);
+  transition-duration: var(--hover-in);
+}
+
+.copy[data-copied="true"] {
+  color: var(--success);
+}
+
+.working {
+  display: grid;
+  min-height: 160px;
+  align-content: center;
+  justify-items: center;
+  gap: 16px;
+  text-align: center;
+}
+
+.working .title {
+  color: var(--text-muted);
+  font-size: 15px;
+  letter-spacing: -0.015em;
+}
+
+.spinner,
+.buttonSpinner {
+  border: 2px solid color-mix(in srgb, currentColor 22%, transparent);
+  border-top-color: currentColor;
+  border-radius: 50%;
+  animation: spin 2.4s linear infinite;
+}
+
+.spinner {
+  width: 22px;
+  height: 22px;
+  color: var(--text-muted);
+}
+
+.buttonSpinner {
+  width: 12px;
+  height: 12px;
+  border-width: 1.5px;
+}
+
+/* Reduced motion keeps the ring visible and still. */
+@media (prefers-reduced-motion: reduce) {
+  .spinner,
+  .buttonSpinner {
+    animation: none;
+    border-top-color: color-mix(in srgb, currentColor 22%, transparent);
+    border-right-color: currentColor;
+  }
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+@media (max-width: 480px) {
+  .card {
+    padding: 24px;
+  }
+
+  .main {
+    padding-top: 24px;
+  }
+}
