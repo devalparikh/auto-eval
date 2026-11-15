@@ -168,10 +168,47 @@ a numeric code; the application does not consume magic links.
 After signature/issuer/audience/expiry and current verified identity checks, an
 unapproved caller receives only `{authenticated:false,status:"pending",subject}`.
 No opaque session is created; any previous browser session is revoked. The UI
-shows that caller's verified UUID and never mounts dashboard children. No pending
-identity endpoint, role table, or schema migration is introduced. All protected
-APIs still reject the caller. Invalid codes and unverified identities disclose no
-subject. Disabling the flag restores the pre-enrolled-only verification behavior.
+shows that caller's verified UUID and never mounts dashboard children. All
+protected APIs still reject the caller. Invalid codes and unverified identities
+disclose no subject and create no record. Disabling the flag restores the
+pre-enrolled-only verification behavior.
+
+### Pending status across reloads
+
+So a reload does not lose the verified UUID, verification of an unapproved
+identity also stores a display-only record (migration 20,
+`hosted_pending_registrations`: subject as primary key, unique SHA-256 digest of a
+random value, verified email, expiry) and sets a separate `__Host-autoeval-pending` cookie (Secure,
+HttpOnly, SameSite=Strict, Path=/). Properties:
+
+- **Grants nothing.** Request authorization never reads this table or cookie; a
+  pending value presented as the session cookie is an unknown session. Only
+  `POST /api/auth/pending` (status) and `DELETE /api/auth/pending` (clear) read it.
+  Both require the allowed Origin. A status check that presents a pending cookie
+  shares the auth rate limits; one without it (every signed-out page load) returns
+  `{authenticated:false}` without a lookup, so it cannot exhaust the sign-in budget.
+- **Server-verified, not client-trusted.** The browser stores nothing about the
+  identity; the UI renders only the server's answer, which reveals the subject to
+  the browser that verified it and nothing to any other caller.
+- **Bounded.** Lifetime is the shorter of the verified access token's expiry,
+  `AUTOEVAL_SESSION_SECONDS`, and one hour. One record per subject, enforced by the
+  primary key: a newer verification, from any browser, replaces it with an atomic
+  `INSERT … ON CONFLICT (subject) DO UPDATE`, so concurrent verifications leave
+  exactly one valid cookie. Expired rows are deleted on access.
+- **Ended by** expiry, `DELETE /api/auth/pending` ("Return to sign in"), logout, a
+  successful approved sign-in in that browser, disabling registration, or approval.
+- **Approval** of the exact UUID and email turns the next status check into
+  `{authenticated:false,status:"approved"}` and deletes the record. It does not
+  create a session: the user verifies again and receives the normal opaque session.
+- **Revocation** works as before: removing an allowlist entry rejects the next
+  request on any existing session. A pending record cannot outlive the token it was
+  verified with; it is not rechecked against the identity provider during that time,
+  so it may display a since-deleted user's own UUID until it expires, and nothing
+  else.
+
+Rolling this out requires `autoeval-migrate upgrade --runtime-role <role>` before
+the new server starts (the runtime refuses an older schema), so the runtime role
+receives DML on the new table. No configuration change is needed.
 
 After explicit approval of the supplied UUID, the operator verifies its current
 email in Supabase Auth and updates the backend's `AUTOEVAL_OPERATOR_ALLOWLIST`
@@ -200,9 +237,10 @@ The backend requires the exact allowed Origin, the verifier cookie and Supabase'
 successful code/verifier exchange, then applies the existing JWT signature,
 issuer/audience/expiry, current confirmed email and UUID/email allowlist checks.
 Pending registration creates no application session and reveals only that user's
-verified UUID. Approved users receive the same bounded opaque application cookie.
+verified UUID; it keeps the same display-only pending record as numeric OTP (see
+above). Approved users receive the same bounded opaque application cookie.
 No access/refresh token is returned to the browser or stored by this application;
-implicit token fragments are removed and rejected. No schema or SDK change.
+implicit token fragments are removed and rejected. No SDK change.
 
 Built-in Supabase mail is limited to organization team-member addresses and its
 configured low send rate; do not describe this as general external delivery.

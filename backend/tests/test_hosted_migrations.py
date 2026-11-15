@@ -19,6 +19,7 @@ def test_sqlite_upgrade_is_deliberate_and_idempotent(tmp_path):
     upgrade(engine)
     require_current_schema(engine)
     assert "feed_keys" in inspect(engine).get_table_names()
+    assert_pending_table_keys(engine)
     with engine.begin() as connection:
         connection.execute(text("INSERT INTO schema_migrations(version) VALUES (9999)"))
     with pytest.raises(RuntimeError):
@@ -145,8 +146,8 @@ def test_runtime_temp_shadow_cannot_mutate_final_items(postgres, monkeypatch, ex
         # Build a genuine v18 database with the historical trigger and digests,
         # then run the appended migration through the supported upgrade path.
         with monkeypatch.context() as patch:
-            patch.setattr(migration_cli, "MIGRATIONS", migration_cli.MIGRATIONS[:-1])
-            patch.setattr(migration_cli, "MIGRATION_VERSION", MIGRATION_VERSION - 1)
+            patch.setattr(migration_cli, "MIGRATIONS", migration_cli.MIGRATIONS[:18])
+            patch.setattr(migration_cli, "MIGRATION_VERSION", 18)
             upgrade(postgres)
     upgrade(postgres)
     role = "runtime_" + uuid4().hex
@@ -231,3 +232,46 @@ def test_runtime_temp_shadow_cannot_mutate_final_items(postgres, monkeypatch, ex
         with postgres.begin() as connection:
             connection.execute(text(f'DROP OWNED BY "{role}"'))
             connection.execute(text(f'DROP ROLE "{role}"'))
+
+
+def test_postgres_v19_upgrade_adds_backend_only_pending_table(postgres, monkeypatch):
+    from autoeval_api import migration_cli
+
+    # A genuine v19 database predates the pending table entirely.
+    with monkeypatch.context() as patch:
+        patch.setattr(migration_cli, "MIGRATIONS", migration_cli.MIGRATIONS[:19])
+        patch.setattr(migration_cli, "MIGRATION_VERSION", 19)
+        upgrade(postgres)
+    with postgres.begin() as connection:
+        connection.execute(text("DROP TABLE hosted_pending_registrations"))
+    upgrade(postgres)
+    upgrade(postgres)
+    require_current_schema(postgres)
+    assert_pending_table_keys(postgres)
+    with postgres.connect() as connection:
+        assert connection.scalar(
+            text(
+                "SELECT relrowsecurity FROM pg_class "
+                "WHERE oid = 'hosted_pending_registrations'::regclass"
+            )
+        )
+        assert not connection.scalar(
+            text("SELECT has_table_privilege('public', 'hosted_pending_registrations', 'SELECT')")
+        )
+
+
+def assert_pending_table_keys(engine):
+    """One row per subject and one subject per cookie digest, enforced by the schema."""
+    schema = inspect(engine)
+    assert schema.get_pk_constraint("hosted_pending_registrations")["constrained_columns"] == [
+        "subject"
+    ]
+    unique = [
+        constraint["column_names"]
+        for constraint in schema.get_unique_constraints("hosted_pending_registrations")
+    ] + [
+        index["column_names"]
+        for index in schema.get_indexes("hosted_pending_registrations")
+        if index["unique"]
+    ]
+    assert ["digest"] in unique

@@ -8,9 +8,17 @@ const linkUrl = `http://localhost:${process.env.AUTOEVAL_E2E_HOSTED_LINK_PORT ??
 const codeUrl = `http://localhost:${process.env.AUTOEVAL_E2E_HOSTED_CODE_PORT ?? "3013"}`;
 const viewer = { subject: "00000000-0000-4000-8000-0000000000aa", role: "viewer" };
 
-/** Answers `path` with `[status, body]`; anything else reaches the local API. */
-async function mockApi(page: Page, fixtures: Record<string, [number, unknown]>) {
-  const requests: { path: string; body: unknown }[] = [];
+type Fixture = [number, unknown];
+
+/**
+ * Answers `path` with `[status, body]`, or with what a function returns for the
+ * request's method; anything else reaches the local API.
+ */
+async function mockApi(
+  page: Page,
+  fixtures: Record<string, Fixture | ((method: string) => Fixture | undefined)>,
+) {
+  const requests: { path: string; method: string; body: unknown }[] = [];
   await page.route(`${apiUrl}/**`, async (route) => {
     const request = route.request();
     const headers = {
@@ -20,10 +28,11 @@ async function mockApi(page: Page, fixtures: Record<string, [number, unknown]>) 
     };
     if (request.method() === "OPTIONS") return route.fulfill({ status: 204, headers });
     const path = new URL(request.url()).pathname.replace(/^\/api/, "");
-    const fixture = fixtures[path];
+    const entry = fixtures[path];
+    const fixture = typeof entry === "function" ? entry(request.method()) : entry;
     if (!fixture) return route.fallback();
     const posted = request.postData();
-    requests.push({ path, body: posted ? JSON.parse(posted) : null });
+    requests.push({ path, method: request.method(), body: posted ? JSON.parse(posted) : null });
     await route.fulfill({
       status: fixture[0],
       headers,
@@ -118,4 +127,120 @@ test("a spaced ten-digit code arrives whole, and an eleventh digit is refused", 
   await page.getByRole("button", { name: "Verify code" }).click();
   await page.waitForTimeout(200);
   expect(requests.filter((request) => request.path === "/auth/verify")).toHaveLength(verifies);
+});
+
+const pendingSubject = "00000000-0000-4000-8000-0000000000b2";
+
+/**
+ * Stands in for the backend's pending record: verification creates it, a
+ * status check reads it, approval consumes it, and DELETE clears it. Pending
+ * never answers /auth/session, which stays 401 throughout.
+ */
+function pendingServer() {
+  const state = { pending: false, approved: false };
+  const status = (): Fixture => {
+    if (!state.pending) return [200, { authenticated: false }];
+    if (state.approved) {
+      state.pending = false;
+      return [200, { authenticated: false, status: "approved" }];
+    }
+    return [200, { authenticated: false, status: "pending", subject: pendingSubject }];
+  };
+  const verified = (): Fixture => {
+    state.pending = true;
+    return [200, { authenticated: false, status: "pending", subject: pendingSubject }];
+  };
+  return {
+    state,
+    fixtures: {
+      "/auth/session": [401, { detail: "Request not authorized" }] as Fixture,
+      "/auth/request": [200, {}] as Fixture,
+      "/auth/verify": verified,
+      "/auth/exchange": verified,
+      "/auth/pending": (method: string): Fixture | undefined => {
+        if (method === "POST") return status();
+        if (method === "DELETE") {
+          state.pending = false;
+          return [200, { authenticated: false }];
+        }
+        return undefined;
+      },
+    },
+  };
+}
+
+async function expectPendingOnly(page: Page) {
+  await expect(page.getByRole("heading", { name: "Approval pending" })).toBeVisible();
+  await expect(page.getByText(pendingSubject)).toBeVisible();
+  // The workspace chrome never mounts for a pending identity.
+  await expect(page.getByRole("complementary", { name: "Sidebar" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Sign out" })).toHaveCount(0);
+  expect(
+    await page.evaluate(() => [window.localStorage.length, window.sessionStorage.length]),
+  ).toEqual([0, 0]);
+}
+
+test("a numeric-code registration stays pending across reloads until the user leaves", async ({ page }) => {
+  const server = pendingServer();
+  const requests = await mockApi(page, server.fixtures);
+  await page.goto(codeUrl);
+  await page.getByLabel("Email", { exact: true }).fill("new-user@example.invalid");
+  await page.getByRole("button", { name: "Send code" }).click();
+  await page.getByLabel("Email code").fill("123456");
+  await page.getByRole("button", { name: "Verify code" }).click();
+  await expectPendingOnly(page);
+
+  await page.reload();
+  await expectPendingOnly(page);
+  expect(requests.slice(-2).map(({ path, method }) => `${method} ${path}`)).toEqual([
+    "GET /auth/session",
+    "POST /auth/pending",
+  ]);
+
+  await page.getByRole("button", { name: "Check again" }).click();
+  await expect(page.getByText("Still waiting for approval.", { exact: true }).first()).toBeVisible();
+  await expect(page.getByText(pendingSubject)).toBeVisible();
+
+  await page.getByRole("button", { name: "Return to sign in" }).click();
+  await expect(page.getByRole("heading", { name: "Sign in to AutoEval" })).toBeVisible();
+  expect(requests.at(-1)).toMatchObject({ path: "/auth/pending", method: "DELETE" });
+  await page.reload();
+  await expect(page.getByRole("heading", { name: "Sign in to AutoEval" })).toBeVisible();
+  await expect(page.getByText(pendingSubject)).toHaveCount(0);
+});
+
+test("an email-link registration survives reload and approval asks for a fresh sign-in", async ({ page }) => {
+  const server = pendingServer();
+  const requests = await mockApi(page, server.fixtures);
+  await page.goto(`${linkUrl}/?code=${"e".repeat(36)}`);
+  await expectPendingOnly(page);
+  expect(new URL(page.url()).search).toBe("");
+
+  await page.reload();
+  await expectPendingOnly(page);
+  // The one-use code was consumed once; the reload asks only for status.
+  expect(requests.filter((request) => request.path === "/auth/exchange")).toHaveLength(1);
+
+  server.state.approved = true;
+  await page.getByRole("button", { name: "Check again" }).click();
+  await expect(page.getByText(/Your account is approved/)).toBeVisible();
+  await expect(page.getByRole("button", { name: "Send sign-in link" })).toBeVisible();
+  await expect(page.getByText(pendingSubject)).toHaveCount(0);
+  await expect(page.getByRole("complementary", { name: "Sidebar" })).toHaveCount(0);
+});
+
+test("a reload with no pending record, or an expired one, starts at sign-in", async ({ page }) => {
+  const server = pendingServer();
+  await mockApi(page, server.fixtures);
+  await page.goto(codeUrl);
+  await expect(page.getByRole("heading", { name: "Sign in to AutoEval" })).toBeVisible();
+  await expect(page.getByText(pendingSubject)).toHaveCount(0);
+
+  server.state.pending = true;
+  await page.reload();
+  await expectPendingOnly(page);
+  server.state.pending = false; // The server-side record expired.
+  await page.getByRole("button", { name: "Check again" }).click();
+  await expect(page.getByText(/no longer available in this browser/)).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Sign in to AutoEval" })).toBeVisible();
 });

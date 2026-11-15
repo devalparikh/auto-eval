@@ -1,3 +1,5 @@
+import contextlib
+import threading
 import time
 from types import SimpleNamespace
 from uuid import uuid4
@@ -609,6 +611,11 @@ def test_pkce_link_pending_approval_and_same_browser_binding(hosted, monkeypatch
     assert response.json() == {"authenticated": False, "status": "pending", "subject": SUBJECT}
     assert "Max-Age=0" in response.headers["set-cookie"]
     assert client.get("/api/catalog").status_code == 401
+    # The link path persists the same display-only pending record as numeric OTP.
+    assert "HttpOnly" in pending_cookie_header(response)
+    status = client.post("/api/auth/pending", headers=headers)
+    assert status.json() == {"authenticated": False, "status": "pending", "subject": SUBJECT}
+    assert client.get("/api/auth/session").status_code == 401
     with app.state.session_factory() as session:
         assert list(session.scalars(select(HostedSessionRecord))) == []
     client.cookies.clear()
@@ -657,3 +664,272 @@ def test_pkce_exchange_still_rejects_wrong_jwt_and_unverified_email(hosted, monk
     )
     with app.state.session_factory() as session:
         assert list(session.scalars(select(HostedSessionRecord))) == []
+
+
+def pending_cookie_header(response):
+    from autoeval_api.services.hosted_auth import PENDING_COOKIE
+
+    headers = [
+        value
+        for value in response.headers.get_list("set-cookie")
+        if value.startswith(PENDING_COOKIE + "=")
+    ]
+    assert len(headers) == 1, response.headers.get_list("set-cookie")
+    return headers[0]
+
+
+def test_pending_registration_survives_reload_without_granting_access(hosted):
+    from autoeval_api.models import HostedPendingRecord
+    from autoeval_api.services.hosted_auth import PENDING_COOKIE
+
+    client, app, _, _, _ = hosted
+    app.state.settings.allow_self_registration = True
+    app.state.settings.operator_allowlist = {}
+    headers = {"origin": ORIGIN}
+    body = {"email": EMAIL, "token": "123456"}
+    result = client.post("/api/auth/verify", json=body, headers=headers)
+    assert result.json() == {"authenticated": False, "status": "pending", "subject": SUBJECT}
+    cookie = pending_cookie_header(result)
+    for attribute in ["HttpOnly", "Secure", "SameSite=strict", "Path=/"]:
+        assert attribute in cookie
+    # Bounded by the verified token's own expiry (600s in this fixture).
+    max_age = int(cookie.split("Max-Age=")[1].split(";")[0])
+    assert 0 < max_age <= 600
+    pending = client.cookies.get(PENDING_COOKIE)
+    assert pending and not client.cookies.get(COOKIE)
+    with app.state.session_factory() as session:
+        assert session.scalars(select(HostedSessionRecord)).all() == []
+        (row,) = session.scalars(select(HostedPendingRecord)).all()
+        assert row.digest == digest(pending) and row.digest != pending
+
+    # A reload asks the server, which reports only this browser's verified subject.
+    assert client.post("/api/auth/pending").status_code == 403
+    status = client.post("/api/auth/pending", headers=headers)
+    assert status.json() == {"authenticated": False, "status": "pending", "subject": SUBJECT}
+    assert "set-cookie" not in status.headers
+
+    # The pending cookie authorizes nothing, under either cookie name.
+    for value in [None, pending]:
+        if value:
+            client.cookies.set(COOKIE, value)
+        for path in ["/api/auth/session", "/api/catalog", "/api/applications", "/api/traces"]:
+            assert client.get(path, headers=headers).status_code == 401
+        assert client.post("/api/applications", json={}, headers=headers).status_code == 401
+        assert client.post("/api/auth/logout", headers=headers).status_code == 401
+    client.cookies.delete(COOKIE)
+
+    # Another browser, or a guessed value, learns nothing.
+    with TestClient(app, base_url=ORIGIN) as other:
+        assert other.post("/api/auth/pending", headers=headers).json() == {"authenticated": False}
+        other.cookies.set(PENDING_COOKIE, "x" * 43)
+        assert other.post("/api/auth/pending", headers=headers).json() == {"authenticated": False}
+
+    # Approval of a different email is not approval of this identity.
+    app.state.settings.operator_allowlist = {
+        SUBJECT: {"email": "other@example.invalid", "role": "admin"}
+    }
+    assert client.post("/api/auth/pending", headers=headers).json()["status"] == "pending"
+    # Exact approval ends the pending record but still requires a fresh sign-in.
+    app.state.settings.operator_allowlist = {SUBJECT: {"email": EMAIL, "role": "admin"}}
+    approved = client.post("/api/auth/pending", headers=headers)
+    assert approved.json() == {"authenticated": False, "status": "approved"}
+    assert "Max-Age=0" in pending_cookie_header(approved)
+    assert not client.cookies.get(COOKIE) and not client.cookies.get(PENDING_COOKIE)
+    assert client.get("/api/catalog").status_code == 401
+    client.cookies.set(PENDING_COOKIE, pending)
+    assert client.post("/api/auth/pending", headers=headers).json() == {"authenticated": False}
+    with app.state.session_factory() as session:
+        assert session.scalars(select(HostedPendingRecord)).all() == []
+    login(client)
+    assert client.get("/api/catalog").status_code == 200
+
+
+def test_pending_record_expires_is_cleared_and_is_one_per_subject(hosted):
+    from sqlalchemy import update
+
+    from autoeval_api.models import HostedPendingRecord
+    from autoeval_api.services.hosted_auth import PENDING_COOKIE
+
+    client, app, _, _, _ = hosted
+    app.state.settings.allow_self_registration = True
+    app.state.settings.operator_allowlist = {}
+    headers = {"origin": ORIGIN}
+    body = {"email": EMAIL, "token": "123456"}
+
+    def verify(browser):
+        result = browser.post("/api/auth/verify", json=body, headers=headers)
+        assert result.json()["status"] == "pending"
+        return browser.cookies.get(PENDING_COOKIE)
+
+    def rows():
+        with app.state.session_factory() as session:
+            return session.scalars(select(HostedPendingRecord)).all()
+
+    # Expiry: a record past its bound is removed and reports nothing.
+    first = verify(client)
+    with app.state.session_factory() as session:
+        session.execute(update(HostedPendingRecord).values(expires=time.time() - 1))
+        session.commit()
+    assert client.post("/api/auth/pending", headers=headers).json() == {"authenticated": False}
+    assert rows() == []
+
+    # One record per subject: a newer verification replaces the older one.
+    first = verify(client)
+    with TestClient(app, base_url=ORIGIN) as other:
+        second = verify(other)
+        assert other.post("/api/auth/pending", headers=headers).json()["status"] == "pending"
+    assert [row.digest for row in rows()] == [digest(second)]
+    assert client.post("/api/auth/pending", headers=headers).json() == {"authenticated": False}
+
+    # Re-verifying in the same browser replaces its own record.
+    first = verify(client)
+    again = verify(client)
+    assert first != again and [row.digest for row in rows()] == [digest(again)]
+
+    # Disabling registration ends pending display without granting anything.
+    app.state.settings.allow_self_registration = False
+    assert client.post("/api/auth/pending", headers=headers).json() == {"authenticated": False}
+    assert rows() == []
+
+    # Explicit clear: requires the allowed origin, removes the record and cookie.
+    app.state.settings.allow_self_registration = True
+    verify(client)
+    assert client.delete("/api/auth/pending").status_code == 403
+    cleared = client.delete("/api/auth/pending", headers=headers)
+    assert cleared.status_code == 200 and "Max-Age=0" in pending_cookie_header(cleared)
+    assert rows() == [] and not client.cookies.get(PENDING_COOKIE)
+
+    # An approved sign-in in this browser clears its pending record too.
+    verify(client)
+    app.state.settings.operator_allowlist = {SUBJECT: {"email": EMAIL, "role": "admin"}}
+    result = client.post("/api/auth/verify", json=body, headers=headers)
+    assert result.json() == {"authenticated": True}
+    assert "Max-Age=0" in pending_cookie_header(result)
+    assert rows() == [] and not client.cookies.get(PENDING_COOKIE)
+    # And sign-out clears both, whatever the browser still presents.
+    client.cookies.set(PENDING_COOKIE, "y" * 43)
+    client.headers["origin"] = ORIGIN
+    logout = client.post("/api/auth/logout")
+    assert logout.status_code == 200 and "Max-Age=0" in pending_cookie_header(logout)
+
+
+def test_pending_status_requires_hosted_mode_and_no_failed_verification_leaves_a_record(
+    hosted, monkeypatch
+):
+    from autoeval_api.models import HostedPendingRecord
+    from autoeval_api.services.hosted_auth import PENDING_COOKIE
+
+    client, app, _, _, _ = hosted
+    app.state.settings.allow_self_registration = True
+    app.state.settings.operator_allowlist = {}
+    headers = {"origin": ORIGIN}
+    body = {"email": EMAIL, "token": "123456"}
+    assert (
+        client.post("/api/auth/verify", json={**body, "token": "000000"}, headers=headers)
+    ).status_code == 401
+    monkeypatch.setattr(
+        "autoeval_api.services.hosted_auth.httpx.get",
+        lambda *a, **k: httpx.Response(
+            200, json={"id": SUBJECT, "email": EMAIL, "email_confirmed_at": None}
+        ),
+    )
+    assert client.post("/api/auth/verify", json=body, headers=headers).status_code == 401
+    assert not client.cookies.get(PENDING_COOKIE)
+    with app.state.session_factory() as session:
+        assert session.scalars(select(HostedPendingRecord)).all() == []
+    app.state.settings.auth_mode = "none"
+    assert client.post("/api/auth/pending", headers=headers).status_code == 404
+
+
+def test_signed_out_pending_checks_do_not_spend_the_sign_in_budget(hosted):
+    from autoeval_api.services.hosted_auth import PENDING_COOKIE
+
+    client, app, _, _, _ = hosted
+    app.state.settings.allow_self_registration = True
+    headers = {"origin": ORIGIN}
+    # Well past both the per-client (20) and global (100) auth limits per minute.
+    for _ in range(110):
+        result = client.post("/api/auth/pending", headers=headers)
+        assert result.json() == {"authenticated": False}
+    assert client.post("/api/auth/pending").status_code == 403
+    assert (
+        client.post("/api/auth/request", json={"email": EMAIL}, headers=headers).status_code == 200
+    )
+    # A presented cookie, even a guessed one, is looked up and therefore limited.
+    client.cookies.set(PENDING_COOKIE, "z" * 43)
+    codes = {client.post("/api/auth/pending", headers=headers).status_code for _ in range(25)}
+    assert codes == {200, 429}
+
+
+@pytest.mark.parametrize("database", ["postgres", "sqlite-file"])
+def test_concurrent_pending_verifications_leave_exactly_one_valid_record(
+    request, tmp_path, database
+):
+    """PostgreSQL READ COMMITTED interleaving: both writers act before either commits.
+
+    A delete-then-insert replacement lets each transaction miss the other's
+    uncommitted row, leaving two valid pending cookies for one subject. The
+    database key must make the second writer wait and replace the first. SQLite
+    serializes writers, so there it only proves the same path stays correct.
+    """
+    from sqlalchemy import create_engine
+
+    if database == "postgres":
+        engine = request.getfixturevalue("postgres")
+    else:
+        engine = create_engine(f"sqlite:///{tmp_path}/pending.db")
+
+    from autoeval_api.models import HostedPendingRecord
+    from autoeval_api.services.hosted_auth import HostedAuth
+
+    upgrade(engine)
+    factory = build_session_factory(engine)
+    settings = Settings(
+        AUTOEVAL_ENV="test",
+        auth_mode="supabase",
+        supabase_url="https://auth.example.invalid",
+        supabase_publishable_key="test-publishable",
+        allow_self_registration=True,
+        allowed_hosts=["testserver"],
+        web_origins=[ORIGIN],
+    )
+    # Hold every commit until both verifications have written (or one is
+    # blocked by the other's row), so the interleaving is not left to chance.
+    both_written = threading.Barrier(2)
+
+    def interleaved():
+        session = factory()
+        commit = session.commit
+
+        def held_commit():
+            with contextlib.suppress(threading.BrokenBarrierError):
+                both_written.wait(timeout=3)
+            commit()
+
+        session.commit = held_commit
+        return session
+
+    auth = HostedAuth(settings, interleaved)
+    auth.verify_token = lambda token, allow_pending: (
+        {"subject": SUBJECT, "email": EMAIL, "role": "pending"},
+        time.time() + 600,
+    )
+    values, errors = [], []
+
+    def verify():
+        try:
+            values.append(auth.new_session("token")[0])
+        except Exception as error:  # surfaced below
+            errors.append(error)
+
+    threads = [threading.Thread(target=verify) for _ in range(2)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join(timeout=30)
+    assert errors == [] and len(values) == 2 and values[0] != values[1]
+    with factory() as session:
+        rows = session.scalars(select(HostedPendingRecord)).all()
+    assert [row.subject for row in rows] == [SUBJECT]
+    valid = [value for value in values if auth.pending_status(value) is not None]
+    assert len(valid) == 1 and rows[0].digest == digest(valid[0])

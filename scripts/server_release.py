@@ -1,6 +1,7 @@
 """Build and install an independently pinned Vercel source release. Never deploys."""
 
 import argparse
+import ast
 import gzip
 import hashlib
 import io
@@ -27,6 +28,40 @@ ROOT_FILES = [
     "backend/requirements.txt",
 ]
 TREES = ["frontend/src", "frontend/public", "backend/src"]
+# The runtime's authoritative schema version is len(MIGRATIONS) in this file.
+MIGRATIONS_FILE = "backend/src/autoeval_api/migrations.py"
+
+
+def schema_version(source):
+    """Count the ordered MIGRATIONS tuple without importing product code.
+
+    Mirrors ``MIGRATION_VERSION = len(MIGRATIONS)``; anything that is not a plain
+    tuple of distinct, defined migration functions is refused rather than guessed.
+    """
+    tree = ast.parse(source)
+    defined = {node.name for node in tree.body if isinstance(node, ast.FunctionDef)}
+    found = []
+    for node in tree.body:
+        targets = (
+            [node.target]
+            if isinstance(node, ast.AnnAssign)
+            else node.targets
+            if isinstance(node, ast.Assign)
+            else []
+        )
+        if any(isinstance(t, ast.Name) and t.id == "MIGRATIONS" for t in targets):
+            found.append(node.value)
+    if len(found) != 1 or not isinstance(found[0], ast.Tuple):
+        raise ValueError("MIGRATIONS must be assigned once, as a tuple")
+    names = [element.id for element in found[0].elts if isinstance(element, ast.Name)]
+    if (
+        not names
+        or len(names) != len(found[0].elts)
+        or len(set(names)) != len(names)
+        or not set(names) <= defined
+    ):
+        raise ValueError("MIGRATIONS must list distinct defined migration functions")
+    return len(names)
 
 
 def digest(data):
@@ -81,6 +116,8 @@ def build(root, output, version, source):
         if re.search(rb"-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY|ghp_[A-Za-z0-9]{30,}", data):
             raise ValueError(f"possible secret: {name}")
         contents[name] = data
+    if MIGRATIONS_FILE not in contents:
+        raise ValueError("schema migrations missing from release inputs")
     if sum(map(len, contents.values())) > MAX_BYTES:
         raise ValueError("release too large")
     raw = io.BytesIO()
@@ -104,7 +141,11 @@ def build(root, output, version, source):
         "files": {n: digest(d) for n, d in contents.items()},
         "compatibility": {
             "migrationCli": "autoeval-migrate",
-            "schemaUpgradeContract": {"version": 19, "runtimeMigrates": False, "postgresBaseline": "empty-schema-only"},
+            "schemaUpgradeContract": {
+                "version": schema_version(contents[MIGRATIONS_FILE].decode()),
+                "runtimeMigrates": False,
+                "postgresBaseline": "empty-schema-only",
+            },
             "hostedFeed": True,
             "supabaseAuth": True,
             "productionReady": False,
@@ -155,9 +196,12 @@ def install(bundle, manifest, manifest_sha256, destination, version, source):
             verified[member.name] = content
     if set(verified) != set(m["files"]):
         raise ValueError("file inventory mismatch")
-    for name in ROOT_FILES:
+    for name in [*ROOT_FILES, MIGRATIONS_FILE]:
         if name not in verified:
             raise ValueError("required build file missing")
+    contract = m["compatibility"]["schemaUpgradeContract"]["version"]
+    if contract != schema_version(verified[MIGRATIONS_FILE].decode()):
+        raise ValueError("schema upgrade contract does not match bundled migrations")
     config = json.loads(verified["vercel.json"])
     if (
         config["services"]["frontend"]["root"] != "frontend"

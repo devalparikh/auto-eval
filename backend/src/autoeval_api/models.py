@@ -476,6 +476,22 @@ class HostedSessionRecord(Base):
     expires: Mapped[float] = mapped_column(Float)
 
 
+class HostedPendingRecord(Base):
+    """A verified but unapproved registration, shown only to the browser that verified it.
+
+    Deliberately separate from ``HostedSessionRecord``: nothing that authorizes a
+    request reads this table, so a pending row can never become application access.
+    """
+
+    __tablename__ = "hosted_pending_registrations"
+    # One row per subject, enforced by the database: concurrent verifications
+    # replace the row atomically instead of each adding one.
+    subject: Mapped[str] = mapped_column(String(200), primary_key=True)
+    digest: Mapped[str] = mapped_column(String(64), unique=True)
+    email: Mapped[str] = mapped_column(String(320))
+    expires: Mapped[float] = mapped_column(Float)
+
+
 class HostedRateRecord(Base):
     __tablename__ = "hosted_rates"
     digest: Mapped[str] = mapped_column(String(64), primary_key=True)

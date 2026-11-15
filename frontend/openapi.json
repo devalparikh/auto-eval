@@ -6124,6 +6124,51 @@
         ]
       }
     },
+    "/api/auth/pending": {
+      "delete": {
+        "operationId": "clear_pending_api_auth_pending_delete",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Clear Pending Api Auth Pending Delete",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Clear Pending",
+        "tags": [
+          "auth"
+        ]
+      },
+      "post": {
+        "description": "This browser's own pending registration, if any. Grants no access.",
+        "operationId": "pending_status_api_auth_pending_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Pending Status Api Auth Pending Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Pending Status",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
     "/api/auth/request": {
       "post": {
         "operationId": "request_code_api_auth_request_post",

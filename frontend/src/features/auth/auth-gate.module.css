@@ -232,6 +232,29 @@
   line-height: 1.5;
 }
 
+/* Neutral news about the account, not a failure: tinted, never bordered. */
+.notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  border-radius: 12px;
+  padding: 10px 12px;
+  background: color-mix(in srgb, var(--node-live) 10%, transparent);
+  color: var(--node-live);
+}
+
+.notice svg {
+  flex: 0 0 auto;
+  margin-top: 2px;
+}
+
+.notice p {
+  margin: 0;
+  color: var(--text);
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+
 .subject {
   display: grid;
   gap: 6px;

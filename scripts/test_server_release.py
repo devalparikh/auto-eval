@@ -2,6 +2,8 @@
 
 import io
 import json
+import re
+import shutil
 import tarfile
 import tempfile
 import shlex
@@ -55,6 +57,69 @@ class ReleaseTests(unittest.TestCase):
             (stage / "frontend/package-lock.json").read_bytes(),
             (ROOT / "frontend/package-lock.json").read_bytes(),
         )
+
+    def test_schema_contract_is_the_bundled_migration_count(self):
+        source = (ROOT / release.MIGRATIONS_FILE).read_text()
+        contract = json.loads(self.manifest.read_text())["compatibility"]["schemaUpgradeContract"]
+        # Independent of the parser: every defined migration is listed exactly once.
+        defined = re.findall(r"^def (_apply_version_\w+)\(", source, re.M)
+        self.assertEqual(contract["version"], len(defined))
+        self.assertEqual(contract["version"], release.schema_version(source))
+        self.assertGreaterEqual(contract["version"], 20)
+        self.assertEqual(self.install()["compatibility"]["schemaUpgradeContract"], contract)
+
+    def test_future_migration_moves_the_contract_without_a_script_edit(self):
+        root = self.root / "source"
+        for name in release.ROOT_FILES:
+            (root / name).parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(ROOT / name, root / name)
+        for tree in release.TREES:
+            shutil.copytree(
+                ROOT / tree, root / tree, ignore=shutil.ignore_patterns("__pycache__", "*.pyc")
+            )
+        path = root / release.MIGRATIONS_FILE
+        source = path.read_text()
+        current = release.schema_version(source)
+        source = source.replace(
+            "\n)\n\nMIGRATION_VERSION",
+            "\n    _apply_version_future,\n)\n\nMIGRATION_VERSION",
+        )
+        path.write_text(source + "\n\ndef _apply_version_future(connection) -> None:\n    pass\n")
+        output = self.root / "future"
+        manifest = release.build(root, output, "0.0.0-candidate", SOURCE)
+        self.assertEqual(manifest["compatibility"]["schemaUpgradeContract"]["version"], current + 1)
+        installed = release.install(
+            output / "auto-eval-server.tar.gz",
+            output / "server-manifest.json",
+            release.digest((output / "server-manifest.json").read_bytes()),
+            self.root / "future-stage",
+            "0.0.0-candidate",
+            SOURCE,
+        )
+        self.assertEqual(installed["compatibility"], manifest["compatibility"])
+
+    def test_stale_schema_contract_is_refused_even_with_a_valid_manifest_hash(self):
+        manifest = json.loads(self.manifest.read_text())
+        manifest["compatibility"]["schemaUpgradeContract"]["version"] -= 1
+        self.manifest.write_text(json.dumps(manifest, indent=2) + "\n")
+        with self.assertRaisesRegex(ValueError, "schema upgrade contract"):
+            self.install(manifest_sha256=release.digest(self.manifest.read_bytes()))
+        self.assertFalse((self.root / "stage").exists())
+
+    def test_ambiguous_migration_lists_are_refused(self):
+        defined = "def a(c):\n    pass\n\ndef b(c):\n    pass\n\n"
+        self.assertEqual(release.schema_version(defined + "MIGRATIONS: tuple = (a, b)\n"), 2)
+        for body in [
+            "",
+            "MIGRATIONS = [a, b]\n",
+            "MIGRATIONS = (a, a)\n",
+            "MIGRATIONS = (a, missing)\n",
+            "MIGRATIONS = (a, *rest)\n",
+            "MIGRATIONS = ()\n",
+            "MIGRATIONS = (a,)\nMIGRATIONS = (a, b)\n",
+        ]:
+            with self.subTest(body=body), self.assertRaises(ValueError):
+                release.schema_version(defined + body)
 
     def test_backend_service_installs_declared_postgres_extra(self):
         self.install()

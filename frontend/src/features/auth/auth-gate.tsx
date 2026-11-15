@@ -5,15 +5,30 @@ import {
   CopyIcon,
   EnvelopeSimpleIcon,
   HourglassMediumIcon,
+  InfoIcon,
   WarningCircleIcon,
 } from "@phosphor-icons/react";
 import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
-import { apiRequest } from "@/lib/api";
+import { ApiError, apiRequest } from "@/lib/api";
 import { clearApiResourceCache } from "@/lib/use-api-resource";
 import { HostedSessionContext } from "./hosted-session";
 import styles from "./auth-gate.module.css";
 
 type Phase = "loading" | "callback" | "email" | "code" | "link" | "pending" | "ready";
+type Verification = { authenticated?: boolean; status?: string; subject?: string };
+
+const APPROVED_NOTICE = "Your account is approved. Sign in again to open the dashboard.";
+const EXPIRED_NOTICE =
+  "Your approval request is no longer available in this browser. Sign in again to check its status.";
+
+/**
+ * A verified but unapproved registration is held by the backend in its own
+ * HttpOnly cookie, separate from any session. Only the server's answer is
+ * rendered: nothing about the pending identity is stored in the browser.
+ */
+function readPending(signal?: AbortSignal) {
+  return apiRequest<Verification>("/auth/pending", { method: "POST", signal });
+}
 
 export function AuthGate({
   enabled,
@@ -30,10 +45,12 @@ export function AuthGate({
   const [token, setToken] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
+  const [pendingCheck, setPendingCheck] = useState<"idle" | "checking" | "still" | "failed">("idle");
   // The server renders no host; the browser fills it in without a mismatch.
   const host = useSyncExternalStore(subscribeNever, readHost, () => "");
   const active = useRef<AbortController | null>(null);
-  const callback = useRef<Promise<{authenticated?: boolean; status?: string; subject?: string}> | null>(null);
+  const callback = useRef<Promise<Verification> | null>(null);
   useEffect(() => {
     if (!enabled) return;
     const unauthorized = () => {
@@ -90,8 +107,25 @@ export function AuthGate({
           setPhase("ready");
         }
       })
-      .catch(() => {
-        if (!controller.signal.aborted) setPhase("email");
+      .catch(async (failure: unknown) => {
+        if (controller.signal.aborted) return;
+        // No session. A reload while awaiting approval asks the server whether
+        // this browser verified a still-pending identity; it grants nothing.
+        if (failure instanceof ApiError && failure.status === 401) {
+          try {
+            const result = await readPending(controller.signal);
+            if (controller.signal.aborted) return;
+            if (result.status === "pending" && result.subject) {
+              setPendingSubject(result.subject);
+              setPhase("pending");
+              return;
+            }
+            if (result.status === "approved") setNotice(APPROVED_NOTICE);
+          } catch {
+            if (controller.signal.aborted) return;
+          }
+        }
+        setPhase("email");
       });
     return () => {
       controller.abort();
@@ -104,6 +138,7 @@ export function AuthGate({
     if (busy) return;
     setBusy(true);
     setError("");
+    setNotice("");
     const controller = new AbortController();
     active.current = controller;
     const timeout = setTimeout(() => controller.abort(), 15000);
@@ -168,7 +203,55 @@ export function AuthGate({
     setPhase("email");
     setToken("");
     setError("");
+    setNotice("");
   }
+
+  function leavePending(message = "") {
+    clearApiResourceCache();
+    setPendingSubject("");
+    setPendingCheck("idle");
+    setError("");
+    setNotice(message);
+    setPhase("email");
+  }
+
+  async function checkPending() {
+    if (busy) return;
+    setBusy(true);
+    setPendingCheck("checking");
+    try {
+      const result = await readPending();
+      if (result.status === "pending" && result.subject) {
+        setPendingSubject(result.subject);
+        setPendingCheck("still");
+      } else leavePending(result.status === "approved" ? APPROVED_NOTICE : EXPIRED_NOTICE);
+    } catch {
+      setPendingCheck("failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function returnToSignIn() {
+    if (busy) return;
+    setBusy(true);
+    try {
+      // Ends the server-held pending record, so a reload starts at sign-in.
+      await apiRequest("/auth/pending", { method: "DELETE" });
+    } catch {
+      // The record still expires on its own and never grants access.
+    } finally {
+      setBusy(false);
+      leavePending();
+    }
+  }
+
+  const pendingMessage =
+    pendingCheck === "still"
+      ? "Still waiting for approval."
+      : pendingCheck === "failed"
+        ? "Approval status couldn’t be checked. Try again in a moment."
+        : "";
 
   if (phase === "ready")
     return enabled ? (
@@ -217,17 +300,33 @@ export function AuthGate({
           </p>
           <SubjectCard subject={pendingSubject} />
           <p className={styles.hint}>
-            Send this ID to the instance operator, then sign in again once you’re approved.
+            Send this ID to the instance operator. This page stays available in this browser for a
+            limited time. Once you’re approved, check again and sign in.
           </p>
+          {pendingMessage && (
+            <p className={styles.hint} aria-hidden="true">
+              {pendingMessage}
+            </p>
+          )}
+          <span className={styles.srOnly} role="status">
+            {pendingMessage}
+          </span>
           <div className={styles.actions}>
             <button
               type="button"
+              className="app-button"
+              disabled={busy}
+              aria-busy={pendingCheck === "checking"}
+              onClick={() => void checkPending()}
+            >
+              {pendingCheck === "checking" && <span className={styles.buttonSpinner} aria-hidden="true" />}
+              {pendingCheck === "checking" ? "Checking…" : "Check again"}
+            </button>
+            <button
+              type="button"
               className="app-button secondary"
-              onClick={() => {
-                clearApiResourceCache();
-                setPendingSubject("");
-                setPhase("email");
-              }}
+              disabled={busy}
+              onClick={() => void returnToSignIn()}
             >
               Return to sign in
             </button>
@@ -241,6 +340,7 @@ export function AuthGate({
           token={token}
           busy={busy}
           error={error}
+          notice={notice}
           onEmail={setEmail}
           onToken={setToken}
           onSubmit={() => void submit()}
@@ -379,6 +479,7 @@ function SignInForm({
   token,
   busy,
   error,
+  notice,
   onEmail,
   onToken,
   onSubmit,
@@ -390,6 +491,7 @@ function SignInForm({
   token: string;
   busy: boolean;
   error: string;
+  notice: string;
   onEmail: (value: string) => void;
   onToken: (value: string) => void;
   onSubmit: () => void;
@@ -422,6 +524,12 @@ function SignInForm({
             ? "Enter your email and we’ll send you a sign-in link."
             : "Enter your email and we’ll send you a one-time code."}
         </p>
+      )}
+      {notice && !error && (
+        <div className={styles.notice} role="status">
+          <InfoIcon size={15} weight="fill" aria-hidden="true" />
+          <p>{notice}</p>
+        </div>
       )}
       {error && (
         <div className={styles.error} role="alert">
