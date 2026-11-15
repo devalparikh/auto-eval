@@ -345,3 +345,19 @@ def test_prompt_selection_migration_backfills_llm_span_provenance(tmp_path) -> N
     assert "runtime_input_snapshot_id" in span_columns
     assert "runtime_input_snapshot_ids" in dataset_item_columns
     assert runtime_mapping == "{}"
+
+
+def test_release_manifest_schema_contract_is_the_runtime_migration_version():
+    """The stdlib-only release builder reads the same source the server runs."""
+    import importlib.util
+    from pathlib import Path
+
+    from autoeval_api import migrations
+
+    script = Path(__file__).resolve().parents[2] / "scripts" / "server_release.py"
+    spec = importlib.util.spec_from_file_location("server_release_under_test", script)
+    release = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(release)
+    source = Path(migrations.__file__).read_text()
+    assert release.schema_version(source) == MIGRATION_VERSION == len(migrations.MIGRATIONS)
+    assert Path(migrations.__file__).resolve().as_posix().endswith(release.MIGRATIONS_FILE)

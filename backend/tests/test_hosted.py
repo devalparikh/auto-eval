@@ -1,3 +1,5 @@
+import contextlib
+import threading
 import time
 from types import SimpleNamespace
 from uuid import uuid4
@@ -857,3 +859,77 @@ def test_signed_out_pending_checks_do_not_spend_the_sign_in_budget(hosted):
     client.cookies.set(PENDING_COOKIE, "z" * 43)
     codes = {client.post("/api/auth/pending", headers=headers).status_code for _ in range(25)}
     assert codes == {200, 429}
+
+
+@pytest.mark.parametrize("database", ["postgres", "sqlite-file"])
+def test_concurrent_pending_verifications_leave_exactly_one_valid_record(
+    request, tmp_path, database
+):
+    """PostgreSQL READ COMMITTED interleaving: both writers act before either commits.
+
+    A delete-then-insert replacement lets each transaction miss the other's
+    uncommitted row, leaving two valid pending cookies for one subject. The
+    database key must make the second writer wait and replace the first. SQLite
+    serializes writers, so there it only proves the same path stays correct.
+    """
+    from sqlalchemy import create_engine
+
+    if database == "postgres":
+        engine = request.getfixturevalue("postgres")
+    else:
+        engine = create_engine(f"sqlite:///{tmp_path}/pending.db")
+
+    from autoeval_api.models import HostedPendingRecord
+    from autoeval_api.services.hosted_auth import HostedAuth
+
+    upgrade(engine)
+    factory = build_session_factory(engine)
+    settings = Settings(
+        AUTOEVAL_ENV="test",
+        auth_mode="supabase",
+        supabase_url="https://auth.example.invalid",
+        supabase_publishable_key="test-publishable",
+        allow_self_registration=True,
+        allowed_hosts=["testserver"],
+        web_origins=[ORIGIN],
+    )
+    # Hold every commit until both verifications have written (or one is
+    # blocked by the other's row), so the interleaving is not left to chance.
+    both_written = threading.Barrier(2)
+
+    def interleaved():
+        session = factory()
+        commit = session.commit
+
+        def held_commit():
+            with contextlib.suppress(threading.BrokenBarrierError):
+                both_written.wait(timeout=3)
+            commit()
+
+        session.commit = held_commit
+        return session
+
+    auth = HostedAuth(settings, interleaved)
+    auth.verify_token = lambda token, allow_pending: (
+        {"subject": SUBJECT, "email": EMAIL, "role": "pending"},
+        time.time() + 600,
+    )
+    values, errors = [], []
+
+    def verify():
+        try:
+            values.append(auth.new_session("token")[0])
+        except Exception as error:  # surfaced below
+            errors.append(error)
+
+    threads = [threading.Thread(target=verify) for _ in range(2)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join(timeout=30)
+    assert errors == [] and len(values) == 2 and values[0] != values[1]
+    with factory() as session:
+        rows = session.scalars(select(HostedPendingRecord)).all()
+    assert [row.subject for row in rows] == [SUBJECT]
+    valid = [value for value in values if auth.pending_status(value) is not None]
+    assert len(valid) == 1 and rows[0].digest == digest(valid[0])

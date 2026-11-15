@@ -177,8 +177,8 @@ pre-enrolled-only verification behavior.
 
 So a reload does not lose the verified UUID, verification of an unapproved
 identity also stores a display-only record (migration 20,
-`hosted_pending_registrations`: SHA-256 digest of a random value, subject, verified
-email, expiry) and sets a separate `__Host-autoeval-pending` cookie (Secure,
+`hosted_pending_registrations`: subject as primary key, unique SHA-256 digest of a
+random value, verified email, expiry) and sets a separate `__Host-autoeval-pending` cookie (Secure,
 HttpOnly, SameSite=Strict, Path=/). Properties:
 
 - **Grants nothing.** Request authorization never reads this table or cookie; a
@@ -191,8 +191,10 @@ HttpOnly, SameSite=Strict, Path=/). Properties:
   identity; the UI renders only the server's answer, which reveals the subject to
   the browser that verified it and nothing to any other caller.
 - **Bounded.** Lifetime is the shorter of the verified access token's expiry,
-  `AUTOEVAL_SESSION_SECONDS`, and one hour. One record per subject: a newer
-  verification, from any browser, replaces it. Expired rows are deleted on access.
+  `AUTOEVAL_SESSION_SECONDS`, and one hour. One record per subject, enforced by the
+  primary key: a newer verification, from any browser, replaces it with an atomic
+  `INSERT … ON CONFLICT (subject) DO UPDATE`, so concurrent verifications leave
+  exactly one valid cookie. Expired rows are deleted on access.
 - **Ended by** expiry, `DELETE /api/auth/pending` ("Return to sign in"), logout, a
   successful approved sign-in in that browser, disabling registration, or approval.
 - **Approval** of the exact UUID and email turns the next status check into

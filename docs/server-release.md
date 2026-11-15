@@ -24,7 +24,10 @@ exists; packaging is not permission to redistribute.
 
 Manifest schema 1 binds product, version, source, target, archive SHA-256 and each
 member's SHA-256. It marks hosted feed and Supabase auth implemented, names `autoeval-migrate`
-and schema version 19, and keeps production readiness false. It is verification
+and the schema version, and keeps production readiness false. The schema version is
+derived from the bundled `MIGRATIONS` tuple (the same `len(MIGRATIONS)` the server
+requires at startup, currently 20), never typed by hand; install refuses a manifest
+whose version disagrees with the bundled migrations. It is verification
 metadata, not a fabricated migration compatibility guarantee. Python dependencies
 are still bounded rather than fully locked; identical source bundle bytes do not
 promise identical dependency resolutions or reproducible deploy output.

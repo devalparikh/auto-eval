@@ -484,8 +484,10 @@ class HostedPendingRecord(Base):
     """
 
     __tablename__ = "hosted_pending_registrations"
-    digest: Mapped[str] = mapped_column(String(64), primary_key=True)
-    subject: Mapped[str] = mapped_column(String(200), index=True)
+    # One row per subject, enforced by the database: concurrent verifications
+    # replace the row atomically instead of each adding one.
+    subject: Mapped[str] = mapped_column(String(200), primary_key=True)
+    digest: Mapped[str] = mapped_column(String(64), unique=True)
     email: Mapped[str] = mapped_column(String(320))
     expires: Mapped[float] = mapped_column(Float)
 

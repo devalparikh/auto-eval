@@ -132,17 +132,26 @@ class HostedAuth:
             expires = min(expires, time.time() + PENDING_SECONDS)
             with self.factory() as session:
                 session.execute(
-                    delete(HostedPendingRecord).where(
-                        (HostedPendingRecord.expires <= time.time())
-                        | (HostedPendingRecord.subject == principal["subject"])
-                    )
+                    delete(HostedPendingRecord).where(HostedPendingRecord.expires <= time.time())
                 )
-                session.add(
-                    HostedPendingRecord(
-                        digest=digest(value),
-                        subject=principal["subject"],
-                        email=principal["email"],
-                        expires=expires,
+                insert = pg_insert if session.bind.dialect.name == "postgresql" else sqlite_insert
+                row = {
+                    "subject": principal["subject"],
+                    "digest": digest(value),
+                    "email": principal["email"],
+                    "expires": expires,
+                }
+                # Atomic replacement on the subject key: concurrent verifications
+                # serialize on the row, and only the last value stays valid.
+                statement = insert(HostedPendingRecord).values(**row)
+                session.execute(
+                    statement.on_conflict_do_update(
+                        index_elements=[HostedPendingRecord.subject],
+                        set_={
+                            "digest": statement.excluded.digest,
+                            "email": statement.excluded.email,
+                            "expires": statement.excluded.expires,
+                        },
                     )
                 )
                 session.commit()
@@ -175,7 +184,9 @@ class HostedAuth:
         now = time.time()
         with self.factory() as session:
             session.execute(delete(HostedPendingRecord).where(HostedPendingRecord.expires <= now))
-            record = session.get(HostedPendingRecord, digest(value))
+            record = session.scalar(
+                select(HostedPendingRecord).where(HostedPendingRecord.digest == digest(value))
+            )
             if record is None or not self.settings.allow_self_registration:
                 if record is not None:
                     session.delete(record)

@@ -19,7 +19,7 @@ def test_sqlite_upgrade_is_deliberate_and_idempotent(tmp_path):
     upgrade(engine)
     require_current_schema(engine)
     assert "feed_keys" in inspect(engine).get_table_names()
-    assert "hosted_pending_registrations" in inspect(engine).get_table_names()
+    assert_pending_table_keys(engine)
     with engine.begin() as connection:
         connection.execute(text("INSERT INTO schema_migrations(version) VALUES (9999)"))
     with pytest.raises(RuntimeError):
@@ -247,6 +247,7 @@ def test_postgres_v19_upgrade_adds_backend_only_pending_table(postgres, monkeypa
     upgrade(postgres)
     upgrade(postgres)
     require_current_schema(postgres)
+    assert_pending_table_keys(postgres)
     with postgres.connect() as connection:
         assert connection.scalar(
             text(
@@ -257,3 +258,20 @@ def test_postgres_v19_upgrade_adds_backend_only_pending_table(postgres, monkeypa
         assert not connection.scalar(
             text("SELECT has_table_privilege('public', 'hosted_pending_registrations', 'SELECT')")
         )
+
+
+def assert_pending_table_keys(engine):
+    """One row per subject and one subject per cookie digest, enforced by the schema."""
+    schema = inspect(engine)
+    assert schema.get_pk_constraint("hosted_pending_registrations")["constrained_columns"] == [
+        "subject"
+    ]
+    unique = [
+        constraint["column_names"]
+        for constraint in schema.get_unique_constraints("hosted_pending_registrations")
+    ] + [
+        index["column_names"]
+        for index in schema.get_indexes("hosted_pending_registrations")
+        if index["unique"]
+    ]
+    assert ["digest"] in unique
