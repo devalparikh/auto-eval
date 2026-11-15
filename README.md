@@ -1,6 +1,8 @@
 # AutoEval
 
-AutoEval is a local-first workspace for building, tracing, versioning, and evaluating multiple LangGraph agent systems. Each system owns its graphs, prompts, traces, datasets, evaluation runs, and results so every run is reproducible and cross-system combinations are rejected.
+AutoEval is a hosted evaluation and observation workspace with a FastAPI backend and Next.js dashboard. Applications use the private `@devalparikh/autoeval` SDK in `packages/trace-feed` to send approved observations to `/api/backend/v1/traces`, retaining their own inference and tool loops. Operators review the feed in `/applications` on the Vercel/Supabase instance.
+
+The workbench also builds, traces, versions, and evaluates LangGraph agent systems. Each system owns its graphs, prompts, traces, datasets, evaluation runs, and results so every run is reproducible and cross-system combinations are rejected. Local development and self-hosting remain supported paths; hosted ingestion does not require moving application execution into AutoEval.
 
 ## What works
 
@@ -118,16 +120,22 @@ See [the architecture](docs/architecture.md), [multi-system and provenance desig
 
 ## Deployment boundary
 
-AutoEval remains a local-first workbench. A fail-closed Vercel profile is
-available for a private, single-user preview: it requires HTTP Basic
-authentication, PostgreSQL, exact hosts and origins, and synchronous
-evaluations. It is not a multi-user production profile. See
-[Vercel deployment](docs/vercel-deployment.md) for configuration and remaining
-limitations.
+The hosted path uses Vercel's Next.js/FastAPI services with PostgreSQL and
+Supabase authentication. Application keys are scoped separately from dashboard
+operator access. See the [hosted client contract](docs/hosted-client-contract.md)
+and [setup guide](docs/SETUP.md) for the integration contract.
+
+Local development retains SQLite, seed data, and an auth-off loopback profile.
+The legacy HTTP Basic profile remains available for private single-user previews;
+it does not provide scoped Supabase user access. See
+[Vercel deployment](docs/vercel-deployment.md). Other operators' installation and
+release boundaries are documented in the [customer deployment contract](docs/customer-deployment-contract.md)
+and [server release contract](docs/server-release.md); the running instance does
+not by itself establish a published, generally available server release.
 
 ## Current limitations
 
-- The default local profile has no authentication. Do not expose it to a network or place it behind a public reverse proxy; the guarded hosted preview is a separate production profile.
+- The default local profile has no authentication. Do not expose it to a network or place it behind a public reverse proxy; authenticated hosted profiles have separate configuration requirements.
 - The workspace ships three built-in runnable systems; creating or importing arbitrary systems still uses code-level extension seams rather than a generic creation UI.
 - Portfolio Analyst is presented as one product with `index` and `query` flows. Each flow has its own runtime registration and independently versioned LangGraph; the persisted `AgentFlow` normalization remains the additive migration documented in [agent-flow-refactor-plan.md](docs/agent-flow-refactor-plan.md).
 - Portfolio Q&A resolves an immutable snapshot ID from the local database. Tradier is the first optional options-chain adapter; no broker trading/order adapter is implemented, and stale, missing, or incomplete market data fails closed.
