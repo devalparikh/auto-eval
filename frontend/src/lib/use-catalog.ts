@@ -2,17 +2,29 @@
 
 import { useCallback, useEffect, useSyncExternalStore } from "react";
 import { api } from "@/lib/api";
+import {
+  getApiSession,
+  subscribeApiSession,
+  type ApiSession,
+} from "@/lib/api-session";
 import type { Catalog } from "@/lib/types";
 
 type CatalogState = {
   data: Catalog | null;
   error: string | null;
   loading: boolean;
+  /** The auth generation that produced this state. Another one never sees it. */
+  session: ApiSession | null;
 };
 
-const initialState: CatalogState = { data: null, error: null, loading: true };
+const initialState: CatalogState = {
+  data: null,
+  error: null,
+  loading: true,
+  session: null,
+};
 
-let state = initialState;
+let state: CatalogState = { ...initialState, session: getApiSession() };
 let inFlight: Promise<void> | null = null;
 let requestSequence = 0;
 const listeners = new Set<() => void>();
@@ -29,26 +41,48 @@ function subscribe(listener: () => void) {
   };
 }
 
+// The catalog belongs to whoever was signed in when it loaded. An auth
+// transition drops it and orphans any request still in flight, so a later
+// identity starts from nothing and refetches under its own session.
+subscribeApiSession(() => {
+  requestSequence += 1;
+  inFlight = null;
+  setState({ ...initialState, session: getApiSession() });
+});
+
+function isAuthDenial(caught: unknown) {
+  const status =
+    caught && typeof caught === "object" && "status" in caught
+      ? (caught as { status: unknown }).status
+      : null;
+  return status === 401 || status === 403;
+}
+
 /** One shared fetch and one shared cache for the catalog, across every screen. */
 function fetchCatalog(force = false): Promise<void> {
-  if (!force && inFlight) return inFlight;
+  const session = getApiSession();
+  if (!force && inFlight && state.session === session) return inFlight;
   const requestId = ++requestSequence;
-  setState({ data: state.data, error: null, loading: true });
+  const current = () => requestId === requestSequence && getApiSession() === session;
+  setState({
+    data: state.session === session ? state.data : null,
+    error: null,
+    loading: true,
+    session,
+  });
   const request = api
     .catalog()
     .then((data) => {
-      if (requestId === requestSequence) {
-        setState({ data, error: null, loading: false });
-      }
+      if (current()) setState({ data, error: null, loading: false, session });
     })
     .catch((caught) => {
-      if (requestId === requestSequence) {
-        setState({
-          data: state.data,
-          error: caught instanceof Error ? caught.message : "Unknown error",
-          loading: false,
-        });
-      }
+      if (!current()) return;
+      setState({
+        data: isAuthDenial(caught) ? null : state.data,
+        error: caught instanceof Error ? caught.message : "Unknown error",
+        loading: false,
+        session,
+      });
     })
     .finally(() => {
       if (inFlight === request) inFlight = null;
@@ -62,17 +96,25 @@ export function useCatalog() {
   // arrive between one's render and its subscribing. useSyncExternalStore
   // re-reads the store on subscribe, so that screen cannot miss the update and
   // sit on its skeleton. The server snapshot keeps hydration consistent.
-  const current = useSyncExternalStore(
+  const session = useSyncExternalStore(
+    subscribeApiSession,
+    getApiSession,
+    getApiSession,
+  );
+  const stored = useSyncExternalStore(
     subscribe,
     () => state,
     () => initialState,
   );
+  // Never render a catalog from another auth generation, even for the one
+  // render between a transition and the store's reset reaching this hook.
+  const current = stored.session === session ? stored : initialState;
 
   useEffect(() => {
-    if (!state.data) {
+    if (!state.data || state.session !== getApiSession()) {
       void fetchCatalog();
     }
-  }, []);
+  }, [session]);
 
   const reload = useCallback(async () => {
     await fetchCatalog(true);

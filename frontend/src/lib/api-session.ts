@@ -1,5 +1,5 @@
 /** A browser auth transition invalidates every request and cached response. */
-type ApiSession = { identity: string | null; generation: number; signal: AbortSignal };
+export type ApiSession = { identity: string | null; generation: number; signal: AbortSignal };
 let controller = new AbortController();
 let session: ApiSession = { identity: "local", generation: 0, signal: controller.signal };
 const listeners = new Set<() => void>();

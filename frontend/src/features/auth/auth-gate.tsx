@@ -196,7 +196,7 @@ export function AuthGate({
             Open it in the same browser that requested it.
           </p>
           <ul className={styles.notes}>
-            <li>Only the newest link works, and it expires after 10 minutes.</li>
+            <li>Use the newest link you requested in this browser, within 10 minutes. It may expire sooner.</li>
             <li>Access also needs approval from the instance operator.</li>
           </ul>
           <div className={styles.actions}>
@@ -396,6 +396,16 @@ function SignInForm({
   onStartOver: () => void;
 }) {
   const code = phase === "code";
+  const emailInput = useRef<HTMLInputElement>(null);
+  const codeInput = useRef<HTMLInputElement>(null);
+  // Focus follows the step: the email field on arrival or return, the code
+  // field once a code is sent, and back to the field after a failed attempt
+  // re-enables it. The two fields are keyed apart, so neither inherits the
+  // other's DOM node or focus state.
+  useEffect(() => {
+    if (busy) return;
+    (code ? codeInput : emailInput).current?.focus();
+  }, [code, busy]);
   return (
     <div className={styles.panel}>
       {/* The code field takes focus itself, so neither heading claims it. */}
@@ -430,14 +440,16 @@ function SignInForm({
         {code ? (
           <div className="field">
             <label htmlFor="auth-code">Email code</label>
+            {/* No maxLength: the browser would cut a pasted "12345 67890"
+                before the spaces are removed. The pattern bounds the digits. */}
             <input
+              key="code"
+              ref={codeInput}
               id="auth-code"
               className={`app-input ${styles.codeInput}`}
-              autoFocus
               inputMode="numeric"
               autoComplete="one-time-code"
               pattern="[0-9]{6,10}"
-              maxLength={10}
               title="6 to 10 digits"
               required
               value={token}
@@ -449,9 +461,10 @@ function SignInForm({
           <div className="field">
             <label htmlFor="auth-email">Email</label>
             <input
+              key="email"
+              ref={emailInput}
               id="auth-email"
               className={`app-input ${styles.input}`}
-              autoFocus
               type="email"
               required
               autoComplete="email"
