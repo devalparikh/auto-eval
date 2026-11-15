@@ -101,3 +101,13 @@ This work prepares a guarded single-user Vercel preview; it does not make
 AutoEval a public SaaS application. Trace retention controls, durable evaluation
 workers, rate and spend limits, user identities, authorization, and operational
 monitoring remain deployment blockers for shared use.
+
+## Preserved service prefix
+
+Vercel Services forwards the original request path to the selected service
+([routing contract](https://vercel.com/docs/services/routing)). The hosted
+`backend/main.py` entrypoint removes the fixed `/api/backend` prefix before the
+application's authorization middleware and routers run. Local ASGI entrypoints
+remain unchanged. Direct backend paths receive the same authorization checks;
+forwarded-prefix headers cannot select an alternate path. This is part of the
+new server candidate and requires a new release pin before deployment.

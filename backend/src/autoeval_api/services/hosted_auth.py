@@ -3,6 +3,7 @@
 import hashlib
 import secrets
 import time
+from uuid import UUID
 
 import httpx
 import jwt
@@ -64,7 +65,7 @@ class HostedAuth:
             denied()
         return {"subject": subject, **entry}
 
-    def verify_token(self, token):
+    def verify_token(self, token, *, allow_pending=False):
         try:
             key = self.jwks.get_signing_key_from_jwt(token)
             claims = jwt.decode(
@@ -91,13 +92,25 @@ class HostedAuth:
                 or user.get("email") != claims.get("email")
             ):
                 denied()
-            principal = self.enrollment(claims["sub"], user["email"])
+            # Only a verified, canonical subject may be shown to its own caller.
+            if str(UUID(claims["sub"])) != claims["sub"]:
+                denied()
+            entry = self.settings.operator_allowlist.get(claims["sub"])
+            if allow_pending and (not entry or entry["email"].lower() != user["email"].lower()):
+                principal = {"subject": claims["sub"], "role": "pending"}
+            else:
+                principal = self.enrollment(claims["sub"], user["email"])
             return principal, min(claims["exp"], time.time() + self.settings.session_seconds)
         except (jwt.PyJWTError, httpx.HTTPError, ValueError, KeyError):
             denied()
 
     def new_session(self, token):
-        principal, expires = self.verify_token(token)
+        principal, expires = self.verify_token(
+            token, allow_pending=self.settings.allow_self_registration
+        )
+        if principal["role"] == "pending":
+            # No pending session, role, or database authorization record is created.
+            return None, 0, principal["subject"]
         value = secrets.token_urlsafe(32)
         with self.factory() as session:
             session.execute(
@@ -112,7 +125,7 @@ class HostedAuth:
                 )
             )
             session.commit()
-        return value, max(0, int(expires - time.time()))
+        return value, max(0, int(expires - time.time())), None
 
     def authenticate(self, request):
         auth = request.headers.get("authorization", "")

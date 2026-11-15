@@ -188,3 +188,27 @@ class SecurityHeadersMiddleware:
             await send(message)
 
         await self.app(scope, receive, add_headers)
+
+
+class HostedPrefixMiddleware:
+    """Normalize the fixed public service prefix before routing and authorization.
+
+    Used only by the hosted entrypoint. Direct backend paths still pass through
+    the same application guards. Never trust a forwarded-prefix request header.
+    """
+
+    def __init__(self, app: ASGIApp) -> None:
+        self.app = app
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        prefix = "/api/backend"
+        if scope["type"] == "http" and (
+            scope["path"] == prefix or scope["path"].startswith(prefix + "/")
+        ):
+            scope = dict(scope)
+            scope["path"] = scope["path"][len(prefix) :] or "/"
+            # Preserve the raw encoding if available; routing/guards use path.
+            raw = scope.get("raw_path", b"")
+            if raw.startswith(prefix.encode() + b"/") or raw == prefix.encode():
+                scope["raw_path"] = raw[len(prefix) :] or b"/"
+        await self.app(scope, receive, send)

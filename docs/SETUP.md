@@ -62,3 +62,8 @@ yet. Keep instance release pins null until publication is separately approved.
 
 Local development remains `make setup`, `make dev`, bound to loopback. No hosted
 credentials or production observations are needed for `make verify`.
+
+For signup followed by separate operator approval, use the optional
+`AUTOEVAL_ALLOW_SELF_REGISTRATION=true` mode documented in
+[the hosted contract](hosted-client-contract.md#optional-self-registration-pending-approval).
+Keep `AUTOEVAL_OPERATOR_ALLOWLIST={}` until the verified UUID is explicitly approved.

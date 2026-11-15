@@ -426,3 +426,112 @@ def test_finalized_feed_comparison_and_expired_key(hosted):
     with TestClient(restarted, base_url=ORIGIN) as fresh:
         fresh.cookies.set(COOKIE, client.cookies.get(COOKIE))
         assert len(fresh.get(base + "/traces").json()) == 3
+
+
+def test_opt_in_registration_is_pending_until_explicit_allowlist_approval(hosted):
+    client, app, calls, _, _ = hosted
+    assert app.state.settings.allow_self_registration is False
+    app.state.settings.operator_allowlist = {}
+    body = {"email": EMAIL, "token": "123456"}
+    headers = {"origin": ORIGIN}
+    assert client.post("/api/auth/verify", json=body, headers=headers).status_code == 401
+    app.state.settings.allow_self_registration = True
+    assert (
+        client.post("/api/auth/request", json={"email": EMAIL}, headers=headers).status_code == 200
+    )
+    assert calls[-1][1] == {"email": EMAIL, "create_user": True}
+    result = client.post("/api/auth/verify", json=body, headers=headers)
+    assert result.json() == {"authenticated": False, "status": "pending", "subject": SUBJECT}
+    assert not client.cookies.get(COOKIE)
+    with app.state.session_factory() as session:
+        assert session.scalars(select(HostedSessionRecord)).all() == []
+    for path in [
+        "/api/auth/session",
+        "/api/catalog",
+        "/api/applications",
+        "/api/traces",
+        "/v1/traces/any",
+        "/openapi.json",
+    ]:
+        assert client.get(path).status_code == 401
+    assert client.post("/api/applications", json={}, headers=headers).status_code == 401
+    # The identity provider and its metadata do not assign application roles.
+    app.state.settings.operator_allowlist = {
+        SUBJECT: {"email": "other@example.invalid", "role": "admin"}
+    }
+    assert client.post("/api/auth/verify", json=body, headers=headers).json()["status"] == "pending"
+    app.state.settings.operator_allowlist = {SUBJECT: {"email": EMAIL, "role": "admin"}}
+    login(client)
+    assert client.get("/api/catalog").status_code == 200
+    cookie = client.cookies.get(COOKIE)
+    app.state.settings.operator_allowlist = {}
+    assert client.get("/api/catalog").status_code == 401
+    assert client.post("/api/auth/verify", json=body, headers=headers).json()["status"] == "pending"
+    assert not client.cookies.get(COOKIE)
+    with app.state.session_factory() as session:
+        assert session.get(HostedSessionRecord, digest(cookie)) is None
+
+
+def test_pending_registration_still_requires_verified_identity_and_numeric_otp(hosted, monkeypatch):
+    client, app, _, _, _ = hosted
+    app.state.settings.allow_self_registration = True
+    app.state.settings.operator_allowlist = {}
+    body = {"email": EMAIL, "token": "123456"}
+    assert client.post("/api/auth/verify", json=body).status_code == 403
+    headers = {"origin": ORIGIN}
+    assert (
+        client.post(
+            "/api/auth/verify", json={**body, "token": "magic-link"}, headers=headers
+        ).status_code
+        == 422
+    )
+    assert (
+        client.post(
+            "/api/auth/verify", json={**body, "token": "000000"}, headers=headers
+        ).status_code
+        == 401
+    )
+    for change in [
+        {"email_confirmed_at": None},
+        {"id": str(uuid4())},
+        {"email": "other@example.invalid"},
+    ]:
+        monkeypatch.setattr(
+            "autoeval_api.services.hosted_auth.httpx.get",
+            lambda *a, change=change, **k: httpx.Response(
+                200,
+                json={"id": SUBJECT, "email": EMAIL, "email_confirmed_at": "2026-01-01", **change},
+            ),
+        )
+        result = client.post("/api/auth/verify", json=body, headers=headers)
+        assert result.status_code == 401
+        assert "subject" not in result.json()
+
+
+def test_hosted_service_prefix_preserves_authorization(hosted):
+    from autoeval_api.api.middleware import HostedPrefixMiddleware
+
+    _, app, _, _, _ = hosted
+    with TestClient(HostedPrefixMiddleware(app), base_url=ORIGIN) as client:
+        assert client.get("/api/backend/api/health").status_code == 200
+        assert client.get("/api/backend/api/auth/bootstrap").json() == {"mode": "supabase"}
+        for prefix in ["", "/api/backend"]:
+            for path in ["/api/catalog", "/api/applications", "/api/auth/session"]:
+                assert client.get(prefix + path).status_code == 401
+        result = client.post(
+            "/api/backend/api/auth/verify",
+            json={"email": EMAIL, "token": "123456"},
+            headers={"origin": ORIGIN},
+        )
+        assert result.status_code == 200
+        assert client.get("/api/backend/api/catalog").status_code == 200
+        app.state.settings.operator_allowlist = {}
+        assert client.get("/api/backend/api/catalog").status_code == 401
+        app.state.settings.allow_self_registration = True
+        result = client.post(
+            "/api/backend/api/auth/verify",
+            json={"email": EMAIL, "token": "123456"},
+            headers={"origin": ORIGIN},
+        )
+        assert result.json() == {"authenticated": False, "status": "pending", "subject": SUBJECT}
+        assert client.get("/api/backend/api/applications").status_code == 401

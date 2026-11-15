@@ -1,9 +1,8 @@
-"""ASGI entrypoint for hosted deployments.
+"""ASGI entrypoint for Vercel's service routing, which preserves request paths."""
 
-Vercel loads `main:app` from the backend service root (see `vercel.json`).
-The application itself lives in the installed `autoeval_api` package.
-"""
+from autoeval_api.api.middleware import HostedPrefixMiddleware
+from autoeval_api.main import app as application
 
-from autoeval_api.main import app
+app = HostedPrefixMiddleware(application)
 
 __all__ = ["app"]
