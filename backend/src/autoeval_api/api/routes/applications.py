@@ -198,6 +198,15 @@ def grant(body: contract.Grant, request: Request) -> dict:
         return result
 
 
+@router.get("/v2/policies/{policy_id}")
+def sdk_policy(policy_id: contract.Hash, request: Request) -> dict:
+    """Only the app's declaration, for delayed outcomes across deployments. No evidence."""
+    user = key_principal(request)
+    with request.app.state.session_factory() as session:
+        app = feed.key_resource(session, user)
+        return feed.policy_contract(session, app, policy_id)
+
+
 @router.delete("/v2/grants/{id}")
 def revoke_grant(id: contract.Id, request: Request) -> dict:
     user = key_principal(request)

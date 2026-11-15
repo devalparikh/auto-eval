@@ -212,6 +212,7 @@ class Observation(Strict):
     metrics: dict[Label, object] = Field(default_factory=dict, max_length=32)
     checks: dict[Label, object] = Field(default_factory=dict, max_length=32)
     steps: list[Step] = Field(default_factory=list, max_length=128)
+    droppedSteps: int = Field(default=0, ge=0, le=1000000)
     content: dict[Label, object] = Field(default_factory=dict, max_length=16)
     redactorVersion: Hash | None = None
     coverage: dict[

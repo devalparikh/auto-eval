@@ -1,8 +1,7 @@
 {
   "name": "@devalparikh/autoeval",
-  "version": "0.1.0",
-  "description": "Explicit, metadata-only application observation and a local authenticated feed",
-  "private": true,
+  "version": "0.2.0-private.1",
+  "description": "Server-only, consented agent capture with automatic versioning",
   "license": "UNLICENSED",
   "type": "module",
   "engines": {
@@ -12,10 +11,6 @@
     ".": {
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
-    },
-    "./server": {
-      "types": "./dist/server.d.ts",
-      "default": "./dist/server.js"
     }
   },
   "files": [
@@ -27,5 +22,9 @@
     "prepack": "npm run build",
     "test": "node --test test/*.test.mjs",
     "test:package": "node scripts/test-package.mjs"
+  },
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com",
+    "access": "restricted"
   }
 }

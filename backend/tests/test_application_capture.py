@@ -228,6 +228,9 @@ def test_outcomes_original_policy_idempotency_and_erase(feed):
 
 def test_key_overlap_expiry_and_app_boundaries(feed):
     admin, sdk, app, base, key, _, trace = feed
+    declaration = sdk.get("/v2/policies/" + trace["policyVersion"])
+    assert declaration.status_code == 200
+    assert declaration.json()["schemaVersion"] == 2
     now = int(time.time() * 1000)
     rotation = admin.post(
         base + "/keys/" + key["id"] + "/rotate",
@@ -252,6 +255,7 @@ def test_key_overlap_expiry_and_app_boundaries(feed):
         f"/api/applications/{other}/keys", json={"expiresAt": now + 100000}
     ).json()
     sdk.headers["authorization"] = "Bearer " + other_key["token"]
+    assert sdk.get("/v2/policies/" + trace["policyVersion"]).status_code == 404
     assert sdk.post("/v2/traces", json=trace).status_code == 403
 
 
