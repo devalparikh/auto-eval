@@ -73,7 +73,11 @@ export default async function RootLayout({
       <body>
         <AuthGate enabled={process.env.AUTOEVAL_AUTH_MODE === "supabase"}
           emailLink={process.env.AUTOEVAL_ALLOW_EMAIL_LINK_SIGN_IN === "true"}
-          hint={readSessionHint((name) => cookieStore.has(name), headerList.has(CALLBACK_HEADER))}>
+          hint={readSessionHint(
+            (name) => cookieStore.has(name),
+            headerList.has(CALLBACK_HEADER),
+            headerList.get("sec-fetch-site"),
+          )}>
           <AppShell initialTheme={theme} initialSidebar={sidebar}>
             {children}
           </AppShell>

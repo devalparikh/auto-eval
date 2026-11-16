@@ -121,17 +121,18 @@ def create_application(
             purge(session)
             session.commit()
 
-    async def maintain_trace_retention() -> None:
-        # The first pass runs beside requests rather than before them: a cold
-        # serverless instance would otherwise hold its first request (often a
-        # sign-in check) behind this cleanup. Batches commit independently and
-        # foreign keys keep a concurrent provenance reference safe.
+    async def maintain_trace_retention(first_pass_done: bool) -> None:
+        if not first_pass_done:
+            await expire_traces_logged()
         while True:
-            try:
-                await asyncio.to_thread(expire_traces)
-            except Exception:
-                logging.getLogger(__name__).warning("Trace retention failed; retrying in one hour")
             await asyncio.sleep(3600)
+            await expire_traces_logged()
+
+    async def expire_traces_logged() -> None:
+        try:
+            await asyncio.to_thread(expire_traces)
+        except Exception:
+            logging.getLogger(__name__).warning("Trace retention failed; retrying in one hour")
 
     @asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncIterator[None]:
@@ -155,7 +156,15 @@ def create_application(
                 session.close()
             await ensure_demo_runs(session_factory, runner, scoring_registry)
         custom_model_service.recover_interrupted()
-        retention_task = asyncio.create_task(maintain_trace_retention())
+        # On a networked database the first pass runs beside requests, so a cold
+        # serverless instance does not hold its first request (often a sign-in
+        # check) behind it; batches commit independently and foreign keys keep a
+        # concurrent provenance reference safe. SQLite (local and tests) can share
+        # one connection across threads, so there it finishes before requests.
+        first_pass_inline = resolved_engine is None or resolved_engine.dialect.name == "sqlite"
+        if first_pass_inline:
+            await asyncio.to_thread(expire_traces)
+        retention_task = asyncio.create_task(maintain_trace_retention(first_pass_inline))
         try:
             yield
         finally:

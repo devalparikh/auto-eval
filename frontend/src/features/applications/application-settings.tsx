@@ -225,8 +225,9 @@ export function ApplicationSettings({ appId }: { appId: string }) {
                   <h2 className={`${styles.heading} ${styles.headingRow}`}>
                     Content categories
                     <InfoTip label="Category details" align="start">
-                      The app’s SDK declares categories. New ones stay off
-                      until enabled here, and users consent to each one.
+                      The app’s first SDK policy turns on the categories it
+                      declares. Categories added later stay off until enabled
+                      here. Users still consent to each one.
                       Shorter retention applies to existing evidence; longer
                       retention only to new evidence.
                     </InfoTip>

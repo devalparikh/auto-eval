@@ -99,6 +99,23 @@ test("without an auth cookie, sign-in arrives in the page itself and the API is 
   expect(requests).toEqual([]);
 });
 
+test("a signed-in user arriving from another site's link is still recognized", async ({ page }) => {
+  // SameSite=Strict cookies are left off a cross-site navigation, though the
+  // gate's own API calls still carry them; a missing cookie proves nothing here.
+  const requests = await mockApi(page, {
+    "/auth/session": [200, viewer],
+    "/applications": [200, []],
+  });
+  await page.route("https://elsewhere.example/**", (route) =>
+    route.fulfill({ contentType: "text/html", body: `<a href="${codeUrl}/">AutoEval</a>` }),
+  );
+  await authCookie(page, SESSION_COOKIE, true);
+  await page.goto("https://elsewhere.example/");
+  await page.getByRole("link", { name: "AutoEval" }).click();
+  await expect(page.getByRole("banner").getByRole("button", { name: "Sign out" })).toBeVisible();
+  expect(requests.map((request) => request.path)).toEqual(["/auth/session"]);
+});
+
 test("a session cookie is still verified by the API, and a refused one shows sign-in", async ({ page }) => {
   let allowed = true;
   const requests = await mockApi(page, {

@@ -31,11 +31,26 @@ test("cookie names match the ones the API sets", () => {
   expect(source).toContain(`COOKIE = "${SESSION_COOKIE}"`);
   expect(source).toContain(`PENDING_COOKIE = "${PENDING_COOKIE}"`);
   const present = new Set([SESSION_COOKIE]);
-  expect(readSessionHint((name) => present.has(name), false)).toEqual({
+  expect(readSessionHint((name) => present.has(name), false, "same-origin")).toEqual({
     session: true,
     pending: false,
     callback: false,
   });
+});
+
+test("a missing cookie is trusted only when the navigation would have carried it", () => {
+  const nothing = () => false;
+  // Typed or bookmarked, same-origin and same-site navigations send SameSite=Strict cookies.
+  for (const site of ["none", "same-origin", "same-site"])
+    expect(readSessionHint(nothing, false, site)).toEqual(none);
+  // A link from another site arrives without them even when they exist, and an
+  // older browser may not say: check everything rather than show sign-in.
+  for (const site of ["cross-site", null, "unexpected"])
+    expect(readSessionHint(nothing, true, site)).toEqual({
+      session: true,
+      pending: true,
+      callback: true,
+    });
 });
 
 test("with no auth cookie, sign-in renders at once and the API is never asked", () => {
