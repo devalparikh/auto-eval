@@ -102,7 +102,7 @@ class PublisherTests(unittest.TestCase):
             ("name", "other"),
             ("version", "0.2.0"),
             ("dependencies", {"surprise": "*"}),
-            ("license", "MIT"),
+            ("license", "UNLICENSED"),
         ):
             altered = {**package, key: value}
             with self.assertRaises(RuntimeError):
@@ -138,6 +138,8 @@ class PublisherTests(unittest.TestCase):
             for mutation in (
                 {"change": "package/dist/index.js"},
                 {"omit": "package/README.md"},
+                {"omit": "package/LICENSE"},
+                {"change": "package/LICENSE"},
                 {"extra": "../escape"},
                 {"duplicate": True},
             ):

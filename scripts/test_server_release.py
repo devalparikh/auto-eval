@@ -46,6 +46,7 @@ class ReleaseTests(unittest.TestCase):
         self.assertEqual(self.bundle.read_bytes(), (other / self.bundle.name).read_bytes())
         self.install()
         stage = self.root / "stage"
+        self.assertEqual((stage / "LICENSE").read_bytes(), (ROOT / "LICENSE").read_bytes())
         config = json.loads((stage / "vercel.json").read_text())
         for service in config["services"].values():
             self.assertTrue((stage / service["root"]).is_dir())

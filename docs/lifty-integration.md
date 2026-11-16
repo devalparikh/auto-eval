@@ -32,13 +32,17 @@ Keep all secrets out of `NEXT_PUBLIC_*`, browser code, logs and screenshots.
 instance env variables for capture. Existing backend database/auth/runtime-role
 settings remain as documented in [the hosted contract](hosted-client-contract.md).
 
-4. Pin `@devalparikh/autoeval@0.2.0-private.1` after approval/publication, commit the
+4. Pin `@devalparikh/autoeval@0.2.0-private.2` after approval/publication, commit the
    lockfile, and install with `npm ci`. Keep the checked-in `.npmrc` token-free:
 
 ```ini
 @devalparikh:registry=https://npm.pkg.github.com
 //npm.pkg.github.com/:_authToken=${AUTOEVAL_NPM_TOKEN}
 ```
+
+This MIT-licensed SDK release preserves the capture-v2 API. The instance consumes
+its own pinned server bundle, not this npm package; no instance pin or migration
+change is needed for this SDK license update.
 
 5. In Lifty's new per-user privacy setting, Deval explicitly opts in to redacted
    conversation, selected workout evidence and body scans. Every user starts off.

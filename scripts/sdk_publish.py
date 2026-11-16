@@ -19,6 +19,7 @@ TAG = "private"
 FILES = {
     "package/package.json": "package.json",
     "package/README.md": "README.md",
+    "package/LICENSE": "../../LICENSE",
     "package/dist/index.js": "src/index.js",
     "package/dist/contract.js": "src/contract.js",
     "package/dist/index.d.ts": "src/index.d.ts",
@@ -91,7 +92,7 @@ def identity(package):
     ):
         raise RuntimeError("Unexpected package identity or prerelease version")
     if (
-        package.get("license") != "UNLICENSED"
+        package.get("license") != "MIT"
         or package.get("dependencies")
         or package.get("optionalDependencies")
         or package.get("peerDependencies")

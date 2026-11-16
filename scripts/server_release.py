@@ -16,6 +16,7 @@ SCHEMA = 1
 MAX_BYTES = 100 * 1024 * 1024
 # Deliberately excludes .env, local databases, SDK packages, tests and build caches.
 ROOT_FILES = [
+    "LICENSE",
     "vercel.json",
     "frontend/package.json",
     "frontend/package-lock.json",

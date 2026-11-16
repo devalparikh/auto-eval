@@ -1,8 +1,8 @@
 # AutoEval SDK
 
 Server-only capture for apps that own their model and tool calls. Requires the
-capture-v2 backend. Candidate version `0.2.0-private.1`; publication is a separate
-operator action. No dependency on an agent framework, background exporter or
+capture-v2 backend. Version `0.2.0-private.2`, licensed under [MIT](LICENSE).
+No dependency on an agent framework, background exporter or
 provider. Node.js 22.22.1 or later.
 
 Create an application in AutoEval by naming it and choosing a key lifespan. Keep

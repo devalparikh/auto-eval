@@ -1,8 +1,8 @@
 {
   "name": "@devalparikh/autoeval",
-  "version": "0.2.0-private.1",
+  "version": "0.2.0-private.2",
   "description": "Server-only, consented agent capture with automatic versioning",
-  "license": "UNLICENSED",
+  "license": "MIT",
   "repository": {
     "type": "git",
     "url": "https://github.com/devalparikh/auto-eval.git",
@@ -20,7 +20,8 @@
   },
   "files": [
     "dist",
-    "README.md"
+    "README.md",
+    "LICENSE"
   ],
   "scripts": {
     "build": "node scripts/build.mjs",
