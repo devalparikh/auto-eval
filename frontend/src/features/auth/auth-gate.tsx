@@ -65,6 +65,8 @@ export function AuthGate({
   // The server renders no host; the browser fills it in without a mismatch.
   const host = useSyncExternalStore(subscribeNever, readHost, () => "");
   const active = useRef<AbortController | null>(null);
+  // The background sign-in probe, cancelled the moment the visitor submits.
+  const probe = useRef<AbortController | null>(null);
   const callback = useRef<Promise<Verification> | null>(null);
   useEffect(() => {
     if (!enabled) return;
@@ -142,10 +144,16 @@ export function AuthGate({
     // Only the API's verified answer changes the screen, and only while the
     // visitor has not started signing in; otherwise the form simply stays.
     async function confirmInBackground() {
-      const untouched = () => !controller.signal.aborted && active.current === null;
+      const own = new AbortController();
+      probe.current = own;
+      controller.signal.addEventListener("abort", () => own.abort(), { once: true });
+      const untouched = () => !own.signal.aborted && active.current === null;
       try {
+        // Its 401 is the expected answer for a signed-out visitor, so it must
+        // not reset the API session under a sign-in the visitor has started.
         const principal = await apiRequest<{ subject: string }>("/auth/session", {
-          signal: controller.signal,
+          signal: own.signal,
+          quietUnauthorized: true,
         });
         if (!untouched() || !principal?.subject) return;
         clearApiResourceCache(principal.subject);
@@ -153,7 +161,7 @@ export function AuthGate({
       } catch (failure) {
         if (!untouched() || !(failure instanceof ApiError) || failure.status !== 401) return;
         try {
-          const result = await readPending(controller.signal);
+          const result = await readPending(own.signal);
           if (!untouched()) return;
           if (result.status === "pending" && result.subject) {
             setPendingSubject(result.subject);
@@ -194,6 +202,7 @@ export function AuthGate({
     setBusy(true);
     setError("");
     setNotice("");
+    probe.current?.abort();
     const controller = new AbortController();
     active.current = controller;
     const timeout = setTimeout(() => controller.abort(), 15000);
