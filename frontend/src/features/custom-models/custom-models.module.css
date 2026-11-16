@@ -269,47 +269,7 @@
   line-height: 1;
 }
 .modelInfo {
-  position: relative;
   margin-left: auto;
-  display: inline-flex;
-}
-.infoButton {
-  display: grid;
-  place-items: center;
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-  color: var(--text-muted);
-  cursor: pointer;
-  transition: color 160ms ease, background 160ms ease;
-}
-.infoButton:hover,
-.infoButton:focus-visible {
-  color: var(--text);
-  background: var(--card-inset);
-}
-.infoButton:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 3px;
-}
-.modelTooltip {
-  position: absolute;
-  z-index: 2;
-  top: 100%;
-  right: 0;
-  width: min(280px, calc(100vw - 96px));
-  padding-top: 6px;
-  font-size: 12px;
-  line-height: 1.7;
-  color: var(--text-muted);
-}
-.modelTooltip > span {
-  display: block;
-  padding: 12px 14px;
-  border: 1px solid var(--border-strong);
-  border-radius: 12px;
-  background: var(--surface-raised);
-  box-shadow: var(--shadow-raise);
 }
 .settingsGrid {
   display: grid;

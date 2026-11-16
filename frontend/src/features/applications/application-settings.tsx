@@ -1,6 +1,7 @@
 "use client";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
+import { InfoTip } from "@/components/info-tip";
 import { PageHeader } from "@/components/page-header";
 import { LoadingState } from "@/components/states";
 import { Select } from "@/components/select";
@@ -65,9 +66,7 @@ export function ApplicationSettings({ appId }: { appId: string }) {
       })
       .catch(() => {
         if (!controller.signal.aborted) {
-          setError(
-            "Settings could not be loaded. Return to Applications and refresh.",
-          );
+          setError("Settings couldn’t load. Return to Applications and refresh.");
           setLoaded(true);
         }
       });
@@ -92,9 +91,7 @@ export function ApplicationSettings({ appId }: { appId: string }) {
       }
     } catch {
       if (mounted.current)
-        setError(
-          "Save was not confirmed. Reload settings before trying again; another operator may have changed them.",
-        );
+        setError("Save not confirmed. Reload settings before trying again.");
     } finally {
       pending.current = false;
       if (mounted.current) setBusy(false);
@@ -108,14 +105,12 @@ export function ApplicationSettings({ appId }: { appId: string }) {
     try {
       await apiRequest(`/applications/${appId}/content`, { method: "DELETE" });
       if (mounted.current) {
-        setMessage(
-          "Diagnostic content deleted. Summaries and outcomes remain.",
-        );
+        setMessage("Diagnostic content deleted.");
         setEraseConfirm(false);
       }
     } catch {
       if (mounted.current)
-        setError("Deletion was not confirmed. Refresh before trying again.");
+        setError("Deletion not confirmed. Refresh before trying again.");
     } finally {
       pending.current = false;
       if (mounted.current) setBusy(false);
@@ -133,7 +128,6 @@ export function ApplicationSettings({ appId }: { appId: string }) {
         title={
           application ? `${application.name} settings` : "Application settings"
         }
-        description="Capture permissions and retention belong to this application. User consent is managed in the app."
         action={
           <Link className="app-button secondary" href="/applications">
             Applications
@@ -154,7 +148,7 @@ export function ApplicationSettings({ appId }: { appId: string }) {
         {!loaded ? (
           <LoadingState rows={3} />
         ) : !admin ? (
-          <p>Only an instance admin can change application settings.</p>
+          <p>Only an admin can change these settings.</p>
         ) : (
           draft && (
             <>
@@ -166,6 +160,7 @@ export function ApplicationSettings({ appId }: { appId: string }) {
                 }}
               >
                 <fieldset disabled={busy} className={styles.fieldset}>
+                  <div className={styles.headingRow}>
                   <label className={styles.checkRow}>
                     <input
                       type="checkbox"
@@ -179,10 +174,10 @@ export function ApplicationSettings({ appId }: { appId: string }) {
                     />
                     Allow production capture
                   </label>
-                  <p className={styles.note}>
-                    Defaults on. Every capture still requires the user’s
-                    explicit consent.
-                  </p>
+                  <InfoTip label="Production capture details" align="start">
+                    Every capture still needs the user’s consent in the app.
+                  </InfoTip>
+                  </div>
                   <div className={styles.row}>
                     {(
                       ["retention_days", "content_retention_days"] as const
@@ -227,17 +222,18 @@ export function ApplicationSettings({ appId }: { appId: string }) {
                       </div>
                     ))}
                   </div>
-                  <p className={styles.note}>
-                    Keep is the default. Shortening retention applies to
-                    existing evidence. Extending it affects new evidence; it
-                    cannot restore or extend earlier records.
-                  </p>
-                  <h2 className={styles.heading}>Content categories</h2>
-                  <p className={styles.note}>
-                    {policies.length
-                      ? "New categories are listed here but remain off until enabled. Users must consent to each category separately."
-                      : "The first SDK policy will establish the allowed categories automatically. No policy has arrived yet."}
-                  </p>
+                  <h2 className={`${styles.heading} ${styles.headingRow}`}>
+                    Content categories
+                    <InfoTip label="Category details" align="start">
+                      The app’s SDK declares categories. New ones stay off
+                      until enabled here, and users consent to each one.
+                      Shorter retention applies to existing evidence; longer
+                      retention only to new evidence.
+                    </InfoTip>
+                  </h2>
+                  {policies.length === 0 && (
+                    <p className={styles.note}>None declared yet.</p>
+                  )}
                   {categories.map((category) => (
                     <label className={styles.checkRow} key={category}>
                       <input
@@ -279,13 +275,14 @@ export function ApplicationSettings({ appId }: { appId: string }) {
                 </fieldset>
               </form>
               <section className={`surface-card ${styles.card}`}>
-                <h2 className={styles.heading}>Delete diagnostic content</h2>
-                <p className={styles.note}>
-                  Deletes stored conversation and evidence content for this app,
-                  including body scans. Keeps summaries, outcomes and
-                  assessments. Existing traces cannot receive replacement
-                  content. New runs can still capture permitted content.
-                </p>
+                <h2 className={`${styles.heading} ${styles.headingRow}`}>
+                  Delete diagnostic content
+                  <InfoTip label="Deletion details" align="start">
+                    Deletes this app’s stored conversation and evidence
+                    content. Summaries, outcomes and assessments stay. Existing
+                    traces can’t receive new content; new runs still can.
+                  </InfoTip>
+                </h2>
                 <label className={styles.checkRow}>
                   <input
                     type="checkbox"

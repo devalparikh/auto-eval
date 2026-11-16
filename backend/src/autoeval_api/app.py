@@ -122,12 +122,16 @@ def create_application(
             session.commit()
 
     async def maintain_trace_retention() -> None:
+        # The first pass runs beside requests rather than before them: a cold
+        # serverless instance would otherwise hold its first request (often a
+        # sign-in check) behind this cleanup. Batches commit independently and
+        # foreign keys keep a concurrent provenance reference safe.
         while True:
-            await asyncio.sleep(3600)
             try:
                 await asyncio.to_thread(expire_traces)
             except Exception:
                 logging.getLogger(__name__).warning("Trace retention failed; retrying in one hour")
+            await asyncio.sleep(3600)
 
     @asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncIterator[None]:
@@ -151,7 +155,6 @@ def create_application(
                 session.close()
             await ensure_demo_runs(session_factory, runner, scoring_registry)
         custom_model_service.recover_interrupted()
-        await asyncio.to_thread(expire_traces)
         retention_task = asyncio.create_task(maintain_trace_retention())
         try:
             yield

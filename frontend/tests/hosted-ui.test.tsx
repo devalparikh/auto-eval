@@ -192,7 +192,9 @@ test("email link request instructs same browser use without showing a numeric co
   fireEvent.change(await screen.findByLabelText("Email"), { target: { value: "team@example.invalid" } });
   api.mockResolvedValueOnce({});
   fireEvent.click(screen.getByRole("button", { name: "Send sign-in link" }));
-  await screen.findByText(/Open it in the same browser/);
+  await screen.findByText("team@example.invalid");
+  // The same-browser rule is kept, behind the info button rather than as body text.
+  expect(screen.getByRole("tooltip", { hidden: true })).toHaveTextContent(/newest link in this browser/);
   expect(screen.queryByLabelText("Email code")).toBeNull();
   expect(screen.queryByText("Private workspace")).toBeNull();
 });
@@ -250,7 +252,7 @@ test("a rejected code keeps the code step with a specific, retryable error", asy
   api.mockRejectedValueOnce(new Error("invalid"));
   fireEvent.click(screen.getByRole("button", { name: "Verify code" }));
   expect(await screen.findByRole("alert")).toHaveTextContent("That code didn't work");
-  fireEvent.click(screen.getByRole("button", { name: "Use another email or request a new code" }));
+  fireEvent.click(screen.getByRole("button", { name: "Use another email or resend" }));
   expect(screen.getByLabelText("Email")).toHaveValue("team@example.invalid");
   expect(screen.getByLabelText("Email")).toHaveFocus();
 });
@@ -386,7 +388,7 @@ test("check again reports still pending, then approval, then requires sign-in", 
   expect(screen.getByText("Still waiting for approval.", { selector: "[role=status]" })).toBeInTheDocument();
   answers.push(new Error("offline"));
   fireEvent.click(screen.getByRole("button", { name: "Check again" }));
-  expect(await screen.findByText(/couldn’t be checked/, { selector: "p" })).toBeVisible();
+  expect(await screen.findByText(/Couldn’t check approval/, { selector: "p" })).toBeVisible();
   expect(screen.getByText(pendingSubject)).toBeVisible();
   fireEvent.click(screen.getByRole("button", { name: "Check again" }));
   expect(await screen.findByText(/Your account is approved/)).toBeVisible();
@@ -414,7 +416,7 @@ test("an expired pending record returns to sign-in with an explanation", async (
   render(<AuthGate enabled><p>Private workspace</p></AuthGate>);
   await screen.findByText(pendingSubject);
   fireEvent.click(screen.getByRole("button", { name: "Check again" }));
-  expect(await screen.findByText(/no longer available in this browser/)).toBeVisible();
+  expect(await screen.findByText(/expired in this browser/)).toBeVisible();
   expect(screen.queryByText(pendingSubject)).toBeNull();
   expect(screen.queryByText("Private workspace")).toBeNull();
 });

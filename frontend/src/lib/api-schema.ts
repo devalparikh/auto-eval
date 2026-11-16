@@ -2273,7 +2273,7 @@ export interface components {
         /** KeyInput */
         KeyInput: {
             /** Expiresat */
-            expiresAt: number;
+            expiresAt: number | null;
             /**
              * Label
              * @default App connection
@@ -2859,7 +2859,7 @@ export interface components {
         /** RotationInput */
         RotationInput: {
             /** Expiresat */
-            expiresAt: number;
+            expiresAt: number | null;
             /**
              * Label
              * @default App connection

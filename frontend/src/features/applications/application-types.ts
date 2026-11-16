@@ -13,7 +13,8 @@ export type AppKey = {
   label: string;
   scope: string;
   createdAt: number;
-  expiresAt: number;
+  /** Null for a key issued without an expiry. */
+  expiresAt: number | null;
   retireAt: number | null;
   revoked: boolean;
 };

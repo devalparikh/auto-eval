@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Select } from "@/components/select";
 import { LoadingState } from "@/components/states";
+import { InfoTip } from "@/components/info-tip";
 import { apiRequest } from "@/lib/api";
 import type { TraceDetail } from "./application-types";
 import styles from "./applications.module.css";
@@ -158,8 +159,7 @@ export function TraceReview({
           </p>
           <p className={styles.note}>
             Status: {detail.trace.status}. Omitted steps:{" "}
-            {detail.trace.droppedSteps ?? 0}. Unknown measurements remain
-            unknown.
+            {detail.trace.droppedSteps ?? 0}.
           </p>
           <details>
             <summary>Measurements and coverage</summary>
@@ -211,9 +211,7 @@ export function TraceReview({
           <details open>
             <summary>Outcome events ({detail.outcomes.length})</summary>
             {detail.outcomes.length === 0 ? (
-              <p className={styles.note}>
-                No outcome recorded. Pending does not mean rejected or ignored.
-              </p>
+              <p className={styles.note}>No outcomes yet.</p>
             ) : (
               detail.outcomes
                 .slice()
@@ -229,7 +227,7 @@ export function TraceReview({
           </details>
           {admin && (
             <>
-              <div>
+              <div className={styles.headingRow}>
                 <button
                   className="app-button secondary"
                   disabled={busy}
@@ -239,10 +237,10 @@ export function TraceReview({
                     ? "Refresh diagnostic content"
                     : "Load diagnostic content"}
                 </button>
-                <p className={styles.note}>
-                  Redacted conversation and selected evidence may still contain
-                  sensitive health information.
-                </p>
+                <InfoTip label="Diagnostic content details" align="start">
+                  Redacted content can still contain sensitive personal
+                  information.
+                </InfoTip>
               </div>
               {contentLoaded &&
                 (Object.keys(detail.content).length ? (
@@ -258,18 +256,23 @@ export function TraceReview({
                   void assess();
                 }}
               >
-                <h3 className={styles.heading}>Human quality assessment</h3>
-                <p className={styles.note}>
-                  Rubric version 1. Each save appends a review; acceptance of a
-                  proposal alone does not prove quality.
-                </p>
+                <h3 className={`${styles.heading} ${styles.headingRow}`}>
+                  Human quality assessment
+                  <InfoTip label="Assessment details" align="start">
+                    Rubric version 1. Each save adds a review.
+                  </InfoTip>
+                </h3>
                 <fieldset disabled={busy} className={styles.fieldset}>
                   {criteria.map((name) => (
                     <div className="field" key={name}>
-                      <label htmlFor={`rating-${name}`}>
-                        {name.replaceAll("_", " ")}
-                      </label>
-                      <p className={styles.note}>{reviewRubric[name]}</p>
+                      <span className={styles.headingRow}>
+                        <label htmlFor={`rating-${name}`}>
+                          {name.replaceAll("_", " ")}
+                        </label>
+                        <InfoTip label={`${name.replaceAll("_", " ")} criterion`} align="start">
+                          {reviewRubric[name]}
+                        </InfoTip>
+                      </span>
                       <Select
                         id={`rating-${name}`}
                         value={ratings[name]}

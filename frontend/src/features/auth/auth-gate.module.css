@@ -78,6 +78,9 @@
 }
 
 .lead {
+  display: flex;
+  align-items: center;
+  gap: 2px;
   margin: 0;
   color: var(--text-muted);
   font-size: 14px;
@@ -98,34 +101,8 @@
   line-height: 1.55;
 }
 
-.notes {
-  display: grid;
-  gap: 6px;
-  margin: 4px 0 0;
-  padding: 12px 14px;
-  border-radius: 12px;
-  background: var(--card-inset);
-  color: var(--text-muted);
-  font-size: 12px;
-  line-height: 1.5;
-  list-style: none;
-}
 
-.notes li {
-  position: relative;
-  padding-left: 14px;
-}
 
-.notes li::before {
-  position: absolute;
-  top: 0.62em;
-  left: 2px;
-  width: 4px;
-  height: 4px;
-  border-radius: 50%;
-  background: var(--text-faint);
-  content: "";
-}
 
 .actions {
   display: flex;
@@ -272,6 +249,9 @@
 }
 
 .label {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
   color: var(--text-muted);
   font-family: var(--font-mono);
   font-size: 11px;

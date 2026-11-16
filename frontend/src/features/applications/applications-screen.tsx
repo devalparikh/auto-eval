@@ -1,9 +1,11 @@
 "use client";
 
-import { ArrowClockwiseIcon, PlusIcon } from "@phosphor-icons/react";
+import { ArrowClockwiseIcon, CheckIcon, CopyIcon, PlusIcon } from "@phosphor-icons/react";
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { TraceReview } from "./trace-review";
+import { KeyLifespan, lifespanExpiry, type Lifespan } from "./key-lifespan";
+import { InfoTip } from "@/components/info-tip";
 import { PageHeader } from "@/components/page-header";
 import { Select } from "@/components/select";
 import { EmptyState, ErrorState, LoadingState } from "@/components/states";
@@ -64,13 +66,14 @@ export function ApplicationsScreen() {
   const [secret, setSecret] = useState("");
   const [revision, setRevision] = useState(0);
   const [name, setName] = useState("");
-  const [lifespan, setLifespan] = useState("30");
+  const [lifespan, setLifespan] = useState<Lifespan>("30");
+  const [customDays, setCustomDays] = useState("180");
   const [overlap, setOverlap] = useState("1");
   const [clock, setClock] = useState(0);
-  const validLifetime =
-    Number.isInteger(Number(lifespan)) &&
-    Number(lifespan) >= 1 &&
-    Number(lifespan) <= 90;
+  const [copied, setCopied] = useState(false);
+  // Validity only; each request computes its own expiry when it is sent.
+  const validLifetime = lifespanExpiry(lifespan, customDays, 0) !== undefined;
+  const expiresAt = () => lifespanExpiry(lifespan, customDays, Date.now()) ?? null;
   const [reviewTrace, setReviewTrace] = useState("");
   const pending = useRef(false),
     mounted = useRef(false);
@@ -108,7 +111,7 @@ export function ApplicationsScreen() {
             setRegisterOpen(false);
             setName("");
             setError(
-              "Application creation is confirmed. Review its keys; the previous one-time token cannot be retrieved.",
+              "Application created. Its first key can’t be shown again; issue a new one.",
             );
           }
           if (canReconcile && !selectedRef.current) setUncertain(false);
@@ -180,6 +183,7 @@ export function ApplicationsScreen() {
     setBusy(true);
     setError("");
     setSecret("");
+    setCopied(false);
     try {
       const result = await apiRequest<{
         id?: string;
@@ -196,17 +200,28 @@ export function ApplicationsScreen() {
         setSelected(result.id!);
         selectedRef.current = result.id!;
         createId.current = null;
+        // Registered: the key panel takes over, so the form closes.
+        setRegisterOpen(false);
+        setName("");
       }
       setRevision((value) => value + 1);
     } catch {
       if (!mounted.current) return;
       setUncertain(true);
       setError(
-        "The operation was not confirmed. Refresh the list before trying again; a key may have been created.",
+        "Not confirmed. Refresh before trying again; a key may have been created.",
       );
     } finally {
       pending.current = false;
       if (mounted.current) setBusy(false);
+    }
+  }
+  async function copySecret() {
+    try {
+      await navigator.clipboard.writeText(secret);
+      setCopied(true);
+    } catch {
+      setCopied(false);
     }
   }
   const comparable = experiments.filter((run) => run.mode !== "observed");
@@ -215,22 +230,34 @@ export function ApplicationsScreen() {
     <div className={styles.screen}>
       <PageHeader
         title="Applications"
-        description="Observations from applications that run their own inference. Settings and consent control capture."
         action={
-          <button
-            type="button"
-            className="app-button secondary"
-            disabled={busy}
-            onClick={() => {
-              setError("");
-              setComparison(null);
-              setReviewTrace("");
-              setRevision((value) => value + 1);
-            }}
-          >
-            <ArrowClockwiseIcon size={13} aria-hidden="true" />
-            Refresh
-          </button>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              className="app-button secondary"
+              disabled={busy}
+              onClick={() => {
+                setError("");
+                setComparison(null);
+                setReviewTrace("");
+                setRevision((value) => value + 1);
+              }}
+            >
+              <ArrowClockwiseIcon size={13} aria-hidden="true" />
+              Refresh
+            </button>
+            {admin && apps.length > 0 && !registerOpen && (
+              <button
+                type="button"
+                className="app-button"
+                disabled={busy}
+                onClick={() => setRegisterOpen(true)}
+              >
+                <PlusIcon size={13} aria-hidden="true" />
+                Register application
+              </button>
+            )}
+          </div>
         }
       />
       <div className={styles.body}>
@@ -246,6 +273,7 @@ export function ApplicationsScreen() {
         {loading ? (
           <LoadingState rows={2} />
         ) : apps.length === 0 ? (
+          !registerOpen && (
           <section className={`surface-card ${styles.card}`}>
             <EmptyState
               title={
@@ -255,8 +283,8 @@ export function ApplicationsScreen() {
               }
               message={
                 admin
-                  ? "Register an application to issue its keys and start receiving observations."
-                  : "Ask the instance operator to give you access to an application."
+                  ? "Register one to issue its key."
+                  : "Ask your operator for access."
               }
               action={
                 admin ? (
@@ -272,6 +300,7 @@ export function ApplicationsScreen() {
               }
             />
           </section>
+          )
         ) : (
           <section className={`surface-card ${styles.card} ${styles.picker}`}>
             <div className="field">
@@ -322,18 +351,16 @@ export function ApplicationsScreen() {
             ) : null}
           </section>
         )}
-        {/* With no applications the empty state offers registration, so the
-            form stays out of sight until it is asked for. */}
-        {admin && (apps.length > 0 || registerOpen) && (
-          <details
-            className={`surface-card ${styles.card} ${styles.register}`}
-            open={registerOpen}
-            onToggle={(event) => setRegisterOpen(event.currentTarget.open)}
+        {/* Opened from the header or the empty state; it closes once the
+            application exists and its key is on screen. */}
+        {admin && registerOpen && (
+          <section
+            className={`surface-card ${styles.card}`}
+            aria-labelledby="register-heading"
           >
-            <summary>
-              <PlusIcon size={13} aria-hidden="true" />
+            <h2 id="register-heading" className={styles.heading}>
               Register application
-            </summary>
+            </h2>
             <form
               className={styles.registerForm}
               onSubmit={(event) => {
@@ -342,9 +369,7 @@ export function ApplicationsScreen() {
                 void mutate("/applications", {
                   id: createId.current,
                   name,
-                  key: {
-                    expiresAt: Date.now() + Number(lifespan) * 86400000,
-                  },
+                  key: { expiresAt: expiresAt() },
                 });
               }}
             >
@@ -359,74 +384,66 @@ export function ApplicationsScreen() {
                   onChange={(event) => setName(event.target.value)}
                 />
               </div>
-              <div className="field">
-                <label htmlFor="application-lifespan">
-                  Key lifespan (days)
-                </label>
-                <input
-                  id="application-lifespan"
-                  className="app-input mono"
-                  required
-                  type="number"
-                  min={1}
-                  max={90}
-                  value={lifespan}
-                  onChange={(event) => setLifespan(event.target.value)}
-                />
+              <KeyLifespan
+                id="application-lifespan"
+                lifespan={lifespan}
+                customDays={customDays}
+                onLifespan={setLifespan}
+                onCustomDays={setCustomDays}
+              />
+              <div className="flex gap-2">
+                <button
+                  className="app-button"
+                  disabled={busy || uncertain || !validLifetime}
+                >
+                  Register
+                </button>
+                <button
+                  type="button"
+                  className="app-button secondary"
+                  disabled={busy}
+                  onClick={() => setRegisterOpen(false)}
+                >
+                  Cancel
+                </button>
               </div>
-              <p className={styles.note}>
-                The SDK registers policy and experiments automatically. App
-                settings can be changed after creation.
-              </p>
-              <button
-                className="app-button"
-                disabled={busy || uncertain || !validLifetime}
-              >
-                Register
-              </button>
             </form>
-          </details>
+          </section>
         )}
         {apps.length > 0 && !selected && !loading ? (
           <section className={`surface-card ${styles.card}`}>
-            <EmptyState
-              title="Choose an application"
-              message={
-                admin
-                  ? "Its observations, keys, and experiment comparisons appear here."
-                  : "Its observations and experiment comparisons appear here."
-              }
-            />
+            <EmptyState title="Choose an application" />
           </section>
         ) : null}
         {selected && (
           <>
             {admin && (
               <section className={`surface-card ${styles.card}`}>
-                <h2 className={styles.heading}>Application keys</h2>
+                <h2 className={`${styles.heading} ${styles.headingRow}`}>
+                  Application keys
+                  <InfoTip label="SDK settings" align="start">
+                    The SDK’s <code>createCaptureFromEnv()</code> reads these
+                    on the app’s server: <code>AUTOEVAL_ENABLED=true</code>,{" "}
+                    <code>AUTOEVAL_ENDPOINT</code> (below),{" "}
+                    <code>AUTOEVAL_INGEST_KEY</code> and{" "}
+                    <code>AUTOEVAL_SOURCE</code> (<code>production</code> or{" "}
+                    <code>synthetic</code>).
+                  </InfoTip>
+                </h2>
                 <div className={styles.endpoint}>
-                  <span>AUTOEVAL_ENDPOINT</span>
+                  <span>Endpoint</span>
                   <code>{ingestEndpoint}</code>
                 </div>
-                <p className={styles.note}>
-                  Set AUTOEVAL_ENABLED=true and AUTOEVAL_SOURCE=production in
-                  the app backend. The SDK supplies policy and experiment IDs.
-                  User consent is off until granted in the app. Production and
-                  retention are separate app settings.
-                </p>
                 <div className={styles.row}>
-                  <div className="field">
-                    <label htmlFor="key-lifespan">Key lifespan (days)</label>
-                    <input
-                      id="key-lifespan"
-                      className="app-input"
-                      type="number"
-                      min={1}
-                      max={90}
-                      value={lifespan}
-                      onChange={(event) => setLifespan(event.target.value)}
-                    />
-                  </div>
+                  <KeyLifespan
+                    id="key-lifespan"
+                    lifespan={lifespan}
+                    customDays={customDays}
+                    onLifespan={setLifespan}
+                    onCustomDays={setCustomDays}
+                  />
+                </div>
+                <div className={styles.row}>
                   <div className="field">
                     <label htmlFor="rotation-overlap">Rotation overlap</label>
                     <Select
@@ -445,7 +462,7 @@ export function ApplicationsScreen() {
                     disabled={busy || uncertain || !validLifetime}
                     onClick={() =>
                       void mutate(`/applications/${selected}/keys`, {
-                        expiresAt: Date.now() + Number(lifespan) * 86400000,
+                        expiresAt: expiresAt(),
                       })
                     }
                   >
@@ -454,25 +471,40 @@ export function ApplicationsScreen() {
                 </div>
                 {secret && (
                   <div role="status" className={styles.secret}>
-                    <p>
-                      Copy this key to the app’s server-only
-                      AUTOEVAL_INGEST_KEY. It is shown once.
+                    <p className={styles.headingRow}>
+                      New key, shown once
+                      <InfoTip label="Key storage" align="start">
+                        Store it on the app’s server as{" "}
+                        <code>AUTOEVAL_INGEST_KEY</code>. Never send it to a
+                        browser.
+                      </InfoTip>
                     </p>
                     <code>{secret}</code>
-                    <button
-                      type="button"
-                      className="app-button secondary"
-                      onClick={() => setSecret("")}
-                    >
-                      Hide key
-                    </button>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        className="app-button secondary"
+                        onClick={() => void copySecret()}
+                      >
+                        {copied ? (
+                          <CheckIcon size={13} aria-hidden="true" />
+                        ) : (
+                          <CopyIcon size={13} aria-hidden="true" />
+                        )}
+                        {copied ? "Copied" : "Copy"}
+                      </button>
+                      <button
+                        type="button"
+                        className="app-button secondary"
+                        onClick={() => setSecret("")}
+                      >
+                        Hide key
+                      </button>
+                    </div>
                   </div>
                 )}
                 {keys.length === 0 ? (
-                  <p className={styles.note}>
-                    No keys issued. Start with <code>application:connect</code>{" "}
-                    to send observations.
-                  </p>
+                  <p className={styles.note}>No keys yet.</p>
                 ) : (
                   <ul className={styles.keys}>
                     {keys.map((key) => (
@@ -482,11 +514,13 @@ export function ApplicationsScreen() {
                         <span className={styles.keyState}>
                           {key.revoked
                             ? "Revoked"
-                            : key.expiresAt <= clock
+                            : key.expiresAt !== null && key.expiresAt <= clock
                               ? "Expired"
                               : key.retireAt && key.retireAt <= clock
                                 ? "Retired"
-                                : `Expires ${new Date(key.expiresAt).toLocaleString()}`}
+                                : key.expiresAt === null
+                                  ? "No expiry"
+                                  : `Expires ${new Date(key.expiresAt).toLocaleString()}`}
                           {key.retireAt && key.retireAt > clock
                             ? ` · Retires ${new Date(key.retireAt).toLocaleString()}`
                             : ""}
@@ -500,20 +534,20 @@ export function ApplicationsScreen() {
                                 busy ||
                                 uncertain ||
                                 !validLifetime ||
-                                key.expiresAt <= clock ||
+                                (key.expiresAt !== null &&
+                                  key.expiresAt <= clock) ||
                                 Boolean(key.retireAt && key.retireAt <= clock)
                               }
                               onClick={() =>
                                 void mutate(
                                   `/applications/${selected}/keys/${key.id}/rotate`,
                                   {
-                                    expiresAt:
-                                      Date.now() + Number(lifespan) * 86400000,
+                                    expiresAt: expiresAt(),
                                     retireAt: Number(overlap)
                                       ? Math.min(
                                           Date.now() +
                                             Number(overlap) * 3600000,
-                                          key.expiresAt,
+                                          key.expiresAt ?? Infinity,
                                           key.retireAt ?? Infinity,
                                         )
                                       : null,
@@ -544,22 +578,17 @@ export function ApplicationsScreen() {
               </section>
             )}
             <section className={`surface-card ${styles.card}`}>
-              <h2 className={styles.heading}>Recent observations</h2>
-              <p className={styles.note}>
-                Up to 100 unexpired observations. Consent withdrawal removes
-                associated observations.
-              </p>
+              <h2 className={`${styles.heading} ${styles.headingRow}`}>
+                Recent observations
+                <InfoTip label="Observation details" align="start">
+                  The latest 100 unexpired observations. Withdrawn consent
+                  removes a user’s observations.
+                </InfoTip>
+              </h2>
               {detailLoaded !== selected ? (
                 <LoadingState rows={3} />
               ) : traces.length === 0 ? (
-                <EmptyState
-                  title="No observations yet"
-                  message={
-                    admin
-                      ? "Connect the SDK with this app’s key. Consented observations appear here."
-                      : "Observations appear here once the application sends them."
-                  }
-                />
+                <EmptyState title="No observations yet" />
               ) : (
                 <div className={styles.tableWrap}>
                   <table className={styles.table}>
@@ -613,11 +642,13 @@ export function ApplicationsScreen() {
               />
             )}
             <section className={`surface-card ${styles.card}`}>
-              <h2 className={styles.heading}>Compare experiments</h2>
-              <p className={styles.note}>
-                Requires complete synthetic case sets from the same finalized
-                dataset and mode.
-              </p>
+              <h2 className={`${styles.heading} ${styles.headingRow}`}>
+                Compare experiments
+                <InfoTip label="Comparison requirements" align="start">
+                  Both experiments need complete case sets from the same
+                  finalized dataset and mode.
+                </InfoTip>
+              </h2>
               <div className={styles.row}>
                 <div className="field">
                   <label htmlFor="compare-baseline">Baseline</label>
@@ -675,7 +706,7 @@ export function ApplicationsScreen() {
                       );
                     } catch {
                       setError(
-                        "Comparison unavailable. Check dataset, mode, consent, and complete case coverage.",
+                        "Comparison unavailable for these experiments.",
                       );
                     } finally {
                       setBusy(false);
@@ -686,10 +717,7 @@ export function ApplicationsScreen() {
                 </button>
               </div>
               {detailLoaded === selected && comparable.length < 2 ? (
-                <p className={styles.note}>
-                  Register two scripted or live experiments on the same
-                  finalized dataset to compare them.
-                </p>
+                <p className={styles.note}>Needs two experiments.</p>
               ) : null}
               {comparison && (
                 <div className={styles.comparison}>

@@ -4,10 +4,8 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field, replace
 from inspect import isawaitable
 from time import perf_counter
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-from langgraph.graph import END, StateGraph
-from langgraph.runtime import Runtime
 from sqlalchemy.orm import Session
 
 from autoeval_api.config import Settings, get_settings
@@ -43,6 +41,9 @@ from autoeval_api.services.runtime_input_snapshots import (
     runtime_input_snapshot_binding,
 )
 from autoeval_api.services.versioning import resolve_graph_prompt_versions
+
+if TYPE_CHECKING:
+    from langgraph.runtime import Runtime
 
 
 @dataclass(frozen=True)
@@ -168,6 +169,11 @@ class AgentGraphRunner:
         selection: RunSelection,
         definition: AgentGraphDefinition,
     ):
+        # Imported on first run, not at startup: LangGraph is most of the API's
+        # import time, and a cold serverless instance answering a sign-in check
+        # never runs a graph. Nodes receive ``runtime`` by parameter name.
+        from langgraph.graph import END, StateGraph
+
         sequence = topological_sequence(definition)
         builder = StateGraph(AgentState, context_schema=GraphRuntimeContext)
 

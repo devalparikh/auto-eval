@@ -259,6 +259,62 @@ def test_key_overlap_expiry_and_app_boundaries(feed):
     assert sdk.post("/v2/traces", json=trace).status_code == 403
 
 
+def test_key_lifespans_are_bounded_and_never_is_explicit_and_revocable(feed):
+    admin, sdk, app, base, _, _, trace = feed
+    now, day = int(time.time() * 1000), 86400000
+    policy_path = "/v2/policies/" + trace["policyVersion"]
+
+    def issue(body):
+        return admin.post(base + "/keys", json=body)
+
+    for days in (7, 30, 90, 365):
+        dated = issue({"expiresAt": now + days * day})
+        assert dated.status_code == 201, dated.text
+        assert dated.json()["expiresAt"] == now + days * day
+    assert issue({"expiresAt": now - 1}).status_code == 400
+    assert issue({"expiresAt": now + 366 * day}).status_code == 400
+    # Omitting the field never means "no expiry"; only an explicit null does.
+    assert issue({}).status_code == 422
+    assert issue({"expiresAt": "never"}).status_code == 422
+
+    never = issue({"expiresAt": None})
+    assert never.status_code == 201, never.text
+    assert never.json()["expiresAt"] is None
+    listed = {key["id"]: key for key in admin.get(base + "/keys").json()}
+    assert listed[never.json()["id"]]["expiresAt"] is None
+    with app.state.session_factory() as session:
+        assert session.get(ApplicationKeyRecord, never.json()["id"]).expires == 0
+    auth = {"authorization": "Bearer " + never.json()["token"]}
+    assert sdk.get(policy_path, headers=auth).status_code == 200
+
+    # A never-expiring key still rotates within a bounded overlap.
+    rotate = base + "/keys/" + never.json()["id"] + "/rotate"
+    assert (
+        admin.post(rotate, json={"expiresAt": None, "retireAt": now + 366 * day}).status_code == 400
+    )
+    replacement = admin.post(rotate, json={"expiresAt": None, "retireAt": now + 3600000})
+    assert replacement.status_code == 200, replacement.text
+    assert replacement.json()["expiresAt"] is None
+    assert sdk.get(policy_path, headers=auth).status_code == 200
+    with app.state.session_factory() as session:
+        session.get(ApplicationKeyRecord, never.json()["id"]).retire_at = time.time() - 1
+        session.commit()
+    assert sdk.get(policy_path, headers=auth).status_code == 401
+
+    # And revocation ends one immediately.
+    auth = {"authorization": "Bearer " + replacement.json()["token"]}
+    assert sdk.get(policy_path, headers=auth).status_code == 200
+    revoked = admin.post(base + "/keys/" + replacement.json()["id"] + "/revoke")
+    assert revoked.status_code == 200
+    assert sdk.get(policy_path, headers=auth).status_code == 401
+
+    created = admin.post(
+        "/api/applications", json={"name": "No expiry", "key": {"expiresAt": None}}
+    )
+    assert created.status_code == 201, created.text
+    assert created.json()["key"]["expiresAt"] is None
+
+
 def test_production_gate_and_unknown_withdrawal_tombstone(feed):
     admin, sdk, _, base, _, _, trace = feed
     # Production is enabled by default, but the source is immutable per experiment.

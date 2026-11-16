@@ -177,14 +177,19 @@ test("creation asks only for name and key lifespan; settings are edited afterwar
   await page
     .getByLabel("Name", { exact: true })
     .fill("Portal synthetic " + randomUUID());
-  await page.getByLabel("Key lifespan (days)", { exact: true }).fill("14");
+  await page.getByRole("button", { name: "Custom", exact: true }).click();
+  await page.getByLabel("Custom key lifespan in days").fill("14");
   await expect(page.getByLabel("Allow production capture")).toHaveCount(0);
   await page.getByRole("button", { name: "Register", exact: true }).click();
+  // The key replaces the registration form rather than appearing beside it.
+  await expect(page.getByText("New key, shown once")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Register application" })).toHaveCount(0);
+  await expect(page.getByLabel("Name", { exact: true })).toHaveCount(0);
   await page.getByRole("button", { name: "Hide key", exact: true }).click();
   await page.getByRole("link", { name: "App settings", exact: true }).click();
   await expect(page.getByLabel("Allow production capture")).toBeChecked();
   await expect(page.getByLabel("All evidence retention")).toHaveValue("keep");
-  await expect(page.getByText(/No policy has arrived yet/)).toBeVisible();
+  await expect(page.getByText("None declared yet.")).toBeVisible();
   await page.getByLabel("Allow production capture").uncheck();
   await page
     .getByRole("button", { name: "Save settings", exact: true })

@@ -2783,10 +2783,17 @@
         "additionalProperties": false,
         "properties": {
           "expiresAt": {
-            "maximum": 9007199254740991.0,
-            "minimum": 0.0,
-            "title": "Expiresat",
-            "type": "integer"
+            "anyOf": [
+              {
+                "maximum": 9007199254740991.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expiresat"
           },
           "label": {
             "default": "App connection",
@@ -4211,10 +4218,17 @@
         "additionalProperties": false,
         "properties": {
           "expiresAt": {
-            "maximum": 9007199254740991.0,
-            "minimum": 0.0,
-            "title": "Expiresat",
-            "type": "integer"
+            "anyOf": [
+              {
+                "maximum": 9007199254740991.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expiresat"
           },
           "label": {
             "default": "App connection",

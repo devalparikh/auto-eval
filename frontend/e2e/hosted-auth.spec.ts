@@ -9,6 +9,24 @@ const codeUrl = `http://localhost:${process.env.AUTOEVAL_E2E_HOSTED_CODE_PORT ??
 const viewer = { subject: "00000000-0000-4000-8000-0000000000aa", role: "viewer" };
 
 type Fixture = [number, unknown];
+type Answer = Fixture | undefined | Promise<Fixture | undefined>;
+
+/**
+ * The API sets these HttpOnly cookies on the page's own origin, and the page's
+ * server reads them to decide whether a sign-in check is worth making. The
+ * mocked API answers cross-origin, so tests place them as the API would.
+ */
+const SESSION_COOKIE = "__Host-autoeval";
+const PENDING_COOKIE = "__Host-autoeval-pending";
+async function authCookie(page: Page, name: string, present: boolean) {
+  if (present)
+    await page.context().addCookies([
+      // Chrome accepts a __Host- cookie from the test API only with an explicit
+      // host and path; it is still sent to localhost on every port.
+      { name, value: "synthetic", domain: "localhost", path: "/", secure: true, httpOnly: true, sameSite: "Strict" },
+    ]);
+  else await page.context().clearCookies({ name });
+}
 
 /**
  * Answers `path` with `[status, body]`, or with what a function returns for the
@@ -16,7 +34,7 @@ type Fixture = [number, unknown];
  */
 async function mockApi(
   page: Page,
-  fixtures: Record<string, Fixture | ((method: string) => Fixture | undefined)>,
+  fixtures: Record<string, Fixture | ((method: string) => Answer)>,
 ) {
   const requests: { path: string; method: string; body: unknown }[] = [];
   await page.route(`${apiUrl}/**`, async (route) => {
@@ -29,7 +47,7 @@ async function mockApi(
     if (request.method() === "OPTIONS") return route.fulfill({ status: 204, headers });
     const path = new URL(request.url()).pathname.replace(/^\/api/, "");
     const entry = fixtures[path];
-    const fixture = typeof entry === "function" ? entry(request.method()) : entry;
+    const fixture = typeof entry === "function" ? await entry(request.method()) : entry;
     if (!fixture) return route.fallback();
     const posted = request.postData();
     requests.push({ path, method: request.method(), body: posted ? JSON.parse(posted) : null });
@@ -70,6 +88,36 @@ test("a successful email link keeps account actions reachable on the landing pag
   expect(requests.at(-1)?.path).toBe("/auth/logout");
 });
 
+test("without an auth cookie, sign-in arrives in the page itself and the API is not asked", async ({ page }) => {
+  const requests = await mockApi(page, { "/auth/session": [401, { detail: "Not authenticated" }] });
+  const response = await page.goto(codeUrl);
+  // Server-rendered: the form is in the HTML, not drawn after a session check.
+  expect(await response!.text()).toContain("Sign in to AutoEval");
+  await expect(page.getByRole("heading", { name: "Sign in to AutoEval" })).toBeVisible();
+  await expect(page.getByText(/Checking your session/)).toHaveCount(0);
+  await page.waitForLoadState("networkidle");
+  expect(requests).toEqual([]);
+});
+
+test("a session cookie is still verified by the API, and a refused one shows sign-in", async ({ page }) => {
+  let allowed = true;
+  const requests = await mockApi(page, {
+    "/auth/session": () => (allowed ? [200, viewer] : [401, { detail: "Request not authorized" }]),
+    "/applications": [200, []],
+  });
+  await authCookie(page, SESSION_COOKIE, true);
+  await page.goto(codeUrl);
+  await expect(page.getByRole("banner").getByRole("button", { name: "Sign out" })).toBeVisible();
+  expect(requests.map((request) => request.path)).toEqual(["/auth/session"]);
+
+  allowed = false;
+  await page.reload();
+  await expect(page.getByRole("heading", { name: "Sign in to AutoEval" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Sign out" })).toHaveCount(0);
+  // No pending cookie, so a refused session does not go on to ask for one.
+  expect(requests.filter((request) => request.path === "/auth/pending")).toEqual([]);
+});
+
 test("focus follows each sign-in step, including back to the email field", async ({ page }) => {
   await mockApi(page, {
     "/auth/session": [401, { detail: "Not authenticated" }],
@@ -90,7 +138,7 @@ test("focus follows each sign-in step, including back to the email field", async
   await expect(page.locator("section [role=alert]")).toContainText("That code didn't work");
   await expect.poll(() => focusedId(page)).toBe("auth-code");
 
-  await page.getByRole("button", { name: "Use another email or request a new code" }).click();
+  await page.getByRole("button", { name: "Use another email or resend" }).click();
   await expect(page.getByRole("heading", { name: "Sign in to AutoEval" })).toBeVisible();
   await expect.poll(() => focusedId(page)).toBe("auth-email");
   await expect(page.getByLabel("Email", { exact: true })).toHaveValue("reviewer@example.invalid");
@@ -136,18 +184,23 @@ const pendingSubject = "00000000-0000-4000-8000-0000000000b2";
  * status check reads it, approval consumes it, and DELETE clears it. Pending
  * never answers /auth/session, which stays 401 throughout.
  */
-function pendingServer() {
+function pendingServer(page: Page) {
   const state = { pending: false, approved: false };
-  const status = (): Fixture => {
-    if (!state.pending) return [200, { authenticated: false }];
+  const status = async (): Promise<Fixture> => {
+    if (!state.pending) {
+      await authCookie(page, PENDING_COOKIE, false);
+      return [200, { authenticated: false }];
+    }
     if (state.approved) {
       state.pending = false;
+      await authCookie(page, PENDING_COOKIE, false);
       return [200, { authenticated: false, status: "approved" }];
     }
     return [200, { authenticated: false, status: "pending", subject: pendingSubject }];
   };
-  const verified = (): Fixture => {
+  const verified = async (): Promise<Fixture> => {
     state.pending = true;
+    await authCookie(page, PENDING_COOKIE, true);
     return [200, { authenticated: false, status: "pending", subject: pendingSubject }];
   };
   return {
@@ -157,10 +210,11 @@ function pendingServer() {
       "/auth/request": [200, {}] as Fixture,
       "/auth/verify": verified,
       "/auth/exchange": verified,
-      "/auth/pending": (method: string): Fixture | undefined => {
+      "/auth/pending": async (method: string): Promise<Fixture | undefined> => {
         if (method === "POST") return status();
         if (method === "DELETE") {
           state.pending = false;
+          await authCookie(page, PENDING_COOKIE, false);
           return [200, { authenticated: false }];
         }
         return undefined;
@@ -181,7 +235,7 @@ async function expectPendingOnly(page: Page) {
 }
 
 test("a numeric-code registration stays pending across reloads until the user leaves", async ({ page }) => {
-  const server = pendingServer();
+  const server = pendingServer(page);
   const requests = await mockApi(page, server.fixtures);
   await page.goto(codeUrl);
   await page.getByLabel("Email", { exact: true }).fill("new-user@example.invalid");
@@ -190,10 +244,11 @@ test("a numeric-code registration stays pending across reloads until the user le
   await page.getByRole("button", { name: "Verify code" }).click();
   await expectPendingOnly(page);
 
+  const before = requests.length;
   await page.reload();
   await expectPendingOnly(page);
-  expect(requests.slice(-2).map(({ path, method }) => `${method} ${path}`)).toEqual([
-    "GET /auth/session",
+  // Only the pending cookie is present, so only its status is asked for.
+  expect(requests.slice(before).map(({ path, method }) => `${method} ${path}`)).toEqual([
     "POST /auth/pending",
   ]);
 
@@ -210,7 +265,7 @@ test("a numeric-code registration stays pending across reloads until the user le
 });
 
 test("an email-link registration survives reload and approval asks for a fresh sign-in", async ({ page }) => {
-  const server = pendingServer();
+  const server = pendingServer(page);
   const requests = await mockApi(page, server.fixtures);
   await page.goto(`${linkUrl}/?code=${"e".repeat(36)}`);
   await expectPendingOnly(page);
@@ -230,17 +285,18 @@ test("an email-link registration survives reload and approval asks for a fresh s
 });
 
 test("a reload with no pending record, or an expired one, starts at sign-in", async ({ page }) => {
-  const server = pendingServer();
+  const server = pendingServer(page);
   await mockApi(page, server.fixtures);
   await page.goto(codeUrl);
   await expect(page.getByRole("heading", { name: "Sign in to AutoEval" })).toBeVisible();
   await expect(page.getByText(pendingSubject)).toHaveCount(0);
 
   server.state.pending = true;
+  await authCookie(page, PENDING_COOKIE, true);
   await page.reload();
   await expectPendingOnly(page);
   server.state.pending = false; // The server-side record expired.
   await page.getByRole("button", { name: "Check again" }).click();
-  await expect(page.getByText(/no longer available in this browser/)).toBeVisible();
+  await expect(page.getByText(/expired in this browser/)).toBeVisible();
   await expect(page.getByRole("heading", { name: "Sign in to AutoEval" })).toBeVisible();
 });
