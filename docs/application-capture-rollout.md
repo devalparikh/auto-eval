@@ -8,7 +8,7 @@ perform their own repository changes.
 ## Merge order after approval
 
 1. Backend: immutable capture contract, migration 21, app keys/settings and evidence.
-2. SDK: candidate `0.2.0-private.1`, consent-first local calls, bounded sends and
+2. SDK: `0.2.0-private.2`, consent-first local calls, bounded sends and
    original-policy outcome support. Includes the installed-package integration test.
 3. Portal/docs: settings, rotation and trace review, plus the exact Lifty handoff.
 
@@ -48,9 +48,9 @@ disabled in Lifty while owners reconcile a rollout failure.
 
 ## Approved SDK publication through Actions
 
-Review `@devalparikh/autoeval@0.2.0-private.1` and its exact packed bytes. The package
-has no runtime dependencies, is UNLICENSED and targets restricted GitHub Packages.
-The owner must confirm namespace/package permissions and the intended license/access
+Review `@devalparikh/autoeval@0.2.0-private.2` and its exact packed bytes. The package
+has no runtime dependencies, includes the MIT LICENSE and targets restricted GitHub Packages.
+The owner must confirm namespace/package permissions and the intended access
 before approving a merge. [SDK publishing](sdk-publishing.md) defines the automatic
 main-push workflow, existing-version skip, built-in GITHUB_TOKEN access, exact
 tarball validation and source/checksum evidence. Only merge when Deval explicitly
@@ -60,6 +60,11 @@ No manual publication of `0.2.0-private.1` occurred. Verify a clean consumer can
 install the pinned version with a read-only package token and committed integrity
 lockfile, and verify intended access boundaries separately. Local tarball tests
 and metadata checks do not establish registry-install or visibility guarantees.
+
+The MIT license update does not change the capture-v2 API or require an
+auto-eval-instance pin change. Lifty should use the new SDK version and lockfile.
+Existing published SDK/server artifacts retain their original bytes and metadata;
+package visibility is a separate owner action.
 
 ## Lifty owner work
 

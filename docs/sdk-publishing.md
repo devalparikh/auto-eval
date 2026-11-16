@@ -1,8 +1,14 @@
 # SDK publishing
 
 `@devalparikh/autoeval` targets `https://npm.pkg.github.com` with restricted access,
-the `private` dist-tag and an UNLICENSED license. It has no runtime dependencies.
+the `private` dist-tag and the MIT license. It has no runtime dependencies.
 This process publishes only the SDK, never the server bundle or an instance.
+
+`0.2.0-private.2` is the first MIT-licensed SDK version, including a LICENSE with
+copyright 2026 Deval Parikh that matches the repository's root LICENSE.
+The earlier `0.1.0-private.1` and `0.2.0-private.1` tarballs retain their original
+UNLICENSED metadata and bytes. License updates do not rewrite historical packages or
+change package visibility; Deval manages visibility separately.
 
 ## Approval and triggers
 
@@ -75,10 +81,10 @@ package permissions or fall back to another credential.
 
 `--access=restricted` requests restricted publication. GitHub controls actual
 package visibility and granular access in package settings; neither a dist-tag nor
-successful authenticated download proves private visibility. Before approving the
-merge, the owner must confirm the existing package remains private with intended
-repository/team access. This change does not change those settings or claim to have
-audited them. See GitHub's [npm registry authentication guide](https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-npm-registry),
+successful authenticated download proves private visibility. The owner controls
+package visibility and intended repository/team access separately from licensing.
+The MIT license update leaves these settings unchanged; it does not make the
+package public. See GitHub's [npm registry authentication guide](https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-npm-registry),
 [Actions access controls](https://docs.github.com/en/packages/learn-github-packages/configuring-a-packages-access-control-and-visibility)
 and [GITHUB_TOKEN publishing guide](https://docs.github.com/en/actions/tutorials/publish-packages/publish-nodejs-packages).
 
@@ -89,8 +95,8 @@ consumer and SDK tests) before exposing the token to the helper. Then
 `python3 scripts/sdk_publish.py` checks the source SHA and clean tracked files,
 looks up the version, and packs with lifecycle scripts disabled. It validates the
 package name/version/license/dependency/publication settings, an exact file
-inventory and byte-for-byte equality against package.json, README and source files
-copied into dist. Unknown files, links, duplicates, missing files or modified bytes
+inventory and byte-for-byte equality against package.json, README, the root MIT
+LICENSE and source files copied into dist. Unknown files, links, duplicates, missing files or modified bytes
 fail. Adding a shipped file requires updating the reviewed inventory guard.
 
 The helper computes SHA-1 `shasum` and SHA-512 SRI `integrity` for the exact tarball,
@@ -130,6 +136,10 @@ Consumers pin the exact version and integrity in a committed lockfile and use
 authenticated `npm ci` as described in the SDK README. This workflow's installed
 consumer test uses packed local bytes; registry metadata verification does not
 claim a clean authenticated registry install or an access-control audit.
+
+For this license-only release, Lifty should pin `0.2.0-private.2` and commit its
+updated integrity lockfile. auto-eval-instance consumes server releases rather than
+the SDK, so it keeps its existing server pin; no migration or rollout is required.
 
 ## Provenance limits
 

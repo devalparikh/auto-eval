@@ -16,11 +16,14 @@ python3 scripts/server_release.py build --source . --output /tmp/autoeval-candid
 The last command's placeholder must be replaced by the actual reviewed source SHA.
 It produces deterministic auto-eval-server.tar.gz, server-manifest.json,
 server_release.py (standalone installer) and SHA256SUMS. The bundle allowlists
-frontend source/public/build configuration/lockfile and backend source/entrypoint/
+the root MIT LICENSE, frontend source/public/build configuration/lockfile and backend source/entrypoint/
 requirements/pyproject; excludes SDKs, envs, databases, caches and tests. The scanner
 is a limited heuristic: inspect the complete inventory/bytes and run an independent
-secret/license/dependency review before publication. No approved license currently
-exists; packaging is not permission to redistribute.
+secret/license/dependency review before publication. The repository is MIT-licensed
+(copyright 2026 Deval Parikh), and newly built bundles include the root LICENSE.
+Third-party components retain their own terms. Existing published bundles and
+notices are immutable; this license change does not republish them or change any
+instance pin. A new server release remains a separate approved operation.
 
 Manifest schema 1 binds product, version, source, target, archive SHA-256 and each
 member's SHA-256. It marks hosted feed and Supabase auth implemented, names `autoeval-migrate`

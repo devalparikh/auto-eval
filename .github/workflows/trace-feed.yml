@@ -2,6 +2,7 @@ name: Trace feed package
 on:
   pull_request:
     paths:
+      - LICENSE
       - packages/trace-feed/**
       - .github/workflows/trace-feed.yml
       - .github/workflows/sdk-publish.yml

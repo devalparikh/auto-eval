@@ -1,4 +1,5 @@
 import { execFileSync } from "node:child_process";
+import assert from "node:assert/strict";
 import { mkdtemp, readFile, writeFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -24,6 +25,15 @@ try {
       `./devalparikh-autoeval-${JSON.parse(await readFile(join(root, "package.json"), "utf8")).version}.tgz`,
     ],
     { cwd: directory, stdio: "inherit" },
+  );
+  const installed = join(directory, "node_modules/@devalparikh/autoeval");
+  assert.equal(
+    JSON.parse(await readFile(join(installed, "package.json"), "utf8")).license,
+    "MIT",
+  );
+  assert.equal(
+    await readFile(join(installed, "LICENSE"), "utf8"),
+    await readFile(new URL("../../../LICENSE", import.meta.url), "utf8"),
   );
   const source = (
     await readFile(new URL("../test/feed.test.mjs", import.meta.url), "utf8")

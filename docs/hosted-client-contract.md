@@ -169,7 +169,7 @@ versioned rubric defaults every rating to unknown; it does not call a provider.
 ## SDK and administration
 
 See the [package README](../packages/trace-feed/README.md) for the typed SDK API,
-environment variables and candidate package installation, and the
+environment variables and package installation, and the
 [Lifty guide](lifty-integration.md) for the complete trainer integration.
 Missing/invalid config disables capture without throwing. `begin`/`step` do no I/O;
 `end`/`outcome` use a shared deadline of at most two seconds and no retries after the
@@ -179,8 +179,8 @@ Registration and grants are cached per process; ingest always rechecks live auth
 The app portal creates keys and manages settings. Admin APIs retain finalized dataset
 registration, trace review/assessments and comparisons. Observed experiment and
 policy registration belong to the SDK; there is no manifest upload or browser-console
-setup. Exact internal schemas are generated in OpenAPI. The SDK candidate is
-`0.2.0-private.1`, UNLICENSED, targeting restricted GitHub Packages; nothing is
+setup. Exact internal schemas are generated in OpenAPI. The SDK version is
+`0.2.0-private.2`, MIT-licensed, targeting GitHub Packages with restricted publication; nothing is
 published by tests. The old SDK, v1 writes, separate grants/read keys, manual
 experiment env ID and Node receiver have no compatibility window.
 
