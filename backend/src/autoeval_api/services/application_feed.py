@@ -18,9 +18,11 @@ from autoeval_api.models import (
     FeedObjectRecord,
 )
 from autoeval_api.services import application_contract as contract
-from autoeval_api.services.hosted_auth import denied, digest
+from autoeval_api.services.hosted_auth import denied, digest, key_active
 
 SCOPE = "application:connect"
+# The longest dated key; a key without an expiry is a separate, explicit choice.
+KEY_MAX_DAYS = 365
 EVIDENCE = ("trace", "trace2", "content2", "outcome2", "assessment2")
 # A backstop, not an anonymity guarantee. Domain minimization happens before transmission.
 PROHIBITED = re.compile(
@@ -187,15 +189,20 @@ def key_dict(key):
         "label": key.label,
         "scope": key.scope,
         "createdAt": int(key.created * 1000),
-        "expiresAt": int(key.expires * 1000),
+        # None: issued without an expiry.
+        "expiresAt": int(key.expires * 1000) if key.expires else None,
         "retireAt": int(key.retire_at * 1000) if key.retire_at else None,
         "revoked": key.revoked,
     }
 
 
 def issue_key(session, app_id, body):
-    if not now_ms() < body.expiresAt <= now_ms() + 90 * 86400000:
-        raise HTTPException(400, "Key expiration must be within 90 days")
+    # ``None`` is an explicit choice of no expiry, stored as the 0 sentinel that
+    # ``key_active`` reads. Anything else must be a future time within the limit.
+    if body.expiresAt is not None and not (
+        now_ms() < body.expiresAt <= now_ms() + KEY_MAX_DAYS * 86400000
+    ):
+        raise HTTPException(400, f"Key expiration must be within {KEY_MAX_DAYS} days or never")
     value = "ae_" + secrets.token_urlsafe(32)
     row = ApplicationKeyRecord(
         application_id=app_id,
@@ -203,7 +210,7 @@ def issue_key(session, app_id, body):
         scope=SCOPE,
         label=body.label,
         created=time.time(),
-        expires=body.expiresAt / 1000,
+        expires=0 if body.expiresAt is None else body.expiresAt / 1000,
     )
     session.add(row)
     session.flush()
@@ -217,15 +224,11 @@ def change_key(session, app, key_id, body=None):
     if body is None:
         key.revoked = True
         return {"revoked": True}
-    if (
-        key.revoked
-        or key.scope != SCOPE
-        or key.expires <= time.time()
-        or (key.retire_at and key.retire_at <= time.time())
-    ):
+    if key.scope != SCOPE or not key_active(key):
         raise HTTPException(409, "Key is inactive")
     if body.retireAt is not None:
-        if not now_ms() < body.retireAt <= key.expires * 1000:
+        latest = key.expires * 1000 if key.expires else now_ms() + KEY_MAX_DAYS * 86400000
+        if not now_ms() < body.retireAt <= latest:
             raise HTTPException(400, "Invalid overlap deadline")
         if key.retire_at and body.retireAt > key.retire_at * 1000:
             raise HTTPException(409, "Cannot extend a scheduled retirement")
@@ -245,13 +248,7 @@ def key_resource(session, principal):
         .with_for_update()
     )
     key = session.get(ApplicationKeyRecord, principal["key_id"], populate_existing=True)
-    if (
-        not app
-        or not key
-        or key.revoked
-        or key.expires <= time.time()
-        or (key.retire_at and key.retire_at <= time.time())
-    ):
+    if not app or not key or not key_active(key):
         denied()
     return app
 

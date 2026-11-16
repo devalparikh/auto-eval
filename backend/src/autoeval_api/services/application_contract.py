@@ -36,7 +36,8 @@ class ApplicationInput(Strict):
 
 class KeyInput(Strict):
     label: str = Field(default="App connection", min_length=1, max_length=80)
-    expiresAt: Timestamp
+    # Required, so an omitted field never means "no expiry". ``None`` does.
+    expiresAt: Timestamp | None
 
 
 class RotationInput(KeyInput):

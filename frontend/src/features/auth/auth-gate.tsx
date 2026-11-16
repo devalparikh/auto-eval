@@ -9,17 +9,18 @@ import {
   WarningCircleIcon,
 } from "@phosphor-icons/react";
 import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
+import { InfoTip } from "@/components/info-tip";
 import { ApiError, apiRequest } from "@/lib/api";
 import { clearApiResourceCache } from "@/lib/use-api-resource";
 import { HostedSessionContext } from "./hosted-session";
+import { UNKNOWN_SESSION, type SessionHint } from "./session-hint";
 import styles from "./auth-gate.module.css";
 
 type Phase = "loading" | "callback" | "email" | "code" | "link" | "pending" | "ready";
 type Verification = { authenticated?: boolean; status?: string; subject?: string };
 
-const APPROVED_NOTICE = "Your account is approved. Sign in again to open the dashboard.";
-const EXPIRED_NOTICE =
-  "Your approval request is no longer available in this browser. Sign in again to check its status.";
+const APPROVED_NOTICE = "Your account is approved. Sign in again.";
+const EXPIRED_NOTICE = "Your approval request expired in this browser. Sign in again.";
 
 /**
  * A verified but unapproved registration is held by the backend in its own
@@ -33,13 +34,27 @@ function readPending(signal?: AbortSignal) {
 export function AuthGate({
   enabled,
   emailLink = false,
+  hint = UNKNOWN_SESSION,
   children,
 }: {
   enabled: boolean;
   emailLink?: boolean;
+  /** Which auth cookies came with the page request; see session-hint.ts. */
+  hint?: SessionHint;
   children: ReactNode;
 }) {
-  const [phase, setPhase] = useState<Phase>(enabled ? "loading" : "ready");
+  // Only the first request's cookies matter: later renders of the layout must
+  // not restart the check, or abort a sign-in that is under way.
+  const [initial] = useState(hint);
+  // With no cookie the API could only refuse, so sign-in renders on the server
+  // and no request is made. An email-link return still shows its verification.
+  const [phase, setPhase] = useState<Phase>(
+    !enabled
+      ? "ready"
+      : initial.session || initial.pending || initial.callback
+        ? "loading"
+        : "email",
+  );
   const [pendingSubject, setPendingSubject] = useState("");
   const [email, setEmail] = useState("");
   const [token, setToken] = useState("");
@@ -50,6 +65,8 @@ export function AuthGate({
   // The server renders no host; the browser fills it in without a mismatch.
   const host = useSyncExternalStore(subscribeNever, readHost, () => "");
   const active = useRef<AbortController | null>(null);
+  // The background sign-in probe, cancelled the moment the visitor submits.
+  const probe = useRef<AbortController | null>(null);
   const callback = useRef<Promise<Verification> | null>(null);
   useEffect(() => {
     if (!enabled) return;
@@ -96,49 +113,96 @@ export function AuthGate({
       }).catch(() => {
         if (!controller.signal.aborted) {
           setPhase("email");
-          setError("This sign-in link couldn't be verified. It may have expired, been replaced by a newer link, or been opened in a different browser. Request a new link here.");
+          setError("This sign-in link couldn't be verified. Request a new one.");
         }
       });
-    } else apiRequest<{subject: string}>("/auth/session", { signal: controller.signal })
-      .then((principal) => {
-        if (!controller.signal.aborted) {
-          if (!principal?.subject) throw new Error("Invalid session");
-          clearApiResourceCache(principal.subject);
-          setPhase("ready");
-        }
-      })
-      .catch(async (failure: unknown) => {
-        if (controller.signal.aborted) return;
-        // No session. A reload while awaiting approval asks the server whether
-        // this browser verified a still-pending identity; it grants nothing.
-        if (failure instanceof ApiError && failure.status === 401) {
-          try {
-            const result = await readPending(controller.signal);
-            if (controller.signal.aborted) return;
-            if (result.status === "pending" && result.subject) {
-              setPendingSubject(result.subject);
-              setPhase("pending");
-              return;
-            }
-            if (result.status === "approved") setNotice(APPROVED_NOTICE);
-          } catch {
-            if (controller.signal.aborted) return;
+    } else {
+      // With neither cookie, sign-in already rendered. A typed or bookmarked
+      // visit may still have lost Strict cookies on a redirect from another
+      // site, so ask in the background; same-origin calls carry them.
+      if (!initial.session && !initial.pending) {
+        if (initial.confirm) void confirmInBackground();
+        return detach;
+      }
+      // A pending registration alone needs only its own status check.
+      if (!initial.session) void showPending();
+      else apiRequest<{subject: string}>("/auth/session", { signal: controller.signal })
+        .then((principal) => {
+          if (!controller.signal.aborted) {
+            if (!principal?.subject) throw new Error("Invalid session");
+            clearApiResourceCache(principal.subject);
+            setPhase("ready");
           }
+        })
+        .catch((failure: unknown) => {
+          if (controller.signal.aborted) return;
+          // No session. A pending registration in this browser may still show.
+          if (failure instanceof ApiError && failure.status === 401 && initial.pending) void showPending();
+          else setPhase("email");
+        });
+    }
+    // Only the API's verified answer changes the screen, and only while the
+    // visitor has not started signing in; otherwise the form simply stays.
+    async function confirmInBackground() {
+      const own = new AbortController();
+      probe.current = own;
+      controller.signal.addEventListener("abort", () => own.abort(), { once: true });
+      const untouched = () => !own.signal.aborted && active.current === null;
+      try {
+        // Its 401 is the expected answer for a signed-out visitor, so it must
+        // not reset the API session under a sign-in the visitor has started.
+        const principal = await apiRequest<{ subject: string }>("/auth/session", {
+          signal: own.signal,
+          quietUnauthorized: true,
+        });
+        if (!untouched() || !principal?.subject) return;
+        clearApiResourceCache(principal.subject);
+        setPhase((current) => (current === "email" ? "ready" : current));
+      } catch (failure) {
+        if (!untouched() || !(failure instanceof ApiError) || failure.status !== 401) return;
+        try {
+          const result = await readPending(own.signal);
+          if (!untouched()) return;
+          if (result.status === "pending" && result.subject) {
+            setPendingSubject(result.subject);
+            setPhase((current) => (current === "email" ? "pending" : current));
+          } else if (result.status === "approved") setNotice(APPROVED_NOTICE);
+        } catch {
+          // The form is already showing; nothing to recover.
         }
-        setPhase("email");
-      });
-    return () => {
+      }
+    }
+    // Asks the server whether this browser verified a still-pending identity;
+    // it grants nothing.
+    async function showPending() {
+      try {
+        const result = await readPending(controller.signal);
+        if (controller.signal.aborted) return;
+        if (result.status === "pending" && result.subject) {
+          setPendingSubject(result.subject);
+          setPhase("pending");
+          return;
+        }
+        if (result.status === "approved") setNotice(APPROVED_NOTICE);
+      } catch {
+        if (controller.signal.aborted) return;
+      }
+      setPhase("email");
+    }
+    return detach;
+    function detach() {
       controller.abort();
       window.removeEventListener("autoeval:unauthorized", unauthorized);
       active.current?.abort();
-    };
-  }, [enabled, emailLink]);
+    }
+  }, [enabled, emailLink, initial]);
 
   async function submit() {
     if (busy) return;
     setBusy(true);
     setError("");
     setNotice("");
+    probe.current?.abort();
     const controller = new AbortController();
     active.current = controller;
     const timeout = setTimeout(() => controller.abort(), 15000);
@@ -169,12 +233,12 @@ export function AuthGate({
       if (!controller.signal.aborted)
         setError(
           phase === "code"
-            ? "That code didn't work. Check it and try again, or request a new one."
-            : "Sign-in could not be started. Try again in a moment.",
+            ? "That code didn't work. Try again or request a new one."
+            : "Sign-in couldn’t start. Try again.",
         );
       else
         setError(
-          `The request timed out. Check your email before requesting another ${emailLink ? "link" : "code"}.`,
+          `Timed out. Check your email before requesting another ${emailLink ? "link" : "code"}.`,
         );
     } finally {
       clearTimeout(timeout);
@@ -193,7 +257,7 @@ export function AuthGate({
       setPhase("email");
     } catch {
       setPhase("email");
-      setError("Sign-out could not be confirmed. Sign in to try again.");
+      setError("Sign-out wasn’t confirmed. Sign in to try again.");
     } finally {
       setBusy(false);
     }
@@ -250,7 +314,7 @@ export function AuthGate({
     pendingCheck === "still"
       ? "Still waiting for approval."
       : pendingCheck === "failed"
-        ? "Approval status couldn’t be checked. Try again in a moment."
+        ? "Couldn’t check approval. Try again."
         : "";
 
   if (phase === "ready")
@@ -275,13 +339,13 @@ export function AuthGate({
           title="Check your email"
         >
           <p className={styles.lead} role="status">
-            If <strong className={styles.address}>{email}</strong> can sign in, a link is on its way.
-            Open it in the same browser that requested it.
+            <span className={styles.srOnly}>Sign-in link requested for </span>
+            <strong className={styles.address}>{email}</strong>
+            <InfoTip label="Sign-in link details" align="start">
+              Open the newest link in this browser within 10 minutes. New accounts also need
+              operator approval.
+            </InfoTip>
           </p>
-          <ul className={styles.notes}>
-            <li>Use the newest link you requested in this browser, within 10 minutes. It may expire sooner.</li>
-            <li>Access also needs approval from the instance operator.</li>
-          </ul>
           <div className={styles.actions}>
             <button type="button" className="app-button secondary" onClick={startOver}>
               Request another link
@@ -294,15 +358,7 @@ export function AuthGate({
           icon={<HourglassMediumIcon size={18} weight="duotone" aria-hidden="true" />}
           title="Approval pending"
         >
-          <p className={styles.lead}>
-            Your email is verified. An operator still needs to approve this account before the
-            dashboard opens.
-          </p>
           <SubjectCard subject={pendingSubject} />
-          <p className={styles.hint}>
-            Send this ID to the instance operator. This page stays available in this browser for a
-            limited time. Once you’re approved, check again and sign in.
-          </p>
           {pendingMessage && (
             <p className={styles.hint} aria-hidden="true">
               {pendingMessage}
@@ -443,7 +499,12 @@ function SubjectCard({ subject }: { subject: string }) {
   return (
     <div className={styles.subject}>
       <div className={styles.subjectHead}>
-        <span className={styles.label}>Your user ID</span>
+        <span className={styles.label}>
+          Send this ID to your operator
+          <InfoTip label="Approval details" align="start">
+            Your email is verified. Once an operator approves this ID, check again and sign in.
+          </InfoTip>
+        </span>
         <button
           type="button"
           className={styles.copy}
@@ -514,15 +575,10 @@ function SignInForm({
       <h1 id="auth-title" className={styles.title}>
         {code ? "Enter your code" : "Sign in to AutoEval"}
       </h1>
-      {code ? (
+      {code && (
         <p className={styles.lead} role="status">
-          If <strong className={styles.address}>{email}</strong> can sign in, a code is on its way.
-        </p>
-      ) : (
-        <p className={styles.lead}>
-          {emailLink
-            ? "Enter your email and we’ll send you a sign-in link."
-            : "Enter your email and we’ll send you a one-time code."}
+          <span className={styles.srOnly}>Code requested for </span>
+          <strong className={styles.address}>{email}</strong>
         </p>
       )}
       {notice && !error && (
@@ -597,7 +653,7 @@ function SignInForm({
         </button>
         {code && (
           <button type="button" className={styles.textButton} disabled={busy} onClick={onStartOver}>
-            Use another email or request a new code
+            Use another email or resend
           </button>
         )}
       </form>

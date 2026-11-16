@@ -35,6 +35,21 @@ PUBLIC = {
 }
 
 
+def key_active(key, now=None):
+    """An application key is usable: not revoked, expired, or retired.
+
+    ``expires == 0`` is a key issued without an expiry; revocation and rotation
+    still end it. Every key check goes through here so the sentinel is never
+    read as an ordinary timestamp.
+    """
+    now = time.time() if now is None else now
+    return (
+        not key.revoked
+        and (key.expires == 0 or key.expires > now)
+        and not (key.retire_at and key.retire_at <= now)
+    )
+
+
 def digest(value):
     return hashlib.sha256(value.encode()).hexdigest()
 
@@ -221,12 +236,7 @@ class HostedAuth:
                         ApplicationKeyRecord.digest == digest(auth[7:])
                     )
                 )
-                if (
-                    not key
-                    or key.revoked
-                    or key.expires <= time.time()
-                    or (key.retire_at and key.retire_at <= time.time())
-                ):
+                if not key or not key_active(key):
                     denied()
                 return {"key_id": key.id, "application_id": key.application_id, "scope": key.scope}
         value = request.cookies.get(COOKIE, "")

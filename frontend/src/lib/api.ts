@@ -26,7 +26,15 @@ import type {
 // own pages, so /custom-models answers with HTML and /catalog with a 404 page.
 export const API_URL = process.env.NEXT_PUBLIC_API_URL || "/api/backend/api";
 
-type RequestOptions = Omit<RequestInit, "body"> & { body?: unknown };
+type RequestOptions = Omit<RequestInit, "body"> & {
+  body?: unknown;
+  /**
+   * A 401 here is an expected answer, not a lost session: the request is a
+   * background sign-in probe. It still rejects with ApiError, but does not
+   * announce `autoeval:unauthorized`, which would abort other requests.
+   */
+  quietUnauthorized?: boolean;
+};
 
 /**
  * The API, or a proxy in front of it, answered with an error status. Failures
@@ -45,7 +53,7 @@ const notJson = Symbol("not JSON");
 
 export async function apiRequest<T>(
   path: string,
-  options: RequestOptions = {},
+  { quietUnauthorized = false, ...options }: RequestOptions = {},
 ): Promise<T> {
   const session = getApiSession();
   const controller = new AbortController();
@@ -89,7 +97,7 @@ export async function apiRequest<T>(
   assertCurrent();
   const payload = parseJson(text);
   if (!response.ok) {
-    if (response.status === 401 && typeof window !== "undefined") {
+    if (response.status === 401 && !quietUnauthorized && typeof window !== "undefined") {
       window.dispatchEvent(new Event("autoeval:unauthorized"));
     }
     throw new ApiError(

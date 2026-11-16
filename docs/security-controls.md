@@ -53,7 +53,8 @@ inputs or rewrite finalized datasets and immutable snapshots.
 
 `AUTOEVAL_TRACE_RETENTION_DAYS` defaults to 30 and must be positive. Startup and
 hourly maintenance remove expired completed/failed traces and their spans in
-batches. Running traces, recent traces, and traces referenced by datasets,
+batches. On a networked database the startup pass runs in the background, so it
+does not hold up the first request; on SQLite it finishes before serving. Running traces, recent traces, and traces referenced by datasets,
 evaluation results, or snapshots are retained. Those references preserve
 reviewed examples and immutable provenance; their data needs a separate retention
 decision. New redaction rules apply to new trace writes, not historical records.

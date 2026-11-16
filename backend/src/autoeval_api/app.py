@@ -121,13 +121,18 @@ def create_application(
             purge(session)
             session.commit()
 
-    async def maintain_trace_retention() -> None:
+    async def maintain_trace_retention(first_pass_done: bool) -> None:
+        if not first_pass_done:
+            await expire_traces_logged()
         while True:
             await asyncio.sleep(3600)
-            try:
-                await asyncio.to_thread(expire_traces)
-            except Exception:
-                logging.getLogger(__name__).warning("Trace retention failed; retrying in one hour")
+            await expire_traces_logged()
+
+    async def expire_traces_logged() -> None:
+        try:
+            await asyncio.to_thread(expire_traces)
+        except Exception:
+            logging.getLogger(__name__).warning("Trace retention failed; retrying in one hour")
 
     @asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncIterator[None]:
@@ -151,8 +156,17 @@ def create_application(
                 session.close()
             await ensure_demo_runs(session_factory, runner, scoring_registry)
         custom_model_service.recover_interrupted()
-        await asyncio.to_thread(expire_traces)
-        retention_task = asyncio.create_task(maintain_trace_retention())
+        # On a networked database the first pass runs beside requests, so a cold
+        # serverless instance does not hold its first request (often a sign-in
+        # check) behind it; batches commit independently and foreign keys keep a
+        # concurrent provenance reference safe. SQLite (local and tests) can share
+        # one connection across threads, so there it finishes before requests.
+        # Either way a failed pass is logged and retried hourly; it never stops
+        # the server from starting.
+        first_pass_inline = resolved_engine is None or resolved_engine.dialect.name == "sqlite"
+        if first_pass_inline:
+            await expire_traces_logged()
+        retention_task = asyncio.create_task(maintain_trace_retention(first_pass_inline))
         try:
             yield
         finally:

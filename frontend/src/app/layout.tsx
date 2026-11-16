@@ -5,6 +5,7 @@ import { AppShell } from "@/components/app-shell";
 import { SIDEBAR_COOKIE_NAME, sidebarStateFromCookie } from "@/lib/sidebar";
 import { colorThemeFromCookie, THEME_COOKIE_NAME } from "@/lib/theme";
 import { AuthGate } from "@/features/auth/auth-gate";
+import { CALLBACK_HEADER, readSessionHint } from "@/features/auth/session-hint";
 import "./globals.css";
 
 const description =
@@ -61,7 +62,7 @@ export default async function RootLayout({
   children: ReactNode;
 }) {
   // Reading request headers guarantees nonce-bearing responses render per request.
-  await headers();
+  const headerList = await headers();
   const cookieStore = await cookies();
   const theme = colorThemeFromCookie(cookieStore.get(THEME_COOKIE_NAME)?.value);
   const sidebar = sidebarStateFromCookie(
@@ -71,7 +72,12 @@ export default async function RootLayout({
     <html lang="en" data-theme={theme} data-scroll-behavior="smooth">
       <body>
         <AuthGate enabled={process.env.AUTOEVAL_AUTH_MODE === "supabase"}
-          emailLink={process.env.AUTOEVAL_ALLOW_EMAIL_LINK_SIGN_IN === "true"}>
+          emailLink={process.env.AUTOEVAL_ALLOW_EMAIL_LINK_SIGN_IN === "true"}
+          hint={readSessionHint(
+            (name) => cookieStore.has(name),
+            headerList.has(CALLBACK_HEADER),
+            headerList.get("sec-fetch-site"),
+          )}>
           <AppShell initialTheme={theme} initialSidebar={sidebar}>
             {children}
           </AppShell>

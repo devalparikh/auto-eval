@@ -75,7 +75,10 @@ looks like a sent request; verify delivery through approved provider operations.
 
 ## App keys and capture v2
 
-Create an app by naming it and choosing a key lifespan (1–90 days in the portal).
+Create an app by naming it and choosing a key lifespan: 7, 30 or 90 days, a custom
+1–365 days, or never. The API enforces the same rule: `expiresAt` is required, and is
+either a time within 365 days or an explicit `null` for a key with no expiry (stored
+as `expires = 0`; every key check goes through `hosted_auth.key_active`).
 One atomic create returns the app UUID and a one-time token. Only its SHA-256 digest
 is stored. The `application:connect` key can register that app's policies,
 experiments and consent grants, append traces/outcomes, withdraw grants and read
@@ -84,7 +87,9 @@ change settings, issue keys or reach workbench/provider/admin APIs. Browser-orig
 key use is rejected. The app owns the authenticated consent assertion.
 
 Expiration belongs to the key. Revocation is immediate; rotation optionally
-schedules a precise overlap deadline, capped by the old expiry. No implicit grace.
+schedules a precise overlap deadline, capped by the old expiry (by 365 days for a
+key with none). A key with no expiry is still revoked and rotated the same way. No
+implicit grace.
 The SDK stops sending after a 401 until reinitialized with a replacement key.
 Keep keys backend-only. The endpoint remains an env value:
 `https://INSTANCE/api/backend/v2/traces`.

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { CALLBACK_HEADER } from "@/features/auth/session-hint";
 import { buildContentSecurityPolicy } from "@/lib/content-security-policy";
 import { isLoopbackHost } from "@/lib/loopback-host";
 
@@ -19,6 +20,10 @@ export function proxy(request: NextRequest) {
 
   const requestHeaders = new Headers(request.headers);
   requestHeaders.set("x-nonce", nonce);
+  // Tells the sign-in gate an email-link return is under way, so it shows the
+  // verification rather than the form. Only this proxy may set it.
+  requestHeaders.delete(CALLBACK_HEADER);
+  if (request.nextUrl.searchParams.has("code")) requestHeaders.set(CALLBACK_HEADER, "1");
   requestHeaders.set("Content-Security-Policy", policy);
   const response = NextResponse.next({ request: { headers: requestHeaders } });
   response.headers.set("Content-Security-Policy", policy);

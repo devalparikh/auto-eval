@@ -67,7 +67,8 @@ export function EmptyState({
   action,
 }: {
   title: string;
-  message: string;
+  /** Only when the title alone does not say enough. */
+  message?: string;
   /** The next step, when there is one to take from here. */
   action?: ReactNode;
 }) {
@@ -81,9 +82,11 @@ export function EmptyState({
           ::
         </div>
         <p className="font-medium tracking-[-0.02em]">{title}</p>
-        <p className="mt-1.5 max-w-sm text-[12px] leading-5 text-[var(--text-muted)]">
-          {message}
-        </p>
+        {message ? (
+          <p className="mt-1.5 max-w-sm text-[12px] leading-5 text-[var(--text-muted)]">
+            {message}
+          </p>
+        ) : null}
         {action ? <div className="mt-4">{action}</div> : null}
       </div>
     </div>

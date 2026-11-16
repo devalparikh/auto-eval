@@ -48,7 +48,8 @@ test("minimal creation requests only name, identity and chosen key lifespan", as
   fireEvent.change(screen.getByLabelText("Name"), {
     target: { value: "Synthetic" },
   });
-  fireEvent.change(screen.getByLabelText("Key lifespan (days)"), {
+  fireEvent.click(screen.getByRole("button", { name: "Custom" }));
+  fireEvent.change(screen.getByLabelText("Custom key lifespan in days"), {
     target: { value: "14" },
   });
   expect(screen.queryByLabelText("Allow production capture")).toBeNull();
@@ -64,7 +65,11 @@ test("minimal creation requests only name, identity and chosen key lifespan", as
     key: { expiresAt: number };
   };
   expect(Object.keys(body).sort()).toEqual(["id", "key", "name"]);
-  expect(body.key.expiresAt - Date.now()).toBeGreaterThan(13 * 86400000);
+  expect(body.key.expiresAt - Date.now()).toBeGreaterThan(13.9 * 86400000);
+  expect(body.key.expiresAt - Date.now()).toBeLessThanOrEqual(14 * 86400000);
+  // Once the key is on screen the registration form has done its job.
+  expect(screen.queryByRole("heading", { name: "Register application" })).toBeNull();
+  expect(screen.queryByLabelText("Name")).toBeNull();
   fireEvent.click(screen.getByRole("button", { name: "Hide key" }));
   expect(screen.queryByText("synthetic-once")).toBeNull();
 });
@@ -162,6 +167,71 @@ test("key rotation sends explicit overlap and caller-selected replacement expiry
   expect(
     (call[1]!.body as { retireAt: number }).retireAt - Date.now(),
   ).toBeGreaterThan(3500000);
+});
+
+test("a key without expiry is chosen explicitly, listed as such, and still rotates", async () => {
+  api.mockImplementation(async (path, options) => {
+    if (path === "/auth/session") return { role: "admin" };
+    if (path === "/applications") return [app];
+    if (path.endsWith("/keys") && options?.method !== "POST")
+      return [
+        {
+          id: "forever",
+          label: "App connection",
+          scope: "application:connect",
+          createdAt: 0,
+          expiresAt: null,
+          retireAt: null,
+          revoked: false,
+        },
+      ];
+    if (options?.method === "POST") return { token: "synthetic-never" };
+    return [];
+  });
+  render(<ApplicationsScreen />);
+  fireEvent.change(await screen.findByLabelText("Application"), {
+    target: { value: "app" },
+  });
+  await screen.findByText("forever");
+  expect(screen.getByText("No expiry")).toBeVisible();
+  fireEvent.click(screen.getByRole("button", { name: "Never" }));
+  fireEvent.click(screen.getByRole("button", { name: "Issue key" }));
+  await screen.findByText("synthetic-never");
+  const issued = api.mock.calls.find(
+    ([path, options]) => path === "/applications/app/keys" && options?.method === "POST",
+  )!;
+  expect(issued[1]!.body).toEqual({ expiresAt: null });
+
+  fireEvent.click(await screen.findByRole("button", { name: "Rotate" }));
+  await waitFor(() =>
+    expect(api.mock.calls.some(([path]) => path.endsWith("/rotate"))).toBe(true),
+  );
+  const rotated = api.mock.calls.find(([path]) => path.endsWith("/rotate"))!;
+  const body = rotated[1]!.body as { expiresAt: number | null; retireAt: number };
+  // The old key has no expiry to bound the overlap; the chosen hour does.
+  expect(body.expiresAt).toBeNull();
+  expect(body.retireAt - Date.now()).toBeGreaterThan(3500000);
+  expect(body.retireAt - Date.now()).toBeLessThanOrEqual(3600000);
+});
+
+test("a custom lifespan outside 1 to 365 whole days cannot be submitted", async () => {
+  api.mockImplementation(async (path) => {
+    if (path === "/auth/session") return { role: "admin" };
+    return [];
+  });
+  render(<ApplicationsScreen />);
+  fireEvent.click(
+    await screen.findByRole("button", { name: "Register application" }),
+  );
+  fireEvent.change(screen.getByLabelText("Name"), { target: { value: "Synthetic" } });
+  fireEvent.click(screen.getByRole("button", { name: "Custom" }));
+  const days = screen.getByLabelText("Custom key lifespan in days");
+  for (const value of ["0", "366", "1.5", ""]) {
+    fireEvent.change(days, { target: { value } });
+    expect(screen.getByRole("button", { name: "Register" })).toBeDisabled();
+  }
+  fireEvent.change(days, { target: { value: "365" } });
+  expect(screen.getByRole("button", { name: "Register" })).toBeEnabled();
 });
 
 test("an unmounted diagnostic request cannot replace a different trace", async () => {
@@ -278,7 +348,7 @@ test("lost creation response requires refresh and keeps the same app identity", 
   await screen.findByRole("alert");
   expect(screen.getByRole("button", { name: "Register" })).toBeDisabled();
   fireEvent.click(screen.getByRole("button", { name: "Refresh" }));
-  await screen.findByText(/Application creation is confirmed/);
+  await screen.findByText(/Application created/);
   expect(creates).toBe(1);
 });
 

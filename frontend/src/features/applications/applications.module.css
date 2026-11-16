@@ -70,33 +70,17 @@
   overflow-wrap: anywhere;
 }
 
-.register summary {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 13px;
-  font-weight: 500;
-  list-style: none;
-}
-
-.register summary::-webkit-details-marker {
-  display: none;
-}
-
-.register[open] summary {
-  margin-bottom: 16px;
-}
-
 .registerForm {
   display: grid;
-  max-width: 420px;
+  max-width: 520px;
   gap: 14px;
+  margin-top: 16px;
 }
 
-.registerForm > button {
-  justify-self: start;
+.headingRow {
+  display: flex;
+  align-items: center;
+  gap: 2px;
 }
 
 .endpoint {
