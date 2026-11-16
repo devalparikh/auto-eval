@@ -115,8 +115,13 @@ export function AuthGate({
         }
       });
     } else {
-      // With neither cookie there is nothing to verify: sign-in already rendered.
-      if (!initial.session && !initial.pending) return detach;
+      // With neither cookie, sign-in already rendered. A typed or bookmarked
+      // visit may still have lost Strict cookies on a redirect from another
+      // site, so ask in the background; same-origin calls carry them.
+      if (!initial.session && !initial.pending) {
+        if (initial.confirm) void confirmInBackground();
+        return detach;
+      }
       // A pending registration alone needs only its own status check.
       if (!initial.session) void showPending();
       else apiRequest<{subject: string}>("/auth/session", { signal: controller.signal })
@@ -133,6 +138,31 @@ export function AuthGate({
           if (failure instanceof ApiError && failure.status === 401 && initial.pending) void showPending();
           else setPhase("email");
         });
+    }
+    // Only the API's verified answer changes the screen, and only while the
+    // visitor has not started signing in; otherwise the form simply stays.
+    async function confirmInBackground() {
+      const untouched = () => !controller.signal.aborted && active.current === null;
+      try {
+        const principal = await apiRequest<{ subject: string }>("/auth/session", {
+          signal: controller.signal,
+        });
+        if (!untouched() || !principal?.subject) return;
+        clearApiResourceCache(principal.subject);
+        setPhase((current) => (current === "email" ? "ready" : current));
+      } catch (failure) {
+        if (!untouched() || !(failure instanceof ApiError) || failure.status !== 401) return;
+        try {
+          const result = await readPending(controller.signal);
+          if (!untouched()) return;
+          if (result.status === "pending" && result.subject) {
+            setPendingSubject(result.subject);
+            setPhase((current) => (current === "email" ? "pending" : current));
+          } else if (result.status === "approved") setNotice(APPROVED_NOTICE);
+        } catch {
+          // The form is already showing; nothing to recover.
+        }
+      }
     }
     // Asks the server whether this browser verified a still-pending identity;
     // it grants nothing.

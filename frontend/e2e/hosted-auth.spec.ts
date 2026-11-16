@@ -88,15 +88,37 @@ test("a successful email link keeps account actions reachable on the landing pag
   expect(requests.at(-1)?.path).toBe("/auth/logout");
 });
 
-test("without an auth cookie, sign-in arrives in the page itself and the API is not asked", async ({ page }) => {
-  const requests = await mockApi(page, { "/auth/session": [401, { detail: "Not authenticated" }] });
+test("without an auth cookie, sign-in arrives in the page itself; a typed visit confirms behind it", async ({ page }) => {
+  const requests = await mockApi(page, {
+    "/auth/session": [401, { detail: "Not authenticated" }],
+    "/auth/pending": [200, { authenticated: false }],
+  });
+  // page.goto is a browser-initiated navigation (Sec-Fetch-Site: none).
   const response = await page.goto(codeUrl);
   // Server-rendered: the form is in the HTML, not drawn after a session check.
   expect(await response!.text()).toContain("Sign in to AutoEval");
   await expect(page.getByRole("heading", { name: "Sign in to AutoEval" })).toBeVisible();
   await expect(page.getByText(/Checking your session/)).toHaveCount(0);
   await page.waitForLoadState("networkidle");
-  expect(requests).toEqual([]);
+  // The background check found nothing, so the form simply stays.
+  expect(requests.map(({ method, path }) => `${method} ${path}`)).toEqual([
+    "GET /auth/session",
+    "POST /auth/pending",
+  ]);
+  await expect(page.getByRole("heading", { name: "Sign in to AutoEval" })).toBeVisible();
+});
+
+test("a typed visit whose cookie was held back still opens the verified session", async ({ page }) => {
+  // Stands in for a bookmarked redirect from another site: the page request
+  // carried no cookie, yet the gate's same-origin check finds a session.
+  const requests = await mockApi(page, {
+    "/auth/session": [200, viewer],
+    "/applications": [200, []],
+  });
+  const response = await page.goto(codeUrl);
+  expect(await response!.text()).toContain("Sign in to AutoEval");
+  await expect(page.getByRole("banner").getByRole("button", { name: "Sign out" })).toBeVisible();
+  expect(requests.map((request) => request.path)).toEqual(["/auth/session"]);
 });
 
 test("a signed-in user arriving from another site's link is still recognized", async ({ page }) => {

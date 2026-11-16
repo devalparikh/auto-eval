@@ -161,9 +161,11 @@ def create_application(
         # check) behind it; batches commit independently and foreign keys keep a
         # concurrent provenance reference safe. SQLite (local and tests) can share
         # one connection across threads, so there it finishes before requests.
+        # Either way a failed pass is logged and retried hourly; it never stops
+        # the server from starting.
         first_pass_inline = resolved_engine is None or resolved_engine.dialect.name == "sqlite"
         if first_pass_inline:
-            await asyncio.to_thread(expire_traces)
+            await expire_traces_logged()
         retention_task = asyncio.create_task(maintain_trace_retention(first_pass_inline))
         try:
             yield

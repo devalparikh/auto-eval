@@ -137,3 +137,33 @@ def test_sqlite_startup_finishes_the_first_retention_pass_before_requests(sessio
     )
     with TestClient(app), session_factory() as session:
         assert session.get(TraceRecord, expired) is None
+
+
+def test_a_failed_startup_retention_pass_is_logged_and_the_server_still_starts(
+    session_factory, monkeypatch, caplog
+):
+    from fastapi.testclient import TestClient
+    from sqlalchemy.exc import OperationalError
+
+    import autoeval_api.app as app_module
+    from autoeval_api.config import Settings
+
+    def locked(*_args, **_kwargs):
+        raise OperationalError("DELETE FROM traces", {}, Exception("database is locked"))
+
+    monkeypatch.setattr(app_module, "prune_traces", locked)
+    app = app_module.create_application(
+        settings=Settings(
+            AUTOEVAL_ENV="test",
+            database_url="sqlite://",
+            web_origins=["http://localhost:3000"],
+            allowed_hosts=["testserver"],
+        ),
+        engine=session_factory.kw["bind"],
+        session_factory=session_factory,
+        initialize_database=False,
+        seed_on_start=False,
+    )
+    with caplog.at_level("WARNING"), TestClient(app) as client:
+        assert client.get("/api/health").status_code == 200
+    assert "Trace retention failed; retrying in one hour" in caplog.text
