@@ -77,11 +77,16 @@ export function AppSidebar({
 }) {
   const catalog = useCatalog();
   const session = useHostedSession();
-  const workspace = session
-    ? [...workspaceNavItems, ...hostedNavItems]
-    : workspaceNavItems;
   const systems = catalog.data?.agent_systems ?? [];
   const systemKey = systemKeyFromPath(pathname);
+  const inDocs = isDocsPath(pathname);
+  // On a hosted instance the connected applications are the work, so outside a
+  // system or the docs they lead the rows instead of trailing the footer.
+  const promoteApplications = Boolean(session) && !inDocs && !systemKey;
+  const workspace =
+    session && !promoteApplications
+      ? [...workspaceNavItems, ...hostedNavItems]
+      : workspaceNavItems;
   const system = systemKey ? systemByKey(catalog.data, systemKey) : null;
   const [navigation, setNavigation] = useState({
     pathname,
@@ -99,10 +104,12 @@ export function AppSidebar({
     onCloseMobile();
   }
 
-  const inDocs = isDocsPath(pathname);
   const groups: SidebarNavGroup[] = inDocs
     ? docsNavGroups()
     : [
+        ...(promoteApplications
+          ? [{ label: "Observe", items: hostedNavItems }]
+          : []),
         ...(systemKey
           ? systemNavGroups(systemKey, {
               runtime: system?.runtime,

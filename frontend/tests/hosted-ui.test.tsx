@@ -283,7 +283,9 @@ test("first-use dashboard tells an admin to register and a viewer to ask for acc
     });
   empty("admin");
   render(<ApplicationsScreen />);
-  await screen.findByText("No applications yet");
+  // The first-use card says what connecting involves, then offers the one action.
+  await screen.findByRole("heading", { name: "Connect your first application" });
+  expect(screen.getByText("Send one request.")).toBeVisible();
   fireEvent.click(screen.getAllByRole("button", { name: "Register application" })[0]);
   expect(screen.getByLabelText("Name")).toBeVisible();
   cleanup();

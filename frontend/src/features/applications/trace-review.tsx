@@ -4,6 +4,8 @@ import { Select } from "@/components/select";
 import { LoadingState } from "@/components/states";
 import { InfoTip } from "@/components/info-tip";
 import { apiRequest } from "@/lib/api";
+import { formatDuration, shortId } from "@/lib/format";
+import { formatMetric, formatTimestamp, orderedChecks } from "./observation-feed";
 import type { TraceDetail } from "./application-types";
 import styles from "./applications.module.css";
 
@@ -135,48 +137,145 @@ export function TraceReview({
       if (mounted.current) setBusy(false);
     }
   }
+  const trace = detail?.trace;
+  const duration =
+    trace && typeof trace.startedAt === "number" && typeof trace.endedAt === "number"
+      ? Math.max(0, trace.endedAt - trace.startedAt)
+      : null;
   return (
     <section
       className={`surface-card ${styles.card}`}
       aria-label="Trace review"
     >
-      <div className={styles.picker}>
-        <h2 className={styles.heading}>Trace review</h2>
-        <button className="app-button secondary" onClick={onClose}>
+      <div className={styles.cardHead}>
+        <div className="min-w-0">
+          <h2 className={`${styles.heading} ${styles.headingRow}`}>
+            Trace review
+            {trace ? (
+              <span
+                className={styles.pill}
+                data-tone={trace.status === "ok" ? "success" : "danger"}
+              >
+                <span className={styles.pillDot} aria-hidden="true" />
+                {trace.status}
+              </span>
+            ) : null}
+          </h2>
+          <code className={styles.reviewId}>{traceId}</code>
+        </div>
+        <button type="button" className="app-button secondary" onClick={onClose}>
           Close review
         </button>
       </div>
-      <code>{traceId}</code>
-      {error && <p role="alert">{error}</p>}
-      {message && <p role="status">{message}</p>}
-      {!detail ? (
+      {error && (
+        <p role="alert" className={styles.inlineError}>
+          {error}
+        </p>
+      )}
+      {message && (
+        <p role="status" className={styles.notice}>
+          {message}
+        </p>
+      )}
+      {!detail || !trace ? (
         !error && <LoadingState rows={3} />
       ) : (
         <div className={styles.detail}>
-          <p className={styles.note}>
-            Policy {detail.trace.policyVersion} · Experiment{" "}
-            {detail.trace.experimentId}
-          </p>
-          <p className={styles.note}>
-            Status: {detail.trace.status}. Omitted steps:{" "}
-            {detail.trace.droppedSteps ?? 0}.
-          </p>
-          <details>
-            <summary>Measurements and coverage</summary>
-            <pre>
-              {JSON.stringify(
-                {
-                  metrics: detail.trace.metrics,
-                  checks: detail.trace.checks,
-                  coverage: detail.trace.coverage,
-                },
-                null,
-                2,
+          <dl className={styles.traceFacts} aria-label="Trace facts">
+            <div>
+              <dt>Status</dt>
+              <dd>{trace.status}</dd>
+            </div>
+            <div>
+              <dt>Started</dt>
+              <dd>
+                {typeof trace.startedAt === "number"
+                  ? formatTimestamp(trace.startedAt)
+                  : "Unknown"}
+              </dd>
+            </div>
+            <div>
+              <dt>Duration</dt>
+              <dd className="mono">
+                {duration === null ? "Unknown" : formatDuration(duration)}
+              </dd>
+            </div>
+            <div>
+              <dt>Source</dt>
+              <dd>{trace.source ?? "Unknown"}</dd>
+            </div>
+            <div>
+              <dt>Omitted steps</dt>
+              <dd className="mono">{trace.droppedSteps ?? 0}</dd>
+            </div>
+            <div>
+              <dt>Experiment</dt>
+              <dd className="mono" title={trace.experimentId}>
+                {shortId(trace.experimentId)}
+              </dd>
+            </div>
+            <div>
+              <dt>Policy</dt>
+              <dd className="mono" title={trace.policyVersion}>
+                {shortId(trace.policyVersion)}
+              </dd>
+            </div>
+          </dl>
+          <div className={styles.reviewGrid}>
+            <div>
+              <h3 className={styles.subheading}>Checks</h3>
+              {orderedChecks(trace.checks as Record<string, boolean | null>)
+                .length === 0 ? (
+                <p className={styles.note}>None declared.</p>
+              ) : (
+                <span className={styles.checkList}>
+                  {orderedChecks(
+                    trace.checks as Record<string, boolean | null>,
+                  ).map((check) => (
+                    <span
+                      key={check.name}
+                      className={styles.check}
+                      data-result={
+                        check.value === null
+                          ? "unknown"
+                          : check.value
+                            ? "pass"
+                            : "fail"
+                      }
+                    >
+                      {check.value === null ? "?" : check.value ? "✓" : "✕"}{" "}
+                      {check.name}
+                    </span>
+                  ))}
+                </span>
               )}
-            </pre>
-          </details>
+            </div>
+            <div>
+              <h3 className={styles.subheading}>Metrics</h3>
+              {Object.keys(trace.metrics ?? {}).length === 0 ? (
+                <p className={styles.note}>None recorded.</p>
+              ) : (
+                <dl className={styles.metricList}>
+                  {Object.entries(
+                    (trace.metrics ?? {}) as Record<string, number | null>,
+                  ).map(([name, value]) => (
+                    <div key={name}>
+                      <dt>{name}</dt>
+                      <dd className="mono">{formatMetric(name, value)}</dd>
+                    </div>
+                  ))}
+                </dl>
+              )}
+            </div>
+          </div>
+          {trace.coverage && Object.keys(trace.coverage).length > 0 ? (
+            <details>
+              <summary>Coverage</summary>
+              <pre>{JSON.stringify(trace.coverage, null, 2)}</pre>
+            </details>
+          ) : null}
           <details open>
-            <summary>Agent steps ({detail.trace.steps?.length ?? 0})</summary>
+            <summary>Agent steps ({trace.steps?.length ?? 0})</summary>
             <div className={styles.tableWrap}>
               <table className={styles.table}>
                 <thead>
@@ -189,18 +288,30 @@ export function TraceReview({
                   </tr>
                 </thead>
                 <tbody>
-                  {detail.trace.steps?.map((step) => (
+                  {trace.steps?.map((step) => (
                     <tr key={step.id}>
                       <td>{step.name}</td>
                       <td>{step.kind}</td>
-                      <td>{step.status}</td>
                       <td>
-                        {step.durationMs === null
+                        <span
+                          className={styles.pill}
+                          data-tone={step.status === "ok" ? "success" : "danger"}
+                        >
+                          <span className={styles.pillDot} aria-hidden="true" />
+                          {step.status}
+                        </span>
+                      </td>
+                      <td className="mono">
+                        {step.durationMs == null
                           ? "Unknown"
-                          : `${step.durationMs} ms`}
+                          : formatDuration(step.durationMs)}
                       </td>
                       <td>
-                        <code>{JSON.stringify(step.attributes)}</code>
+                        {Object.keys(step.attributes ?? {}).length === 0 ? (
+                          <span className={styles.faint}>—</span>
+                        ) : (
+                          <code>{JSON.stringify(step.attributes)}</code>
+                        )}
                       </td>
                     </tr>
                   ))}
@@ -213,22 +324,27 @@ export function TraceReview({
             {detail.outcomes.length === 0 ? (
               <p className={styles.note}>No outcomes yet.</p>
             ) : (
-              detail.outcomes
-                .slice()
-                .sort((a, b) => a.occurredAt - b.occurredAt)
-                .map((event) => (
-                  <p key={event.id}>
-                    <strong>{event.name}</strong> ·{" "}
-                    {new Date(event.occurredAt).toLocaleString()} ·{" "}
-                    <code>{JSON.stringify(event.attributes)}</code>
-                  </p>
-                ))
+              <ul className={styles.outcomes}>
+                {detail.outcomes
+                  .slice()
+                  .sort((a, b) => a.occurredAt - b.occurredAt)
+                  .map((event) => (
+                    <li key={event.id}>
+                      <strong>{event.name}</strong>
+                      <span className={styles.faint}>
+                        {formatTimestamp(event.occurredAt)}
+                      </span>
+                      <code>{JSON.stringify(event.attributes)}</code>
+                    </li>
+                  ))}
+              </ul>
             )}
           </details>
           {admin && (
             <>
               <div className={styles.headingRow}>
                 <button
+                  type="button"
                   className="app-button secondary"
                   disabled={busy}
                   onClick={() => void loadContent()}
@@ -251,18 +367,19 @@ export function TraceReview({
                   </p>
                 ))}
               <form
+                className={styles.assessment}
                 onSubmit={(event) => {
                   event.preventDefault();
                   void assess();
                 }}
               >
-                <h3 className={`${styles.heading} ${styles.headingRow}`}>
+                <h3 className={`${styles.subheading} ${styles.headingRow}`}>
                   Human quality assessment
                   <InfoTip label="Assessment details" align="start">
                     Rubric version 1. Each save adds a review.
                   </InfoTip>
                 </h3>
-                <fieldset disabled={busy} className={styles.fieldset}>
+                <fieldset disabled={busy} className={styles.ratingGrid}>
                   {criteria.map((name) => (
                     <div className="field" key={name}>
                       <span className={styles.headingRow}>
@@ -293,14 +410,37 @@ export function TraceReview({
                       </Select>
                     </div>
                   ))}
-                  <button className="app-button">Save assessment</button>
                 </fieldset>
+                <button className="app-button" disabled={busy}>
+                  Save assessment
+                </button>
               </form>
             </>
           )}
           <details>
             <summary>Saved assessments ({detail.assessments.length})</summary>
-            <pre>{JSON.stringify(detail.assessments, null, 2)}</pre>
+            {detail.assessments.length === 0 ? (
+              <p className={styles.note}>None yet.</p>
+            ) : (
+              <ul className={styles.outcomes}>
+                {detail.assessments.map((item) => (
+                  <li key={item.id}>
+                    <code title={item.scorerHash}>{shortId(item.id)}</code>
+                    <span className={styles.checkList}>
+                      {Object.entries(item.ratings).map(([name, value]) => (
+                        <span
+                          key={name}
+                          className={styles.check}
+                          data-result={value}
+                        >
+                          {name.replaceAll("_", " ")}: {value}
+                        </span>
+                      ))}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
           </details>
         </div>
       )}

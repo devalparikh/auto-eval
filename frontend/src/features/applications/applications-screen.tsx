@@ -1,26 +1,31 @@
 "use client";
 
-import { ArrowClockwiseIcon, CheckIcon, CopyIcon, PlusIcon } from "@phosphor-icons/react";
+import { ArrowClockwiseIcon, GearSixIcon, PlusIcon } from "@phosphor-icons/react";
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { TraceReview } from "./trace-review";
+import { ApplicationKeys } from "./application-keys";
 import { KeyLifespan, lifespanExpiry, type Lifespan } from "./key-lifespan";
+import { ObservationTable } from "./observation-table";
+import {
+  applicationStage,
+  formatAgo,
+  formatTimestamp,
+  initialApplication,
+  summarizeFeed,
+  type ApplicationStage,
+  type FeedObservation,
+} from "./observation-feed";
 import { InfoTip } from "@/components/info-tip";
 import { PageHeader } from "@/components/page-header";
 import { Select } from "@/components/select";
 import { EmptyState, ErrorState, LoadingState } from "@/components/states";
 import { API_URL, apiRequest } from "@/lib/api";
+import { countOf } from "@/lib/format";
 import styles from "./applications.module.css";
 
 import type { Application, AppKey as Key } from "./application-types";
-type Observation = {
-  id: string;
-  experimentId: string;
-  source: string;
-  status: string;
-  metrics: Record<string, number | null>;
-  checks: Record<string, boolean | null>;
-};
+
 type Experiment = {
   id: string;
   models: { model: string }[];
@@ -44,12 +49,34 @@ type Comparison = {
   }[];
 };
 
+/** How often an application with no traces yet checks for its first one. */
+const WAITING_POLL_MS = 10_000;
+const UNCERTAIN_WRITE =
+  "Not confirmed. Refresh before trying again; a key may have been created.";
+/**
+ * Statuses where the server answered and refused before writing anything. A
+ * conflict (409) or a lost response stays uncertain: the write may exist.
+ */
+const DEFINITE_REJECTIONS = new Set([400, 401, 403, 404, 422, 429]);
+
+/** Keep the open application in the URL so a reload or a shared link keeps it. */
+function persistApplication(id: string) {
+  try {
+    const url = new URL(window.location.href);
+    if (id) url.searchParams.set("app", id);
+    else url.searchParams.delete("app");
+    window.history.replaceState(null, "", url);
+  } catch {
+    // Not fatal: the selection still works for this visit.
+  }
+}
+
 export function ApplicationsScreen() {
   const [ingestEndpoint, setIngestEndpoint] = useState("");
   const [apps, setApps] = useState<Application[]>([]);
   const [selected, setSelected] = useState("");
   const selectedRef = useRef("");
-  const [traces, setTraces] = useState<Observation[]>([]);
+  const [traces, setTraces] = useState<FeedObservation[]>([]);
   const [experiments, setExperiments] = useState<Experiment[]>([]);
   const [left, setLeft] = useState("");
   const [right, setRight] = useState("");
@@ -63,6 +90,17 @@ export function ApplicationsScreen() {
   const createId = useRef<string | null>(null);
   const mutationEpoch = useRef(0);
   const [error, setError] = useState("");
+  const [errorTitle, setErrorTitle] = useState("");
+  function fail(title: string, message: string) {
+    setErrorTitle(title);
+    setError(message);
+  }
+  // A read that reconciles an uncertain write also retires its warning.
+  function reconciled() {
+    setUncertain(false);
+    setError((current) => (current === UNCERTAIN_WRITE ? "" : current));
+  }
+  const [notice, setNotice] = useState("");
   const [secret, setSecret] = useState("");
   const [revision, setRevision] = useState(0);
   const [name, setName] = useState("");
@@ -70,11 +108,11 @@ export function ApplicationsScreen() {
   const [customDays, setCustomDays] = useState("180");
   const [overlap, setOverlap] = useState("1");
   const [clock, setClock] = useState(0);
-  const [copied, setCopied] = useState(false);
   // Validity only; each request computes its own expiry when it is sent.
   const validLifetime = lifespanExpiry(lifespan, customDays, 0) !== undefined;
   const expiresAt = () => lifespanExpiry(lifespan, customDays, Date.now()) ?? null;
   const [reviewTrace, setReviewTrace] = useState("");
+  const reviewRef = useRef<HTMLDivElement>(null);
   const pending = useRef(false),
     mounted = useRef(false);
   useEffect(() => {
@@ -84,6 +122,32 @@ export function ApplicationsScreen() {
     };
   }, []);
   const [registerOpen, setRegisterOpen] = useState(false);
+
+  function choose(id: string) {
+    // Re-choosing the open application keeps its data; clearing it here would
+    // leave the screen empty because the load effect does not run again.
+    if (id === selectedRef.current) return;
+    setSelected(id);
+    selectedRef.current = id;
+    setReviewTrace("");
+    setTraces([]);
+    setKeys([]);
+    setExperiments([]);
+    setSecret("");
+    setNotice("");
+    setLeft("");
+    setRight("");
+    setComparison(null);
+    persistApplication(id);
+  }
+
+  function refresh() {
+    setError("");
+    setComparison(null);
+    setReviewTrace("");
+    setRevision((value) => value + 1);
+  }
+
   useEffect(() => {
     const controller = new AbortController();
     const readEpoch = mutationEpoch.current;
@@ -107,20 +171,36 @@ export function ApplicationsScreen() {
           if (recovered) {
             setSelected(recovered.id);
             selectedRef.current = recovered.id;
+            persistApplication(recovered.id);
             createId.current = null;
             setRegisterOpen(false);
             setName("");
-            setError(
+            setNotice(
               "Application created. Its first key can’t be shown again; issue a new one.",
             );
+          } else if (!selectedRef.current) {
+            // Open the application the URL names, or the only one there is,
+            // so a single connected app never lands on a chooser. Nothing is
+            // kept in browser storage.
+            const opened = initialApplication(
+              items.map((item) => item.id),
+              new URLSearchParams(window.location.search).get("app"),
+            );
+            if (opened) {
+              setSelected(opened);
+              selectedRef.current = opened;
+            }
           }
-          if (canReconcile && !selectedRef.current) setUncertain(false);
+          if (canReconcile && !selectedRef.current) reconciled();
           setAdmin(user.role === "admin");
         }
       })
       .catch(() => {
         if (!controller.signal.aborted && readEpoch === mutationEpoch.current)
-          setError("Applications could not be loaded. Refresh to try again.");
+          fail(
+            "Couldn’t load applications",
+            "Applications could not be loaded. Refresh to try again.",
+          );
       })
       .finally(() => {
         if (!controller.signal.aborted) setLoading(false);
@@ -133,7 +213,7 @@ export function ApplicationsScreen() {
     const readEpoch = mutationEpoch.current;
     const canReconcile = !pending.current;
     Promise.all([
-      apiRequest<Observation[]>(`/applications/${selected}/traces`, {
+      apiRequest<FeedObservation[]>(`/applications/${selected}/traces`, {
         signal: controller.signal,
       }),
       admin
@@ -165,25 +245,75 @@ export function ApplicationsScreen() {
           setClock(Date.now());
           setExperiments(runs);
           setDetailLoaded(selected);
-          if (canReconcile) setUncertain(false);
+          if (canReconcile) reconciled();
         }
       })
       .catch(() => {
         if (!controller.signal.aborted && readEpoch === mutationEpoch.current)
-          setError(
+          fail(
+            "Couldn’t load this application",
             "Application data could not be loaded. Refresh to try again.",
           );
       });
     return () => controller.abort();
   }, [selected, admin, revision]);
+
+  // Until the first trace lands, check for it quietly. Only the trace list is
+  // read, only while the tab is visible, and never across a pending write.
+  const waitingForFirst =
+    Boolean(selected) && detailLoaded === selected && traces.length === 0;
+  useEffect(() => {
+    if (!waitingForFirst || uncertain) return;
+    const controller = new AbortController();
+    const app = selected;
+    const timer = window.setInterval(() => {
+      if (document.visibilityState !== "visible" || pending.current) return;
+      const readEpoch = mutationEpoch.current;
+      apiRequest<FeedObservation[]>(`/applications/${app}/traces`, {
+        signal: controller.signal,
+      })
+        .then((items) => {
+          if (
+            !controller.signal.aborted &&
+            readEpoch === mutationEpoch.current &&
+            selectedRef.current === app &&
+            items.length > 0
+          ) {
+            setTraces(items);
+            setClock(Date.now());
+          }
+        })
+        .catch(() => {
+          // A missed poll is retried on the next tick; Refresh reports errors.
+        });
+    }, WAITING_POLL_MS);
+    return () => {
+      window.clearInterval(timer);
+      controller.abort();
+    };
+  }, [waitingForFirst, uncertain, selected]);
+
+  // The review opens below the list; bring it to the reader instead of
+  // leaving it under the fold.
+  useEffect(() => {
+    if (!reviewTrace) return;
+    const reduce = window.matchMedia?.(
+      "(prefers-reduced-motion: reduce)",
+    ).matches;
+    reviewRef.current?.scrollIntoView?.({
+      behavior: reduce ? "auto" : "smooth",
+      block: "start",
+    });
+  }, [reviewTrace]);
+
   async function mutate(path: string, body?: unknown) {
     if (pending.current || uncertain) return;
     pending.current = true;
     mutationEpoch.current++;
     setBusy(true);
     setError("");
+    setNotice("");
     setSecret("");
-    setCopied(false);
     try {
       const result = await apiRequest<{
         id?: string;
@@ -199,33 +329,202 @@ export function ApplicationsScreen() {
         setSecret(result.key.token);
         setSelected(result.id!);
         selectedRef.current = result.id!;
+        persistApplication(result.id!);
         createId.current = null;
         // Registered: the key panel takes over, so the form closes.
         setRegisterOpen(false);
         setName("");
       }
       setRevision((value) => value + 1);
-    } catch {
+    } catch (caught) {
       if (!mounted.current) return;
-      setUncertain(true);
-      setError(
-        "Not confirmed. Refresh before trying again; a key may have been created.",
-      );
+      const status = (caught as { status?: unknown } | null)?.status;
+      if (typeof status === "number" && DEFINITE_REJECTIONS.has(status)) {
+        // The server refused it outright, so there is nothing to reconcile.
+        createId.current = null;
+        fail(
+          "Rejected",
+          `The server refused this request (HTTP ${status}). Nothing was saved.`,
+        );
+      } else {
+        setUncertain(true);
+        fail("Not confirmed", UNCERTAIN_WRITE);
+      }
     } finally {
       pending.current = false;
       if (mounted.current) setBusy(false);
     }
   }
-  async function copySecret() {
-    try {
-      await navigator.clipboard.writeText(secret);
-      setCopied(true);
-    } catch {
-      setCopied(false);
-    }
-  }
+
   const comparable = experiments.filter((run) => run.mode !== "observed");
   const current = apps.find((app) => app.id === selected);
+  // Registering is its own task: the open application's cards (and their key
+  // controls, which share the lifespan choice) step aside until it finishes.
+  const loaded =
+    Boolean(selected) && detailLoaded === selected && !registerOpen;
+  const stage = applicationStage({ traces, keys, now: clock });
+  const summary = summarizeFeed(traces);
+
+  const connection = admin && current && (
+    <ApplicationKeys
+      appName={current.name}
+      endpoint={ingestEndpoint}
+      keys={keys}
+      clock={clock}
+      leading={stage !== "receiving"}
+      busy={busy}
+      locked={uncertain}
+      validLifetime={validLifetime}
+      lifespan={lifespan}
+      customDays={customDays}
+      onLifespan={setLifespan}
+      onCustomDays={setCustomDays}
+      overlap={overlap}
+      onOverlap={setOverlap}
+      secret={secret}
+      onHideSecret={() => setSecret("")}
+      onIssue={() =>
+        void mutate(`/applications/${selected}/keys`, {
+          expiresAt: expiresAt(),
+        })
+      }
+      onRotate={(key) =>
+        void mutate(`/applications/${selected}/keys/${key.id}/rotate`, {
+          expiresAt: expiresAt(),
+          retireAt: Number(overlap)
+            ? Math.min(
+                Date.now() + Number(overlap) * 3600000,
+                key.expiresAt ?? Infinity,
+                key.retireAt ?? Infinity,
+              )
+            : null,
+        })
+      }
+      onRevoke={(key) =>
+        void mutate(`/applications/${selected}/keys/${key.id}/revoke`)
+      }
+    />
+  );
+
+  const compareCard = (
+    <section
+      className={`surface-card ${styles.card}`}
+      aria-labelledby="compare-heading"
+    >
+      <h2
+        id="compare-heading"
+        className={`${styles.heading} ${styles.headingRow}`}
+      >
+        Compare experiments
+        <InfoTip label="Comparison requirements" align="start">
+          Both experiments need complete case sets from the same finalized
+          dataset and mode.
+        </InfoTip>
+      </h2>
+      {comparable.length < 2 ? (
+        <p className={styles.note}>
+          <span className="mono">{comparable.length} of 2</span> experiments.
+          Production traces are observations, not experiments: run the
+          application benchmark in scripted or live mode to add one.
+        </p>
+      ) : (
+        <>
+          <div className={styles.row}>
+            <div className="field">
+              <label htmlFor="compare-baseline">Baseline</label>
+              <Select
+                id="compare-baseline"
+                disabled={busy}
+                value={left}
+                onChange={(event) => {
+                  setLeft(event.target.value);
+                  setComparison(null);
+                }}
+              >
+                <option value="">Select experiment</option>
+                {comparable.map((run) => (
+                  <option key={run.id} value={run.id}>
+                    {run.models.map((model) => model.model).join(", ")} /{" "}
+                    {run.id}
+                  </option>
+                ))}
+              </Select>
+            </div>
+            <div className="field">
+              <label htmlFor="compare-candidate">Candidate</label>
+              <Select
+                id="compare-candidate"
+                disabled={busy}
+                value={right}
+                onChange={(event) => {
+                  setRight(event.target.value);
+                  setComparison(null);
+                }}
+              >
+                <option value="">Select experiment</option>
+                {comparable.map((run) => (
+                  <option key={run.id} value={run.id}>
+                    {run.models.map((model) => model.model).join(", ")} /{" "}
+                    {run.id}
+                  </option>
+                ))}
+              </Select>
+            </div>
+            <button
+              type="button"
+              className="app-button"
+              disabled={busy || !left || !right || left === right}
+              onClick={async () => {
+                setBusy(true);
+                setError("");
+                setComparison(null);
+                try {
+                  setComparison(
+                    await apiRequest<Comparison>(
+                      `/applications/${selected}/comparisons/${left}/${right}`,
+                    ),
+                  );
+                } catch {
+                  fail(
+                    "Comparison unavailable",
+                    "Comparison unavailable for these experiments.",
+                  );
+                } finally {
+                  setBusy(false);
+                }
+              }}
+            >
+              Compare
+            </button>
+          </div>
+          {comparison && (
+            <div className={styles.comparison}>
+              <p className="mono">Mode: {comparison.mode}</p>
+              {comparison.cases.map((item) => (
+                <div key={item.id} className={styles.case}>
+                  <code>{item.id}</code>
+                  <p>
+                    {item.beforeStatus} → {item.afterStatus}
+                  </p>
+                  {item.values.map((check) => (
+                    <p key={check.semanticId} className="mono">
+                      {check.semanticId}
+                      {check.compatible ? "" : " (not comparable)"}:{" "}
+                      {check.before === null ? "Unknown" : String(check.before)}{" "}
+                      ({check.beforeResult}) →{" "}
+                      {check.after === null ? "Unknown" : String(check.after)} (
+                      {check.afterResult})
+                    </p>
+                  ))}
+                </div>
+              ))}
+            </div>
+          )}
+        </>
+      )}
+    </section>
+  );
+
   return (
     <div className={styles.screen}>
       <PageHeader
@@ -236,12 +535,7 @@ export function ApplicationsScreen() {
               type="button"
               className="app-button secondary"
               disabled={busy}
-              onClick={() => {
-                setError("");
-                setComparison(null);
-                setReviewTrace("");
-                setRevision((value) => value + 1);
-              }}
+              onClick={refresh}
             >
               <ArrowClockwiseIcon size={13} aria-hidden="true" />
               Refresh
@@ -265,89 +559,98 @@ export function ApplicationsScreen() {
           <div role="alert">
             <ErrorState
               className=""
-              title="Something went wrong"
+              title={errorTitle || "Couldn’t finish that"}
               message={error}
+              retry={busy ? undefined : refresh}
             />
           </div>
+        )}
+        {notice && (
+          <p role="status" className={styles.notice}>
+            {notice}
+          </p>
         )}
         {loading ? (
           <LoadingState rows={2} />
         ) : apps.length === 0 ? (
-          !registerOpen && (
-          <section className={`surface-card ${styles.card}`}>
-            <EmptyState
-              title={
-                admin
-                  ? "No applications yet"
-                  : "No applications shared with you"
-              }
-              message={
-                admin
-                  ? "Register one to issue its key."
-                  : "Ask your operator for access."
-              }
-              action={
-                admin ? (
-                  <button
-                    type="button"
-                    className="app-button"
-                    onClick={() => setRegisterOpen(true)}
-                  >
-                    <PlusIcon size={13} aria-hidden="true" />
-                    Register application
-                  </button>
-                ) : undefined
-              }
-            />
-          </section>
-          )
+          !registerOpen &&
+          (admin ? (
+            <FirstApplication onRegister={() => setRegisterOpen(true)} />
+          ) : (
+            <section className={`surface-card ${styles.card}`}>
+              <EmptyState
+                title="No applications shared with you"
+                message="Ask your operator for access."
+              />
+            </section>
+          ))
         ) : (
-          <section className={`surface-card ${styles.card} ${styles.picker}`}>
-            <div className="field">
-              <label htmlFor="application-select">Application</label>
-              <Select
-                id="application-select"
-                disabled={busy}
-                value={selected}
-                onChange={(event) => {
-                  setSelected(event.target.value);
-                  selectedRef.current = event.target.value;
-                  setReviewTrace("");
-                  setTraces([]);
-                  setKeys([]);
-                  setSecret("");
-                  setLeft("");
-                  setRight("");
-                  setComparison(null);
-                }}
-              >
-                <option value="">Select an application</option>
-                {apps.map((app) => (
-                  <option key={app.id} value={app.id}>
-                    {app.name}
-                  </option>
-                ))}
-              </Select>
+          <section
+            className={`surface-card ${styles.card} ${styles.appHeader}`}
+          >
+            <div className={styles.picker}>
+              <div className="field">
+                <label htmlFor="application-select">Application</label>
+                <Select
+                  id="application-select"
+                  disabled={busy}
+                  value={selected}
+                  onChange={(event) => choose(event.target.value)}
+                >
+                  <option value="">Select an application</option>
+                  {apps.map((app) => (
+                    <option key={app.id} value={app.id}>
+                      {app.name}
+                    </option>
+                  ))}
+                </Select>
+              </div>
+              {current ? (
+                <dl className={styles.facts}>
+                  <div>
+                    <dt>Last trace</dt>
+                    <dd>
+                      {detailLoaded !== selected ? (
+                        <span className={styles.faint}>…</span>
+                      ) : summary.lastSeen !== null ? (
+                        <time
+                          dateTime={new Date(summary.lastSeen).toISOString()}
+                          title={formatTimestamp(summary.lastSeen)}
+                        >
+                          {formatAgo(summary.lastSeen, clock)}
+                        </time>
+                      ) : (
+                        "None yet"
+                      )}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>Retention</dt>
+                    <dd className="mono">
+                      {current.settings.retention_days === null
+                        ? "Keep"
+                        : `${current.settings.retention_days}d`}
+                    </dd>
+                  </div>
+                  {admin && (
+                    <Link
+                      className="app-button secondary"
+                      href={`/applications/${selected}/settings`}
+                    >
+                      <GearSixIcon size={13} aria-hidden="true" />
+                      App settings
+                    </Link>
+                  )}
+                </dl>
+              ) : null}
             </div>
-            {current ? (
-              <dl className={styles.facts}>
-                <div>
-                  <dt>Retention</dt>
-                  <dd className="mono">
-                    {current.settings.retention_days === null
-                      ? "Keep"
-                      : `${current.settings.retention_days}d`}
-                  </dd>
-                </div>
-                {admin && (
-                  <Link
-                    className="app-button secondary"
-                    href={`/applications/${selected}/settings`}
-                  >
-                    App settings
-                  </Link>
-                )}
-              </dl>
+            {current && loaded ? (
+              <Readiness
+                stage={stage}
+                admin={admin}
+                traceCount={summary.total}
+                experimentCount={comparable.length}
+              />
             ) : null}
           </section>
         )}
@@ -410,346 +713,226 @@ export function ApplicationsScreen() {
             </form>
           </section>
         )}
-        {apps.length > 0 && !selected && !loading ? (
-          <section className={`surface-card ${styles.card}`}>
-            <EmptyState title="Choose an application" />
-          </section>
-        ) : null}
-        {selected && (
-          <>
-            {admin && (
-              <section className={`surface-card ${styles.card}`}>
-                <h2 className={`${styles.heading} ${styles.headingRow}`}>
-                  Application keys
-                  <InfoTip label="SDK settings" align="start">
-                    The SDK’s <code>createCaptureFromEnv()</code> reads these
-                    on the app’s server: <code>AUTOEVAL_ENABLED=true</code>,{" "}
-                    <code>AUTOEVAL_ENDPOINT</code> (below),{" "}
-                    <code>AUTOEVAL_INGEST_KEY</code> and{" "}
-                    <code>AUTOEVAL_SOURCE</code> (<code>production</code> or{" "}
-                    <code>synthetic</code>).
-                  </InfoTip>
-                </h2>
-                <div className={styles.endpoint}>
-                  <span>Endpoint</span>
-                  <code>{ingestEndpoint}</code>
-                </div>
-                <div className={styles.row}>
-                  <KeyLifespan
-                    id="key-lifespan"
-                    lifespan={lifespan}
-                    customDays={customDays}
-                    onLifespan={setLifespan}
-                    onCustomDays={setCustomDays}
-                  />
-                </div>
-                <div className={styles.row}>
-                  <div className="field">
-                    <label htmlFor="rotation-overlap">Rotation overlap</label>
-                    <Select
-                      id="rotation-overlap"
-                      value={overlap}
-                      onChange={(event) => setOverlap(event.target.value)}
-                    >
-                      <option value="1">1 hour</option>
-                      <option value="24">24 hours</option>
-                      <option value="0">Revoke old key immediately</option>
-                    </Select>
-                  </div>
+        {apps.length > 0 && !selected && !loading && !registerOpen ? (
+          <section
+            className={`surface-card ${styles.card}`}
+            aria-labelledby="choose-heading"
+          >
+            <h2 id="choose-heading" className={styles.heading}>
+              Choose an application
+            </h2>
+            <ul className={styles.appList}>
+              {apps.map((app) => (
+                <li key={app.id}>
                   <button
                     type="button"
-                    className="app-button"
-                    disabled={busy || uncertain || !validLifetime}
-                    onClick={() =>
-                      void mutate(`/applications/${selected}/keys`, {
-                        expiresAt: expiresAt(),
-                      })
-                    }
+                    className={styles.appChoice}
+                    onClick={() => choose(app.id)}
                   >
-                    Issue key
+                    <span>{app.name}</span>
+                    <code>{app.id.slice(0, 8)}</code>
                   </button>
-                </div>
-                {secret && (
-                  <div role="status" className={styles.secret}>
-                    <p className={styles.headingRow}>
-                      New key, shown once
-                      <InfoTip label="Key storage" align="start">
-                        Store it on the app’s server as{" "}
-                        <code>AUTOEVAL_INGEST_KEY</code>. Never send it to a
-                        browser.
-                      </InfoTip>
-                    </p>
-                    <code>{secret}</code>
-                    <div className="flex gap-2">
-                      <button
-                        type="button"
-                        className="app-button secondary"
-                        onClick={() => void copySecret()}
-                      >
-                        {copied ? (
-                          <CheckIcon size={13} aria-hidden="true" />
-                        ) : (
-                          <CopyIcon size={13} aria-hidden="true" />
-                        )}
-                        {copied ? "Copied" : "Copy"}
-                      </button>
-                      <button
-                        type="button"
-                        className="app-button secondary"
-                        onClick={() => setSecret("")}
-                      >
-                        Hide key
-                      </button>
-                    </div>
-                  </div>
-                )}
-                {keys.length === 0 ? (
-                  <p className={styles.note}>No keys yet.</p>
-                ) : (
-                  <ul className={styles.keys}>
-                    {keys.map((key) => (
-                      <li key={key.id}>
-                        <code>{key.id}</code>
-                        <span>{key.label}</span>
-                        <span className={styles.keyState}>
-                          {key.revoked
-                            ? "Revoked"
-                            : key.expiresAt !== null && key.expiresAt <= clock
-                              ? "Expired"
-                              : key.retireAt && key.retireAt <= clock
-                                ? "Retired"
-                                : key.expiresAt === null
-                                  ? "No expiry"
-                                  : `Expires ${new Date(key.expiresAt).toLocaleString()}`}
-                          {key.retireAt && key.retireAt > clock
-                            ? ` · Retires ${new Date(key.retireAt).toLocaleString()}`
-                            : ""}
-                        </span>
-                        {!key.revoked && (
-                          <span className={styles.keyActions}>
-                            <button
-                              type="button"
-                              className="app-button secondary"
-                              disabled={
-                                busy ||
-                                uncertain ||
-                                !validLifetime ||
-                                (key.expiresAt !== null &&
-                                  key.expiresAt <= clock) ||
-                                Boolean(key.retireAt && key.retireAt <= clock)
-                              }
-                              onClick={() =>
-                                void mutate(
-                                  `/applications/${selected}/keys/${key.id}/rotate`,
-                                  {
-                                    expiresAt: expiresAt(),
-                                    retireAt: Number(overlap)
-                                      ? Math.min(
-                                          Date.now() +
-                                            Number(overlap) * 3600000,
-                                          key.expiresAt ?? Infinity,
-                                          key.retireAt ?? Infinity,
-                                        )
-                                      : null,
-                                  },
-                                )
-                              }
-                            >
-                              Rotate
-                            </button>
-                            <button
-                              type="button"
-                              className="app-button secondary"
-                              disabled={busy || uncertain}
-                              onClick={() =>
-                                void mutate(
-                                  `/applications/${selected}/keys/${key.id}/revoke`,
-                                )
-                              }
-                            >
-                              Revoke
-                            </button>
-                          </span>
-                        )}
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </section>
-            )}
-            <section className={`surface-card ${styles.card}`}>
-              <h2 className={`${styles.heading} ${styles.headingRow}`}>
-                Recent observations
-                <InfoTip label="Observation details" align="start">
-                  The latest 100 unexpired observations. Withdrawn consent
-                  removes a user’s observations.
-                </InfoTip>
-              </h2>
-              {detailLoaded !== selected ? (
-                <LoadingState rows={3} />
-              ) : traces.length === 0 ? (
-                <EmptyState title="No observations yet" />
-              ) : (
-                <div className={styles.tableWrap}>
-                  <table className={styles.table}>
-                    <thead>
-                      <tr>
-                        <th>Trace</th>
-                        <th>Experiment</th>
-                        <th>Source</th>
-                        <th>Status</th>
-                        <th>Metrics / checks</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {traces.map((trace) => (
-                        <tr key={trace.id}>
-                          <td>
-                            <button
-                              className={styles.traceButton}
-                              onClick={() => setReviewTrace(trace.id)}
-                            >
-                              <code>{trace.id}</code>
-                            </button>
-                          </td>
-                          <td>
-                            <code>{trace.experimentId}</code>
-                          </td>
-                          <td>{trace.source}</td>
-                          <td>{trace.status}</td>
-                          <td>
-                            <code>
-                              {JSON.stringify({
-                                ...trace.metrics,
-                                ...trace.checks,
-                              })}
-                            </code>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
+                </li>
+              ))}
+            </ul>
+          </section>
+        ) : null}
+        {selected && !registerOpen && detailLoaded !== selected ? (
+          <section className={`surface-card ${styles.card}`}>
+            <LoadingState rows={3} />
+          </section>
+        ) : null}
+        {loaded && stage !== "receiving" ? (
+          <>
+            {connection}
+            <section
+              className={`surface-card ${styles.card}`}
+              aria-labelledby="traces-heading"
+            >
+              <TracesHeading summary={null} />
+              <EmptyState
+                title="Waiting for the first trace"
+                message={
+                  admin
+                    ? stage === "connect"
+                      ? "Issue a key, set the settings above on the app’s server, then send one request. This list checks every 10 seconds."
+                      : "Deploy the settings above and send one request. This list checks every 10 seconds."
+                    : "Traces appear once the application is connected. This list checks every 10 seconds."
+                }
+              />
+            </section>
+            {compareCard}
+          </>
+        ) : null}
+        {loaded && stage === "receiving" ? (
+          <>
+            <section
+              className={`surface-card ${styles.card}`}
+              aria-labelledby="traces-heading"
+            >
+              <TracesHeading summary={summary} />
+              <ObservationTable
+                traces={traces}
+                selectedId={reviewTrace}
+                now={clock}
+                onOpen={(id) =>
+                  setReviewTrace((open) => (open === id ? "" : id))
+                }
+              />
             </section>
             {reviewTrace && (
-              <TraceReview
-                key={`${selected}:${reviewTrace}`}
-                appId={selected}
-                traceId={reviewTrace}
-                admin={admin}
-                onClose={() => setReviewTrace("")}
-              />
-            )}
-            <section className={`surface-card ${styles.card}`}>
-              <h2 className={`${styles.heading} ${styles.headingRow}`}>
-                Compare experiments
-                <InfoTip label="Comparison requirements" align="start">
-                  Both experiments need complete case sets from the same
-                  finalized dataset and mode.
-                </InfoTip>
-              </h2>
-              <div className={styles.row}>
-                <div className="field">
-                  <label htmlFor="compare-baseline">Baseline</label>
-                  <Select
-                    id="compare-baseline"
-                    disabled={busy}
-                    value={left}
-                    onChange={(event) => {
-                      setLeft(event.target.value);
-                      setComparison(null);
-                    }}
-                  >
-                    <option value="">Select experiment</option>
-                    {comparable.map((run) => (
-                      <option key={run.id} value={run.id}>
-                        {run.models.map((model) => model.model).join(", ")} /{" "}
-                        {run.id}
-                      </option>
-                    ))}
-                  </Select>
-                </div>
-                <div className="field">
-                  <label htmlFor="compare-candidate">Candidate</label>
-                  <Select
-                    id="compare-candidate"
-                    disabled={busy}
-                    value={right}
-                    onChange={(event) => {
-                      setRight(event.target.value);
-                      setComparison(null);
-                    }}
-                  >
-                    <option value="">Select experiment</option>
-                    {comparable.map((run) => (
-                      <option key={run.id} value={run.id}>
-                        {run.models.map((model) => model.model).join(", ")} /{" "}
-                        {run.id}
-                      </option>
-                    ))}
-                  </Select>
-                </div>
-                <button
-                  type="button"
-                  className="app-button"
-                  disabled={busy || !left || !right}
-                  onClick={async () => {
-                    setBusy(true);
-                    setError("");
-                    setComparison(null);
-                    try {
-                      setComparison(
-                        await apiRequest<Comparison>(
-                          `/applications/${selected}/comparisons/${left}/${right}`,
-                        ),
-                      );
-                    } catch {
-                      setError(
-                        "Comparison unavailable for these experiments.",
-                      );
-                    } finally {
-                      setBusy(false);
-                    }
-                  }}
-                >
-                  Compare
-                </button>
+              <div ref={reviewRef} className={styles.reviewAnchor}>
+                <TraceReview
+                  key={`${selected}:${reviewTrace}`}
+                  appId={selected}
+                  traceId={reviewTrace}
+                  admin={admin}
+                  onClose={() => setReviewTrace("")}
+                />
               </div>
-              {detailLoaded === selected && comparable.length < 2 ? (
-                <p className={styles.note}>Needs two experiments.</p>
-              ) : null}
-              {comparison && (
-                <div className={styles.comparison}>
-                  <p className="mono">Mode: {comparison.mode}</p>
-                  {comparison.cases.map((item) => (
-                    <div key={item.id} className={styles.case}>
-                      <code>{item.id}</code>
-                      <p>
-                        {item.beforeStatus} → {item.afterStatus}
-                      </p>
-                      {item.values.map((check) => (
-                        <p key={check.semanticId} className="mono">
-                          {check.semanticId}
-                          {check.compatible ? "" : " (not comparable)"}:{" "}
-                          {check.before === null
-                            ? "Unknown"
-                            : String(check.before)}{" "}
-                          ({check.beforeResult}) →{" "}
-                          {check.after === null
-                            ? "Unknown"
-                            : String(check.after)}{" "}
-                          ({check.afterResult})
-                        </p>
-                      ))}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </section>
+            )}
+            {compareCard}
+            {connection}
           </>
-        )}
+        ) : null}
       </div>
     </div>
+  );
+}
+
+function TracesHeading({
+  summary,
+}: {
+  summary: ReturnType<typeof summarizeFeed> | null;
+}) {
+  return (
+    <div className={styles.cardHead}>
+      <h2
+        id="traces-heading"
+        className={`${styles.heading} ${styles.headingRow}`}
+      >
+        Recent traces
+        <InfoTip label="Observation details" align="start">
+          The latest 100 unexpired observations. Withdrawn consent removes a
+          user’s observations.
+        </InfoTip>
+      </h2>
+      {summary ? (
+        <p className={`mono ${styles.tally}`}>
+          <span>{countOf(summary.total, "trace")}</span>
+          <span data-tone={summary.errors ? "danger" : undefined}>
+            {countOf(summary.errors, "error")}
+          </span>
+          <span data-tone={summary.failedChecks ? "danger" : undefined}>
+            {summary.failedChecks} with failed checks
+          </span>
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
+const STAGE_ORDER: ApplicationStage[] = ["connect", "waiting", "receiving"];
+
+/**
+ * Where this application is in the loop: connected, receiving, comparable.
+ * The current step carries the accent; finished ones are green, the rest wait.
+ */
+function Readiness({
+  stage,
+  admin,
+  traceCount,
+  experimentCount,
+}: {
+  stage: ApplicationStage;
+  admin: boolean;
+  traceCount: number;
+  experimentCount: number;
+}) {
+  const index = STAGE_ORDER.indexOf(stage);
+  const comparable = experimentCount >= 2;
+  const steps = [
+    {
+      label: "Connect",
+      detail:
+        index > 0 ? "Key issued" : admin ? "Issue a key" : "Not connected",
+      state: index > 0 ? "done" : "current",
+    },
+    {
+      label: "Receive traces",
+      detail:
+        traceCount > 0
+          ? countOf(traceCount, "recent trace")
+          : "Waiting for the first",
+      state: index > 1 ? "done" : index === 1 ? "current" : "pending",
+    },
+    {
+      label: "Compare experiments",
+      detail: comparable
+        ? `${experimentCount} experiments`
+        : `${experimentCount} of 2 experiments`,
+      state: comparable ? "done" : index === 2 ? "current" : "pending",
+    },
+  ] as const;
+  return (
+    <ol className={styles.readiness} aria-label="Application readiness">
+      {steps.map((step, position) => (
+        <li
+          key={step.label}
+          data-state={step.state}
+          aria-current={step.state === "current" ? "step" : undefined}
+        >
+          <span className={styles.readinessMark} aria-hidden="true">
+            {step.state === "done" ? "✓" : position + 1}
+          </span>
+          <span>
+            <span className={styles.readinessLabel}>{step.label}</span>
+            <span className={styles.readinessDetail}>{step.detail}</span>
+          </span>
+        </li>
+      ))}
+    </ol>
+  );
+}
+
+/** The workspace has no applications: say what connecting one involves. */
+function FirstApplication({ onRegister }: { onRegister: () => void }) {
+  return (
+    <section
+      className={`surface-card ${styles.card} ${styles.onboarding}`}
+      aria-labelledby="first-application-heading"
+    >
+      <p className={styles.eyebrow}>Get started</p>
+      <h2 id="first-application-heading" className={styles.onboardingTitle}>
+        Connect your first application
+      </h2>
+      <ol className={styles.onboardingSteps}>
+        <li>
+          <span className="mono">01</span>
+          <span>
+            <strong>Register it.</strong> Name the app and receive its key,
+            shown once.
+          </span>
+        </li>
+        <li>
+          <span className="mono">02</span>
+          <span>
+            <strong>Set the SDK settings</strong> on the app’s server and
+            deploy.
+          </span>
+        </li>
+        <li>
+          <span className="mono">03</span>
+          <span>
+            <strong>Send one request.</strong> Its trace appears here within
+            seconds.
+          </span>
+        </li>
+      </ol>
+      <button type="button" className="app-button" onClick={onRegister}>
+        <PlusIcon size={13} aria-hidden="true" />
+        Register application
+      </button>
+    </section>
   );
 }
