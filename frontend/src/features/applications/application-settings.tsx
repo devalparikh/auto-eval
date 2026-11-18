@@ -129,7 +129,10 @@ export function ApplicationSettings({ appId }: { appId: string }) {
           application ? `${application.name} settings` : "Application settings"
         }
         action={
-          <Link className="app-button secondary" href="/applications">
+          <Link
+            className="app-button secondary"
+            href={`/applications?app=${encodeURIComponent(appId)}`}
+          >
             Applications
           </Link>
         }

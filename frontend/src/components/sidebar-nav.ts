@@ -38,7 +38,10 @@ export const workspaceNavItems: SidebarNavItem[] = [
   { href: "/docs", label: "Docs", icon: BookOpenTextIcon },
 ];
 
-/** Shown beside the workspace rows when a hosted instance has a signed-in session. */
+/**
+ * Shown when a hosted instance has a signed-in session: leading the rows on
+ * workspace pages, beside the workspace rows inside a system or the docs.
+ */
 export const hostedNavItems: SidebarNavItem[] = [
   { href: "/applications", label: "Applications", icon: PlugsConnectedIcon },
 ];

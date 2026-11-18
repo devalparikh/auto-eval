@@ -124,7 +124,8 @@ test("viewer trace review never requests diagnostic content or shows assessment 
       onClose={() => {}}
     />,
   );
-  await screen.findByText(/Status: error/);
+  const facts = await screen.findByLabelText("Trace facts");
+  expect(facts).toHaveTextContent("Statuserror");
   expect(
     screen.queryByRole("button", { name: "Load diagnostic content" }),
   ).toBeNull();
@@ -390,6 +391,7 @@ test("failed refresh clears previously loaded diagnostic content", async () => {
 });
 
 test("a read started before a lost key write cannot clear the uncertain state", async () => {
+  let keyReads = 0;
   let resolve!: (value: unknown) => void;
   const delayed = new Promise((value) => {
     resolve = value;
@@ -399,14 +401,18 @@ test("a read started before a lost key write cannot clear the uncertain state", 
     if (path === "/applications") return [app];
     if (path.endsWith("/keys") && options?.method === "POST")
       throw new Error("response lost");
-    if (path.endsWith("/keys")) return delayed;
+    // The first read settles; the refresh below starts one that stays open.
+    if (path.endsWith("/keys")) return keyReads++ === 0 ? [] : delayed;
     return [];
   });
   render(<ApplicationsScreen />);
   fireEvent.change(await screen.findByLabelText("Application"), {
     target: { value: "app" },
   });
-  fireEvent.click(await screen.findByRole("button", { name: "Issue key" }));
+  await screen.findByRole("button", { name: "Issue key" });
+  fireEvent.click(screen.getByRole("button", { name: "Refresh" }));
+  await waitFor(() => expect(keyReads).toBe(2));
+  fireEvent.click(screen.getByRole("button", { name: "Issue key" }));
   await screen.findByRole("alert");
   resolve([]);
   await waitFor(() =>
