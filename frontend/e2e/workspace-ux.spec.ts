@@ -335,6 +335,9 @@ test("the command menu finds pages and traces and runs actions", async ({
   await page.setViewportSize({ width: 1280, height: 820 });
   await page.goto(`${incidentRoot}/traces`);
   const input = page.getByRole("combobox", { name: "Search AutoEval" });
+  // Trace rows appear after hydration, when the shell can receive shortcuts.
+  const traceList = page.getByRole("complementary", { name: "Trace list" });
+  await expect(traceList.locator(`a[href^='${incidentRoot}/traces/']`).first()).toBeVisible();
   await expect(input).toHaveCount(0);
 
   await page.keyboard.press("ControlOrMeta+k");
