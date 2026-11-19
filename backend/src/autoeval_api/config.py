@@ -8,6 +8,8 @@ from uuid import UUID
 from pydantic import Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
+from autoeval_api.services.application_contract import Id, JudgeProfile
+
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
@@ -25,6 +27,7 @@ class Settings(BaseSettings):
     openrouter_app_url: str = Field(default="http://localhost:3000", alias="OPENROUTER_APP_URL")
     openrouter_app_name: str = Field(default="AutoEval", alias="OPENROUTER_APP_NAME")
     openrouter_max_output_tokens: int = Field(default=4096, ge=256, le=32_768)
+    judge_profiles: dict[Id, JudgeProfile] = Field(default_factory=dict)
     enable_lm_studio: bool = Field(default=False, alias="ENABLE_LM_STUDIO")
     lm_studio_base_url: str = Field(default="http://127.0.0.1:1234/v1", alias="LM_STUDIO_BASE_URL")
     lm_studio_models: Annotated[list[str], NoDecode] = Field(

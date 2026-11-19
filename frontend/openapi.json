@@ -2864,6 +2864,37 @@
         "type": "object"
       },
       "JsonValue": {},
+      "JudgeResult": {
+        "additionalProperties": false,
+        "properties": {
+          "gradeId": {
+            "anyOf": [
+              {
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Gradeid"
+          },
+          "status": {
+            "enum": [
+              "graded",
+              "already_graded",
+              "insufficient_evidence"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "title": "JudgeResult",
+        "type": "object"
+      },
       "KeyInput": {
         "additionalProperties": false,
         "properties": {
@@ -3831,6 +3862,11 @@
             "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
             "title": "Id",
             "type": "string"
+          },
+          "llmJudge": {
+            "default": false,
+            "title": "Llmjudge",
+            "type": "boolean"
           },
           "metrics": {
             "maxProperties": 32,
@@ -7177,6 +7213,59 @@
           }
         },
         "summary": "Content",
+        "tags": [
+          "application feed"
+        ]
+      }
+    },
+    "/api/applications/{app_id}/traces/{trace_id}/judge": {
+      "post": {
+        "operationId": "judge_api_applications__app_id__traces__trace_id__judge_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "app_id",
+            "required": true,
+            "schema": {
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+              "title": "App Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "trace_id",
+            "required": true,
+            "schema": {
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+              "title": "Trace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JudgeResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Judge",
         "tags": [
           "application feed"
         ]

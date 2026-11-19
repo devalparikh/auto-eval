@@ -2,12 +2,17 @@
 
 from typing import Annotated
 
-from fastapi import APIRouter, Header, Request
+from fastapi import APIRouter, BackgroundTasks, Header, Request
 from sqlalchemy import select
 
 from autoeval_api.models import ApplicationKeyRecord, ApplicationRecord
 from autoeval_api.services import application_contract as contract
 from autoeval_api.services import application_feed as feed
+from autoeval_api.services.application_judge import (
+    dispatch_after_capture,
+    judge_trace,
+    sdk_profile_id,
+)
 from autoeval_api.services.hosted_auth import rate_limit
 
 router = APIRouter(tags=["application feed"])
@@ -169,6 +174,21 @@ def assess(
         return result
 
 
+@router.post("/api/applications/{app_id}/traces/{trace_id}/judge")
+async def judge(
+    app_id: contract.Id, trace_id: contract.Id, request: Request
+) -> contract.JudgeResult:
+    state = request.app.state
+    return await judge_trace(
+        state.session_factory,
+        principal(request),
+        app_id,
+        trace_id,
+        state.settings.judge_profiles,
+        state.provider_registry,
+    )
+
+
 @router.get("/api/applications/{app_id}/policies")
 def policies(app_id: contract.Id, request: Request) -> list[dict]:
     with request.app.state.session_factory() as session:
@@ -248,13 +268,25 @@ def revoke_grant(id: contract.Id, request: Request) -> dict:
 
 
 @router.post("/v2/traces", status_code=201)
-def ingest(body: contract.Observation, request: Request) -> dict:
+def ingest(body: contract.Observation, request: Request, background: BackgroundTasks) -> dict:
     user = key_principal(request)
     with request.app.state.session_factory() as session:
         app = feed.key_resource(session, user)
         feed.purge(session)
-        result = feed.ingest(session, app, body)
+        profile = request.app.state.settings.judge_profiles.get(app.id)
+        profile_id = sdk_profile_id(profile) if body.llmJudge else None
+        result = feed.ingest(
+            session,
+            app,
+            body,
+            judge_profile_id=profile_id,
+            judge_grade_version=profile.grade_version if profile else None,
+        )
+        app_id = app.id
         session.commit()
+        if profile and profile.allow_sdk_requests:
+            requested_trace = body.id if result.get("judgeRequest") == "accepted" else None
+            background.add_task(dispatch_after_capture, request.app.state, app_id, requested_trace)
         return result
 
 

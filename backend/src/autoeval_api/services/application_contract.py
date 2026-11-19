@@ -222,12 +222,30 @@ class GradeInput(Strict):
     occurredAt: Timestamp | None = None
 
 
+class JudgeProfile(Strict):
+    """Instance-approved settings for judging one application's boolean grades."""
+
+    model: str = Field(pattern=r"^(openrouter|lmstudio)/[a-zA-Z0-9_.:/-]+$", max_length=256)
+    rubric: str = Field(min_length=1, max_length=4000, pattern=r"\S")
+    # Capture field name -> approved content category for outbound inference.
+    evidence: dict[Label, Category] = Field(min_length=1, max_length=16)
+    grade_version: int = Field(default=1, ge=1, le=1000000)
+    allow_sdk_requests: bool = False
+    daily_call_limit: int = Field(default=20, ge=1, le=1000)
+
+
+class JudgeResult(Strict):
+    status: Literal["graded", "already_graded", "insufficient_evidence"]
+    gradeId: Id | None = None
+
+
 class Observation(Strict):
     schemaVersion: Literal[2]
     id: Id
     experimentId: Hash
     policyVersion: Hash
     gradeDefinition: GradeDefinition | None = None
+    llmJudge: bool = False
     grantId: Id | None = None  # Legacy grant-bound SDK clients.
     source: Source
     caseId: Hash | None = None

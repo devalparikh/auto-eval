@@ -58,23 +58,27 @@ def denied(status=401):
     raise HTTPException(status, "Request not authorized")
 
 
-def rate_limit(factory, identity, limit=20, window=60):
-    now = time.time()
+def increment_rate_window(session, identity, window, *, now=None):
+    now = time.time() if now is None else now
     key = digest(f"{identity}:{int(now // window)}")
+    session.execute(delete(HostedRateRecord).where(HostedRateRecord.expires < now))
+    insert = pg_insert if session.bind.dialect.name == "postgresql" else sqlite_insert
+    session.execute(
+        insert(HostedRateRecord)
+        .values(digest=key, count=0, expires=now + window)
+        .on_conflict_do_nothing()
+    )
+    return session.execute(
+        update(HostedRateRecord)
+        .where(HostedRateRecord.digest == key)
+        .values(count=HostedRateRecord.count + 1)
+        .returning(HostedRateRecord.count)
+    ).scalar_one()
+
+
+def rate_limit(factory, identity, limit=20, window=60):
     with factory() as session:
-        session.execute(delete(HostedRateRecord).where(HostedRateRecord.expires < now))
-        insert = pg_insert if session.bind.dialect.name == "postgresql" else sqlite_insert
-        session.execute(
-            insert(HostedRateRecord)
-            .values(digest=key, count=0, expires=now + window)
-            .on_conflict_do_nothing()
-        )
-        count = session.execute(
-            update(HostedRateRecord)
-            .where(HostedRateRecord.digest == key)
-            .values(count=HostedRateRecord.count + 1)
-            .returning(HostedRateRecord.count)
-        ).scalar_one()
+        count = increment_rate_window(session, identity, window)
         session.commit()
     if count > limit:
         raise HTTPException(429, "Try again later")

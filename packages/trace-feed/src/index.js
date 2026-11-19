@@ -114,7 +114,7 @@ function initialize(options, legacyGrants) {
     "policy",
     "experiment",
     "redactorVersion",
-    ...(legacyGrants ? [] : ["grade"]),
+    ...(legacyGrants ? [] : ["grade", "llmJudge"]),
   ]);
   assert(typeof window === "undefined");
   const url = new URL(options.endpoint),
@@ -148,6 +148,8 @@ function initialize(options, legacyGrants) {
       origin,
     ),
     experimentId = fingerprint("experiment", experiment);
+  const defaultJudge = options.llmJudge === undefined ? false : options.llmJudge;
+  assert(typeof defaultJudge === "boolean");
   const definition = gradeDefinition(options.grade, policy);
   const redactorVersion = options.redactorVersion ?? null;
   assert(redactorVersion === null || isHash(redactorVersion));
@@ -342,7 +344,9 @@ function initialize(options, legacyGrants) {
   }
   function begin(input = {}) {
     try {
-      object(input, ["consent", "id", "startedAt", "caseId"]);
+      object(input, ["consent", "id", "startedAt", "caseId", ...(legacyGrants ? [] : ["llmJudge"])]);
+      const llmJudge = input.llmJudge === undefined ? defaultJudge : input.llmJudge;
+      assert(typeof llmJudge === "boolean");
       if (!legacyGrants) assert(!Object.hasOwn(input, "consent"));
       const grant = legacyGrants ? consent(input.consent, origin) : null;
       if (!permitted(grant)) return inactiveRun("no_consent");
@@ -520,6 +524,7 @@ function initialize(options, legacyGrants) {
                 policyVersion,
                 ...(grant ? { grantId: grant.id } : {}),
                 ...(definition ? { gradeDefinition: definition } : {}),
+                ...(llmJudge ? { llmJudge: true } : {}),
                 source: origin,
                 caseId,
                 startedAt,
@@ -540,6 +545,8 @@ function initialize(options, legacyGrants) {
                   status: "accepted",
                   reference,
                   coverage: safeCoverage(response.coverage, policy),
+                  ...(llmJudge && ["accepted", "disabled", "unsupported_grade"].includes(response.judgeRequest)
+                    ? { judgeRequest: response.judgeRequest } : {}),
                 }
               : skipped(blocked ? "unauthorized" : "rejected");
           }).finally(() => {
@@ -746,7 +753,7 @@ function fromEnv(options, legacyGrants) {
       policy: options.policy ?? (legacyGrants ? undefined : { schemaVersion: 2 }),
       experiment: options.experiment,
       redactorVersion: options.redactorVersion,
-      ...(legacyGrants ? {} : { grade: options.grade }),
+      ...(legacyGrants ? {} : { grade: options.grade, llmJudge: options.llmJudge }),
     }, legacyGrants);
   } catch {
     return inactive("invalid_config");

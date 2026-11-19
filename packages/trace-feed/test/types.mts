@@ -44,8 +44,8 @@ run.step({
 // @ts-expect-error unknown check outcome stays null, not an arbitrary string
 await run.end({ checks: { passed: "unknown" } });
 
-const client = createTraceClient({ policy });
-const appRun = client.begin();
+const client = createTraceClient({ policy, llmJudge: true });
+const appRun = client.begin({ llmJudge: false });
 if (appRun.reference) await client.outcome({ reference: appRun.reference, name: "applied" });
 // @ts-expect-error this client does not take a user grant
 client.begin({ consent });

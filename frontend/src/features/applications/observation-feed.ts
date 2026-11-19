@@ -6,7 +6,7 @@ export type TraceGrade = {
   revision: number;
   version: number;
   definitionId: string;
-  source: "client";
+  source: "client" | "judge";
   kind: "boolean" | "number" | "category" | "multi_select" | "json";
   value?: boolean | number | string | string[];
   occurredAt: number;

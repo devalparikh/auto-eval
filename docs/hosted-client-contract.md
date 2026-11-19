@@ -20,6 +20,7 @@ published release or evidence of a deployed instance. No cloud settings were cha
 | `AUTOEVAL_ALLOWED_HOSTS` | Explicit nonlocal backend host names, comma separated |
 | `AUTOEVAL_WEB_ORIGINS` | Exact HTTPS dashboard origin, comma separated |
 | `AUTOEVAL_TRACE_RETENTION_DAYS` | Existing workbench retention; capture retention is per application (Keep by default, or 1–3650 days) |
+| `AUTOEVAL_JUDGE_PROFILES` | Backend JSON mapping each enabled application ID to its judge configuration. Defaults to `{}`. |
 
 Example shape (synthetic identities only):
 
@@ -182,6 +183,77 @@ denominator. Production observations guide diagnosis and case authoring; they do
 not prove a causal improvement or automatically become finalized evaluation data.
 Human assessments append immutable ratings with a scorer/rubric digest. The portal's
 versioned rubric defaults every rating to unknown; it does not call a provider.
+
+## Grade one trace with an LLM
+
+An instance admin can ask a configured model to grade a retained trace. For example,
+Lifty can leave a reply **Ungraded** and an operator can grade it later using its
+captured conversation. Lifty's own pass/fail rule still runs in Lifty.
+
+1. Apply schema migration 24 with the usual runtime-role grants. Put
+   `OPENROUTER_API_KEY` in the backend environment, or use an enabled local LM Studio model.
+2. Set `AUTOEVAL_JUDGE_PROFILES` on the backend. Replace the example ID with
+   Lifty's application ID. Each `evidence` entry maps a captured field name to
+   the category the operator approves sending to that model.
+   For OpenRouter judges, AutoEval requests `data_collection: deny`. Provider
+   retention terms still apply. The judge does not request zero-data-retention routing.
+
+   ```json
+   {
+     "00000000-0000-4000-8000-000000000003": {
+       "model": "openrouter/openai/gpt-5-mini",
+       "rubric": "Pass if the reply answers the customer's request. Abstain if the conversation is incomplete.",
+       "evidence": { "conversation": "conversation" },
+       "grade_version": 1,
+       "allow_sdk_requests": true,
+       "daily_call_limit": 20
+     }
+   }
+   ```
+
+3. Using the admin session and allowed Origin, send
+   `POST /api/applications/{app_id}/traces/{trace_id}/judge` with an empty body.
+   A successful decision returns `{"status":"graded","gradeId":"…"}`. The usual
+   Grade column shows **Pass** or **Fail**. History records the judge as its source,
+   the configured model and the ID of the saved rubric and settings.
+
+- An existing grade returns `already_graded`. Missing evidence or a model
+  abstention returns `insufficient_evidence` and leaves the trace Ungraded.
+- The judge accepts the configured boolean grade version. It reads the approved
+  fields from retained trace content and enforces current content permissions.
+  A client grade arriving during inference takes precedence. Erasing the evidence
+  during inference prevents saving the verdict.
+- AutoEval rechecks evidence permissions and expiry immediately before the
+  outbound request. Erasure and withdrawal serialize with the HTTP body write.
+  Other app operations can proceed while the model computes its response.
+- Admission reserves one call from the app's UTC daily allowance. Operator
+  and SDK calls share four active slots per app and eight per instance. Operator
+  requests receive HTTP 429 at capacity or budget exhaustion, and HTTP 409 if
+  that trace already has an active judge. The provider timeout is 60 seconds.
+
+### Let the SDK request a grade
+
+`createTraceClient({ ...captureOptions, llmJudge: true })` requests grading when
+each trace is sent. Use `begin({ llmJudge: false })` to skip a trace, or enable
+the flag on just one `begin` call. The flag defaults to off. The instance admin
+must set `allow_sdk_requests: true` on the application's judge profile.
+
+Ingest commits the trace and its judge request together. The SDK gets a capture
+receipt immediately. For flagged traces, `judgeRequest` reports `accepted`,
+`disabled`, or `unsupported_grade`. Duplicate capture returns the original
+receipt. Only the instance sends the permitted evidence to the provider.
+
+AutoEval starts the job after sending the response. While the API is running,
+its recovery loop picks up interrupted jobs. A job gets up to three inference
+attempts. An attempt counts when AutoEval reserves a provider slot and daily
+budget. If a worker stops before then, its replacement still has that attempt.
+At the daily limit an accepted SDK request stays queued until the next UTC day.
+A job in retry backoff holds no provider slot.
+Each subsequent capture can also recover one pending request for the same app,
+including on hosts that suspend idle workers. The worker checks the pinned
+profile, current permissions, trace lifetime and existing grade before saving.
+A worker skips pending work if its current profile has changed or SDK judging
+is disabled. Batch selection is planned.
 
 ## SDK and administration
 

@@ -48,7 +48,12 @@ class OpenRouterInferenceProvider:
             follow_redirects=False,
             transport=self.transport,
         ) as client:
-            response = await client.post(self.api_url, headers=headers, json=payload)
+            body = json.dumps(
+                payload, ensure_ascii=False, separators=(",", ":"), allow_nan=False
+            ).encode()
+            headers.update({"Content-Type": "application/json", "Content-Length": str(len(body))})
+            async with request.http_body(body) as authorized_body:
+                response = await client.post(self.api_url, headers=headers, content=authorized_body)
             self._raise_for_status(response)
         body = response.json()
         raw_text = body["choices"][0]["message"]["content"]
