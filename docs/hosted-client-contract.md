@@ -221,9 +221,14 @@ captured conversation. Lifty's own pass/fail rule still runs in Lifty.
   fields from retained trace content and enforces current content permissions.
   A client grade arriving during inference takes precedence. Erasing the evidence
   during inference prevents saving the verdict.
-- Each dispatched attempt counts toward the app's UTC daily call limit, including
-  timeouts and invalid output. A concurrent request for the same trace returns
-  HTTP 409. The default provider timeout for this action is 60 seconds.
+- AutoEval rechecks evidence permissions and expiry immediately before the
+  outbound request. Erasure and withdrawal serialize with the HTTP body write.
+  Other app operations can proceed while the model computes its response.
+- Admission reserves one call from the app's UTC daily allowance. Operator
+  and SDK calls share four active slots per app and eight per instance. Operator
+  requests receive HTTP 429 at capacity or budget exhaustion, and HTTP 409 if
+  that trace already has an active judge. The provider timeout is 60 seconds.
+
 ### Let the SDK request a grade
 
 `createTraceClient({ ...captureOptions, llmJudge: true })` requests grading when
@@ -238,7 +243,9 @@ receipt. Only the instance sends the permitted evidence to the provider.
 
 AutoEval starts the job after sending the response. While the API is running,
 its recovery loop picks up interrupted jobs and retries temporary failures up to
-three total attempts. Each provider call consumes the app's daily allowance.
+three total attempts. At the daily limit an accepted SDK request stays queued
+until the next UTC day. Waiting for budget or capacity uses no retry attempt.
+A job in retry backoff holds no provider slot.
 Each subsequent capture can also recover one pending request for the same app,
 including on hosts that suspend idle workers. The worker checks the pinned
 profile, current permissions, trace lifetime and existing grade before saving.

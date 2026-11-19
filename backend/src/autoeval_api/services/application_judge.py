@@ -3,12 +3,13 @@
 import asyncio
 import json
 import logging
+from contextlib import contextmanager
 from dataclasses import dataclass
 from uuid import uuid4
 
 import httpx
 from fastapi import HTTPException
-from sqlalchemy import delete, func, select
+from sqlalchemy import delete, func, select, text
 
 from autoeval_api.inference.base import InferenceProvider, InferenceRequest
 from autoeval_api.inference.model_catalog import openrouter_model
@@ -23,6 +24,25 @@ INSTRUCTIONS = (
     "fail, and null when the evidence is insufficient."
 )
 TIMEOUT_SECONDS = 60
+APP_CONCURRENCY = 4
+INSTANCE_CONCURRENCY = 8
+
+
+class AdmissionDeferred(HTTPException):
+    """The SDK request remains queued without consuming an inference attempt."""
+
+
+class DispatchSkipped(Exception):
+    def __init__(self, result):
+        self.result = result
+
+
+@dataclass
+class Evidence:
+    fields: dict
+    expires: float
+
+
 TASK = "Grade the supplied evidence."
 
 
@@ -40,7 +60,8 @@ def _verdict_object(pairs):
 @dataclass
 class Pending:
     attempt: str
-    evidence: dict
+    lease_expires: float
+    evidence: Evidence
     profile: contract.JudgeProfile
     provider: InferenceProvider
 
@@ -84,7 +105,8 @@ def _evidence(session, app, trace_id, profile):
         evidence[name] = content.body[name]
     if len(feed.canonical(evidence).encode()) > 16_384:
         raise HTTPException(422, "Judge evidence exceeds 16 KiB")
-    return evidence
+    deadlines = [row.expires for row in (trace, content, grant) if row and row.expires]
+    return Evidence(evidence, min(deadlines, default=0))
 
 
 def profile_snapshot(profile):
@@ -113,6 +135,15 @@ def _judge_application(session, principal, app_id, trace_id, sdk_attempt, profil
     return app
 
 
+def _defer(session, app_id, trace_id, sdk_attempt, ready_at, status, message):
+    if sdk_attempt is not None:
+        job = session.get(JudgeRequestRecord, (app_id, trace_id))
+        job.ready_at = ready_at
+        job.attempts -= 1  # The claim did not dispatch a provider call.
+        session.commit()
+    raise AdmissionDeferred(status, message)
+
+
 def _prepare(factory, principal, app_id, trace_id, profiles, registry, sdk_attempt):
     with factory() as session:
         profile = profiles.get(app_id)
@@ -131,25 +162,69 @@ def _prepare(factory, principal, app_id, trace_id, profiles, registry, sdk_attem
         except (ValueError, RuntimeError):
             raise HTTPException(503, "Judge model unavailable") from None
 
+        # SQLite already holds BEGIN IMMEDIATE. Serialize count-and-insert across
+        # apps on PostgreSQL as well. Release this lock before any network I/O.
+        if session.get_bind().dialect.name == "postgresql":
+            session.execute(text("SELECT pg_advisory_xact_lock(19482402)"))
+        now = feed.now_ms()
         lease = session.get(JudgeLeaseRecord, (app_id, trace_id))
-        if lease and lease.expires > feed.now_ms():
-            raise HTTPException(409, "Judging is already in progress")
+        if lease and lease.expires > now:
+            _defer(
+                session,
+                app_id,
+                trace_id,
+                sdk_attempt,
+                lease.expires,
+                409,
+                "Judging is already in progress",
+            )
+        total, own = session.execute(
+            select(func.count(), func.count().filter(JudgeLeaseRecord.application_id == app_id))
+            .select_from(JudgeLeaseRecord)
+            .where(JudgeLeaseRecord.expires > now)
+        ).one()
+        if total >= INSTANCE_CONCURRENCY or own >= APP_CONCURRENCY:
+            _defer(
+                session,
+                app_id,
+                trace_id,
+                sdk_attempt,
+                now + 5_000,
+                429,
+                "Judge concurrency limit reached",
+            )
+
         if lease is not None:
             session.delete(lease)
             session.flush()
-        if increment_rate_window(session, "judge:" + app_id, 86_400) > profile.daily_call_limit:
-            raise HTTPException(429, "Application judge call limit reached for today")
+        # Roll back the unsuccessful reservation before committing a deferred job.
+        reservation = session.begin_nested()
+        count = increment_rate_window(session, "judge:" + app_id, 86_400, now=now / 1000)
+        if count > profile.daily_call_limit:
+            reservation.rollback()
+            tomorrow = (now // 86_400_000 + 1) * 86_400_000
+            _defer(
+                session,
+                app_id,
+                trace_id,
+                sdk_attempt,
+                tomorrow,
+                429,
+                "Application judge call limit reached for today",
+            )
+        reservation.commit()
         attempt = str(uuid4())
+        lease_expires = feed.now_ms() + (TIMEOUT_SECONDS + 30) * 1000
         session.add(
             JudgeLeaseRecord(
                 application_id=app_id,
                 trace_id=trace_id,
                 attempt=attempt,
-                expires=feed.now_ms() + (TIMEOUT_SECONDS + 30) * 1000,
+                expires=lease_expires,
             )
         )
         session.commit()
-        return Pending(attempt, evidence, profile, provider)
+        return Pending(attempt, lease_expires, evidence, profile.model_copy(deep=True), provider)
 
 
 def _finish(factory, principal, app_id, trace_id, pending, verdict, sdk_attempt, profiles):
@@ -194,39 +269,79 @@ def _release(factory, app_id, trace_id, attempt):
         session.commit()
 
 
-async def judge_trace(
-    factory, principal, app_id, trace_id, profiles, registry, *, sdk_attempt=None
-):
-    pending = await asyncio.to_thread(
-        _prepare, factory, principal, app_id, trace_id, profiles, registry, sdk_attempt
-    )
+@contextmanager
+def _authorize_dispatch(factory, principal, app_id, trace_id, pending, profiles, sdk_attempt):
+    with factory() as session:
+        current = profiles.get(app_id)
+        app = _judge_application(session, principal, app_id, trace_id, sdk_attempt, current)
+        if current is None or profile_snapshot(current) != profile_snapshot(pending.profile):
+            raise HTTPException(403, "Judge profile changed")
+        lease = session.get(JudgeLeaseRecord, (app_id, trace_id))
+        if lease is None or lease.attempt != pending.attempt:
+            raise HTTPException(409, "Judge attempt expired")
+        evidence = _evidence(session, app, trace_id, current)
+        if isinstance(evidence, contract.JudgeResult):
+            raise DispatchSkipped(evidence)
+        if evidence.fields != pending.evidence.fields:
+            raise HTTPException(409, "Judge evidence changed")
+        deadline = min(lease.expires, evidence.expires or lease.expires)
+        remaining = (deadline - feed.now_ms()) / 1000
+        if remaining <= 0:
+            raise HTTPException(410, "Judge authorization expired")
+        yield remaining
+
+
+def _run_judge(factory, principal, app_id, trace_id, profiles, registry, sdk_attempt):
+    pending = _prepare(factory, principal, app_id, trace_id, profiles, registry, sdk_attempt)
     if isinstance(pending, contract.JudgeResult):
         return pending
+
     try:
         profile = pending.profile
         request = InferenceRequest(
             model_id=profile.model,
             system_prompt=INSTRUCTIONS + "\n\nRubric:\n" + profile.rubric,
             task=TASK,
-            state={"evidence": pending.evidence},
+            state={"evidence": pending.evidence.fields},
             response_schema=Verdict.model_json_schema(),
+            body_guard=lambda: _authorize_dispatch(
+                factory, principal, app_id, trace_id, pending, profiles, sdk_attempt
+            ),
         )
-        # Release the database lock during network I/O, then recheck the evidence and grade.
+
+        async def complete():
+            remaining = (pending.lease_expires - feed.now_ms()) / 1000
+            if remaining <= 0:
+                raise HTTPException(409, "Judge attempt expired")
+            async with asyncio.timeout(min(TIMEOUT_SECONDS, remaining)):
+                return await pending.provider.complete(request)
+
         try:
-            async with asyncio.timeout(TIMEOUT_SECONDS):
-                response = await pending.provider.complete(request)
+            response = asyncio.run(complete())
             verdict = Verdict.model_validate(
                 json.loads(response.raw_text, object_pairs_hook=_verdict_object)
             )
+        except DispatchSkipped as skipped:
+            return skipped.result
+        except HTTPException:
+            raise
         except (TimeoutError, httpx.TimeoutException):
             raise HTTPException(504, "Judge timed out") from None
         except Exception:
             raise HTTPException(502, "Judge did not return a valid verdict") from None
-        return await asyncio.to_thread(
-            _finish, factory, principal, app_id, trace_id, pending, verdict, sdk_attempt, profiles
+        return _finish(
+            factory, principal, app_id, trace_id, pending, verdict, sdk_attempt, profiles
         )
     finally:
-        await asyncio.to_thread(_release, factory, app_id, trace_id, pending.attempt)
+        _release(factory, app_id, trace_id, pending.attempt)
+
+
+async def judge_trace(
+    factory, principal, app_id, trace_id, profiles, registry, *, sdk_attempt=None
+):
+    return await asyncio.to_thread(
+        _run_judge, factory, principal, app_id, trace_id, profiles, registry, sdk_attempt
+    )
 
 
 # A worker that disappears after dispatch can be replaced after the lease expires.
@@ -246,19 +361,6 @@ def _claim_request(factory, app_id, trace_id, profiles):
         ):
             session.delete(job)
             session.commit()
-            return None
-        # The app lock serializes admission across hosted workers. Waiting jobs
-        # remain durable and don't consume their attempts or daily call allowance.
-        reserved = session.scalar(
-            select(func.count())
-            .select_from(JudgeRequestRecord)
-            .where(
-                JudgeRequestRecord.application_id == app_id,
-                JudgeRequestRecord.attempts > 0,
-                JudgeRequestRecord.ready_at > feed.now_ms(),
-            )
-        )
-        if reserved >= 4:
             return None
         job.attempts += 1
         attempt = job.attempts
@@ -296,6 +398,8 @@ async def run_sdk_request(state, app_id, trace_id):
                 state.provider_registry,
                 sdk_attempt=attempt,
             )
+        except AdmissionDeferred:
+            return
         except HTTPException as error:
             if error.status_code in (409, 502, 503, 504) and attempt < MAX_SDK_ATTEMPTS:
                 return  # The stored deadline makes this eligible for recovery.

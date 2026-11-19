@@ -3,6 +3,7 @@
 import asyncio
 import json
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import asynccontextmanager
 from threading import Event
 from uuid import uuid4
 
@@ -242,4 +243,171 @@ def test_sdk_transient_failure_recovers_once_after_backoff(judge):
     assert sdk.post("/v2/traces", json={**trace, "id": str(uuid4())}).status_code == 201
     (grade,) = admin.get(path.replace(trace["id"], item["id"])).json()["grades"]
     assert grade["source"] == "judge" and grade["value"] is True
+    assert len(calls) == 2
+
+
+@pytest.mark.parametrize("before_send", ["erase", "expire_lease"])
+@pytest.mark.parametrize("sdk_requested", [False, True])
+def test_dispatch_rechecks_before_any_provider_body(judge, monkeypatch, before_send, sdk_requested):
+    from autoeval_api.inference.base import InferenceRequest
+    from autoeval_api.models import JudgeLeaseRecord
+
+    admin, sdk, app, app_id, path, trace, calls, _ = judge
+    trace_id = str(uuid4()) if sdk_requested else trace["id"]
+    profiles = app.state.settings.judge_profiles
+    profiles[app_id] = profiles[app_id].model_copy(update={"allow_sdk_requests": True})
+    ready, proceed = Event(), Event()
+    original = InferenceRequest.http_body
+
+    @asynccontextmanager
+    async def paused_body(request, data):
+        ready.set()
+        assert await asyncio.to_thread(proceed.wait, 8)
+        async with original(request, data) as body:
+            yield body
+
+    monkeypatch.setattr(InferenceRequest, "http_body", paused_body)
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        if sdk_requested:
+            future = pool.submit(
+                sdk.post, "/v2/traces", json={**trace, "id": trace_id, "llmJudge": True}
+            )
+        else:
+            future = pool.submit(admin.post, path + "/judge")
+        try:
+            assert ready.wait(8)
+            if before_send == "erase":
+                assert admin.delete(path.split("/traces/")[0] + "/content").status_code == 200
+            else:
+                with app.state.session_factory() as session:
+                    session.get(JudgeLeaseRecord, (app_id, trace_id)).expires = 1
+                    session.commit()
+        finally:
+            proceed.set()
+        result = future.result(timeout=8)
+    assert result.status_code in (200, 201, 410)
+    assert calls == []
+    assert admin.get(path.replace(trace["id"], trace_id)).json()["grades"] == []
+
+
+def test_budget_limited_sdk_retry_survives_until_next_utc_window(judge, monkeypatch):
+    from autoeval_api.models import JudgeRequestRecord
+    from autoeval_api.services import application_feed as feed_service
+    from autoeval_api.services.application_judge import run_sdk_request
+
+    admin, sdk, app, app_id, path, trace, calls, install = judge
+    profiles = app.state.settings.judge_profiles
+    profiles[app_id] = profiles[app_id].model_copy(
+        update={"allow_sdk_requests": True, "daily_call_limit": 1}
+    )
+    now = (feed_service.now_ms() // 86_400_000 + 1) * 86_400_000
+    monkeypatch.setattr(feed_service, "now_ms", lambda: now)
+    install(lambda: '{"grade":"invalid"}')
+    item = {**trace, "id": str(uuid4()), "llmJudge": True}
+    assert sdk.post("/v2/traces", json=item).json()["judgeRequest"] == "accepted"
+    now += 120_001
+    asyncio.run(run_sdk_request(app.state, app_id, item["id"]))
+    with app.state.session_factory() as session:
+        job = session.get(JudgeRequestRecord, (app_id, item["id"]))
+        assert job.attempts == 1
+        assert job.ready_at == (now // 86_400_000 + 1) * 86_400_000
+        now = int(job.ready_at)
+    assert len(calls) == 1
+    install(lambda: '{"grade":true}')
+    asyncio.run(run_sdk_request(app.state, app_id, item["id"]))
+    assert len(calls) == 2
+    assert admin.get(path.replace(trace["id"], item["id"])).json()["grades"][0]["value"] is True
+
+
+@pytest.mark.parametrize("other_app", [False, True])
+def test_active_operator_lease_bounds_operator_and_sdk_admission(judge, monkeypatch, other_app):
+    from test_application_capture import experiment, policy
+
+    from autoeval_api.models import JudgeRequestRecord
+    from autoeval_api.services import application_judge
+
+    admin, sdk, app, app_id, path, trace, calls, install = judge
+    profiles = app.state.settings.judge_profiles
+    monkeypatch.setattr(application_judge, "APP_CONCURRENCY", 1)
+    monkeypatch.setattr(application_judge, "INSTANCE_CONCURRENCY", 1 if other_app else 2)
+    target = str(uuid4()) if other_app else app_id
+    if other_app:
+        created = admin.post(
+            "/api/applications",
+            json={"id": target, "name": "Second app", "key": {"expiresAt": None}},
+        )
+        assert created.status_code == 201
+        sdk.headers["authorization"] = "Bearer " + created.json()["key"]["token"]
+        assert (
+            sdk.post(
+                "/v2/connect", json={"policy": policy(), "experiment": experiment()}
+            ).status_code
+            == 200
+        )
+    profiles[target] = profiles[app_id].model_copy(update={"allow_sdk_requests": True})
+    item = {**trace, "id": str(uuid4()), "llmJudge": True}
+    started, release = Event(), Event()
+
+    def answer():
+        started.set()
+        assert release.wait(8)
+        return '{"grade":true}'
+
+    install(answer)
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        future = pool.submit(admin.post, path + "/judge")
+        try:
+            assert started.wait(8)
+            assert sdk.post("/v2/traces", json=item).json()["judgeRequest"] == "accepted"
+            target_path = f"/api/applications/{target}/traces/{item['id']}"
+            assert admin.post(target_path + "/judge").status_code == 429
+            with app.state.session_factory() as session:
+                job = session.get(JudgeRequestRecord, (target, item["id"]))
+                assert job.attempts == 0
+                job.ready_at = 0
+                session.commit()
+            assert len(calls) == 1
+        finally:
+            release.set()
+        assert future.result(timeout=8).json()["status"] == "graded"
+    asyncio.run(application_judge.run_sdk_request(app.state, target, item["id"]))
+    assert len(calls) == 2
+    assert admin.get(target_path).json()["grades"][0]["value"] is True
+
+
+def test_concurrent_requests_share_last_daily_call(judge, monkeypatch):
+    from autoeval_api.models import JudgeRequestRecord
+    from autoeval_api.services import application_feed as feed_service
+    from autoeval_api.services.application_judge import run_sdk_request
+
+    admin, sdk, app, app_id, path, trace, calls, install = judge
+    profiles = app.state.settings.judge_profiles
+    profiles[app_id] = profiles[app_id].model_copy(
+        update={"allow_sdk_requests": True, "daily_call_limit": 1}
+    )
+    now = (feed_service.now_ms() // 86_400_000 + 1) * 86_400_000
+    monkeypatch.setattr(feed_service, "now_ms", lambda: now)
+    started, release = Event(), Event()
+
+    def answer():
+        started.set()
+        assert release.wait(8)
+        return '{"grade":true}'
+
+    install(answer)
+    item = {**trace, "id": str(uuid4()), "llmJudge": True}
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        future = pool.submit(admin.post, path + "/judge")
+        try:
+            assert started.wait(8)
+            assert sdk.post("/v2/traces", json=item).json()["judgeRequest"] == "accepted"
+            with app.state.session_factory() as session:
+                job = session.get(JudgeRequestRecord, (app_id, item["id"]))
+                assert job.attempts == 0 and job.ready_at == now + 86_400_000
+        finally:
+            release.set()
+        assert future.result(timeout=8).json()["status"] == "graded"
+    assert len(calls) == 1
+    now += 86_400_000
+    asyncio.run(run_sdk_request(app.state, app_id, item["id"]))
     assert len(calls) == 2

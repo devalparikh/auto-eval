@@ -75,7 +75,7 @@ class LMStudioInferenceProvider:
         if len(request_body) > self.settings.lm_studio_max_request_bytes:
             raise RuntimeError("LM Studio request exceeded the configured size limit")
 
-        headers = {"Content-Type": "application/json"}
+        headers = {"Content-Type": "application/json", "Content-Length": str(len(request_body))}
         if self.settings.lm_studio_api_token is not None:
             token = self.settings.lm_studio_api_token.get_secret_value()
             if token:
@@ -93,11 +93,12 @@ class LMStudioInferenceProvider:
                     trust_env=False,
                     transport=self.transport,
                 ) as client,
+                request.http_body(request_body) as authorized_body,
                 client.stream(
                     "POST",
                     f"{self.settings.lm_studio_base_url}/chat/completions",
                     headers=headers,
-                    content=request_body,
+                    content=authorized_body,
                 ) as response,
             ):
                 response_body = await self._read_bounded_response(response)

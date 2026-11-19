@@ -58,8 +58,8 @@ def denied(status=401):
     raise HTTPException(status, "Request not authorized")
 
 
-def increment_rate_window(session, identity, window):
-    now = time.time()
+def increment_rate_window(session, identity, window, *, now=None):
+    now = time.time() if now is None else now
     key = digest(f"{identity}:{int(now // window)}")
     session.execute(delete(HostedRateRecord).where(HostedRateRecord.expires < now))
     insert = pg_insert if session.bind.dialect.name == "postgresql" else sqlite_insert
