@@ -17,6 +17,7 @@ from autoeval_api.models import (
     ApplicationRecord,
     FeedObjectRecord,
     JudgeLeaseRecord,
+    JudgeRequestRecord,
 )
 from autoeval_api.services import application_contract as contract
 from autoeval_api.services.hosted_auth import denied, digest, key_active
@@ -64,13 +65,18 @@ def lock_sqlite(session):
         session.execute(text("BEGIN IMMEDIATE"))
 
 
-def resource(session, principal, app_id, *, write=False, content=False):
+def lock_application(session, app_id):
     lock_sqlite(session)
     app = session.scalar(
         select(ApplicationRecord).where(ApplicationRecord.id == app_id).with_for_update()
     )
     if not app:
         raise HTTPException(404, "Application not found")
+    return app
+
+
+def resource(session, principal, app_id, *, write=False, content=False):
+    app = lock_application(session, app_id)
     if principal.get("role") != "admin" and (
         write or content or app_id not in principal.get("resources", [])
     ):
@@ -342,6 +348,17 @@ def revoke_grant(session, app, id):
     if not row:
         row = immutable(session, app.id, "grant2", id, {}, revoked=True)
     row.revoked = True
+    bound_traces = select(FeedObjectRecord.id).where(
+        FeedObjectRecord.application_id == app.id,
+        FeedObjectRecord.kind == "trace2",
+        FeedObjectRecord.grant_id == id,
+    )
+    session.execute(
+        delete(JudgeRequestRecord).where(
+            JudgeRequestRecord.application_id == app.id,
+            JudgeRequestRecord.trace_id.in_(bound_traces),
+        )
+    )
     session.execute(
         delete(FeedObjectRecord).where(
             FeedObjectRecord.application_id == app.id,
@@ -464,7 +481,7 @@ def replay_observation(prior, value):
     return {"id": prior.id, "coverage": public["coverage"]}
 
 
-def ingest(session, app, body):
+def ingest(session, app, body, *, judge_profile_id=None, judge_grade_version=None):
     config = settings(session, app)
     check_source(config, body.source)
     if not 0 <= body.endedAt - body.startedAt <= 86400000 or body.endedAt > now_ms() + 60000:
@@ -503,6 +520,8 @@ def ingest(session, app, body):
     if not set(body.coverage) <= allowed_coverage:
         raise HTTPException(400, "Invalid coverage")
     value = body.model_dump(exclude={"content"})
+    if not body.llmJudge:
+        value.pop("llmJudge")  # Keep pre-opt-in trace replay semantics.
     if body.gradeDefinition is None:
         value.pop("gradeDefinition")  # Preserve receipts from pre-grade clients.
     coverage = value["coverage"]
@@ -555,13 +574,26 @@ def ingest(session, app, body):
     if receipt and not prior:
         raise HTTPException(410, "Observation expired or erased")
     if prior:
-        return replay_observation(prior, value)
+        result = replay_observation(prior, value)
+        if receipt and "judgeRequest" in receipt.body:
+            result["judgeRequest"] = receipt.body["judgeRequest"]
+        return result
+    acknowledgement = {}
+    if body.llmJudge:
+        definition = body.gradeDefinition or contract.GradeDefinition()
+        if not judge_profile_id:
+            status = "disabled"
+        elif definition.kind != "boolean" or definition.version != judge_grade_version:
+            status = "unsupported_grade"
+        else:
+            status = "accepted"
+        acknowledgement["judgeRequest"] = status
     immutable(
         session,
         app.id,
         "receipt2",
         body.id,
-        {"startedAt": body.startedAt, "kind": "trace2"},
+        {"startedAt": body.startedAt, "kind": "trace2", **acknowledgement},
         expires=content_expires,
     )
     immutable(
@@ -584,7 +616,16 @@ def ingest(session, app, body):
             grant_id=body.grantId,
             parent_id=body.id,
         )
-    return {"id": body.id, "coverage": coverage}
+    if acknowledgement.get("judgeRequest") == "accepted":
+        session.add(
+            JudgeRequestRecord(
+                application_id=app.id,
+                trace_id=body.id,
+                profile_id=judge_profile_id,
+                ready_at=now_ms(),
+            )
+        )
+    return {"id": body.id, "coverage": coverage, **acknowledgement}
 
 
 def outcome(session, app, body):
@@ -925,6 +966,7 @@ def assess(session, app, trace_id, principal, body):
 
 
 def erase_content(session, app):
+    session.execute(delete(JudgeRequestRecord).where(JudgeRequestRecord.application_id == app.id))
     for receipt in session.scalars(
         select(FeedObjectRecord).where(
             FeedObjectRecord.application_id == app.id, FeedObjectRecord.kind == "receipt2"

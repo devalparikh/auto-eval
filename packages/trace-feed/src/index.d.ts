@@ -76,6 +76,7 @@ export type Result<R extends TraceReference = Reference> =
       reference?: R;
       id?: string;
       coverage: Coverage;
+      judgeRequest?: "accepted" | "disabled" | "unsupported_grade";
     }
   | { status: "revoked" }
   | {
@@ -172,11 +173,11 @@ export interface TraceClient {
   }): Promise<Result<TraceReference>>;
   readonly enabled: boolean;
   readonly reason: string | null;
-  begin(input?: Omit<NonNullable<Parameters<Capture["begin"]>[0]>, "consent">): Run<TraceReference>;
+  begin(input?: Omit<NonNullable<Parameters<Capture["begin"]>[0]>, "consent"> & { llmJudge?: boolean }): Run<TraceReference>;
   outcome(input: Omit<Parameters<Capture["outcome"]>[0], "consent" | "reference"> & {
     reference: TraceReference;
   }): Promise<Result<TraceReference>>;
 }
-export function createTraceClient(options?: EnvironmentOptions & { grade?: GradeDefinition }): TraceClient;
+export function createTraceClient(options?: EnvironmentOptions & { grade?: GradeDefinition; llmJudge?: boolean }): TraceClient;
 /** SHA-256 of a reviewed static artifact; hashes locally and does not send its contents. */
 export function artifactHash(value: string): string;

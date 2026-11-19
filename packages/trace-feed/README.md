@@ -1,6 +1,6 @@
 # AutoEval SDK
 
-Server-only capture for apps that own their model and tool calls. Requires a backend with app-directed capture for the new entry point. Candidate `0.3.0-private.1`, licensed under [MIT](LICENSE).
+Server-only capture for apps that own their model and tool calls. Requires a backend with app-directed capture for the new entry point. Candidate `0.4.0-private.1`, licensed under [MIT](LICENSE).
 No dependency on an agent framework, background exporter or
 provider. Node.js 22.22.1 or later.
 
@@ -69,6 +69,24 @@ Omit the call to leave the trace Ungraded. For a summary-only trace,
 feedback, pass `occurredAt` in Unix milliseconds. For a retryable job, reuse its
 UUID as `id`. A later decision appends a revision. The Grade column shows the
 latest event by occurrence time. Open it to see history, with 25 decisions per page. Reusing an event ID leaves its original private reason or JSON content untouched, including after erasure.
+
+### Request a hosted LLM grade
+
+Use the same capture options as above. The instance admin enables SDK requests
+for this app and chooses the model, rubric, and evidence fields.
+
+```ts
+const capture = createTraceClient({ ...captureOptions, llmJudge: true });
+const run = capture.begin(); // requests judging when end() sends the trace
+const receipt = await run.end({ content: { conversation: redactedConversation } });
+```
+
+The flag defaults to false. Use `begin({ llmJudge: true })` for just one trace
+or `begin({ llmJudge: false })` to override the client default. An accepted trace
+can report `judgeRequest` as `accepted`, `disabled`, or `unsupported_grade`.
+AutoEval queues accepted requests and returns before inference finishes. The
+boolean grade appears later in the Grade column. Missing evidence or an abstention
+leaves it Ungraded. Deploy the matching backend before enabling the SDK option.
 
 Other applications can set `grade` when calling `createTraceClient`:
 

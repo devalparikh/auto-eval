@@ -3863,6 +3863,11 @@
             "title": "Id",
             "type": "string"
           },
+          "llmJudge": {
+            "default": false,
+            "title": "Llmjudge",
+            "type": "boolean"
+          },
           "metrics": {
             "maxProperties": 32,
             "patternProperties": {

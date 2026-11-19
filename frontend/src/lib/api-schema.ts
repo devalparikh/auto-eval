@@ -2735,6 +2735,11 @@ export interface components {
             grantId?: string | null;
             /** Id */
             id: string;
+            /**
+             * Llmjudge
+             * @default false
+             */
+            llmJudge: boolean;
             /** Metrics */
             metrics?: {
                 [key: string]: unknown;

@@ -230,6 +230,7 @@ class JudgeProfile(Strict):
     # Capture field name -> approved content category for outbound inference.
     evidence: dict[Label, Category] = Field(min_length=1, max_length=16)
     grade_version: int = Field(default=1, ge=1, le=1000000)
+    allow_sdk_requests: bool = False
     daily_call_limit: int = Field(default=20, ge=1, le=1000)
 
 
@@ -244,6 +245,7 @@ class Observation(Strict):
     experimentId: Hash
     policyVersion: Hash
     gradeDefinition: GradeDefinition | None = None
+    llmJudge: bool = False
     grantId: Id | None = None  # Legacy grant-bound SDK clients.
     source: Source
     caseId: Hash | None = None

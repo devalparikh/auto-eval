@@ -165,3 +165,81 @@ def test_inflight_judge_rechecks_at_save(judge, during_call):
     assert result.json()["status"] == expected
     assert len(calls) == 1
     assert all(grade["source"] == "client" for grade in admin.get(path).json()["grades"])
+
+
+def test_sdk_flag_requests_one_server_grade_and_replay_keeps_receipt(judge):
+    admin, sdk, app, app_id, path, trace, calls, _ = judge
+    profiles = app.state.settings.judge_profiles
+    flagged = {**trace, "id": str(uuid4()), "llmJudge": True}
+    assert sdk.post("/v2/traces", json=flagged).json()["judgeRequest"] == "disabled"
+    profiles[app_id] = profiles[app_id].model_copy(update={"allow_sdk_requests": True})
+    assert sdk.post("/v2/traces", json=flagged).json()["judgeRequest"] == "disabled"
+    assert "judgeRequest" not in sdk.post("/v2/traces", json={**trace, "llmJudge": False}).json()
+    numeric = {**flagged, "id": str(uuid4()), "gradeDefinition": {"kind": "number"}}
+    assert sdk.post("/v2/traces", json=numeric).json()["judgeRequest"] == "unsupported_grade"
+    assert not calls
+
+    flagged["id"] = str(uuid4())
+    for _ in range(2):
+        response = sdk.post("/v2/traces", json=flagged)
+        assert response.status_code == 201
+        assert response.json()["judgeRequest"] == "accepted"
+    assert len(calls) == 1
+    (grade,) = admin.get(path.replace(trace["id"], flagged["id"])).json()["grades"]
+    assert grade["source"] == "judge" and grade["value"] is False
+    assert sdk.post("/v2/traces", json={**flagged, "llmJudge": False}).status_code == 409
+
+
+@pytest.mark.parametrize("changed_profile", [False, True])
+def test_sdk_worker_recovers_a_stored_request_and_checks_approval(
+    judge, monkeypatch, changed_profile
+):
+    from autoeval_api.api.routes import applications
+    from autoeval_api.models import JudgeRequestRecord
+
+    _, sdk, app, app_id, _, trace, calls, _ = judge
+    profiles = app.state.settings.judge_profiles
+    profiles[app_id] = profiles[app_id].model_copy(update={"allow_sdk_requests": True})
+
+    async def interrupted(*args):
+        pass
+
+    dispatch = applications.dispatch_after_capture
+    monkeypatch.setattr(applications, "dispatch_after_capture", interrupted)
+    item = {**trace, "id": str(uuid4()), "llmJudge": True}
+    assert sdk.post("/v2/traces", json=item).json()["judgeRequest"] == "accepted"
+    assert not calls
+    with app.state.session_factory() as session:
+        job = session.get(JudgeRequestRecord, (app_id, item["id"]))
+        assert job.attempts == 0
+    if changed_profile:
+        profiles[app_id] = profiles[app_id].model_copy(update={"rubric": "Different rule"})
+    monkeypatch.setattr(applications, "dispatch_after_capture", dispatch)
+    assert sdk.post("/v2/traces", json={**trace, "id": str(uuid4())}).status_code == 201
+    assert len(calls) == (0 if changed_profile else 1)
+    with app.state.session_factory() as session:
+        assert session.get(JudgeRequestRecord, (app_id, item["id"])) is None
+
+
+def test_sdk_transient_failure_recovers_once_after_backoff(judge):
+    from autoeval_api.models import JudgeRequestRecord
+
+    admin, sdk, app, app_id, path, trace, calls, install = judge
+    profiles = app.state.settings.judge_profiles
+    profiles[app_id] = profiles[app_id].model_copy(update={"allow_sdk_requests": True})
+    item = {**trace, "id": str(uuid4()), "llmJudge": True}
+    install(lambda: '{"grade":"invalid"}')
+    for _ in range(2):
+        assert sdk.post("/v2/traces", json=item).json()["judgeRequest"] == "accepted"
+    assert len(calls) == 1
+    with app.state.session_factory() as session:
+        job = session.get(JudgeRequestRecord, (app_id, item["id"]))
+        assert job.attempts == 1
+        job.ready_at = 0
+        session.commit()
+
+    install(lambda: '{"grade":true}')
+    assert sdk.post("/v2/traces", json={**trace, "id": str(uuid4())}).status_code == 201
+    (grade,) = admin.get(path.replace(trace["id"], item["id"])).json()["grades"]
+    assert grade["source"] == "judge" and grade["value"] is True
+    assert len(calls) == 2

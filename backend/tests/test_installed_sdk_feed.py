@@ -1,5 +1,6 @@
 """A packed, offline-installed SDK exercises the real v2 backend over loopback."""
 
+import asyncio
 import json
 import os
 import socket
@@ -15,7 +16,10 @@ from sqlalchemy import create_engine
 from autoeval_api.app import create_application
 from autoeval_api.config import Settings
 from autoeval_api.db import build_session_factory
+from autoeval_api.inference.openrouter import OpenRouterInferenceProvider
+from autoeval_api.inference.registry import InferenceProviderRegistry
 from autoeval_api.migration_cli import upgrade
+from autoeval_api.services.application_contract import JudgeProfile
 
 
 def test_installed_sdk_capture_versions_outcomes_and_withdrawal(tmp_path):
@@ -84,6 +88,29 @@ def test_installed_sdk_capture_versions_outcomes_and_withdrawal(tmp_path):
             )
             assert created.status_code == 201
             app_id, token = created.json()["id"], created.json()["key"]["token"]
+            # Hold inference open until the Node process receives its receipt and exits.
+            release_judge = threading.Event()
+
+            async def provider_response(request):
+                assert await asyncio.to_thread(release_judge.wait, 15)
+                return httpx.Response(
+                    200, json={"choices": [{"message": {"content": '{"grade":true}'}}]}
+                )
+
+            app.state.settings.openrouter_api_key = "synthetic-key"
+            app.state.settings.judge_profiles[app_id] = JudgeProfile(
+                model="openrouter/openai/gpt-5-mini",
+                rubric="Does the reply answer the question?",
+                evidence={"message": "conversation"},
+                allow_sdk_requests=True,
+            )
+            app.state.provider_registry = InferenceProviderRegistry(
+                [
+                    OpenRouterInferenceProvider(
+                        app.state.settings, httpx.MockTransport(provider_response)
+                    )
+                ]
+            )
             script = tmp_path / "consumer.mjs"
             script.write_text("""
 import assert from 'node:assert/strict';
@@ -133,7 +160,12 @@ const wrongType = {...decision,id:randomUUID(),value:"wrong type"};
 assert.equal((await appClient.grade(wrongType)).status,'skipped');
 assert.equal((await appClient.outcome({reference:appRun.reference,name:'proposal_decision',
 attributes:{decision:'dismissed'}})).status,'accepted');
-process.stdout.write(JSON.stringify({reference:run.reference,grantId:consent.id,
+const flagged = appClient.begin({llmJudge:true});
+const receipt = await flagged.end({content:{message:'Synthetic judge evidence'}});
+assert.equal(receipt.status,'accepted');
+assert.equal(receipt.judgeRequest,'accepted');
+process.stdout.write(JSON.stringify({judgeTraceId:flagged.reference.traceId,
+reference:run.reference,grantId:consent.id,
 appTraceId:appRun.reference.traceId}));
 """)
             output = subprocess.run(
@@ -151,10 +183,20 @@ appTraceId:appRun.reference.traceId}));
                 text=True,
             )
             # Never include process output/environment in assertion failures.
+            release_judge.set()
             assert output.returncode == 0, "Installed SDK consumer failed"
             result = json.loads(output.stdout)
             base = f"/api/applications/{app_id}"
-            assert len(client.get(base + "/traces").json()) == 3
+            assert len(client.get(base + "/traces").json()) == 4
+            deadline = time.monotonic() + 5
+            while time.monotonic() < deadline:
+                grades = client.get(base + "/traces/" + result["judgeTraceId"]).json()["grades"]
+                if grades:
+                    break
+                time.sleep(0.02)
+            assert (
+                len(grades) == 1 and grades[0]["source"] == "judge" and grades[0]["value"] is True
+            )
             detail = client.get(
                 base + "/traces/" + result["reference"]["traceId"] + "/content"
             ).json()
@@ -167,9 +209,10 @@ appTraceId:appRun.reference.traceId}));
                 "/v2/grants/" + result["grantId"], headers={"authorization": "Bearer " + token}
             )
             assert response.status_code == 200
-            assert [row["id"] for row in client.get(base + "/traces").json()] == [
-                result["appTraceId"]
-            ]
+            assert {row["id"] for row in client.get(base + "/traces").json()} == {
+                result["appTraceId"],
+                result["judgeTraceId"],
+            }
             detail = client.get(base + "/traces/" + result["appTraceId"] + "/content").json()
             assert detail["content"][result["appTraceId"]]["message"] == "App-selected example"
             assert detail["outcomes"][0]["attributes"]["decision"] == "dismissed"
@@ -177,7 +220,14 @@ appTraceId:appRun.reference.traceId}));
             grade = detail["grades"][0]
             assert grade["value"] is False
             assert detail["content"]["grade-" + grade["id"]]["reason"] == "Wrong workout"
-            assert client.get(base + "/traces").json()[0]["grade"] == grade
+            assert (
+                next(
+                    row
+                    for row in client.get(base + "/traces").json()
+                    if row["id"] == result["appTraceId"]
+                )["grade"]
+                == grade
+            )
     finally:
         server.should_exit = True
         thread.join(5)

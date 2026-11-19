@@ -514,3 +514,30 @@ test("app-directed grades need no metric declarations and pin a custom shape on 
   assert.equal((await client.grade({ traceId, id, value: values, occurredAt: 1234 })).status, "accepted");
   assert.equal((await client.grade({ traceId, value: NaN })).reason, "invalid_input");
 });
+
+test("LLM judging is opt-in per client or per trace", async (t) => {
+  const { calls } = receiver(t, (url, init, body) => {
+    if (url.endsWith("/traces") && body.llmJudge)
+      return Response.json({ id: body.id, coverage: {}, judgeRequest: "accepted" });
+  });
+  const settings = {
+    env: {
+      AUTOEVAL_ENABLED: "true", AUTOEVAL_ENDPOINT: options().endpoint,
+      AUTOEVAL_INGEST_KEY: TOKEN, AUTOEVAL_SOURCE: "production",
+    },
+    experiment: experiment(),
+  };
+  const manual = createTraceClient(settings);
+  const automatic = createTraceClient({ ...settings, llmJudge: true });
+  for (const [client, input, expected] of [
+    [manual, {}, false], [manual, { llmJudge: true }, true],
+    [automatic, {}, true], [automatic, { llmJudge: false }, false],
+  ]) {
+    const result = await client.begin(input).end();
+    assert.equal(result.status, "accepted");
+    assert.equal(result.judgeRequest, expected ? "accepted" : undefined);
+    assert.equal(calls.at(-1).body.llmJudge, expected ? true : undefined);
+  }
+  assert.equal(createTraceClient({ ...settings, llmJudge: "true" }).enabled, false);
+  assert.equal((await automatic.begin({ llmJudge: null }).end()).reason, "invalid_input");
+});

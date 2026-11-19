@@ -39,6 +39,7 @@ from autoeval_api.inference.registry import (
     default_provider_registry,
 )
 from autoeval_api.market_data import default_runtime_input_registry
+from autoeval_api.services.application_judge import recover_sdk_requests
 from autoeval_api.services.custom_models import CustomModelService
 from autoeval_api.services.evaluations import EvaluationService
 from autoeval_api.services.scoring import ScoringRegistry, default_scoring_registry
@@ -135,7 +136,7 @@ def create_application(
             logging.getLogger(__name__).warning("Trace retention failed; retrying in one hour")
 
     @asynccontextmanager
-    async def lifespan(_: FastAPI) -> AsyncIterator[None]:
+    async def lifespan(application: FastAPI) -> AsyncIterator[None]:
         if initialize_database and not settings.production:
             schema_engine = resolved_engine
             if schema_engine is None:
@@ -167,9 +168,18 @@ def create_application(
         if first_pass_inline:
             await expire_traces_logged()
         retention_task = asyncio.create_task(maintain_trace_retention(first_pass_inline))
+        judge_task = (
+            asyncio.create_task(recover_sdk_requests(application.state))
+            if settings.judge_profiles
+            else None
+        )
         try:
             yield
         finally:
+            if judge_task is not None:
+                judge_task.cancel()
+                with suppress(asyncio.CancelledError):
+                    await judge_task
             retention_task.cancel()
             with suppress(asyncio.CancelledError):
                 await retention_task

@@ -190,7 +190,7 @@ An instance admin can ask a configured model to grade a retained trace. For exam
 Lifty can leave a reply **Ungraded** and an operator can grade it later using its
 captured conversation. Lifty's own pass/fail rule still runs in Lifty.
 
-1. Apply schema migration 22 with the usual runtime-role grants. Put
+1. Apply schema migration 23 with the usual runtime-role grants. Put
    `OPENROUTER_API_KEY` in the backend environment, or use an enabled local LM Studio model.
 2. Set `AUTOEVAL_JUDGE_PROFILES` on the backend. Replace the example ID with
    Lifty's application ID. Each `evidence` entry maps a captured field name to
@@ -203,6 +203,7 @@ captured conversation. Lifty's own pass/fail rule still runs in Lifty.
        "rubric": "Pass if the reply answers the customer's request. Abstain if the conversation is incomplete.",
        "evidence": { "conversation": "conversation" },
        "grade_version": 1,
+       "allow_sdk_requests": true,
        "daily_call_limit": 20
      }
    }
@@ -223,8 +224,26 @@ captured conversation. Lifty's own pass/fail rule still runs in Lifty.
 - Each dispatched attempt counts toward the app's UTC daily call limit, including
   timeouts and invalid output. A concurrent request for the same trace returns
   HTTP 409. The default provider timeout for this action is 60 seconds.
-- This endpoint grades one trace on demand. SDK-triggered judging and batch
-  scheduling are planned.
+### Let the SDK request a grade
+
+`createTraceClient({ ...captureOptions, llmJudge: true })` requests grading when
+each trace is sent. Use `begin({ llmJudge: false })` to skip a trace, or enable
+the flag on just one `begin` call. The flag defaults to off. The instance admin
+must set `allow_sdk_requests: true` on the application's judge profile.
+
+Ingest commits the trace and its judge request together. The SDK gets a capture
+receipt immediately. For flagged traces, `judgeRequest` reports `accepted`,
+`disabled`, or `unsupported_grade`. Duplicate capture returns the original
+receipt. Only the instance sends the permitted evidence to the provider.
+
+AutoEval starts the job after sending the response. While the API is running,
+its recovery loop picks up interrupted jobs and retries temporary failures up to
+three total attempts. Each provider call consumes the app's daily allowance.
+Each subsequent capture can also recover one pending request for the same app,
+including on hosts that suspend idle workers. The worker checks the pinned
+profile, current permissions, trace lifetime and existing grade before saving.
+A worker skips pending work if its current profile has changed or SDK judging
+is disabled. Batch selection is planned.
 
 ## SDK and administration
 
