@@ -449,6 +449,19 @@ def consent_for(session, app, id, source):
     return consent
 
 
+def replay_observation(prior, value):
+    # Legacy receipts hashed private content. Compare the retained operational
+    # fields directly for every generation, without consulting that digest.
+    def operational(fields):
+        coverage = {k: v for k, v in fields["coverage"].items() if not k.startswith("content.")}
+        return {**fields, "coverage": coverage}
+
+    public = operational(prior.body)
+    if canonical(public) != canonical(operational(value)):
+        raise HTTPException(409, "Immutable record conflict")
+    return {"id": prior.id, "coverage": public["coverage"]}
+
+
 def ingest(session, app, body):
     config = settings(session, app)
     check_source(config, body.source)
@@ -535,22 +548,18 @@ def ingest(session, app, body):
     if content_expires and content_expires <= now_ms():
         coverage.update({"content." + name: "retention_expired" for name in content})
         content = {}
-    request_digest = fingerprint("receipt", {"trace": value, "content": content})
     receipt = session.get(FeedObjectRecord, (app.id, "receipt2", body.id))
     prior = session.get(FeedObjectRecord, (app.id, "trace2", body.id))
     if receipt and not prior:
         raise HTTPException(410, "Observation expired or erased")
     if prior:
-        if prior.request_digest != request_digest:
-            raise HTTPException(409, "Immutable record conflict")
-        return {"id": body.id, "coverage": prior.body["coverage"]}
+        return replay_observation(prior, value)
     immutable(
         session,
         app.id,
         "receipt2",
         body.id,
         {"startedAt": body.startedAt, "kind": "trace2"},
-        request_digest=request_digest,
         expires=content_expires,
     )
     immutable(
@@ -561,7 +570,6 @@ def ingest(session, app, body):
         value,
         expires=expires,
         grant_id=body.grantId,
-        request_digest=request_digest,
     )
     if content and (not content_expires or content_expires > now_ms()):
         immutable(
@@ -605,21 +613,17 @@ def outcome(session, app, body):
         coverage.update({"content." + name: "retention_expired" for name in content})
         content = {}
     value = {**body.model_dump(exclude={"content"}), "coverage": coverage}
-    request_digest = fingerprint("receipt", {"event": value, "content": content})
     prior = session.get(FeedObjectRecord, (app.id, "outcome2", body.id))
     if session.get(FeedObjectRecord, (app.id, "receipt2", body.id)) and not prior:
         raise HTTPException(410, "Observation expired or erased")
     if prior:
-        if prior.request_digest != request_digest:
-            raise HTTPException(409, "Immutable record conflict")
-        return {"id": prior.id, "coverage": prior.body["coverage"]}
+        return replay_observation(prior, value)
     immutable(
         session,
         app.id,
         "receipt2",
         body.id,
         {"startedAt": trace.body["startedAt"], "kind": "outcome2"},
-        request_digest=request_digest,
         expires=content_expires,
     )
     immutable(
@@ -631,7 +635,6 @@ def outcome(session, app, body):
         grant_id=trace.grant_id,
         parent_id=trace.id,
         expires=trace.expires,
-        request_digest=request_digest,
     )
     if content:
         immutable(
