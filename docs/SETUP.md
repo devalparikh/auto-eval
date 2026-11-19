@@ -35,7 +35,7 @@ yet. Keep instance release pins null until publication is separately approved.
    grants schema usage, DML and backend-only RLS policies; migration tables are
    SELECT-only. The role must not be superuser or bypass RLS. Runtime must not own
    tables or have DDL privileges. Never supply migration credentials to the app.
-5. Migration version 20 supports fresh PostgreSQL baselining and subsequent ordered
+5. The migration CLI supports fresh PostgreSQL baselining and subsequent ordered
    upgrades under a PostgreSQL advisory transaction lock. SQLite retains its legacy
    upgrade path. Migration entrypoint source digests are persisted/checked; reviewed
    release hashes cover helper/source bytes. Legacy SQLite versions are first
@@ -58,7 +58,9 @@ yet. Keep instance release pins null until publication is separately approved.
    policy/experiment versions. Use the [SDK guide](../packages/trace-feed/README.md) for app-directed capture.
 9. Verify synthetic sign-in, forbidden direct access, scoped capture/dashboard,
    key rotation/expiry, content permissions and retention. The client app selects the runs it sends. Keys never enter
-   `NEXT_PUBLIC_*`, browser code, console snippets or logs. The domain app owns inference.
+   `NEXT_PUBLIC_*`, browser code, console snippets or logs. The domain app runs its
+   agent. For optional server-side grading, see
+   [Grade one trace with an LLM](hosted-client-contract.md#grade-one-trace-with-an-llm).
 
 Local development remains `make setup`, `make dev`, bound to loopback. No hosted
 credentials or production observations are needed for `make verify`.

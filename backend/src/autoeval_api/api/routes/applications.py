@@ -8,6 +8,7 @@ from sqlalchemy import select
 from autoeval_api.models import ApplicationKeyRecord, ApplicationRecord
 from autoeval_api.services import application_contract as contract
 from autoeval_api.services import application_feed as feed
+from autoeval_api.services.application_judge import judge_trace
 from autoeval_api.services.hosted_auth import rate_limit
 
 router = APIRouter(tags=["application feed"])
@@ -167,6 +168,21 @@ def assess(
         result = feed.assess(session, app, trace_id, principal(request), body)
         session.commit()
         return result
+
+
+@router.post("/api/applications/{app_id}/traces/{trace_id}/judge")
+async def judge(
+    app_id: contract.Id, trace_id: contract.Id, request: Request
+) -> contract.JudgeResult:
+    state = request.app.state
+    return await judge_trace(
+        state.session_factory,
+        principal(request),
+        app_id,
+        trace_id,
+        state.settings.judge_profiles,
+        state.provider_registry,
+    )
 
 
 @router.get("/api/applications/{app_id}/policies")

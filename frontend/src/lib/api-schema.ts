@@ -329,6 +329,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/applications/{app_id}/traces/{trace_id}/judge": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Judge */
+        post: operations["judge_api_applications__app_id__traces__trace_id__judge_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/artifacts/{artifact_kind}/{artifact_id}": {
         parameters: {
             query?: never;
@@ -2314,6 +2331,16 @@ export interface components {
             kind: "local" | "github";
         };
         JsonValue: unknown;
+        /** JudgeResult */
+        JudgeResult: {
+            /** Gradeid */
+            gradeId?: string | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "graded" | "already_graded" | "insufficient_evidence";
+        };
         /** KeyInput */
         KeyInput: {
             /** Expiresat */
@@ -4272,6 +4299,38 @@ export interface operations {
                     "application/json": {
                         [key: string]: unknown;
                     };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    judge_api_applications__app_id__traces__trace_id__judge_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                app_id: string;
+                trace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JudgeResult"];
                 };
             };
             /** @description Validation Error */

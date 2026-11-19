@@ -1232,6 +1232,19 @@ def _apply_version_twenty_one(connection) -> None:
         )
 
 
+def _apply_version_twenty_two(connection) -> None:
+    from autoeval_api.models import JudgeLeaseRecord
+
+    JudgeLeaseRecord.__table__.create(connection, checkfirst=True)
+    if connection.dialect.name == "postgresql":
+        connection.execute(text("ALTER TABLE feed_judge_leases ENABLE ROW LEVEL SECURITY"))
+        connection.execute(text("REVOKE ALL ON feed_judge_leases FROM PUBLIC"))
+        roles = set(connection.execute(text("SELECT rolname FROM pg_roles")).scalars())
+        for role in ("anon", "authenticated"):
+            if role in roles:
+                connection.execute(text(f'REVOKE ALL ON feed_judge_leases FROM "{role}"'))
+
+
 # Ordered by version: index 0 is version 1, and a version is recorded as applied
 # only after its function returns. Append new migrations; never reorder or edit
 # one that has shipped.
@@ -1257,6 +1270,7 @@ MIGRATIONS: tuple[Migration, ...] = (
     _apply_version_nineteen,
     _apply_version_twenty,
     _apply_version_twenty_one,
+    _apply_version_twenty_two,
 )
 
 MIGRATION_VERSION = len(MIGRATIONS)

@@ -20,6 +20,7 @@ published release or evidence of a deployed instance. No cloud settings were cha
 | `AUTOEVAL_ALLOWED_HOSTS` | Explicit nonlocal backend host names, comma separated |
 | `AUTOEVAL_WEB_ORIGINS` | Exact HTTPS dashboard origin, comma separated |
 | `AUTOEVAL_TRACE_RETENTION_DAYS` | Existing workbench retention; capture retention is per application (Keep by default, or 1–3650 days) |
+| `AUTOEVAL_JUDGE_PROFILES` | Backend JSON mapping each enabled application ID to its judge configuration. Defaults to `{}`. |
 
 Example shape (synthetic identities only):
 
@@ -182,6 +183,48 @@ denominator. Production observations guide diagnosis and case authoring; they do
 not prove a causal improvement or automatically become finalized evaluation data.
 Human assessments append immutable ratings with a scorer/rubric digest. The portal's
 versioned rubric defaults every rating to unknown; it does not call a provider.
+
+## Grade one trace with an LLM
+
+An instance admin can ask a configured model to grade a retained trace. For example,
+Lifty can leave a reply **Ungraded** and an operator can grade it later using its
+captured conversation. Lifty's own pass/fail rule still runs in Lifty.
+
+1. Apply schema migration 22 with the usual runtime-role grants. Put
+   `OPENROUTER_API_KEY` in the backend environment, or use an enabled local LM Studio model.
+2. Set `AUTOEVAL_JUDGE_PROFILES` on the backend. Replace the example ID with
+   Lifty's application ID. Each `evidence` entry maps a captured field name to
+   the category the operator approves sending to that model.
+
+   ```json
+   {
+     "00000000-0000-4000-8000-000000000003": {
+       "model": "openrouter/openai/gpt-5-mini",
+       "rubric": "Pass if the reply answers the customer's request. Abstain if the conversation is incomplete.",
+       "evidence": { "conversation": "conversation" },
+       "grade_version": 1,
+       "daily_call_limit": 20
+     }
+   }
+   ```
+
+3. Using the admin session and allowed Origin, send
+   `POST /api/applications/{app_id}/traces/{trace_id}/judge` with an empty body.
+   A successful decision returns `{"status":"graded","gradeId":"…"}`. The usual
+   Grade column shows **Pass** or **Fail**. History records the judge as its source,
+   the configured model and the ID of the saved rubric and settings.
+
+- An existing grade returns `already_graded`. Missing evidence or a model
+  abstention returns `insufficient_evidence` and leaves the trace Ungraded.
+- The judge accepts the configured boolean grade version. It reads the approved
+  fields from retained trace content and enforces current content permissions.
+  A client grade arriving during inference takes precedence. Erasing the evidence
+  during inference prevents saving the verdict.
+- Each dispatched attempt counts toward the app's UTC daily call limit, including
+  timeouts and invalid output. A concurrent request for the same trace returns
+  HTTP 409. The default provider timeout for this action is 60 seconds.
+- This endpoint grades one trace on demand. SDK-triggered judging and batch
+  scheduling are planned.
 
 ## SDK and administration
 

@@ -16,6 +16,7 @@ from autoeval_api.models import (
     ApplicationKeyRecord,
     ApplicationRecord,
     FeedObjectRecord,
+    JudgeLeaseRecord,
 )
 from autoeval_api.services import application_contract as contract
 from autoeval_api.services.hosted_auth import denied, digest, key_active
@@ -352,6 +353,7 @@ def revoke_grant(session, app, id):
 
 
 def purge(session):
+    session.execute(delete(JudgeLeaseRecord).where(JudgeLeaseRecord.expires <= now_ms()))
     session.execute(
         delete(FeedObjectRecord).where(
             FeedObjectRecord.kind.in_(EVIDENCE),
@@ -676,7 +678,7 @@ def policy_categories(session, app_id, after=None):
     ]
 
 
-def grade_trace(session, app, trace_id, body, event_id):
+def grade_trace(session, app, trace_id, body, event_id, *, judge=None):
     trace = session.get(FeedObjectRecord, (app.id, "trace2", trace_id))
     if not alive(trace):
         raise HTTPException(410, "Trace unavailable")
@@ -753,7 +755,7 @@ def grade_trace(session, app, trace_id, body, event_id):
     if body.reason and can_store("conversation") and not PROHIBITED.search(body.reason):
         private["reason"] = body.reason
 
-    # key_resource holds the application write lock through commit.
+    # Both SDK and operator callers hold the application lock through commit.
     revision = (
         session.scalar(
             select(func.count())
@@ -776,10 +778,12 @@ def grade_trace(session, app, trace_id, body, event_id):
         "kind": kind,
         "version": definition.version,
         "definitionId": fingerprint("grade", definition_data),
-        "source": "client",
+        "source": "judge" if judge else "client",
         "occurredAt": occurred,
         "revision": revision,
     }
+    if judge:
+        decision["judge"] = judge
     if kind != "json":
         decision["value"] = value
     immutable(

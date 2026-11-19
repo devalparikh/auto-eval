@@ -550,6 +550,16 @@ class FeedObjectRecord(Base):
     request_digest: Mapped[str | None] = mapped_column(String(64))
 
 
+class JudgeLeaseRecord(Base):
+    __tablename__ = "feed_judge_leases"
+    application_id: Mapped[str] = mapped_column(
+        ForeignKey("feed_applications.id"), primary_key=True
+    )
+    trace_id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    attempt: Mapped[str] = mapped_column(String(36))
+    expires: Mapped[float] = mapped_column(Float, index=True)
+
+
 class MigrationChecksumRecord(Base):
     __tablename__ = "schema_migration_checksums"
     version: Mapped[int] = mapped_column(Integer, primary_key=True)
