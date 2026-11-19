@@ -178,7 +178,7 @@ export function ApplicationSettings({ appId }: { appId: string }) {
                     Allow production capture
                   </label>
                   <InfoTip label="Production capture details" align="start">
-                    Every capture still needs the user’s consent in the app.
+                    The client application decides which runs to send.
                   </InfoTip>
                   </div>
                   <div className={styles.row}>
@@ -230,7 +230,7 @@ export function ApplicationSettings({ appId }: { appId: string }) {
                     <InfoTip label="Category details" align="start">
                       The app’s first SDK policy turns on the categories it
                       declares. Categories added later stay off until enabled
-                      here. Users still consent to each one.
+                      here.
                       Shorter retention applies to existing evidence; longer
                       retention only to new evidence.
                     </InfoTip>

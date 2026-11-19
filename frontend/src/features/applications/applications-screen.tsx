@@ -813,8 +813,7 @@ function TracesHeading({
       >
         Recent traces
         <InfoTip label="Observation details" align="start">
-          The latest 100 unexpired observations. Withdrawn consent removes a
-          user’s observations.
+          The latest 100 unexpired observations sent by this application.
         </InfoTip>
       </h2>
       {summary ? (

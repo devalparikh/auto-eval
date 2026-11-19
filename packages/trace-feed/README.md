@@ -1,7 +1,6 @@
 # AutoEval SDK
 
-Server-only capture for apps that own their model and tool calls. Requires the
-capture-v2 backend. Version `0.2.0-private.2`, licensed under [MIT](LICENSE).
+Server-only capture for apps that own their model and tool calls. Requires a backend with app-directed capture for the new entry point. Candidate `0.3.0-private.1`, licensed under [MIT](LICENSE).
 No dependency on an agent framework, background exporter or
 provider. Node.js 22.22.1 or later.
 
@@ -10,10 +9,10 @@ its key in the app's backend environment. The SDK registers immutable policies a
 experiment fingerprints automatically; no console snippets or manual experiment
 IDs. Production capture defaults on, retention defaults to **Keep**, and the first
 policy establishes content permissions. Those are editable app settings. Later
-content categories require app permission and explicit user consent.
+content categories require enablement in instance settings. The client application decides which runs and fields to send.
 
 ```ts
-import { artifactHash, createCaptureFromEnv, type Policy } from '@devalparikh/autoeval';
+import { artifactHash, createTraceClient, type Policy } from '@devalparikh/autoeval';
 
 const policy = {
   schemaVersion: 2,
@@ -26,7 +25,7 @@ const policy = {
   content: { conversation: { category: 'conversation', valueSchema: { type: 'string', maxLength: 8000 } } },
 } satisfies Policy;
 
-const capture = createCaptureFromEnv({
+const capture = createTraceClient({
   policy,
   experiment: {
     revision: { kind: 'git-sha1', value: buildCommit },
@@ -38,9 +37,7 @@ const capture = createCaptureFromEnv({
   redactorVersion: artifactHash(reviewedRedactorSource),
 });
 
-// Resolve from the authenticated user's saved choice; default is undefined/off.
-// grantId is a random, durable UUID, never the user's ID or an ID hash.
-const run = capture.begin({ consent: savedConsent });
+const run = capture.begin();
 run.step({ id: 'read_1', kind: 'tool', name: 'read_records', status: 'ok', attributes: { rows: 3 } });
 // Persist run.reference with the app's saved reply for later outcomes.
 // Schedule AFTER the complete SSE/JSON response using the host lifecycle hook.
@@ -52,36 +49,47 @@ after(() => run.end({
 
 `begin` and `step` are local and synchronous. `end` is single-use and performs at
 most one attempt per operation, within one total deadline (default/max 2 seconds),
-including registration, grants and ingestion. Do not await it before sending the
+including registration and ingestion. Do not await it before sending the
 reply or before closing SSE. Use Next.js `after` or the host's supported request
 lifecycle extension; an untracked promise can be killed by serverless runtimes.
 Invalid configuration returns an inert capture object; network failures return a
 small status and never throw into the app. The SDK does not retry or queue traces.
 
-## Consent
+## Grade a trace
 
-Consent is app-owned, per user and **off by default**. There is no SDK environment
-allowlist or portal list of user identities. The app must load consent server-side
-after authenticating the caller; never trust a boolean from a request body.
+The SDK and portal both call it a **grade**. Save the trace ID with the agent’s
+reply. Once the trace has been accepted, Lifty can send a decision at any time:
 
 ```ts
-const savedConsent = {
-  granted: true,
-  id: opaqueGrantId,
-  categories: ['conversation', 'workout_records', 'body_scans'],
-  expiresAt: null,
-};
+await capture.grade({ traceId, value: false });
 ```
 
-Missing, false, expired or locally withdrawn consent produces no reference, steps,
-content projection or network requests. The instance independently requires an
-active grant. New consent categories require a new grant ID; immutable grants
-cannot be widened in place. Revoke the previous grant if the user withdraws or
-narrows consent. Revocation deletes its evidence and leaves a non-content
-tombstone. Store the user's disabled setting first, call
-`capture.withdraw({ grantId })`, and retain a durable pending-withdrawal record
-until `status: 'revoked'` is confirmed. An outage must not silently discard a
-privacy deletion. This reconciliation is app work, separate from trace retries.
+Omit the call to leave the trace Ungraded. For a summary-only trace,
+`createTraceClient({ experiment })` needs no policy or metric definitions. Boolean is the default. For delayed
+feedback, pass `occurredAt` in Unix milliseconds. For a retryable job, reuse its
+UUID as `id`. A later decision appends a revision. The Grade column shows the
+latest event by occurrence time. Open it to see history, with 25 decisions per page. Reusing an event ID leaves its original private reason or JSON content untouched, including after erasure.
+
+Other applications can set `grade` when calling `createTraceClient`:
+
+```ts
+grade: { kind: 'multi_select', choices: ['correct', 'concise'] }
+```
+
+Supported kinds are boolean, number, category, multi_select and json. JSON
+uses `contentField` to reference an existing content declaration. An optional
+`reason` is stored as diagnostic conversation content when permitted and
+within retention. An admin can load diagnostic content in the trace inspector.
+Change `version` when the business rule changes meaning, even if the type stays
+the same. Changing the shape changes its definition ID automatically.
+
+## Existing integrations
+
+Deploy the updated backend before switching clients. Older instances reject grant-free traces.
+New clients make no grant registration or withdrawal calls. The legacy
+`createCaptureFromEnv` and `createCapture` entry points retain their grant checks.
+Complete outstanding withdrawals and delayed outcomes for grant-bound records with
+the original integration. Existing Lifty deployments can migrate independently.
 
 ## Content and outcomes
 
@@ -97,9 +105,8 @@ stay `null`, including unreported cost. Operational step/outcome attributes allo
 only numbers, booleans, declared enum strings or null, not arbitrary text.
 
 ```ts
-// After a later apply/dismiss request succeeds, using its freshly loaded consent:
+// After a later apply/dismiss request succeeds, using the saved trace reference:
 after(() => capture.outcome({
-  consent: savedConsent,
   reference: savedReply.captureReference,
   id: durableEventId,
   name: 'proposal_decision',
@@ -132,7 +139,7 @@ Remove `AUTOEVAL_EXPERIMENT_ID`, `AUTOEVAL_GRANTS_KEY`,
 `/v1` ingestion or the `@devalparikh/autoeval/server` receiver. Existing local
 AutoEval development remains supported by the FastAPI backend.
 
-Connection and grant results are cached per process for one minute, with bounded
+Connection results are cached per process for one minute, with bounded
 maps and concurrent work. Ingest always enforces current settings and revocation.
 401 disables further sending for that SDK instance; deploy the replacement key and
 reinitialize. Explicit portal rotation can keep the old key valid until its chosen
@@ -160,10 +167,3 @@ Capture limits: up to 128 steps and 96 KiB of serialized step data, with
 summary inside the 256 KiB ingest limit. Lazy projection callbacks are app code:
 keep them synchronous and bounded, and do not perform I/O or arbitrary deep
 cloning inside them. The SDK's abort deadline cannot preempt a blocking app callback.
-
-Consent generation ownership: the app retains a ledger of every active grant for
-each user. Widening may keep older generations/history, but full withdrawal must
-revoke all of them. Narrowing conservatively revokes all prior generations and
-erases their evidence. A delayed outcome uses its reference's original grant,
-resolved under the authenticated user's current enabled/scoped choice; a new grant
-ID cannot be substituted for an older trace's grant.

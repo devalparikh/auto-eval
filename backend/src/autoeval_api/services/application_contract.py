@@ -12,7 +12,7 @@ Id = Annotated[
     str, Field(pattern=r"^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$")
 ]
 Timestamp = Annotated[int, Field(ge=0, le=9007199254740991)]
-# Apps name privacy categories; the instance and consent independently allow them.
+# Apps name privacy categories; instance settings govern storage, along with any legacy grant.
 Category = Label
 Source = Literal["synthetic", "production"]
 
@@ -199,12 +199,36 @@ class Step(Strict):
     attributes: dict[Label, object] = Field(default_factory=dict, max_length=16)
 
 
+class GradeDefinition(Strict):
+    kind: Literal["boolean", "number", "category", "multi_select", "json"] = "boolean"
+    version: int = Field(default=1, ge=1, le=1000000)
+    choices: list[Label] = Field(default_factory=list, max_length=32)
+    contentField: Label | None = None
+
+    @model_validator(mode="after")
+    def shape(self):
+        if (self.kind in {"category", "multi_select"}) != bool(self.choices):
+            raise ValueError("Only categorical grades declare choices")
+        if len(self.choices) != len(set(self.choices)):
+            raise ValueError("Choices must be unique")
+        if (self.kind == "json") != (self.contentField is not None):
+            raise ValueError("JSON grades require a declared content field")
+        return self
+
+
+class GradeInput(Strict):
+    value: object
+    reason: str | None = Field(default=None, max_length=500)
+    occurredAt: Timestamp | None = None
+
+
 class Observation(Strict):
     schemaVersion: Literal[2]
     id: Id
     experimentId: Hash
     policyVersion: Hash
-    grantId: Id
+    gradeDefinition: GradeDefinition | None = None
+    grantId: Id | None = None  # Legacy grant-bound SDK clients.
     source: Source
     caseId: Hash | None = None
     startedAt: Timestamp

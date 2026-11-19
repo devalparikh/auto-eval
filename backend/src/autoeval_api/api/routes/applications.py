@@ -1,6 +1,8 @@
 """Operator administration and the single app-scoped SDK capture boundary."""
 
-from fastapi import APIRouter, Request
+from typing import Annotated
+
+from fastapi import APIRouter, Header, Request
 from sqlalchemy import select
 
 from autoeval_api.models import ApplicationKeyRecord, ApplicationRecord
@@ -123,17 +125,27 @@ def dashboard(app_id: contract.Id, request: Request) -> list[dict]:
 
 
 @router.get("/api/applications/{app_id}/traces/{trace_id}")
-def detail(app_id: contract.Id, trace_id: contract.Id, request: Request) -> dict:
+def detail(
+    app_id: contract.Id,
+    trace_id: contract.Id,
+    request: Request,
+    before_grade: contract.Id | None = None,
+) -> dict:
     with request.app.state.session_factory() as session:
         app = feed.resource(session, principal(request), app_id)
-        return feed.detail(session, app, trace_id)
+        return feed.detail(session, app, trace_id, before_grade=before_grade)
 
 
 @router.get("/api/applications/{app_id}/traces/{trace_id}/content")
-def content(app_id: contract.Id, trace_id: contract.Id, request: Request) -> dict:
+def content(
+    app_id: contract.Id,
+    trace_id: contract.Id,
+    request: Request,
+    before_grade: contract.Id | None = None,
+) -> dict:
     with request.app.state.session_factory() as session:
         app = feed.resource(session, principal(request), app_id, content=True)
-        return feed.detail(session, app, trace_id, content=True)
+        return feed.detail(session, app, trace_id, content=True, before_grade=before_grade)
 
 
 @router.delete("/api/applications/{app_id}/content")
@@ -253,5 +265,20 @@ def outcome(body: contract.Outcome, request: Request) -> dict:
         app = feed.key_resource(session, user)
         feed.purge(session)
         result = feed.outcome(session, app, body)
+        session.commit()
+        return result
+
+
+@router.post("/v2/traces/{trace_id}/grades", status_code=201)
+def grade_trace(
+    trace_id: contract.Id,
+    body: contract.GradeInput,
+    request: Request,
+    idempotency_key: Annotated[contract.Id | None, Header()] = None,
+) -> dict:
+    user = key_principal(request)
+    with request.app.state.session_factory() as session:
+        app = feed.key_resource(session, user)
+        result = feed.grade_trace(session, app, trace_id, body, idempotency_key)
         session.commit()
         return result

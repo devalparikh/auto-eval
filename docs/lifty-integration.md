@@ -1,5 +1,18 @@
 # Lifty trainer integration
 
+## Integration target
+
+For the client grading workflow, see [Grading a trace](trace-scoring.html).
+Use the [app-directed SDK entry point](../packages/trace-feed/README.md) for
+new runs once the updated SDK and instance are deployed. Lifty owns its local
+privacy choices. Send the selected prompt, tool activity and reply, then use
+the saved reply reference for later feedback. Use the default boolean grade.
+Once the trace is accepted, call `autoeval.grade({ traceId, value: true })`
+for Pass or send `false` for Fail. Omit the call to leave the trace Ungraded. The detailed counters below
+describe the existing instrumentation and are optional for a new integration.
+
+## Existing grant-bound deployment
+
 This is the handoff for the deval-blog owner. It replaces the unmerged PR 41
 stopgap, examined at `b9a67753cade8f5291802467beec43b7322df4dd`, with trainer context
 from main `b2f9864`. No deval-blog files or instance settings are changed by this PR.

@@ -3,6 +3,7 @@
 import { formatDuration, shortId } from "@/lib/format";
 import {
   formatAgo,
+  gradeLabel,
   formatMetric,
   formatTimestamp,
   orderedChecks,
@@ -33,6 +34,7 @@ export function ObservationTable({
             <th>Trace</th>
             <th>Started</th>
             <th>Status</th>
+            <th>Grade</th>
             <th>Checks</th>
             <th>Metrics</th>
             <th>Source</th>
@@ -87,6 +89,35 @@ export function ObservationTable({
                     <span className={styles.pillDot} aria-hidden="true" />
                     {trace.status}
                   </span>
+                </td>
+                <td>
+                  {trace.grade ? (
+                    <button
+                      type="button"
+                      className={styles.traceButton}
+                      onClick={() => onOpen(trace.id)}
+                      title="Inspect grade history"
+                    >
+                      {Array.isArray(trace.grade.value) && trace.grade.value.length ? (
+                        <span className={styles.checkList}>
+                          {trace.grade.value.slice(0, 2).map(label => (
+                            <span className={styles.pill} key={label}>{label}</span>
+                          ))}
+                          {trace.grade.value.length > 2 && <span>+{trace.grade.value.length - 2}</span>}
+                        </span>
+                      ) : (
+                        <span className={styles.pill} data-tone={
+                          typeof trace.grade.value === "boolean"
+                            ? (trace.grade.value ? "success" : "danger")
+                            : undefined
+                        }>
+                          {gradeLabel(trace.grade)}
+                        </span>
+                      )}
+                    </button>
+                  ) : (
+                    <span className={styles.faint}>Ungraded</span>
+                  )}
                 </td>
                 <td>
                   {checks.length === 0 ? (

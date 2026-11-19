@@ -1,4 +1,7 @@
-# Capture v2 release and owner handoff
+# Grant-bound capture v2 release and owner handoff
+
+This handoff records the earlier release. For new integrations see the
+[app-directed SDK](../packages/trace-feed/README.md) and [hosted contract](hosted-client-contract.md).
 
 Implementation is prepared in three stack layers: backend, SDK, portal/docs.
 Nothing in these PRs merges, deploys, publishes a package or creates a release.

@@ -1,5 +1,6 @@
 import {
   createCaptureFromEnv,
+  createTraceClient,
   type Policy,
   type Consent,
   type Reference,
@@ -42,3 +43,9 @@ run.step({
 });
 // @ts-expect-error unknown check outcome stays null, not an arbitrary string
 await run.end({ checks: { passed: "unknown" } });
+
+const client = createTraceClient({ policy });
+const appRun = client.begin();
+if (appRun.reference) await client.outcome({ reference: appRun.reference, name: "applied" });
+// @ts-expect-error this client does not take a user grant
+client.begin({ consent });

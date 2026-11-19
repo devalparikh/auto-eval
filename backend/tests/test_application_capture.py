@@ -714,3 +714,186 @@ def test_category_discovery_pages_beyond_one_hundred_versions(feed):
     assert {f"scope_{index}" for index in range(101)} <= {
         category for item in [*first, *second] for category in item["categories"]
     }
+
+
+def test_late_grades_and_private_values(feed):
+    admin, sdk, _, base, _, grant, trace = feed
+
+    def record(definition):
+        payload = {**trace, "id": str(uuid4()), "gradeDefinition": definition}
+        assert sdk.post("/v2/traces", json=payload).status_code == 201
+        return payload["id"]
+
+    trace_id = record({"kind": "multi_select", "choices": ["late", "wrong"]})
+    assert admin.get(base + "/traces").json()[0]["grade"] is None
+    route = f"/v2/traces/{trace_id}/grades"
+    start = trace["startedAt"]
+    for labels, offset in [(["wrong"], 2), ([], 1)]:
+        assert (
+            sdk.post(route, json={"value": labels, "occurredAt": start + offset}).status_code == 201
+        )
+    assert sdk.post(route, json={"value": ["other"]}).status_code == 422
+    assert admin.get(base + "/traces").json()[0]["grade"]["value"] == ["wrong"]
+    assert [g["value"] for g in admin.get(base + "/traces/" + trace_id).json()["grades"]] == [
+        ["wrong"],
+        [],
+    ]
+
+    private_id = record({"kind": "json", "contentField": "scan"})
+    private_route = f"/v2/traces/{private_id}/grades"
+    response = sdk.post(private_route, json={"value": {"lean_mass": 50}})
+    assert response.status_code == 201
+    detail_path = base + "/traces/" + private_id
+    assert "lean_mass" not in admin.get(detail_path).text
+    assert "lean_mass" not in admin.get(base + "/traces").text
+    assert admin.get(detail_path + "/content").json()["content"]["grade-" + response.json()["id"]][
+        "value"
+    ] == {"lean_mass": 50}
+    assert sdk.delete("/v2/grants/" + grant["id"]).status_code == 200
+    assert sdk.post(private_route, json={"value": {"lean_mass": 50}}).status_code == 410
+
+
+@pytest.mark.parametrize("state", ["omitted", "expired", "erased"])
+def test_grade_receipt_ignores_private_inputs(feed, monkeypatch, state):
+    from autoeval_api.services import application_feed as service
+
+    admin, sdk, _, base, _, _, trace = feed
+    config = {"content_categories": ["conversation", "body_scans"], "content_retention_days": 1}
+    assert admin.put(base + "/settings", json=config).status_code == 200
+    if state == "omitted":
+        trace.pop("redactorVersion")
+        value = True
+    else:
+        trace["gradeDefinition"] = {"kind": "json", "contentField": "scan"}
+        value = {"lean_mass": 50}
+    assert sdk.post("/v2/traces", json=trace).status_code == 201
+    url = f"/v2/traces/{trace['id']}/grades"
+    headers = {"Idempotency-Key": str(uuid4())}
+    body = {"value": value, "reason": "original explanation"}
+    original = sdk.post(url, headers=headers, json=body)
+    assert original.status_code == 201
+    if state == "expired":
+        monkeypatch.setattr(service, "now_ms", lambda: trace["startedAt"] + 86400001)
+    elif state == "erased":
+        assert admin.delete(base + "/content").status_code == 200
+    for retry in (
+        body,
+        {"value": True if state == "omitted" else {"lean_mass": 60}, "reason": "different"},
+    ):
+        response = sdk.post(url, headers=headers, json=retry)
+        assert response.status_code == 201 and response.json() == original.json()
+    detail = admin.get(base + "/traces/" + trace["id"] + "/content").json()
+    assert "grade-" + original.json()["id"] not in detail["content"]
+    assert len(detail["grades"]) == 1
+
+
+def test_grade_quota_and_pages(feed, monkeypatch):
+    from autoeval_api.services import application_feed as service
+
+    admin, sdk, _, base, _, _, trace = feed
+    assert sdk.post("/v2/traces", json=trace).status_code == 201
+    monkeypatch.setattr(service, "FEED_RECORD_LIMIT", 3)
+    monkeypatch.setattr(service, "GRADE_PAGE_SIZE", 2)
+    url = f"/v2/traces/{trace['id']}/grades"
+    ids = []
+    for _ in range(3):
+        res = sdk.post(
+            url, json={"value": True, "reason": "Reviewed", "occurredAt": trace["endedAt"]}
+        )
+        assert res.status_code == 201
+        ids.append(res.json()["id"])
+    assert sdk.post(url, json={"value": True}).status_code == 429
+    detail = base + "/traces/" + trace["id"]
+    assert (
+        admin.post(
+            detail + "/assessments",
+            json={"id": str(uuid4()), "scorerHash": "a" * 64, "ratings": {"grounded": "pass"}},
+        ).status_code
+        == 201
+    )
+    page = admin.get(detail + "/content").json()
+    assert [item["id"] for item in page["grades"]] == [ids[2], ids[1]]
+    assert "grade-" + ids[0] not in page["content"]
+    cursor = {"before_grade": page["nextGrade"]}
+    older = admin.get(detail, params=cursor).json()
+    assert [item["id"] for item in older["grades"]] == ids[:1]
+    assert older["nextGrade"] is None and older["content"] == {}
+    assert list(admin.get(detail + "/content", params=cursor).json()["content"]) == [
+        "grade-" + ids[0]
+    ]
+
+
+@pytest.mark.parametrize("state", ["retained", "expired", "erased"])
+def test_trace_and_outcome_receipts_are_content_independent(feed, monkeypatch, state):
+    from autoeval_api.services import application_feed as service
+
+    admin, sdk, app, base, _, _, trace = feed
+    trace.pop("grantId")
+    assert (
+        admin.put(
+            base + "/settings",
+            json={
+                "retention_days": 10,
+                "content_retention_days": 1,
+                "content_categories": ["conversation"],
+            },
+        ).status_code
+        == 200
+    )
+    event = {
+        "schemaVersion": 2,
+        "id": str(uuid4()),
+        "traceId": trace["id"],
+        "policyVersion": trace["policyVersion"],
+        "occurredAt": trace["endedAt"],
+        "name": "proposal_decision",
+        "attributes": {"decision": "applied"},
+        "redactorVersion": "d" * 64,
+        "content": {"request": "Original event"},
+    }
+    inputs = [("/v2/traces", trace), ("/v2/outcomes", event)]
+    for path, payload in inputs:
+        assert sdk.post(path, json=payload).status_code == 201
+    app_id = base.rsplit("/", 1)[-1]
+    with app.state.session_factory() as session:
+        for kind, payload in [("trace2", trace), ("outcome2", event)]:
+            for stored_kind in (kind, "receipt2"):
+                assert (
+                    session.get(
+                        FeedObjectRecord, (app_id, stored_kind, payload["id"])
+                    ).request_digest
+                    is None
+                )
+    if state == "expired":
+        monkeypatch.setattr(service, "now_ms", lambda: trace["startedAt"] + 86400001)
+    elif state == "erased":
+        assert admin.delete(base + "/content").status_code == 200
+    for path, payload in inputs:
+        for content in (payload["content"], {"request": "Different"}, {}):
+            response = sdk.post(path, json={**payload, "content": content})
+            assert response.status_code == 201
+            assert response.json() == {"id": payload["id"], "coverage": {}}
+    assert sdk.post("/v2/traces", json={**trace, "status": "error"}).status_code == 409
+    assert (
+        sdk.post("/v2/outcomes", json={**event, "attributes": {"decision": "stale"}}).status_code
+        == 409
+    )
+    private = admin.get(base + "/traces/" + trace["id"] + "/content").json()["content"]
+    if state == "retained":
+        assert private[event["id"]] == event["content"]
+        assert private[trace["id"]]["request"] == trace["content"]["request"]
+    else:
+        assert private == {}
+
+
+def test_replay_ignores_legacy_diagnostic_digest():
+    from types import SimpleNamespace
+
+    from autoeval_api.services.application_feed import replay_observation
+
+    prior = SimpleNamespace(
+        id="old",
+        body={"id": "old", "coverage": {"content.request": "invalid_value"}},
+        request_digest="obsolete",
+    )
+    assert replay_observation(prior, {"id": "old", "coverage": {}}) == {"id": "old", "coverage": {}}
