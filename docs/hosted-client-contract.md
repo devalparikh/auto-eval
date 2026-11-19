@@ -195,6 +195,8 @@ captured conversation. Lifty's own pass/fail rule still runs in Lifty.
 2. Set `AUTOEVAL_JUDGE_PROFILES` on the backend. Replace the example ID with
    Lifty's application ID. Each `evidence` entry maps a captured field name to
    the category the operator approves sending to that model.
+   For OpenRouter judges, AutoEval requests `data_collection: deny`. Provider
+   retention terms still apply. The judge does not request zero-data-retention routing.
 
    ```json
    {
