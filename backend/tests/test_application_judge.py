@@ -246,16 +246,20 @@ def test_sdk_transient_failure_recovers_once_after_backoff(judge):
     assert len(calls) == 2
 
 
-@pytest.mark.parametrize("before_send", ["erase", "expire_lease"])
+@pytest.mark.parametrize("before_send", ["erase", "expire_content", "expire_lease"])
 @pytest.mark.parametrize("sdk_requested", [False, True])
 def test_dispatch_rechecks_before_any_provider_body(judge, monkeypatch, before_send, sdk_requested):
     from autoeval_api.inference.base import InferenceRequest
-    from autoeval_api.models import JudgeLeaseRecord
+    from autoeval_api.models import JudgeLeaseRecord, JudgeRequestRecord
+    from autoeval_api.services import application_feed as feed_service
+    from autoeval_api.services.application_judge import run_sdk_request
 
     admin, sdk, app, app_id, path, trace, calls, _ = judge
     trace_id = str(uuid4()) if sdk_requested else trace["id"]
     profiles = app.state.settings.judge_profiles
     profiles[app_id] = profiles[app_id].model_copy(update={"allow_sdk_requests": True})
+    now = feed_service.now_ms()
+    monkeypatch.setattr(feed_service, "now_ms", lambda: now)
     ready, proceed = Event(), Event()
     original = InferenceRequest.http_body
 
@@ -278,16 +282,40 @@ def test_dispatch_rechecks_before_any_provider_body(judge, monkeypatch, before_s
             assert ready.wait(8)
             if before_send == "erase":
                 assert admin.delete(path.split("/traces/")[0] + "/content").status_code == 200
+            elif before_send == "expire_content":
+                with app.state.session_factory() as session:
+                    session.get(FeedObjectRecord, (app_id, "content2", trace_id)).expires = now + 1
+                    session.commit()
+                now += 1
             else:
                 with app.state.session_factory() as session:
-                    session.get(JudgeLeaseRecord, (app_id, trace_id)).expires = 1
-                    session.commit()
+                    now = int(session.get(JudgeLeaseRecord, (app_id, trace_id)).expires)
         finally:
             proceed.set()
         result = future.result(timeout=8)
-    assert result.status_code in (200, 201, 410)
+    if sdk_requested:
+        assert result.status_code == 201 and result.json()["judgeRequest"] == "accepted"
+    elif before_send == "expire_lease":
+        assert result.status_code == 409
+    else:
+        assert result.status_code == 200 and result.json()["status"] == "insufficient_evidence"
     assert calls == []
-    assert admin.get(path.replace(trace["id"], trace_id)).json()["grades"] == []
+    trace_path = path.replace(trace["id"], trace_id)
+    assert admin.get(trace_path).json()["grades"] == []
+    if sdk_requested:
+        with app.state.session_factory() as session:
+            job = session.get(JudgeRequestRecord, (app_id, trace_id))
+            if before_send != "expire_lease":
+                assert job is None
+                return
+            assert job.attempts == 1 and job.ready_at > now
+            now = int(job.ready_at)
+        asyncio.run(run_sdk_request(app.state, app_id, trace_id))
+        assert len(calls) == 1
+        (grade,) = admin.get(trace_path).json()["grades"]
+        assert grade["source"] == "judge" and grade["value"] is False
+        with app.state.session_factory() as session:
+            assert session.get(JudgeRequestRecord, (app_id, trace_id)) is None
 
 
 def test_budget_limited_sdk_retry_survives_until_next_utc_window(judge, monkeypatch):

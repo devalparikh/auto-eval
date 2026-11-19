@@ -291,11 +291,13 @@ def _authorize_dispatch(factory, principal, app_id, trace_id, pending, profiles,
             raise DispatchSkipped(evidence)
         if evidence.fields != pending.evidence.fields:
             raise HTTPException(409, "Judge evidence changed")
-        deadline = min(lease.expires, evidence.expires or lease.expires)
-        remaining = (deadline - feed.now_ms()) / 1000
-        if remaining <= 0:
+        now = feed.now_ms()
+        if evidence.expires and evidence.expires <= now:
             raise HTTPException(410, "Judge authorization expired")
-        yield remaining
+        if lease.expires <= now:
+            raise HTTPException(409, "Judge attempt expired")
+        deadline = min(lease.expires, evidence.expires or lease.expires)
+        yield (deadline - now) / 1000
 
 
 def _run_judge(factory, principal, app_id, trace_id, profiles, registry, sdk_claim):
