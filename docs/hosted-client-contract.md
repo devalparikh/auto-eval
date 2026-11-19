@@ -84,7 +84,7 @@ is stored. The `application:connect` key can register that app's policies,
 experiments and consent grants, append traces/outcomes, withdraw grants and read
 its own policy declarations for delayed events. It cannot read diagnostic content,
 change settings, issue keys or reach workbench/provider/admin APIs. Browser-origin
-key use is rejected. The app owns the authenticated consent assertion.
+key use is rejected. The application decides which interactions to send.
 
 Expiration belongs to the key. Revocation is immediate; rotation optionally
 schedules a precise overlap deadline, capped by the old expiry (by 365 days for a
@@ -98,7 +98,7 @@ Production capture and retention belong to the **app**, never the key. New apps
 allow production and keep all evidence by default. The first successful SDK policy
 sets the initially allowed privacy/content categories. Schema changes are accepted
 and versioned automatically. Later category additions are omitted with
-`not_authorized` until enabled in app settings and included in user consent;
+`not_authorized` until enabled in app settings;
 unchanged fields continue. Changing retention before first registration does not
 prevent first-policy setup. Existing migrated apps retain their finite retention,
 with production disabled and legacy keys revoked; no privilege is silently widened.
@@ -110,9 +110,19 @@ it cannot extend existing deadlines or restore deleted content. Diagnostic conte
 can be erased independently of summaries, outcomes and assessments. Old trace IDs
 cannot receive replacement content after that erasure.
 
-## Consent, privacy and evidence
+## Application-directed capture
 
-Individual consent is resolved server-side by the app, **off by default**, and
+With `createTraceClient`, the application calls `begin()` for runs it chooses to
+record. No user grant is sent or registered. Ingest accepts an observation
+without `grantId`, enforces the app key and instance settings, and resolves
+later outcomes from the stored trace. Existing observations that carry a grant
+still require that grant to be active. Grant expiry and withdrawal continue to
+apply to their evidence. Deploy the updated backend before switching SDK entry
+points. See the [SDK example](../packages/trace-feed/README.md).
+
+### Compatibility with grant-bound clients
+
+For legacy capture, individual consent is resolved server-side by the app, **off by default**, and
 passed to `capture.begin({consent})`. `AUTOEVAL_CONSENTED_USER_IDS` and
 `AUTOEVAL_GRANTS_KEY` are removed. The same app key registers opaque consent grants;
 no user identifiers or user hashes are sent. Consent scopes are immutable and
@@ -120,6 +130,8 @@ independent of policy versions. Widening/narrowing the user's choice creates a n
 grant ID; revoke the previous one when withdrawing/narrowing. Revocation creates a
 tombstone even for unknown IDs and deletes associated evidence. The app keeps a
 durable pending withdrawal until the instance confirms it, including across outages.
+
+### Evidence and retention
 
 Apps declare exact data shapes. Metrics are finite numbers or null; checks are
 booleans or null; operational attributes are numbers, booleans or declared enums.
@@ -146,7 +158,7 @@ keys are limited to 120 requests/minute. These limits fail closed; monitor SDK
 status/coverage without logging payloads or secrets.
 
 
-Consent generation ownership: the app retains a ledger of every active grant for
+For legacy grant generations, the app retains a ledger of every active grant for
 each user. Widening may keep older generations/history, but full withdrawal must
 revoke all of them. Narrowing conservatively revokes all prior generations and
 erases their evidence. A delayed outcome uses its reference's original grant,

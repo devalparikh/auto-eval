@@ -88,7 +88,7 @@ def test_installed_sdk_capture_versions_outcomes_and_withdrawal(tmp_path):
             script.write_text("""
 import assert from 'node:assert/strict';
 import {randomUUID} from 'node:crypto';
-import {createCaptureFromEnv} from '@devalparikh/autoeval';
+import {createCaptureFromEnv,createTraceClient} from '@devalparikh/autoeval';
 const policy={schemaVersion:2,
 metrics:{latency_ms:{semanticId:'run.latency',definitionVersion:1,unit:'ms'}},
 checks:{valid:{semanticId:'reply.valid',definitionVersion:1,expected:true}},
@@ -118,7 +118,23 @@ checks:{valid:true}})).status,'accepted');
 assert.equal((await next.outcome({consent,reference:run.reference,
 name:'proposal_decision',
 attributes:{decision:'applied'}})).status,'accepted');
-process.stdout.write(JSON.stringify({reference:run.reference,grantId:consent.id}));
+const appClient=createTraceClient({policy,experiment,redactorVersion:'d'.repeat(64)});
+const appRun=appClient.begin();
+assert.ok(appRun.reference);
+assert.equal('grantId' in appRun.reference,false);
+assert.equal('withdraw' in appClient,false);
+assert.equal((await appRun.end({content:{message:'App-selected example'}})).status,'accepted');
+const eventId = randomUUID();
+const decision = {traceId:appRun.reference.traceId,value:false,id:eventId,reason:"Wrong workout"};
+assert.equal((await appClient.grade(decision)).status,'accepted');
+assert.equal((await appClient.grade(decision)).status,'accepted');
+assert.equal((await appClient.grade({...decision,value:true})).status,'skipped');
+const wrongType = {...decision,id:randomUUID(),value:"wrong type"};
+assert.equal((await appClient.grade(wrongType)).status,'skipped');
+assert.equal((await appClient.outcome({reference:appRun.reference,name:'proposal_decision',
+attributes:{decision:'dismissed'}})).status,'accepted');
+process.stdout.write(JSON.stringify({reference:run.reference,grantId:consent.id,
+appTraceId:appRun.reference.traceId}));
 """)
             output = subprocess.run(
                 ["node", str(script)],
@@ -138,7 +154,7 @@ process.stdout.write(JSON.stringify({reference:run.reference,grantId:consent.id}
             assert output.returncode == 0, "Installed SDK consumer failed"
             result = json.loads(output.stdout)
             base = f"/api/applications/{app_id}"
-            assert len(client.get(base + "/traces").json()) == 2
+            assert len(client.get(base + "/traces").json()) == 3
             detail = client.get(
                 base + "/traces/" + result["reference"]["traceId"] + "/content"
             ).json()
@@ -151,7 +167,17 @@ process.stdout.write(JSON.stringify({reference:run.reference,grantId:consent.id}
                 "/v2/grants/" + result["grantId"], headers={"authorization": "Bearer " + token}
             )
             assert response.status_code == 200
-            assert client.get(base + "/traces").json() == []
+            assert [row["id"] for row in client.get(base + "/traces").json()] == [
+                result["appTraceId"]
+            ]
+            detail = client.get(base + "/traces/" + result["appTraceId"] + "/content").json()
+            assert detail["content"][result["appTraceId"]]["message"] == "App-selected example"
+            assert detail["outcomes"][0]["attributes"]["decision"] == "dismissed"
+            assert len(detail["grades"]) == 1
+            grade = detail["grades"][0]
+            assert grade["value"] is False
+            assert detail["content"]["grade-" + grade["id"]]["reason"] == "Wrong workout"
+            assert client.get(base + "/traces").json()[0]["grade"] == grade
     finally:
         server.should_exit = True
         thread.join(5)

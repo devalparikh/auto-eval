@@ -407,9 +407,8 @@ def project_content(body, policy, config, consent):
         if field is None:
             raise HTTPException(400, "Undeclared content field")
         reason = None
-        if (
-            field["category"] not in config.content_categories
-            or field["category"] not in consent.body["categories"]
+        if field["category"] not in config.content_categories or (
+            consent is not None and field["category"] not in consent.body["categories"]
         ):
             reason = "not_authorized"
         elif not body.redactorVersion:
@@ -426,7 +425,7 @@ def project_content(body, policy, config, consent):
 
 
 def expiry(config, start, consent, *, content=False, parent=0):
-    limits = [value for value in (consent.expires, parent) if value]
+    limits = [value for value in (consent.expires if consent else 0, parent) if value]
     if config.retention_days is not None:
         limits.append(start + config.retention_days * 86400000)
     if content and config.content_retention_days is not None:
@@ -435,6 +434,8 @@ def expiry(config, start, consent, *, content=False, parent=0):
 
 
 def consent_for(session, app, id, source):
+    if id is None:
+        return None
     consent = session.get(FeedObjectRecord, (app.id, "grant2", id))
     if not alive(consent) or consent.body.get("source") != source:
         denied(403)
@@ -455,6 +456,12 @@ def ingest(session, app, body):
     ):
         raise HTTPException(409, "Matching experiment required")
     policy = session.get(FeedObjectRecord, (app.id, "policy2", body.policyVersion)).body
+    if (
+        body.gradeDefinition
+        and body.gradeDefinition.contentField
+        and body.gradeDefinition.contentField not in policy["content"]
+    ):
+        raise HTTPException(422, "Grade content field must be declared in the trace policy")
     dataset_hash = experiment.body["datasetHash"]
     if dataset_hash:
         dataset = session.get(FeedObjectRecord, (app.id, "dataset", dataset_hash))
@@ -474,6 +481,8 @@ def ingest(session, app, body):
     if not set(body.coverage) <= allowed_coverage:
         raise HTTPException(400, "Invalid coverage")
     value = body.model_dump(exclude={"content"})
+    if body.gradeDefinition is None:
+        value.pop("gradeDefinition")  # Preserve receipts from pre-grade clients.
     coverage = value["coverage"]
     for section in ("metrics", "checks"):
         for name, definition in policy[section].items():
@@ -544,7 +553,7 @@ def ingest(session, app, body):
         body.id,
         value,
         expires=expires,
-        grant_id=consent.id,
+        grant_id=body.grantId,
         request_digest=request_digest,
     )
     if content and (not content_expires or content_expires > now_ms()):
@@ -555,7 +564,7 @@ def ingest(session, app, body):
             body.id,
             content,
             expires=content_expires,
-            grant_id=consent.id,
+            grant_id=body.grantId,
             parent_id=body.id,
         )
     return {"id": body.id, "coverage": coverage}
@@ -612,7 +621,7 @@ def outcome(session, app, body):
         "outcome2",
         body.id,
         value,
-        grant_id=consent.id,
+        grant_id=trace.grant_id,
         parent_id=trace.id,
         expires=trace.expires,
         request_digest=request_digest,
@@ -624,7 +633,7 @@ def outcome(session, app, body):
             "content2",
             body.id,
             content,
-            grant_id=consent.id,
+            grant_id=trace.grant_id,
             parent_id=trace.id,
             expires=content_expires,
         )
@@ -657,8 +666,135 @@ def policy_categories(session, app_id, after=None):
     ]
 
 
+def grade_trace(session, app, trace_id, body, event_id):
+    trace = session.get(FeedObjectRecord, (app.id, "trace2", trace_id))
+    if not alive(trace):
+        raise HTTPException(410, "Trace unavailable")
+    config = settings(session, app)
+    check_source(config, trace.body["source"])
+    grant = consent_for(session, app, trace.grant_id, trace.body["source"])
+    definition = contract.GradeDefinition.model_validate(trace.body.get("gradeDefinition") or {})
+    kind, value = definition.kind, body.value
+    if kind == "boolean":
+        valid = type(value) is bool
+    elif kind == "number":
+        valid = type(value) in (int, float) and abs(value) <= 9007199254740991
+    elif kind == "category":
+        valid = value in definition.choices
+    elif kind == "multi_select":
+        valid = (
+            isinstance(value, list)
+            and len(value) <= len(definition.choices)
+            and all(item in definition.choices for item in value)
+            and len(value) == len(set(value))
+        )
+    else:
+        policy = session.get(FeedObjectRecord, (app.id, "policy2", trace.body["policyVersion"]))
+        field = policy.body["content"][definition.contentField]
+        valid = value is not None and valid_value(value, field["valueSchema"])
+    if not valid:
+        raise HTTPException(422, "Value does not match the trace grade definition")
+
+    try:
+        serialized = canonical(body.model_dump())
+        if len(serialized.encode()) > 16384:
+            raise HTTPException(413, "Grade too large")
+    except (ValueError, RecursionError, UnicodeError):
+        raise HTTPException(422, "Invalid grade JSON") from None
+    event_id = event_id or str(uuid4())
+    digest = fingerprint("grade-event", [trace_id, body.model_dump()])
+    record_id = "grade-" + event_id
+    prior = session.get(FeedObjectRecord, (app.id, "assessment2", record_id))
+    if prior:
+        if prior.request_digest != digest:
+            raise HTTPException(409, "Grade event conflict")
+        return {"id": event_id}
+
+    now = now_ms()
+    occurred = now if body.occurredAt is None else body.occurredAt
+    if not trace.body["startedAt"] <= occurred <= now + 60000:
+        raise HTTPException(422, "Grade time is outside the trace lifetime")
+    private = {}
+    receipt = session.get(FeedObjectRecord, (app.id, "receipt2", trace_id))
+    content_expiry = expiry(
+        config,
+        trace.body["startedAt"],
+        grant,
+        content=True,
+        parent=receipt.expires if receipt else trace.expires,
+    )
+
+    def can_store(category):
+        return (
+            trace.body.get("redactorVersion")
+            and category in config.content_categories
+            and (grant is None or category in grant.body["categories"])
+            and (not content_expiry or content_expiry > now)
+        )
+
+    if kind == "json":
+        if not can_store(field["category"]) or PROHIBITED.search(canonical(value)):
+            raise HTTPException(422, "Grade content unavailable")
+        private["value"] = value
+    if body.reason and can_store("conversation") and not PROHIBITED.search(body.reason):
+        private["reason"] = body.reason
+
+    # key_resource holds the application write lock through commit.
+    revision = (
+        session.scalar(
+            select(func.count())
+            .select_from(FeedObjectRecord)
+            .where(
+                FeedObjectRecord.application_id == app.id,
+                FeedObjectRecord.kind == "assessment2",
+                FeedObjectRecord.body["type"].as_string() == "grade",
+                FeedObjectRecord.parent_id == trace_id,
+            )
+        )
+        + 1
+    )
+    definition_data = definition.model_dump()
+    if kind == "json":
+        definition_data["field"] = field
+    decision = {
+        "type": "grade",
+        "id": event_id,
+        "kind": kind,
+        "version": definition.version,
+        "definitionId": fingerprint("grade", definition_data),
+        "source": "client",
+        "occurredAt": occurred,
+        "revision": revision,
+    }
+    if kind != "json":
+        decision["value"] = value
+    immutable(
+        session,
+        app.id,
+        "assessment2",
+        record_id,
+        decision,
+        parent_id=trace_id,
+        expires=trace.expires,
+        grant_id=trace.grant_id,
+        request_digest=digest,
+    )
+    if private:
+        immutable(
+            session,
+            app.id,
+            "content2",
+            record_id,
+            private,
+            parent_id=trace_id,
+            expires=content_expiry,
+            grant_id=trace.grant_id,
+        )
+    return {"id": event_id}
+
+
 def observations(session, app_id):
-    return [
+    traces = [
         row.body
         for row in session.scalars(
             select(FeedObjectRecord)
@@ -671,6 +807,36 @@ def observations(session, app_id):
             .limit(100)
         )
     ]
+
+    if not traces:
+        return []
+    ranked = (
+        select(
+            FeedObjectRecord.parent_id,
+            FeedObjectRecord.body,
+            func.row_number()
+            .over(
+                partition_by=FeedObjectRecord.parent_id,
+                order_by=(
+                    FeedObjectRecord.body["occurredAt"].as_float().desc(),
+                    FeedObjectRecord.body["revision"].as_integer().desc(),
+                ),
+            )
+            .label("rank"),
+        )
+        .where(
+            FeedObjectRecord.application_id == app_id,
+            FeedObjectRecord.kind == "assessment2",
+            FeedObjectRecord.body["type"].as_string() == "grade",
+            FeedObjectRecord.parent_id.in_([trace["id"] for trace in traces]),
+            active_clause(),
+        )
+        .subquery()
+    )
+    grades = dict(
+        session.execute(select(ranked.c.parent_id, ranked.c.body).where(ranked.c.rank == 1)).all()
+    )
+    return [{**trace, "grade": grades.get(trace["id"])} for trace in traces]
 
 
 def detail(session, app, trace_id, *, content=False):
@@ -686,8 +852,21 @@ def detail(session, app, trace_id, *, content=False):
     ).all()
     return {
         "trace": row.body,
+        "grades": sorted(
+            (
+                item.body
+                for item in children
+                if item.kind == "assessment2" and item.body.get("type") == "grade"
+            ),
+            key=lambda grade: (grade["occurredAt"], grade["revision"]),
+            reverse=True,
+        ),
         "outcomes": [item.body for item in children if item.kind == "outcome2"],
-        "assessments": [item.body for item in children if item.kind == "assessment2"],
+        "assessments": [
+            item.body
+            for item in children
+            if item.kind == "assessment2" and item.body.get("type") != "grade"
+        ],
         "content": {item.id: item.body for item in children if content and item.kind == "content2"},
     }
 

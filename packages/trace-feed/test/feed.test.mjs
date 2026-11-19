@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createHash, randomUUID } from "node:crypto";
-import { createCapture, artifactHash } from "../src/index.js";
+import { createCapture, createTraceClient, artifactHash } from "../src/index.js";
 
 const TOKEN = "ae_" + "synthetic".repeat(5);
 const canon = (value) =>
@@ -480,4 +480,37 @@ test("caller mutations cannot change the validated outcome or run metadata", asy
   assert.equal((await pending).status, "accepted");
   assert.equal(calls.at(-1).body.traceId, run.reference.traceId);
   assert.equal(calls.at(-1).body.attributes.decision, "applied");
+});
+
+test("app-directed grades need no metric declarations and pin a custom shape on the trace", async (t) => {
+  const { calls } = receiver(t);
+  const client = createTraceClient({
+    env: {
+      AUTOEVAL_ENABLED: "true",
+      AUTOEVAL_ENDPOINT: options().endpoint,
+      AUTOEVAL_INGEST_KEY: TOKEN,
+      AUTOEVAL_SOURCE: "production",
+    },
+    experiment: experiment(),
+    grade: { kind: "multi_select", choices: ["correct", "clear"] },
+  });
+  const trace = client.begin();
+  assert.equal((await trace.end()).status, "accepted");
+  const capture = calls.find(call => call.url.endsWith("/traces"));
+  assert.deepEqual(capture.body.gradeDefinition, {
+    kind: "multi_select", choices: ["correct", "clear"], version: 1,
+  });
+  assert.deepEqual(capture.body.metrics, {});
+  const id = randomUUID();
+  const traceId = trace.reference.traceId;
+  const values = ["correct", "clear"];
+  // The mock receiver echoes the event UUID supplied by the grade header.
+  t.mock.method(globalThis, "fetch", async (url, init) => {
+    assert.ok(url.endsWith("/traces/" + traceId + "/grades"));
+    assert.equal(init.headers["Idempotency-Key"], id);
+    assert.deepEqual(JSON.parse(init.body), { value: values, occurredAt: 1234 });
+    return Response.json({ id });
+  });
+  assert.equal((await client.grade({ traceId, id, value: values, occurredAt: 1234 })).status, "accepted");
+  assert.equal((await client.grade({ traceId, value: NaN })).reason, "invalid_input");
 });

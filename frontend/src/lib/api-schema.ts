@@ -1274,6 +1274,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v2/traces/{trace_id}/grades": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Grade Trace */
+        post: operations["grade_trace_v2_traces__trace_id__grades_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -2024,6 +2041,33 @@ export interface components {
             /** Runid */
             runId?: string | null;
         };
+        /** GradeDefinition */
+        GradeDefinition: {
+            /** Choices */
+            choices?: string[];
+            /** Contentfield */
+            contentField?: string | null;
+            /**
+             * Kind
+             * @default boolean
+             * @enum {string}
+             */
+            kind: "boolean" | "number" | "category" | "multi_select" | "json";
+            /**
+             * Version
+             * @default 1
+             */
+            version: number;
+        };
+        /** GradeInput */
+        GradeInput: {
+            /** Occurredat */
+            occurredAt?: number | null;
+            /** Reason */
+            reason?: string | null;
+            /** Value */
+            value: unknown;
+        };
         /** Grant */
         Grant: {
             /** Categories */
@@ -2659,8 +2703,9 @@ export interface components {
             endedAt: number;
             /** Experimentid */
             experimentId: string;
+            gradeDefinition?: components["schemas"]["GradeDefinition"] | null;
             /** Grantid */
-            grantId: string;
+            grantId?: string | null;
             /** Id */
             id: string;
             /** Metrics */
@@ -6060,6 +6105,45 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["Observation"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    grade_trace_v2_traces__trace_id__grades_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                trace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GradeInput"];
             };
         };
         responses: {

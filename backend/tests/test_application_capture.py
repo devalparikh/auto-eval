@@ -714,3 +714,40 @@ def test_category_discovery_pages_beyond_one_hundred_versions(feed):
     assert {f"scope_{index}" for index in range(101)} <= {
         category for item in [*first, *second] for category in item["categories"]
     }
+
+
+def test_late_grades_and_private_values(feed):
+    admin, sdk, _, base, _, grant, trace = feed
+
+    def record(definition):
+        payload = {**trace, "id": str(uuid4()), "gradeDefinition": definition}
+        assert sdk.post("/v2/traces", json=payload).status_code == 201
+        return payload["id"]
+
+    trace_id = record({"kind": "multi_select", "choices": ["late", "wrong"]})
+    assert admin.get(base + "/traces").json()[0]["grade"] is None
+    route = f"/v2/traces/{trace_id}/grades"
+    start = trace["startedAt"]
+    for labels, offset in [(["wrong"], 2), ([], 1)]:
+        assert (
+            sdk.post(route, json={"value": labels, "occurredAt": start + offset}).status_code == 201
+        )
+    assert sdk.post(route, json={"value": ["other"]}).status_code == 422
+    assert admin.get(base + "/traces").json()[0]["grade"]["value"] == ["wrong"]
+    assert [g["value"] for g in admin.get(base + "/traces/" + trace_id).json()["grades"]] == [
+        ["wrong"],
+        [],
+    ]
+
+    private_id = record({"kind": "json", "contentField": "scan"})
+    private_route = f"/v2/traces/{private_id}/grades"
+    response = sdk.post(private_route, json={"value": {"lean_mass": 50}})
+    assert response.status_code == 201
+    detail_path = base + "/traces/" + private_id
+    assert "lean_mass" not in admin.get(detail_path).text
+    assert "lean_mass" not in admin.get(base + "/traces").text
+    assert admin.get(detail_path + "/content").json()["content"]["grade-" + response.json()["id"]][
+        "value"
+    ] == {"lean_mass": 50}
+    assert sdk.delete("/v2/grants/" + grant["id"]).status_code == 200
+    assert sdk.post(private_route, json={"value": {"lean_mass": 50}}).status_code == 410

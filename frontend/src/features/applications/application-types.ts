@@ -19,6 +19,7 @@ export type AppKey = {
   revoked: boolean;
 };
 export type TraceDetail = {
+  grades?: import("./observation-feed").TraceGrade[];
   trace: Observation;
   outcomes: (components["schemas"]["Outcome"] & {
     coverage: Record<string, string>;

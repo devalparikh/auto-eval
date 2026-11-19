@@ -2012,6 +2012,91 @@
         "title": "Experiment",
         "type": "object"
       },
+      "GradeDefinition": {
+        "additionalProperties": false,
+        "properties": {
+          "choices": {
+            "items": {
+              "pattern": "^[a-z][a-z0-9_]{0,47}$",
+              "type": "string"
+            },
+            "maxItems": 32,
+            "title": "Choices",
+            "type": "array"
+          },
+          "contentField": {
+            "anyOf": [
+              {
+                "pattern": "^[a-z][a-z0-9_]{0,47}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Contentfield"
+          },
+          "kind": {
+            "default": "boolean",
+            "enum": [
+              "boolean",
+              "number",
+              "category",
+              "multi_select",
+              "json"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "version": {
+            "default": 1,
+            "maximum": 1000000.0,
+            "minimum": 1.0,
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "title": "GradeDefinition",
+        "type": "object"
+      },
+      "GradeInput": {
+        "additionalProperties": false,
+        "properties": {
+          "occurredAt": {
+            "anyOf": [
+              {
+                "maximum": 9007199254740991.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Occurredat"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "value": {
+            "title": "Value"
+          }
+        },
+        "required": [
+          "value"
+        ],
+        "title": "GradeInput",
+        "type": "object"
+      },
       "Grant": {
         "additionalProperties": false,
         "properties": {
@@ -3720,10 +3805,27 @@
             "title": "Experimentid",
             "type": "string"
           },
+          "gradeDefinition": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/GradeDefinition"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "grantId": {
-            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
-            "title": "Grantid",
-            "type": "string"
+            "anyOf": [
+              {
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Grantid"
           },
           "id": {
             "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
@@ -3798,7 +3900,6 @@
           "id",
           "experimentId",
           "policyVersion",
-          "grantId",
           "source",
           "startedAt",
           "endedAt",
@@ -9671,6 +9772,78 @@
           }
         },
         "summary": "Ingest",
+        "tags": [
+          "application feed"
+        ]
+      }
+    },
+    "/v2/traces/{trace_id}/grades": {
+      "post": {
+        "operationId": "grade_trace_v2_traces__trace_id__grades_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "trace_id",
+            "required": true,
+            "schema": {
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+              "title": "Trace Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GradeInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Grade Trace V2 Traces  Trace Id  Grades Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Grade Trace",
         "tags": [
           "application feed"
         ]

@@ -205,9 +205,10 @@ test("the trace row shows status, failed checks first, and readable metrics", as
   const row = (await screen.findByRole("button", { name: "t-1" })).closest("tr")!;
   const cells = within(row).getAllByRole("cell");
   expect(cells[2]).toHaveTextContent("error");
-  expect(cells[3].textContent).toMatch(/^✕ within_budget.*✓ reply_valid$/);
-  expect(cells[4]).toHaveTextContent("latency_ms2.00s");
-  expect(cells[4]).toHaveTextContent("cost_usd—");
+  expect(cells[3]).toHaveTextContent("Ungraded");
+  expect(cells[4].textContent).toMatch(/^✕ within_budget.*✓ reply_valid$/);
+  expect(cells[5]).toHaveTextContent("latency_ms2.00s");
+  expect(cells[5]).toHaveTextContent("cost_usd—");
 });
 
 test("a refused write says so and leaves writes available; a lost one locks until a read settles it", async () => {

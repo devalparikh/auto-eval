@@ -1,34 +1,32 @@
 # Application capture architecture
 
-The app owns inference, tools and authentication. AutoEval observes consented runs,
+The app owns inference, tools and authentication. AutoEval observes app-selected runs,
 stores immutable versions and supports review and controlled evaluations. It is not
 an inference proxy or a provider-credential gateway.
 
 ```text
-App: authenticated user → saved opt-in → SDK begin / steps → save reply + reference
+App: application chooses a run → SDK begin / steps → save reply + reference
                                                    ↓ after response, ≤2 s
-Instance: app key → policy + experiment + consent grant → trace and optional content
+Instance: app key → policy + experiment → trace and optional content
                                                    ↑ later linked outcomes
 Portal: name + key lifespan → key; settings and diagnostic review later
 ```
 
 The SDK hashes normalized policy and experiment declarations locally, producing a
-reference before network work. Its first send idempotently registers those versions
-and consent, then sends the observation within one total deadline. There are no
+reference before network work. Its first send idempotently registers those versions, then sends the observation within one total deadline. There are no
 capture retries, background exporter, manual experiment ID or console snippets.
 
 An app key has one app and expiration/revocation state. App settings independently
 control production (on initially), retention (Keep initially) and privacy categories
-(first policy accepted; later additions require enablement). Individual consent is
-app-owned and off by default. Schema evolution needs no admin reconfiguration when
-categories and consent already cover it. Missing permission omits affected fields.
+(first policy accepted; later additions require enablement). The application owns user choices. Schema evolution needs no admin reconfiguration when
+the instance already enables the categories. Missing permission omits affected fields.
 
 Observations contain finite numeric metrics, boolean checks, typed operational steps
 and optional redacted content. Every field has an explicit meaning. Delayed outcomes
 refer to the original policy and trace. Current SDKs can retrieve that policy without
 reading stored evidence. Admin-only content is stored separately from ordinary
 summaries and can be erased independently. Permanent non-content receipts prevent
-resurrection after expiry or deletion. Consent withdrawal deletes all its evidence.
+resurrection after expiry or deletion. For grant-bound legacy traces, withdrawal still deletes the associated evidence.
 
 Policy/experiment changes create new hashes. Compare shared semantic IDs only when
 definitions and units match. Never treat added, removed or unknown measurements as

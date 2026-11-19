@@ -53,10 +53,12 @@ export interface Consent {
   categories?: string[];
   expiresAt?: number | null;
 }
-export interface Reference {
+export interface TraceReference {
   traceId: string;
   policyVersion: string;
   experimentId: string;
+}
+export interface Reference extends TraceReference {
   grantId: string;
 }
 export type Coverage = Record<
@@ -68,10 +70,10 @@ export type Coverage = Record<
   | "size_limit"
   | "retention_expired"
 >;
-export type Result =
+export type Result<R extends TraceReference = Reference> =
   | {
       status: "accepted";
-      reference?: Reference;
+      reference?: R;
       id?: string;
       coverage: Coverage;
     }
@@ -102,8 +104,8 @@ export interface Step {
   attributes?: Record<string, Scalar>;
 }
 export type Content = Record<string, Value> | (() => Record<string, Value>);
-export interface Run {
-  readonly reference: Readonly<Reference> | null;
+export interface Run<R extends TraceReference = Reference> {
+  readonly reference: Readonly<R> | null;
   /** Synchronous, local, no I/O. Returns false for disabled, invalid or over-budget steps. */
   step(step: Step): boolean;
   /** Schedule through the host's after-response/waitUntil hook. Never await on the reply path. */
@@ -113,7 +115,7 @@ export interface Run {
     metrics?: Record<string, number | null>;
     checks?: Record<string, boolean | null>;
     content?: Content;
-  }): Promise<Result>;
+  }): Promise<Result<R>>;
 }
 export interface Capture {
   readonly enabled: boolean;
@@ -147,11 +149,34 @@ export interface Options {
   redactorVersion?: string | null;
 }
 export function createCapture(options?: Options): Capture;
-export function createCaptureFromEnv(options?: {
+export interface EnvironmentOptions {
   policy?: Policy;
   experiment?: Experiment;
   redactorVersion?: string | null;
   env?: Record<string, string | undefined>;
-}): Capture;
+}
+export function createCaptureFromEnv(options?: EnvironmentOptions): Capture;
+export type GradeDefinition = { version?: number } & (
+  | { kind: "boolean" | "number" }
+  | { kind: "category" | "multi_select"; choices: string[] }
+  | { kind: "json"; contentField: string }
+);
+export interface TraceClient {
+  grade(input: {
+    traceId: string;
+    value: Exclude<Value, null>;
+    reason?: string;
+    occurredAt?: number;
+    /** Stable event UUID for retries across processes. */
+    id?: string;
+  }): Promise<Result<TraceReference>>;
+  readonly enabled: boolean;
+  readonly reason: string | null;
+  begin(input?: Omit<NonNullable<Parameters<Capture["begin"]>[0]>, "consent">): Run<TraceReference>;
+  outcome(input: Omit<Parameters<Capture["outcome"]>[0], "consent" | "reference"> & {
+    reference: TraceReference;
+  }): Promise<Result<TraceReference>>;
+}
+export function createTraceClient(options?: EnvironmentOptions & { grade?: GradeDefinition }): TraceClient;
 /** SHA-256 of a reviewed static artifact; hashes locally and does not send its contents. */
 export function artifactHash(value: string): string;

@@ -132,6 +132,11 @@ test("synthetic application feed reaches dashboard and consent withdrawal remove
     },
   });
   expect(event.status()).toBe(201);
+  const grade = await request.post(`${api}/v2/traces/${id}/grades`, {
+    headers: { authorization: `Bearer ${ingest}` },
+    data: { value: false },
+  });
+  expect(grade.status()).toBe(201);
   await page.goto("/applications");
   await page
     .getByRole("combobox", { name: "Application", exact: true })
@@ -140,7 +145,8 @@ test("synthetic application feed reaches dashboard and consent withdrawal remove
   await expect(
     page.getByRole("cell", { name: "synthetic", exact: true }),
   ).toBeVisible();
-  await page.getByRole("button", { name: id, exact: true }).click();
+  await page.getByRole("button", { name: "Fail", exact: true }).click();
+  await expect(page.getByText("Grade history (1)")).toBeVisible();
   await expect(page.getByText("read_records", { exact: true })).toBeVisible();
   await expect(
     page.getByText("proposal_decision", { exact: true }),

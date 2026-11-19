@@ -84,7 +84,15 @@ initializer/receiver changes inherited from PR26. Re-run independent review at
 all new stack heads before merging. License and publication settings are unchanged.
 
 
-## Capture v2 integration disposition
+## App-directed capture update
+
+The new SDK entry point leaves the decision to record a run to the client app.
+An application key can submit a new trace without a grant ID. Instance production
+settings, content categories, redaction, retention and app-scoped authorization
+still apply. A supplied legacy grant is validated on ingest and on later outcomes.
+Earlier grants and their withdrawal semantics remain available for legacy records.
+
+## Original grant-bound capture v2 disposition
 
 The v2 SDK supersedes the earlier throwing initializer: missing/invalid configuration
 returns an inert client with a sanitized reason. Consent is app-owned and off by

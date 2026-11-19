@@ -55,11 +55,9 @@ yet. Keep instance release pins null until publication is separately approved.
    one app-scoped key into the app's backend environment. Production capture defaults
    on, retention defaults to Keep, and the first SDK policy establishes content
    permissions. Edit these later on the app settings page. The SDK auto-registers
-   policy/experiment versions. Individual consent remains app-owned and off by
-   default; see [Lifty integration](lifty-integration.md).
+   policy/experiment versions. Use the [SDK guide](../packages/trace-feed/README.md) for app-directed capture.
 9. Verify synthetic sign-in, forbidden direct access, scoped capture/dashboard,
-   key rotation/expiry, content permissions, consent withdrawal and retention.
-   Only authenticated users who opted in may be captured. Keys never enter
+   key rotation/expiry, content permissions and retention. The client app selects the runs it sends. Keys never enter
    `NEXT_PUBLIC_*`, browser code, console snippets or logs. The domain app owns inference.
 
 Local development remains `make setup`, `make dev`, bound to loopback. No hosted

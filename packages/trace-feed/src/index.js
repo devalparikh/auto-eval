@@ -33,6 +33,7 @@ const inactive = (reason) =>
     reason,
     begin: () => inactiveRun(reason),
     outcome: async () => skipped(reason),
+    grade: async () => skipped(reason),
     withdraw: async () => skipped(reason),
   });
 
@@ -54,15 +55,55 @@ function safeCoverage(value, policy) {
   return coverage;
 }
 
+function gradeDefinition(input, policy) {
+  if (input === undefined) return undefined;
+  object(input, ["kind", "version", "choices", "contentField"], ["kind"]);
+  const { kind, version = 1, choices, contentField } = input;
+  assert(["boolean", "number", "category", "multi_select", "json"].includes(kind));
+  assert(Number.isInteger(version) && version >= 1 && version <= 1000000);
+  if (kind === "category" || kind === "multi_select") {
+    assert(Array.isArray(choices) && choices.length > 0 && choices.length <= 32);
+    assert(choices.every(isLabel) && new Set(choices).size === choices.length);
+  } else assert(choices === undefined);
+  if (kind === "json") assert(isLabel(contentField) && Object.hasOwn(policy.content, contentField));
+  else assert(contentField === undefined);
+  return { kind, version, choices: choices?.slice(), contentField };
+}
+
+// Validate before stringifying so invalid numbers, undefined fields and cycles cannot
+// silently change meaning or expand without bound.
+function prepareGradeValue(value, budget = { nodes: 2048, bytes: 16384 }, depth = 0) {
+  assert(--budget.nodes >= 0 && depth <= 12);
+  if (typeof value === "string") {
+    assert(value.length <= budget.bytes && value.isWellFormed());
+    budget.bytes -= Buffer.byteLength(value);
+    assert(budget.bytes >= 0);
+    return redactIdentifiers(value);
+  }
+  if (value === null || typeof value === "boolean") return value;
+  if (typeof value === "number") {
+    assert(Number.isFinite(value) && Math.abs(value) <= Number.MAX_SAFE_INTEGER);
+    return value;
+  }
+  if (Array.isArray(value)) {
+    assert(value.length <= 128);
+    return Array.from(value, child => prepareGradeValue(child, budget, depth + 1));
+  }
+  const keys = Object.keys(value);
+  assert(keys.length <= 32 && keys.every(isLabel));
+  object(value, keys);
+  return Object.fromEntries(keys.map(key => [key, prepareGradeValue(value[key], budget, depth + 1)]));
+}
+
 /** No import-time I/O, global instrumentation, exporter, retries, or background queue. */
 export function createCapture(options = {}) {
   try {
-    return initialize(options);
+    return initialize(options, true);
   } catch {
     return inactive("invalid_config");
   }
 }
-function initialize(options) {
+function initialize(options, legacyGrants) {
   if (options.enabled !== true) return inactive("disabled");
   object(options, [
     "enabled",
@@ -73,6 +114,7 @@ function initialize(options) {
     "policy",
     "experiment",
     "redactorVersion",
+    ...(legacyGrants ? [] : ["grade"]),
   ]);
   assert(typeof window === "undefined");
   const url = new URL(options.endpoint),
@@ -106,6 +148,7 @@ function initialize(options) {
       origin,
     ),
     experimentId = fingerprint("experiment", experiment);
+  const definition = gradeDefinition(options.grade, policy);
   const redactorVersion = options.redactorVersion ?? null;
   assert(redactorVersion === null || isHash(redactorVersion));
   const declarations = {
@@ -130,6 +173,7 @@ function initialize(options) {
     map.set(key, value);
   }
   function permitted(grant) {
+    if (!legacyGrants) return true;
     return (
       grant &&
       !withdrawn.has(grant.id) &&
@@ -163,7 +207,7 @@ function initialize(options) {
       active--;
     }
   }
-  async function request(path, method, value, signal) {
+  async function request(path, method, value, signal, eventId) {
     assert(!signal.aborted);
     const body = value === undefined ? undefined : JSON.stringify(value);
     assert(body === undefined || Buffer.byteLength(body) <= MAX_BYTES);
@@ -175,6 +219,7 @@ function initialize(options) {
       credentials: "omit",
       headers: {
         authorization: `Bearer ${token}`,
+        ...(eventId ? { "Idempotency-Key": eventId } : {}),
         "content-type": "application/json",
       },
     });
@@ -251,7 +296,7 @@ function initialize(options) {
       !redactorVersion ||
       !fields.some(
         ([, field]) =>
-          grant.categories.includes(field.category) &&
+          (!grant || grant.categories.includes(field.category)) &&
           (!config || config.content_categories.includes(field.category)),
       )
     ) {
@@ -262,7 +307,7 @@ function initialize(options) {
       return { content: projected, coverage };
     }
     try {
-      // The lazy app projection runs only in end/outcome, after explicit consent.
+      // The lazy app projection runs only in end/outcome, after checking enabled categories.
       raw = typeof raw === "function" ? raw() : raw;
       object(raw, Object.keys(declaration.content));
       let size = 0;
@@ -270,7 +315,7 @@ function initialize(options) {
         const field = declaration.content[name];
         let reason;
         if (
-          !grant.categories.includes(field.category) ||
+          (grant && !grant.categories.includes(field.category)) ||
           (config && !config.content_categories.includes(field.category))
         )
           reason = "not_authorized";
@@ -298,7 +343,8 @@ function initialize(options) {
   function begin(input = {}) {
     try {
       object(input, ["consent", "id", "startedAt", "caseId"]);
-      const grant = consent(input.consent, origin);
+      if (!legacyGrants) assert(!Object.hasOwn(input, "consent"));
+      const grant = legacyGrants ? consent(input.consent, origin) : null;
       if (!permitted(grant)) return inactiveRun("no_consent");
       if (blocked) return inactiveRun("unauthorized");
       const id = input.id ?? randomUUID(),
@@ -310,7 +356,7 @@ function initialize(options) {
         traceId: id,
         policyVersion,
         experimentId,
-        grantId: grant.id,
+        ...(grant ? { grantId: grant.id } : {}),
       });
       const steps = [],
         ids = new Set();
@@ -455,7 +501,7 @@ function initialize(options) {
             if (!config) return skipped(blocked ? "unauthorized" : "rejected");
             if (origin === "production" && !config.production_enabled)
               return skipped("production_disabled");
-            if (!(await register(grant, signal))) return skipped("no_consent");
+            if (grant && !(await register(grant, signal))) return skipped("no_consent");
             if (!permitted(grant) || signal.aborted)
               return skipped("no_consent");
             const projection = contentProjection(
@@ -472,7 +518,8 @@ function initialize(options) {
                 id,
                 experimentId,
                 policyVersion,
-                grantId: grant.id,
+                ...(grant ? { grantId: grant.id } : {}),
+                ...(definition ? { gradeDefinition: definition } : {}),
                 source: origin,
                 caseId,
                 startedAt,
@@ -504,10 +551,29 @@ function initialize(options) {
       return inactiveRun("invalid_input");
     }
   }
+  async function grade(input) {
+    try {
+      object(input, ["traceId", "value", "reason", "occurredAt", "id"], ["traceId", "value"]);
+      const { traceId, reason, occurredAt, id = randomUUID() } = input;
+      assert(isId(traceId) && isId(id) && input.value !== null);
+      assert(occurredAt === undefined || timestamp(occurredAt));
+      assert(reason === undefined || (typeof reason === "string" && reason.length <= 500));
+      const body = { value: prepareGradeValue(input.value), occurredAt,
+        reason: reason === undefined ? undefined : redactIdentifiers(reason) };
+      return bounded(async signal => {
+        const result = await request("traces/" + traceId + "/grades", "POST", body, signal, id);
+        return result?.id === id ? { status: "accepted", id, coverage: {} }
+          : skipped(blocked ? "unauthorized" : "rejected");
+      });
+    } catch {
+      return skipped("invalid_input");
+    }
+  }
   return Object.freeze({
     enabled: true,
     reason: null,
     begin,
+    ...(!legacyGrants && { grade }),
     async outcome(input) {
       let grant;
       try {
@@ -522,20 +588,21 @@ function initialize(options) {
             "attributes",
             "content",
           ],
-          ["consent", "reference", "name"],
+          legacyGrants ? ["consent", "reference", "name"] : ["reference", "name"],
         );
-        grant = consent(input.consent, origin);
+        if (!legacyGrants) assert(!Object.hasOwn(input, "consent"));
+        grant = legacyGrants ? consent(input.consent, origin) : null;
         if (!permitted(grant)) return skipped("no_consent");
         const ref = input.reference;
         object(
           ref,
           ["traceId", "policyVersion", "experimentId", "grantId"],
-          ["traceId", "policyVersion", "grantId"],
+          ["traceId", "policyVersion"],
         );
         assert(
           isId(ref.traceId) &&
             isHash(ref.policyVersion) &&
-            ref.grantId === grant.id,
+            (grant ? ref.grantId === grant.id : !Object.hasOwn(ref, "grantId")),
         );
         const values = input.attributes ?? {};
         object(values, Object.keys(values));
@@ -584,12 +651,15 @@ function initialize(options) {
           declaration.outcomes[input.name],
         );
         if (!permitted(grant)) return skipped("no_consent");
-        // Ingest remains authoritative for current settings and the trace's original grant.
+        const config = legacyGrants ? null : await connect(signal);
+        if (!legacyGrants && !config) return skipped(blocked ? "unauthorized" : "rejected");
+        if (origin === "production" && config && !config.production_enabled)
+          return skipped("production_disabled");
         const projection = contentProjection(
           input.content,
           declaration,
           grant,
-          null,
+          config,
         );
         const response = await request(
           "outcomes",
@@ -651,10 +721,20 @@ function initialize(options) {
 }
 /** Explicit server-only initialization. Missing/invalid config disables without throwing. */
 export function createCaptureFromEnv(options = {}) {
+  return fromEnv(options, true);
+}
+
+/** The application decides which runs to send before calling begin(). */
+export function createTraceClient(options = {}) {
+  const { enabled, reason, begin, outcome, grade } = fromEnv(options, false);
+  return Object.freeze({ enabled, reason, begin, outcome, grade });
+}
+
+function fromEnv(options, legacyGrants) {
   try {
     const env = options.env ?? process.env;
     if (env.AUTOEVAL_ENABLED !== "true") return inactive("disabled");
-    return createCapture({
+    return initialize({
       enabled: true,
       endpoint: env.AUTOEVAL_ENDPOINT,
       token: env.AUTOEVAL_INGEST_KEY,
@@ -663,10 +743,11 @@ export function createCaptureFromEnv(options = {}) {
         env.AUTOEVAL_REQUEST_TIMEOUT_MS === undefined
           ? 2000
           : Number(env.AUTOEVAL_REQUEST_TIMEOUT_MS),
-      policy: options.policy,
+      policy: options.policy ?? (legacyGrants ? undefined : { schemaVersion: 2 }),
       experiment: options.experiment,
       redactorVersion: options.redactorVersion,
-    });
+      ...(legacyGrants ? {} : { grade: options.grade }),
+    }, legacyGrants);
   } catch {
     return inactive("invalid_config");
   }

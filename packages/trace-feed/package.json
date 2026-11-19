@@ -1,7 +1,7 @@
 {
   "name": "@devalparikh/autoeval",
-  "version": "0.2.0-private.2",
-  "description": "Server-only, consented agent capture with automatic versioning",
+  "version": "0.3.0-private.1",
+  "description": "Server-only, application trace capture with automatic versioning",
   "license": "MIT",
   "repository": {
     "type": "git",

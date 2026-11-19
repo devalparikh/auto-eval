@@ -1,10 +1,33 @@
 import { formatCost, formatDuration } from "@/lib/format";
 import type { AppKey } from "./application-types";
 
+export type TraceGrade = {
+  id: string;
+  revision: number;
+  version: number;
+  definitionId: string;
+  source: "client";
+  kind: "boolean" | "number" | "category" | "multi_select" | "json";
+  value?: boolean | number | string | string[];
+  occurredAt: number;
+};
+
+export function gradeLabel(grade?: TraceGrade | null) {
+  if (!grade) return "Ungraded";
+  if (grade.kind === "json") return "Structured JSON";
+  if (typeof grade.value === "boolean") return grade.value ? "Pass" : "Fail";
+  if (Array.isArray(grade.value)) {
+    if (!grade.value.length) return "None selected";
+    return grade.value.join(", ");
+  }
+  return String(grade.value);
+}
+
 /** One row of `GET /applications/{id}/traces`. Older rows may omit times. */
 export type FeedObservation = {
   id: string;
   experimentId: string;
+  grade?: TraceGrade | null;
   source: string;
   status: string;
   startedAt?: number;

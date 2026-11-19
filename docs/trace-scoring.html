@@ -1,0 +1,255 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Trace grading · AutoEval design proposal</title>
+<style>
+:root {
+  color-scheme: light dark;
+  --paper: var(--background, Canvas);
+  --ink: var(--foreground, CanvasText);
+  --dim: color-mix(in srgb, var(--ink) 86%, var(--paper));
+  --line: color-mix(in srgb, var(--ink) 51%, var(--paper));
+  --panel: color-mix(in srgb, var(--paper) 90%, var(--ink));
+  --green: color-mix(in srgb, var(--ink) 72%, #39ba79);
+  --red: color-mix(in srgb, var(--ink) 72%, #f25746);
+  --wash: color-mix(in srgb, var(--paper) 81%, #43aa75);
+  --fail-fill: color-mix(in srgb, var(--paper) 81%, #cb5c50);
+  --mono: var(--font-mono, ui-monospace, SFMono-Regular, Consolas, monospace);
+}
+*{box-sizing:border-box}body{margin:0;color:var(--ink);font:16px/1.52 var(--font-sans,"DM Sans",system-ui,sans-serif)}main{max-width:840px;margin:auto}header{padding:24px 0 14px}header small,.kicker,th,.eyeline{font:600 12px/1.5 var(--mono);text-transform:uppercase;letter-spacing:.09em;color:var(--dim)}header small{display:flex;justify-content:space-between;border-bottom:1px solid var(--line);padding-bottom:12px}h1{font-size:clamp(32px,6vw,47px);letter-spacing:-.055em;line-height:1.1;margin:25px 0 8px}h2{font-size:25px;letter-spacing:-.035em;line-height:1.2;margin:0 0 10px}h3{font-size:17px;margin:20px 0 6px}p{margin:6px 0 14px}header p{color:var(--dim);max-width:650px}nav{display:flex;gap:5px;flex-wrap:wrap;border-bottom:1px solid var(--line);margin-bottom:24px;padding-bottom:10px}button,select,summary{cursor:pointer;font:inherit;color:inherit}button,select{border:1px solid var(--line);border-radius:6px;padding:6px 11px;background:transparent;font-size:14px}nav button{border-color:transparent;font-weight:600}button[aria-pressed=true],nav button[aria-current=page]{color:var(--green);background:var(--wash);border-color:var(--line)}:focus-visible{outline:2px solid var(--green);outline-offset:3px}section{padding-bottom:16px}[hidden]{display:none!important}.surface,pre{background:var(--panel);border-radius:var(--radius,10px);padding:16px}figure{margin:18px 0}.controls{display:flex;align-items:center;flex-wrap:wrap;gap:8px}.controls label{font-size:14px;font-weight:650}.lanes{margin:18px 0 8px;display:grid;grid-template-columns:minmax(80px,1fr) minmax(88px,1fr) minmax(80px,1fr);align-items:center;gap:8px;text-align:center}.node{border:1px solid var(--line);padding:12px 4px;border-radius:6px}.node strong,.node small{display:block}.node small,small,.sub{font-size:13px;color:var(--dim)}.arrow{font:12px var(--mono);color:var(--green)}.arrow i{display:block;position:relative;height:1px;background:var(--green);margin-top:10px}.arrow i:after{content:"";position:absolute;right:0;top:-3px;border:solid var(--green);border-width:0 1px 1px 0;padding:3px;transform:rotate(-45deg)}figcaption{font-size:14px;margin-top:12px}table{width:100%;border-collapse:collapse;margin:12px 0}th,td{text-align:left;padding:9px 6px;border-bottom:1px solid var(--line);vertical-align:top}td{font-size:14px}td:first-child,th:first-child{padding-left:0}.good,.bad,.chip{display:inline-block;padding:2px 7px;border-radius:4px;font-size:13px;font-weight:650;margin:0 3px 2px 0}.good,.chip{color:var(--green);background:var(--wash)}.bad{color:var(--red);background:var(--fail-fill)}.trail{display:flex;flex-wrap:wrap;align-items:center;gap:7px}.trail button{font:13px var(--mono)}ul,ol{padding-left:22px;margin:8px 0 16px}li{margin:7px 0}code,pre{font-family:var(--mono);font-size:.88em}pre{overflow:auto;margin:8px 0 14px;line-height:1.55}summary{font-weight:600;font-size:14px;padding:8px 0}details{border-top:1px solid var(--line);margin-top:10px}a{color:var(--green);text-underline-offset:3px}.kicker{margin-bottom:5px}.sequence{padding-left:26px;border-left:1px solid var(--line);margin-left:8px}.sequence li{padding-left:3px}.sequence strong{color:var(--green)}footer{border-top:1px solid var(--line);padding:10px 0 20px}footer details{border:0;margin:0}body{padding:0 8px}@media(max-width:500px){.lanes{gap:5px}.surface{padding:12px}.node{font-size:14px}.node small{font-size:13px}nav{gap:2px}nav button{font-size:13px;padding:6px 8px}th,td{padding:7px 3px}.version td{font-size:13px}}@media print{nav,.controls{display:none}section[hidden]{display:block!important}section{break-before:page}details::details-content{display:contents}}
+button, select, option { color: var(--ink); background-color: var(--paper); }
+button[aria-pressed=true], nav button[aria-current=page] { border-color: var(--green); }
+.good, .chip, .bad { border: 1px solid currentColor; }
+pre, .surface { color: var(--ink); border: 1px solid var(--line); }
+code { color: inherit; }
+:focus-visible { outline-width: 3px; }
+</style>
+<style id="standalone-theme">
+  :root {
+    color-scheme: dark;
+    --paper: #101412;
+    --ink: #f4f7f5;
+    background-color: var(--paper);
+  }
+  body { background-color: var(--paper); }
+</style></head>
+<body><main><header><small><span>AutoEval / Application traces</span><span>Implementation &amp; design</span></small><h1>Grading a trace</h1><p>A trace records one interaction. Its grade helps you find examples worth turning into regression tests, benchmarks and training data.</p></header>
+<nav aria-label="Design sections"><button data-page="lifty">Lifty example</button><button data-page="display">Grade column</button><button data-page="contract">SDK &amp; API</button><button data-page="versions">Versioning</button><button data-page="reuse">Datasets &amp; training</button><button data-page="judge">Grading later</button></nav>
+
+<section id="lifty"><h2>A grade can arrive after the reply</h2><p>Lifty already links an applied proposal or an answered clarification to the original trainer trace. In this integration, the field is simply <code>grade</code>. Lifty can use the customer’s proposal decision as evidence for Pass or Fail.</p>
+<figure class="surface"><div class="kicker">Original reply · illustrative timeline</div><div class="trail" aria-label="Choose an event"><button data-step="0">Reply sent</button><span aria-hidden="true">›</span><button data-step="1">60s after selection</button><span aria-hidden="true">›</span><button data-step="2">Later follow-up</button></div>
+<div class="lanes"><div class="node"><strong>Lifty</strong><small id="action"></small></div><div class="arrow"><span id="wire"></span><i></i></div><div class="node"><strong>AutoEval</strong><small id="stored"></small></div></div>
+<table><thead><tr><th>Trace</th><th>Run status</th><th>Grade</th></tr></thead><tbody><tr><td><code>reply_42</code></td><td>OK</td><td id="current"></td></tr></tbody></table><figcaption id="caption" aria-live="polite"></figcaption></figure>
+<ul><li><b>Start the clock on selection.</b> Lifty saves a durable deadline after the customer applies the proposal. At the deadline a job checks whether that selection has received a follow-up. Silence alone, without selection, earns no pass.</li>
+<li><b>Keep the history.</b> A linked complaint appends a new grade to the original trace. The list shows Fail. The inspector shows the earlier provisional Pass and the reason for the revision.</li></ul>
+<details open><summary>How does Lifty know which reply?</summary>
+<ol class="sequence"><li><strong>When Lifty saves the reply</strong>, it stores the SDK trace reference in that assistant message’s metadata. For illustration, message <code>m17</code> belongs to trace <code>reply_42</code>. Only Lifty needs the message ID.</li>
+<li><strong>When the customer selects an option</strong>, Lifty’s existing confirmation request identifies the message. Its clarification flow also carries a question ID. The backend looks up the corresponding reply for the authenticated user.</li>
+<li><strong>For a free-text complaint</strong>, add a reply-to link in Lifty. “Reply to this answer” on <code>m17</code> saves the new message with <code>replyTo = m17</code>. The backend verifies ownership and conversation membership, then reads the saved trace ID. A plain chat message with no reliable target leaves the earlier grade alone.</li>
+<li><strong>Only then classify</strong> the linked pair. “Wrong workout” can explain a Fail. “That workout was hard, thanks!” contains negative-sounding words without rejecting the reply. If the classifier is uncertain, record no new grade. The new message can have its own trace.</li></ol></details>
+<details><summary>What goes into a Lifty trace?</summary>
+<table><thead><tr><th>Part</th><th>Example for one turn</th></tr></thead><tbody>
+<tr><td>User prompt</td><td>“Log the bike workout I selected.”</td></tr><tr><td>Agent and tools</td><td>Trainer → read selected plan → propose session. Store tool names, selected arguments/results and status.</td></tr><tr><td>Optional explanation</td><td>A brief rationale the agent explicitly provides, such as “Used the selected plan.” Omit it when unavailable. Hidden chain-of-thought is outside the trace format.</td></tr><tr><td>Final response</td><td>“Here’s the run to log.” A completed response can receive a Fail.</td></tr></tbody></table>
+<p><b>Existing metrics.</b> Lifty declares latency in milliseconds, model requests, provider attempts, record reads, proposed changes, reported exercises, rejected reply attempts and cost in USD. Its current integration sends unknown cost as null. These help debug slow or expensive runs. A minimal trace needs none of them to receive a grade. Capture selected text and tool evidence through the content schema. Keep counters optional.</p>
+</details></section>
+
+<section id="display" hidden><h2>One compact Grade column</h2><p>Add <b>Grade</b> beside <b>Status</b> in the application trace list. Keep checks and metrics in their existing columns. The example shows the primary client grade.</p>
+<div class="surface"><div class="controls"><label for="shape">Grade shape</label><select id="shape"><option>Boolean</option><option>One boolean field</option><option>Number</option><option>Category</option><option>Multi-select</option><option>Structured JSON</option><option>Empty selection</option><option>Ungraded</option></select></div>
+<table><thead><tr><th>Trace</th><th>Status</th><th>Grade</th><th>Source</th></tr></thead><tbody><tr><td><code>reply_42</code></td><td>OK</td><td id="cell"></td><td>Production</td></tr></tbody></table>
+<details id="inspector"><summary>Inspect grade value</summary><pre id="raw"></pre></details></div>
+<ul><li><b>Booleans.</b> For a boolean grade, true means Pass and false means Fail. The design preview also shows a single named boolean as its field and Yes/No, so <code>timed_out: true</code> reads correctly.</li><li><b>Labels and numbers.</b> Use declared choices, show two chips plus an overflow count, and preserve zero and empty selections. Numeric grades display their stored value.</li><li><b>Other JSON.</b> Show “View JSON” and open the authorized inspector. Bound the value size and depth, render escaped text, and put content-bearing fields under instance content-access and retention settings.</li><li><b>Missing evidence.</b> Ungraded is distinct from false, zero, and an empty array. A trace can stay Ungraded indefinitely or enter a later review batch. Show the source beside a recorded grade.</li></ul></section>
+
+<section id="contract" hidden><h2>Grade a trace with its ID and a value</h2>
+<p>Lifty can send Pass or Fail, or simply finish the trace. Calling <code>grade()</code> is optional. AutoEval shows Ungraded until someone records a grade.</p>
+<h3>1. Set up the SDK once on Lifty’s server</h3>
+<pre>const autoeval = createTraceClient(trainerTraceConfig);</pre>
+<ul><li><code>autoeval</code> is the SDK client. It reads the instance address and app key from Lifty’s backend environment. One client can record many replies.</li>
+<li>Every trace starts <b>Ungraded</b>. The default grade accepts true or false. For another shape, supply a <code>grade</code> definition at initialization. Lifty needs no custom name or rule declaration.</li></ul>
+<details><summary>What is in trainerTraceConfig?</summary>
+<p>This is an ordinary object assembled by Lifty. The examples use the SDK’s existing field names.</p>
+<table><thead><tr><th>Field</th><th>What it tells AutoEval</th></tr></thead><tbody>
+<tr><td><code>policy</code></td><td>Optional for summary-only traces. The SDK supplies an empty schema when omitted. Lifty’s <code>trainerPolicy</code> declares which fields it sends, their types and which fields contain conversation or workout content.</td></tr>
+<tr><td><code>experiment</code></td><td>The configuration that produced the answer, including the code revision, prompt, model and settings. In an offline evaluation it also identifies the dataset and run.</td></tr>
+<tr><td><code>redactorVersion</code></td><td>A redactor is Lifty’s code that removes or masks identifying details from selected content. For example, it replaces an email address with “[redacted]”. This field identifies the revision of that code. The current SDK requires it to send content.</td></tr></tbody></table>
+<p>The old <code>createCaptureFromEnv</code> name means “create a trace recorder using environment settings.” The <code>createTraceClient</code> entry point lets Lifty decide when to send data. Legacy clients keep their existing grant and withdrawal behavior.</p></details>
+<h3>2. Save the trace ID with the assistant’s reply</h3>
+<pre>const trace = autoeval.begin();
+const reply = await trainer.answer(prompt);
+const savedReply = await messages.save({
+  text: reply.text,
+  traceId: trace.reference?.traceId
+});
+after(() => trace.end({
+  content: { conversation: selectedMessages }
+}));</pre>
+<p><code>trace</code> is a recorder for this one request. <code>begin()</code> creates its ID locally. <code>messages.save</code> represents Lifty’s database write and returns the saved message. <code>after</code> schedules the SDK send after the customer receives the response. The real trainer stores the reference in message metadata. The selected conversation must match its declared schema.</p>
+<h3>3. Grade that same reply later</h3>
+<pre>const target = await messages.findForUser(user, replyTo);
+if (target?.traceId) {
+  await autoeval.grade({
+    traceId: target.traceId,
+    value: false,
+    reason: "Customer selected a different workout."
+  });
+}</pre>
+<p><code>messages</code> and <code>trainer</code> stand for Lifty’s own storage and agent code. The later handler reloads the reply from storage. A missing or undelivered trace stays ungraded. <code>reason</code> is optional explanatory text. Lifty owns the implementation of its timer and classifier.</p>
+<details><summary>HTTP request, retries and late arrivals</summary>
+<pre>POST /v2/traces/{traceId}/grades
+{ "value": false, "reason": "Wrong workout." }</pre>
+<ul><li>Only the value is required in the body. Optionally send <code>occurredAt</code> (Unix milliseconds) from the original business event. Use it for delayed jobs. Otherwise the first submission time applies.</li><li>The app key identifies Lifty. The server uses the trace ID in the path to find the grade definition saved at capture. It validates the value and stores the source, decision ID and event time. The client sends no policy version, grant, definition ID or sequence.</li>
+<li>Pick the current decision by event time, breaking ties by server acceptance order. A delayed 60-second timer uses its deadline as event time and rechecks the linked reply before emitting. A late delivery cannot displace a later-dated complaint.</li>
+<li>The SDK can reuse an idempotency key for the same submission. A durable job can use its stored event UUID in the optional <code>Idempotency-Key</code> header across process restarts. Identical replays return the original receipt. Reuse with different content returns 409. Unknown traces and wrong value shapes are rejected.</li><li>Reasons are optional diagnostic content. The server stores them only when the original trace has a redactor version, conversation content is enabled, and the content retention window is still open. Structured JSON uses its declared field’s category. Allow the client key to write only its own app’s grades.</li></ul></details>
+<details><summary>Declare another grade shape</summary><p>Keep the same grade call. Pass the definition as <code>grade</code> at initialization. Each example shows the shape-specific fields.</p><pre>// One or several labels from a fixed vocabulary
+{ kind: "category", choices: ["resolved", "partial"] }
+{ kind: "multi_select", choices: ["resolved", "on_topic", "concise"] }
+
+// A numeric grade
+{ kind: "number" }
+
+// JSON validated against a field in trainerTraceConfig.policy.content
+{ kind: "json", contentField: "review" }</pre><p>Multi-select accepts unique declared choices. For JSON, declare the field’s shape and category in the trace policy. The trace list shows “Structured JSON”. An admin can load the value in the trace inspector.</p></details>
+</section>
+<section id="versions" hidden><h2>Which version changes?</h2><p>Keep the <b>agent version</b> and the <b>grade definition</b> separate. Every trace identifies the agent that answered. A grade also identifies the definition used to grade it. You can then change the agent and measure it with the same yardstick.</p>
+<figure class="surface"><div class="controls"><label for="change">What happened?</label><select id="change"><option>A customer complained</option><option>Lifty changed its prompt</option><option>Pass now requires 120 seconds</option><option>Grade became multi-select</option><option>A benchmark case was added</option></select></div>
+<table><thead><tr><th>Version or value</th><th>Before</th><th>After</th></tr></thead><tbody id="diff"></tbody></table><figcaption id="diffNote" aria-live="polite"></figcaption></figure>
+<ul><li><b>First definition.</b> Lifty starts with a boolean grade at v1. Each trace pins its grade shape. The server calculates a definition ID from the shape and version, so booleans and labels stay distinguishable even when both clients use the default version number.</li><li><b>Same shape, different meaning.</b> If Pass changes from 60 to 120 seconds, Lifty declares <code>grade: { kind: "boolean", version: 2 }</code>. This gives the revised grading rule a new identity. No rule expression or evaluator hash is required.</li><li><b>Late feedback after a deployment.</b> The old trace keeps v1. Save the rule version with Lifty’s delayed job and apply it when grading the reply, or leave it ungraded if the old rule is unavailable. The backend can validate the value’s type. Only the app can verify its private rule.</li></ul>
+<details><summary>How the existing SDK calculates identity</summary><p>A <b>fingerprint</b> is a hash, a short identifier calculated from the contents. Both SDK and server normalize the fields first. Resending the same declaration produces the same ID.</p>
+<table><thead><tr><th>Existing term</th><th>Example of a change</th></tr></thead><tbody>
+<tr><td>Application</td><td>Lifty keeps its application ID across releases and key rotations.</td></tr><tr><td><code>policyVersion</code></td><td>Adding a trace field changes the trace-schema fingerprint.</td></tr><tr><td><code>experimentId</code></td><td>Includes code revision, prompt/config/graph hashes, model roles, policy version, source, mode and dataset/run references. A new trainer prompt changes it. It identifies a broader configuration than the code commit alone.</td></tr>
+<tr><td>Dataset version</td><td>Live observed traces have no dataset ID. Controlled SDK runs use synthetic source, a finalized dataset hash and a run UUID. In the graph workbench an evaluation pins finalized dataset, graph and prompt versions.</td></tr>
+<tr><td>SDK release</td><td>Tracks the library you installed. With identical declarations, a package upgrade alone preserves the policy and experiment fingerprints.</td></tr></tbody></table>
+<p>The client-grade implementation pins its definition to the trace. A future benchmark would freeze a grading rubric with the dataset. A changed grader need not create a new agent version. Shipping changed grading code in the same build can still change the existing experiment ID through its code revision.</p></details></section>
+<section id="reuse" hidden><h2>Turn a graded trace into a reusable case</h2><p>A production Fail tells you where to look. A reusable test also needs a prompt, enough starting context to replay it, and a way to recognize a good answer from any candidate agent.</p>
+<ol class="sequence"><li><strong>Observe.</strong> Lifty logged a run after the customer selected a bike workout. The linked complaint changed the trace grade to Fail. Preserve that decision, its source, definition and time as provenance.</li>
+<li><strong>Review and freeze.</strong> A reviewer creates a synthetic fixture with the bike plan selected, the prompt “Log my selection,” and a tool stub that returns the plan. Define the assertion “the proposed session uses the selected bike plan.” Freeze this case and rubric in a dataset version. Keep the complaint and expected answer out of candidate inputs.</li>
+<li><strong>Benchmark.</strong> Run Lifty before and after a prompt change, or run a second compatible agent through an adapter. Give each the same cases, starting state, tools and grading rubric. Compute fresh grades for their outputs. Report pass count, case count and missing grades. Failed or partial executions count as failures under the existing benchmark convention.</li>
+<li><strong>Train.</strong> For supervised fine-tuning, export the prompt, relevant tool context and a reviewer-approved correct assistant response. For preference tuning, pair a preferred correction with the rejected reply for the same input. A boolean grade alone supplies neither target. Reserve a held-out benchmark split and keep related conversations together to avoid leakage.</li></ol>
+<details><summary>What the standardized Grade field buys us</summary><p>Every graded trace can expose the same envelope: trace ID, definition ID and version, typed value, source and decision time. The UI renders that value. Dataset review selects a specific decision so later feedback cannot silently change a frozen case.</p>
+<p>Two apps can both say “Pass” while measuring different things. Cross-system benchmarking uses one shared task and rubric. Within a report, aggregate matching definitions and sources. Complex JSON can support an assertion after a reviewer chooses a field or comparator.</p>
+<p>A clean 60-second window is live customer feedback. Replaying a prompt cannot reproduce that customer’s reaction. Here the offline assertion tests the underlying workout-selection error. The same reviewed training examples can be exported for the operator’s model or a customer’s model in its required format.</p></details>
+<p class="sub">AutoEval already has finalized datasets, evaluation runs and training workflows. Promoting a graded SDK trace into a portable case and exporting its reviewed labels are proposed connections between those workflows.</p></section>
+<section id="judge" hidden><h2>Grade a batch when you’re ready</h2><p><b>Proposed batch workflow.</b> Lifty can already send a trace and leave its grade blank. In the planned operator UI, filter the trace list to <b>Ungraded</b>, select the replies to review and choose how to grade them.</p>
+<div class="surface"><div class="kicker">Example · three ungraded replies</div><div class="controls"><label for="judgeMode">Grading workflow</label><select id="judgeMode"><option>Leave ungraded</option><option>Run an LLM judge on this batch</option><option>Review this batch by hand</option><option>Judge new traces automatically</option></select></div><p id="judgeEffect" aria-live="polite"></p><table><thead><tr><th>Trace</th><th>Grade</th><th>Graded by</th></tr></thead><tbody id="batchRows"></tbody></table><small>SDK setting at capture</small><pre id="judgeCode"></pre></div>
+<ul><li><b>LLM batch.</b> An authorized operator picks an approved judge profile and rubric. AutoEval freezes the selected trace IDs and rubric version, checks evidence and budget, then queues the jobs. Retrying the batch skips completed decisions.</li>
+<li><b>Human batch.</b> One reviewer opens the selection as a queue, sees each conversation and chooses Pass, Fail or Skip. Each saved grade records its reviewer and rubric version. Skipped or unfinished traces stay Ungraded. The reviewer can resume later.</li>
+<li><b>Reporting.</b> If two of three replies receive a grade, report coverage as 2/3. Compute pass rate over the two graded replies. A queued job, an error or missing evidence leaves the trace eligible for future review.</li></ul><details><summary>How the hosted judge runs</summary><ol class="sequence"><li><strong>Operator → AutoEval.</strong> Configure a backend secret such as <code>OPENROUTER_API_KEY</code>. Approve a profile for this app with a provider, model, prompt/rubric, output definition, permitted input fields, budget and timeout. Reuse AutoEval’s provider registry.</li><li><strong>SDK → ingest.</strong> Pin the requested profile version on new traces. Defaults to off. Resolve the immutable profile digest and report disabled, unapproved or unavailable settings separately from capture success.</li><li><strong>AutoEval → worker.</strong> Enqueue one durable job per trace/profile digest when an operator starts a batch or a new trace requests automatic judging. Check operator-approved data categories for this provider, retention and spend limit before dispatch. Send only approved redacted evidence. A missing key or required input skips the call.</li><li><strong>Worker → provider → AutoEval.</strong> Request schema-constrained output where supported and validate locally. Persist a separate judge grade with the profile digest, requested/resolved model when known and evaluation time. A timeout or malformed response yields a job error and an unknown grade.</li></ol>
+</details><details><summary>Which grade appears in the list?</summary><p>A batch grades the selected grade, such as <code>grade v1</code>. If the trace has no definition yet, the operator selects one when creating the batch. Display its saved value with Client, Judge or Human as the source. Keep every decision in the inspector. A separate rubric like reply-fit gets its own grade. If another reviewer or the client fills the grade while the batch is running, skip that trace at save time. An explicit regrade can append a revision later.</p></details></section>
+
+<footer><details><summary>Implementation evidence &amp; research</summary><ul>
+<li>The current SDK declares metrics, checks and delayed outcomes. The backend independently computes policy and experiment hashes. <a href="https://github.com/devalparikh/auto-eval/blob/94223bce9e0fd958e324767ba0d15c0c45570858/packages/trace-feed/src/contract.js">SDK normalization</a> · <a href="https://github.com/devalparikh/auto-eval/blob/94223bce9e0fd958e324767ba0d15c0c45570858/backend/src/autoeval_api/services/application_feed.py">Feed service</a> · <a href="https://github.com/devalparikh/auto-eval/blob/94223bce9e0fd958e324767ba0d15c0c45570858/frontend/src/features/applications/observation-table.tsx">Trace columns</a></li>
+<li>Lifty already stores reply references and sends applied, dismissed, stale and clarification events. The timer and sentiment rule are proposed additions. <a href="https://github.com/devalparikh/deval-blog/blob/8c11c43294d0c45b7696e08b030633a8fc084809/src/app/api/fitness-app/trainer/route.ts">Lifty trainer route</a> · <a href="https://github.com/devalparikh/deval-blog/blob/8c11c43294d0c45b7696e08b030633a8fc084809/src/lib/fitness-app/autoeval/capture.ts">Lifty reply correlation</a></li>
+<li>Experiment is the standard term LangSmith uses for evaluating a target over a dataset. The current AutoEval SDK also uses it for configurations observed in production. <a href="https://docs.langchain.com/langsmith/evaluation-concepts">LangSmith evaluation concepts</a></li>
+<li>Langfuse uses named trace scores with optional typed configurations. Multi-select, JSON values and append-only revisions here are AutoEval design choices. <a href="https://langfuse.com/docs/evaluation/evaluation-methods/scores-via-sdk">Langfuse SDK scores</a></li>
+<li>OpenTelemetry ends span mutation when the span ends. A separate score record allows feedback to arrive later. <a href="https://opentelemetry.io/docs/specs/otel/trace/api/#end">OpenTelemetry span lifecycle</a></li>
+<li>OpenRouter supports schema-constrained responses on compatible endpoints. <a href="https://openrouter.ai/docs/guides/features/structured-outputs">OpenRouter structured outputs</a></li></ul></details></footer>
+</main><script>
+const byId = id => document.getElementById(id);
+const pages = [...document.querySelectorAll('[data-page]')];
+function showPage() {
+  const selected = pages.find(button => '#' + button.dataset.page === location.hash) || pages[0];
+  pages.forEach(button => {
+    const active = button === selected;
+    byId(button.dataset.page).hidden = !active;
+    if (active) button.setAttribute('aria-current','page');
+    else button.removeAttribute('aria-current');
+  });
+}
+pages.forEach(button => button.onclick = () => {
+  location.hash = button.dataset.page;
+  showPage();
+});
+window.addEventListener('hashchange', showPage);
+showPage();
+function badge(text, tone) {
+  const span = document.createElement('span');
+  span.className = tone; span.textContent = text; return span;
+}
+const stages = [
+  ['Save reply reference','run.end()','Trace accepted','Ungraded','Lifty sent a reply with a selectable proposal. AutoEval has the trace. No grade has been recorded. It can stay Ungraded.'],
+  ['Check linked replies','grade(true)','Decision 1','Pass','The customer selected the proposal. Sixty seconds later, Lifty finds no linked follow-up and records a provisional pass.'],
+  ['Classify follow-up','grade(false)','Decision 2','Fail','“That wasn’t the workout I picked.” Lifty links the complaint to reply_42 and classifies it as negative. Decision 2 supersedes the pass.']
+];
+function showStage(index) {
+  const [action, wire, stored, grade, caption] = stages[index];
+  for (const [key, value] of Object.entries({action, wire, stored, caption})) byId(key).textContent = value;
+  byId('current').replaceChildren(badge(grade, ['sub','good','bad'][index]));
+  document.querySelectorAll('[data-step]').forEach(button => button.setAttribute('aria-pressed', Number(button.dataset.step) === index));
+}
+document.querySelectorAll('[data-step]').forEach(button => button.onclick = () => showStage(Number(button.dataset.step)));
+showStage(1);
+const shapes = [
+  [false,['Fail']], [{timed_out:true},['Timed out · Yes']], [0,['0']],
+  ['partial',['partial']], [['resolved','on_topic','concise'],['resolved','on_topic','+1']],
+  [{fit:{grounded:true},confidence:0.82},['View JSON']], [[],['None selected']], [undefined,['Ungraded']]
+];
+function showShape() {
+  const index = byId('shape').selectedIndex;
+  const [value, labels] = shapes[index];
+  const cell = byId('cell');
+  cell.replaceChildren();
+  byId('inspector').open = false;
+  byId('raw').textContent = value === undefined ? 'No grade decision recorded.' : JSON.stringify(value,null,2);
+  labels.forEach(label => {
+    if (label === 'View JSON' || label === '+1') {
+      const button = document.createElement('button');
+      button.textContent = label;
+      button.onclick = () => { byId('inspector').open = true; byId('inspector').querySelector('summary').focus(); };
+      cell.append(button);
+    } else cell.append(badge(label, index === 0 ? 'bad' : index === 7 ? 'sub' : 'chip'));
+  });
+}
+byId('shape').onchange = showShape;
+showShape();
+function showJudge() {
+  const modes = [
+    ['llmJudge: false', 'All three replies stay Ungraded. Lifty can still submit a grade later.'],
+    ['llmJudge: false', 'The operator runs the approved judge on the selection. The third reply has too little evidence to grade.'],
+    ['llmJudge: false', 'The reviewer saves Pass on the first reply, Fail on the second and skips the third. The third stays Ungraded.'],
+    ['llmJudge: { profile: "reply-fit", version: 1 }', 'These three existing traces stay Ungraded. New traces request automatic judging when they arrive.']
+  ];
+  const mode = byId('judgeMode').selectedIndex;
+  const [config, description] = modes[mode];
+  const source = ['', 'Judge', 'Human', ''][mode];
+  const rows = byId('batchRows');
+  rows.replaceChildren();
+  ['reply_42', 'reply_43', 'reply_44'].forEach((id, index) => {
+    const row = rows.insertRow();
+    row.insertCell().textContent = id;
+    const graded = source && index < 2;
+    const value = graded ? ['Pass', 'Fail'][index] : 'Ungraded';
+    row.insertCell().append(badge(value, graded ? ['good', 'bad'][index] : 'sub'));
+    row.insertCell().textContent = graded ? source : '—';
+  });
+  byId('judgeCode').textContent = config;
+  byId('judgeEffect').textContent = description;
+}
+byId('judgeMode').onchange = showJudge;
+showJudge();
+const baseline = ['Lifty A', 'grade v1', 'Pass', 'Workout cases v1'];
+const changes = [
+  [2, 'Fail', 'New evidence revises the grade on the same trace. All version references stay fixed.'],
+  [0, 'Lifty B', 'A new trace uses the revised agent and the original rubric. Pass is illustrative. Each reply earns its own grade.'],
+  [1, 'grade v2', 'Future traces use the revised rule. The original trace and its v1 decision keep their meaning.'],
+  [1, 'grade v2', 'Future traces accept a list of labels. Keep v1 booleans in their original cohort.'],
+  [3, 'Workout cases v2', 'A reviewed fixture changes the frozen benchmark. Production traces have no dataset version.']
+];
+function showChange() {
+  const i = byId('change').selectedIndex;
+  const [field, next, note] = changes[i];
+  const body = byId('diff');
+  body.replaceChildren();
+  ['Agent configuration', 'Grade definition', 'Example grade', 'Benchmark dataset'].forEach((name, k) => {
+    const row = body.insertRow();
+    row.insertCell().textContent = name;
+    row.insertCell().textContent = baseline[k];
+    const cell = row.insertCell();
+    if (k === 2 && i === 3) cell.append(badge('["resolved"]','chip'));
+    else if (k === field) cell.append(badge(next, next === 'Fail' ? 'bad' : 'chip'));
+    else cell.textContent = baseline[k];
+  });
+  byId('diffNote').textContent = note;
+}
+byId('change').onchange = showChange;
+showChange();
+</script></body></html>

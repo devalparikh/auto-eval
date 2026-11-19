@@ -1,6 +1,8 @@
 """Operator administration and the single app-scoped SDK capture boundary."""
 
-from fastapi import APIRouter, Request
+from typing import Annotated
+
+from fastapi import APIRouter, Header, Request
 from sqlalchemy import select
 
 from autoeval_api.models import ApplicationKeyRecord, ApplicationRecord
@@ -253,5 +255,20 @@ def outcome(body: contract.Outcome, request: Request) -> dict:
         app = feed.key_resource(session, user)
         feed.purge(session)
         result = feed.outcome(session, app, body)
+        session.commit()
+        return result
+
+
+@router.post("/v2/traces/{trace_id}/grades", status_code=201)
+def grade_trace(
+    trace_id: contract.Id,
+    body: contract.GradeInput,
+    request: Request,
+    idempotency_key: Annotated[contract.Id | None, Header()] = None,
+) -> dict:
+    user = key_principal(request)
+    with request.app.state.session_factory() as session:
+        app = feed.key_resource(session, user)
+        result = feed.grade_trace(session, app, trace_id, body, idempotency_key)
         session.commit()
         return result

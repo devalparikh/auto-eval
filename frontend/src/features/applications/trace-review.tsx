@@ -5,7 +5,7 @@ import { LoadingState } from "@/components/states";
 import { InfoTip } from "@/components/info-tip";
 import { apiRequest } from "@/lib/api";
 import { formatDuration, shortId } from "@/lib/format";
-import { formatMetric, formatTimestamp, orderedChecks } from "./observation-feed";
+import { formatMetric, formatTimestamp, gradeLabel, orderedChecks } from "./observation-feed";
 import type { TraceDetail } from "./application-types";
 import styles from "./applications.module.css";
 
@@ -187,6 +187,10 @@ export function TraceReview({
               <dd>{trace.status}</dd>
             </div>
             <div>
+              <dt>Grade</dt>
+              <dd>{gradeLabel(detail.grades?.[0])}</dd>
+            </div>
+            <div>
               <dt>Started</dt>
               <dd>
                 {typeof trace.startedAt === "number"
@@ -272,6 +276,22 @@ export function TraceReview({
             <details>
               <summary>Coverage</summary>
               <pre>{JSON.stringify(trace.coverage, null, 2)}</pre>
+            </details>
+          ) : null}
+          {detail.grades?.length ? (
+            <details open>
+              <summary>Grade history ({detail.grades.length})</summary>
+              <ol>
+                {detail.grades.map(grade => (
+                  <li key={grade.id}>
+                    <strong>{gradeLabel(grade)}</strong> · {grade.source} · v{grade.version}
+                    {" · "}{formatTimestamp(grade.occurredAt)}
+                    {contentLoaded && detail.content["grade-" + grade.id] != null && (
+                      <pre>{JSON.stringify(detail.content["grade-" + grade.id], null, 2)}</pre>
+                    )}
+                  </li>
+                ))}
+              </ol>
             </details>
           ) : null}
           <details open>
