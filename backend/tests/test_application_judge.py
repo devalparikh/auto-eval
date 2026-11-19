@@ -319,6 +319,107 @@ def test_budget_limited_sdk_retry_survives_until_next_utc_window(judge, monkeypa
     assert admin.get(path.replace(trace["id"], item["id"])).json()["grades"][0]["value"] is True
 
 
+def test_stale_worker_cannot_remove_a_deferred_job(judge, monkeypatch):
+    from autoeval_api.api.routes import applications
+    from autoeval_api.models import JudgeRequestRecord
+    from autoeval_api.services import application_feed as feed_service
+    from autoeval_api.services import application_judge as service
+
+    admin, sdk, app, app_id, path, trace, calls, _ = judge
+    profiles = app.state.settings.judge_profiles
+    profiles[app_id] = profiles[app_id].model_copy(
+        update={"allow_sdk_requests": True, "daily_call_limit": 1}
+    )
+    now = (feed_service.now_ms() // 86_400_000 + 1) * 86_400_000
+    monkeypatch.setattr(feed_service, "now_ms", lambda: now)
+    assert admin.post(path + "/judge").json()["status"] == "graded"
+
+    async def queue_only(*args):
+        pass
+
+    monkeypatch.setattr(applications, "dispatch_after_capture", queue_only)
+    trace_id = str(uuid4())
+    item = {**trace, "id": trace_id, "llmJudge": True}
+    assert sdk.post("/v2/traces", json=item).json()["judgeRequest"] == "accepted"
+    factory = app.state.session_factory
+    first = service._claim_request(factory, app_id, trace_id, profiles)
+    now += service.RETRY_MS + 1
+    second = service._claim_request(factory, app_id, trace_id, profiles)
+    assert first and second and first != second
+    args = (factory, None, app_id, trace_id, profiles, app.state.provider_registry)
+    with pytest.raises(service.AdmissionDeferred) as stale:
+        service._prepare(*args, first)
+    assert stale.value.status_code == 409
+    with pytest.raises(service.AdmissionDeferred) as deferred:
+        service._prepare(*args, second)
+    assert deferred.value.status_code == 429
+    for claim_id in (first, second):
+        service._remove_request(factory, app_id, trace_id, claim_id)
+    with factory() as session:
+        job = session.get(JudgeRequestRecord, (app_id, trace_id))
+        assert job.claim_id is None and job.attempts == 0
+        assert job.ready_at == (now // 86_400_000 + 1) * 86_400_000
+        now = int(job.ready_at)
+    assert len(calls) == 1
+    asyncio.run(service.run_sdk_request(app.state, app_id, trace_id))
+    assert len(calls) == 2
+    (grade,) = admin.get(path.replace(trace["id"], trace_id)).json()["grades"]
+    assert grade["source"] == "judge"
+
+
+def test_cancelled_claim_preserves_last_inference_attempt(judge, monkeypatch):
+    from autoeval_api.models import JudgeRequestRecord
+    from autoeval_api.services import application_feed as feed_service
+    from autoeval_api.services import application_judge as service
+
+    admin, sdk, app, app_id, path, trace, calls, install = judge
+    profiles = app.state.settings.judge_profiles
+    profiles[app_id] = profiles[app_id].model_copy(
+        update={"allow_sdk_requests": True, "daily_call_limit": service.MAX_SDK_ATTEMPTS}
+    )
+    now = (feed_service.now_ms() // 86_400_000 + 1) * 86_400_000
+    monkeypatch.setattr(feed_service, "now_ms", lambda: now)
+    install(lambda: '{"grade":"invalid"}')
+    trace_id = str(uuid4())
+    item = {**trace, "id": trace_id, "llmJudge": True}
+    assert sdk.post("/v2/traces", json=item).json()["judgeRequest"] == "accepted"
+    for _ in range(1, service.MAX_SDK_ATTEMPTS - 1):
+        now += service.RETRY_MS + 1
+        asyncio.run(service.run_sdk_request(app.state, app_id, trace_id))
+
+    async def cancel_before_admission():
+        claimed = asyncio.Event()
+
+        async def wait_for_cancellation(*args, **kwargs):
+            claimed.set()
+            await asyncio.Future()
+
+        with monkeypatch.context() as patch:
+            patch.setattr(service, "judge_trace", wait_for_cancellation)
+            task = asyncio.create_task(service.run_sdk_request(app.state, app_id, trace_id))
+            try:
+                await asyncio.wait_for(claimed.wait(), timeout=8)
+            finally:
+                task.cancel()
+                with pytest.raises(asyncio.CancelledError):
+                    await task
+
+    now += service.RETRY_MS + 1
+    asyncio.run(cancel_before_admission())
+    with app.state.session_factory() as session:
+        job = session.get(JudgeRequestRecord, (app_id, trace_id))
+        assert job.claim_id and job.attempts == service.MAX_SDK_ATTEMPTS - 1
+        now = int(job.ready_at)
+    assert len(calls) == service.MAX_SDK_ATTEMPTS - 1
+    install(lambda: '{"grade":true}')
+    asyncio.run(service.run_sdk_request(app.state, app_id, trace_id))
+    assert len(calls) == service.MAX_SDK_ATTEMPTS
+    (grade,) = admin.get(path.replace(trace["id"], trace_id)).json()["grades"]
+    assert grade["value"] is True
+    with app.state.session_factory() as session:
+        assert session.get(JudgeRequestRecord, (app_id, trace_id)) is None
+
+
 @pytest.mark.parametrize("other_app", [False, True])
 def test_active_operator_lease_bounds_operator_and_sdk_admission(judge, monkeypatch, other_app):
     from test_application_capture import experiment, policy

@@ -570,6 +570,7 @@ class JudgeRequestRecord(Base):
     trace_id: Mapped[str] = mapped_column(String(36), primary_key=True)
     profile_id: Mapped[str] = mapped_column(String(64))
     ready_at: Mapped[float] = mapped_column(Float, index=True)
+    claim_id: Mapped[str | None] = mapped_column(String(36))
     attempts: Mapped[int] = mapped_column(Integer, default=0)
 
 

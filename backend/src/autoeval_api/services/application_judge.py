@@ -124,30 +124,32 @@ def sdk_profile_id(profile):
     return None
 
 
-def _judge_application(session, principal, app_id, trace_id, sdk_attempt, profile):
-    if sdk_attempt is None:
+def _judge_application(session, principal, app_id, trace_id, sdk_claim, profile):
+    if sdk_claim is None:
         return feed.resource(session, principal, app_id, write=True)
     # A server worker can act only on an admitted request for this app and trace.
     app = feed.lock_application(session, app_id)
     job = session.get(JudgeRequestRecord, (app_id, trace_id))
-    if job is None or job.attempts != sdk_attempt or job.profile_id != sdk_profile_id(profile):
+    if job is None or job.claim_id != sdk_claim or job.ready_at <= feed.now_ms():
+        raise AdmissionDeferred(409, "SDK judge claim expired")
+    if job.profile_id != sdk_profile_id(profile):
         raise HTTPException(403, "SDK judge request unavailable")
     return app
 
 
-def _defer(session, app_id, trace_id, sdk_attempt, ready_at, status, message):
-    if sdk_attempt is not None:
+def _defer(session, app_id, trace_id, sdk_claim, ready_at, status, message):
+    if sdk_claim is not None:
         job = session.get(JudgeRequestRecord, (app_id, trace_id))
         job.ready_at = ready_at
-        job.attempts -= 1  # The claim did not dispatch a provider call.
+        job.claim_id = None
         session.commit()
     raise AdmissionDeferred(status, message)
 
 
-def _prepare(factory, principal, app_id, trace_id, profiles, registry, sdk_attempt):
+def _prepare(factory, principal, app_id, trace_id, profiles, registry, sdk_claim):
     with factory() as session:
         profile = profiles.get(app_id)
-        app = _judge_application(session, principal, app_id, trace_id, sdk_attempt, profile)
+        app = _judge_application(session, principal, app_id, trace_id, sdk_claim, profile)
         if profile is None:
             raise HTTPException(409, "No judge profile configured for this application")
         evidence = _evidence(session, app, trace_id, profile)
@@ -173,7 +175,7 @@ def _prepare(factory, principal, app_id, trace_id, profiles, registry, sdk_attem
                 session,
                 app_id,
                 trace_id,
-                sdk_attempt,
+                sdk_claim,
                 lease.expires,
                 409,
                 "Judging is already in progress",
@@ -188,7 +190,7 @@ def _prepare(factory, principal, app_id, trace_id, profiles, registry, sdk_attem
                 session,
                 app_id,
                 trace_id,
-                sdk_attempt,
+                sdk_claim,
                 now + 5_000,
                 429,
                 "Judge concurrency limit reached",
@@ -207,12 +209,17 @@ def _prepare(factory, principal, app_id, trace_id, profiles, registry, sdk_attem
                 session,
                 app_id,
                 trace_id,
-                sdk_attempt,
+                sdk_claim,
                 tomorrow,
                 429,
                 "Application judge call limit reached for today",
             )
         reservation.commit()
+        if sdk_claim is not None:
+            # Count only admitted calls, atomically with the budget and provider lease.
+            job = session.get(JudgeRequestRecord, (app_id, trace_id))
+            job.attempts += 1
+            job.ready_at = feed.now_ms() + RETRY_MS
         attempt = str(uuid4())
         lease_expires = feed.now_ms() + (TIMEOUT_SECONDS + 30) * 1000
         session.add(
@@ -227,10 +234,10 @@ def _prepare(factory, principal, app_id, trace_id, profiles, registry, sdk_attem
         return Pending(attempt, lease_expires, evidence, profile.model_copy(deep=True), provider)
 
 
-def _finish(factory, principal, app_id, trace_id, pending, verdict, sdk_attempt, profiles):
+def _finish(factory, principal, app_id, trace_id, pending, verdict, sdk_claim, profiles):
     with factory() as session:
         app = _judge_application(
-            session, principal, app_id, trace_id, sdk_attempt, profiles.get(app_id)
+            session, principal, app_id, trace_id, sdk_claim, profiles.get(app_id)
         )
         evidence = _evidence(session, app, trace_id, pending.profile)
         if isinstance(evidence, contract.JudgeResult):
@@ -270,10 +277,10 @@ def _release(factory, app_id, trace_id, attempt):
 
 
 @contextmanager
-def _authorize_dispatch(factory, principal, app_id, trace_id, pending, profiles, sdk_attempt):
+def _authorize_dispatch(factory, principal, app_id, trace_id, pending, profiles, sdk_claim):
     with factory() as session:
         current = profiles.get(app_id)
-        app = _judge_application(session, principal, app_id, trace_id, sdk_attempt, current)
+        app = _judge_application(session, principal, app_id, trace_id, sdk_claim, current)
         if current is None or profile_snapshot(current) != profile_snapshot(pending.profile):
             raise HTTPException(403, "Judge profile changed")
         lease = session.get(JudgeLeaseRecord, (app_id, trace_id))
@@ -291,8 +298,8 @@ def _authorize_dispatch(factory, principal, app_id, trace_id, pending, profiles,
         yield remaining
 
 
-def _run_judge(factory, principal, app_id, trace_id, profiles, registry, sdk_attempt):
-    pending = _prepare(factory, principal, app_id, trace_id, profiles, registry, sdk_attempt)
+def _run_judge(factory, principal, app_id, trace_id, profiles, registry, sdk_claim):
+    pending = _prepare(factory, principal, app_id, trace_id, profiles, registry, sdk_claim)
     if isinstance(pending, contract.JudgeResult):
         return pending
 
@@ -305,7 +312,7 @@ def _run_judge(factory, principal, app_id, trace_id, profiles, registry, sdk_att
             state={"evidence": pending.evidence.fields},
             response_schema=Verdict.model_json_schema(),
             body_guard=lambda: _authorize_dispatch(
-                factory, principal, app_id, trace_id, pending, profiles, sdk_attempt
+                factory, principal, app_id, trace_id, pending, profiles, sdk_claim
             ),
         )
 
@@ -329,18 +336,14 @@ def _run_judge(factory, principal, app_id, trace_id, profiles, registry, sdk_att
             raise HTTPException(504, "Judge timed out") from None
         except Exception:
             raise HTTPException(502, "Judge did not return a valid verdict") from None
-        return _finish(
-            factory, principal, app_id, trace_id, pending, verdict, sdk_attempt, profiles
-        )
+        return _finish(factory, principal, app_id, trace_id, pending, verdict, sdk_claim, profiles)
     finally:
         _release(factory, app_id, trace_id, pending.attempt)
 
 
-async def judge_trace(
-    factory, principal, app_id, trace_id, profiles, registry, *, sdk_attempt=None
-):
+async def judge_trace(factory, principal, app_id, trace_id, profiles, registry, *, sdk_claim=None):
     return await asyncio.to_thread(
-        _run_judge, factory, principal, app_id, trace_id, profiles, registry, sdk_attempt
+        _run_judge, factory, principal, app_id, trace_id, profiles, registry, sdk_claim
     )
 
 
@@ -362,22 +365,23 @@ def _claim_request(factory, app_id, trace_id, profiles):
             session.delete(job)
             session.commit()
             return None
-        job.attempts += 1
-        attempt = job.attempts
+        claim_id = str(uuid4())
+        job.claim_id = claim_id
         job.ready_at = feed.now_ms() + RETRY_MS
         session.commit()
-        return attempt
+        return claim_id
 
 
-def _remove_request(factory, app_id, trace_id, attempt):
+def _remove_request(factory, app_id, trace_id, claim_id, *, exhausted_only=False):
+    query = delete(JudgeRequestRecord).where(
+        JudgeRequestRecord.application_id == app_id,
+        JudgeRequestRecord.trace_id == trace_id,
+        JudgeRequestRecord.claim_id == claim_id,
+    )
+    if exhausted_only:
+        query = query.where(JudgeRequestRecord.attempts >= MAX_SDK_ATTEMPTS)
     with factory() as session:
-        session.execute(
-            delete(JudgeRequestRecord).where(
-                JudgeRequestRecord.application_id == app_id,
-                JudgeRequestRecord.trace_id == trace_id,
-                JudgeRequestRecord.attempts == attempt,
-            )
-        )
+        session.execute(query)
         session.commit()
 
 
@@ -385,9 +389,10 @@ async def run_sdk_request(state, app_id, trace_id):
     factory = state.session_factory
     profiles = state.settings.judge_profiles
     try:
-        attempt = await asyncio.to_thread(_claim_request, factory, app_id, trace_id, profiles)
-        if attempt is None:
+        claim_id = await asyncio.to_thread(_claim_request, factory, app_id, trace_id, profiles)
+        if claim_id is None:
             return
+        retryable = False
         try:
             await judge_trace(
                 factory,
@@ -396,14 +401,15 @@ async def run_sdk_request(state, app_id, trace_id):
                 trace_id,
                 profiles,
                 state.provider_registry,
-                sdk_attempt=attempt,
+                sdk_claim=claim_id,
             )
         except AdmissionDeferred:
             return
         except HTTPException as error:
-            if error.status_code in (409, 502, 503, 504) and attempt < MAX_SDK_ATTEMPTS:
-                return  # The stored deadline makes this eligible for recovery.
-        await asyncio.to_thread(_remove_request, factory, app_id, trace_id, attempt)
+            retryable = error.status_code in (409, 502, 503, 504)
+        await asyncio.to_thread(
+            _remove_request, factory, app_id, trace_id, claim_id, exhausted_only=retryable
+        )
     except Exception:
         # No trace, credential, evidence or provider exception goes to server logs.
         logging.getLogger(__name__).warning("SDK judge request interrupted; recovery will retry")

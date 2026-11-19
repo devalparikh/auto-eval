@@ -190,7 +190,7 @@ An instance admin can ask a configured model to grade a retained trace. For exam
 Lifty can leave a reply **Ungraded** and an operator can grade it later using its
 captured conversation. Lifty's own pass/fail rule still runs in Lifty.
 
-1. Apply schema migration 23 with the usual runtime-role grants. Put
+1. Apply schema migration 24 with the usual runtime-role grants. Put
    `OPENROUTER_API_KEY` in the backend environment, or use an enabled local LM Studio model.
 2. Set `AUTOEVAL_JUDGE_PROFILES` on the backend. Replace the example ID with
    Lifty's application ID. Each `evidence` entry maps a captured field name to
@@ -244,9 +244,10 @@ receipt immediately. For flagged traces, `judgeRequest` reports `accepted`,
 receipt. Only the instance sends the permitted evidence to the provider.
 
 AutoEval starts the job after sending the response. While the API is running,
-its recovery loop picks up interrupted jobs and retries temporary failures up to
-three total attempts. At the daily limit an accepted SDK request stays queued
-until the next UTC day. Waiting for budget or capacity uses no retry attempt.
+its recovery loop picks up interrupted jobs. A job gets up to three inference
+attempts. An attempt counts when AutoEval reserves a provider slot and daily
+budget. If a worker stops before then, its replacement still has that attempt.
+At the daily limit an accepted SDK request stays queued until the next UTC day.
 A job in retry backoff holds no provider slot.
 Each subsequent capture can also recover one pending request for the same app,
 including on hosts that suspend idle workers. The worker checks the pinned
