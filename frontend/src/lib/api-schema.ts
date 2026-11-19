@@ -4177,7 +4177,9 @@ export interface operations {
     };
     detail_api_applications__app_id__traces__trace_id__get: {
         parameters: {
-            query?: never;
+            query?: {
+                before_grade?: string | null;
+            };
             header?: never;
             path: {
                 app_id: string;
@@ -4249,7 +4251,9 @@ export interface operations {
     };
     content_api_applications__app_id__traces__trace_id__content_get: {
         parameters: {
-            query?: never;
+            query?: {
+                before_grade?: string | null;
+            };
             header?: never;
             path: {
                 app_id: string;

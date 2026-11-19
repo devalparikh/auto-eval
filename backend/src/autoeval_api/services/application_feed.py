@@ -253,19 +253,26 @@ def key_resource(session, principal):
     return app
 
 
+FEED_RECORD_LIMIT = 10000
+GRADE_PAGE_SIZE = 25
+
+
 def immutable(session, app_id, kind, id, body, **kwargs):
     prior = session.get(FeedObjectRecord, (app_id, kind, id))
     if prior:
         if prior.body != body or prior.revoked:
             raise HTTPException(409, "Immutable record conflict")
         return prior
-    count = session.scalar(
+    quota = (
         select(func.count())
         .select_from(FeedObjectRecord)
         .where(FeedObjectRecord.application_id == app_id, FeedObjectRecord.kind == kind)
     )
-    # Erasure receipts must outlive data without imposing a lifetime capture ceiling.
-    if kind != "receipt2" and count >= 10000:
+    if kind in ("assessment2", "content2"):
+        # Grade IDs have a reserved prefix. Other evidence uses UUIDs.
+        grade_record = FeedObjectRecord.id.startswith("grade-")
+        quota = quota.where(grade_record if id.startswith("grade-") else ~grade_record)
+    if kind != "receipt2" and session.scalar(quota) >= FEED_RECORD_LIMIT:
         raise HTTPException(429, "Application storage limit reached")
     row = FeedObjectRecord(application_id=app_id, kind=kind, id=id, body=body, **kwargs)
     session.add(row)
@@ -702,7 +709,11 @@ def grade_trace(session, app, trace_id, body, event_id):
     except (ValueError, RecursionError, UnicodeError):
         raise HTTPException(422, "Invalid grade JSON") from None
     event_id = event_id or str(uuid4())
-    digest = fingerprint("grade-event", [trace_id, body.model_dump()])
+    # Private fields never affect an ingest-key-visible receipt. Replays leave
+    # the original private content untouched, including after expiry or erasure.
+    digest = fingerprint(
+        "grade-event", [trace_id, body.occurredAt, None if kind == "json" else value]
+    )
     record_id = "grade-" + event_id
     prior = session.get(FeedObjectRecord, (app.id, "assessment2", record_id))
     if prior:
@@ -839,35 +850,47 @@ def observations(session, app_id):
     return [{**trace, "grade": grades.get(trace["id"])} for trace in traces]
 
 
-def detail(session, app, trace_id, *, content=False):
+def detail(session, app, trace_id, *, content=False, before_grade=None):
     row = session.get(FeedObjectRecord, (app.id, "trace2", trace_id))
     if not alive(row):
         raise HTTPException(404, "Trace unavailable")
-    children = session.scalars(
-        select(FeedObjectRecord).where(
-            FeedObjectRecord.application_id == app.id,
-            FeedObjectRecord.parent_id == trace_id,
-            active_clause(),
+    children = select(FeedObjectRecord).where(
+        FeedObjectRecord.application_id == app.id,
+        FeedObjectRecord.parent_id == trace_id,
+        active_clause(),
+    )
+    is_grade = FeedObjectRecord.id.startswith("grade-")
+    event_time = FeedObjectRecord.body["occurredAt"].as_float()
+    revision = FeedObjectRecord.body["revision"].as_integer()
+    history = children.where(FeedObjectRecord.kind == "assessment2", is_grade)
+    if before_grade:
+        cursor = session.get(FeedObjectRecord, (app.id, "assessment2", "grade-" + before_grade))
+        if not alive(cursor) or cursor.parent_id != trace_id:
+            raise HTTPException(400, "Invalid grade cursor")
+        at = cursor.body["occurredAt"]
+        history = history.where(
+            or_(event_time < at, (event_time == at) & (revision < cursor.body["revision"]))
         )
+    page = session.scalars(
+        history.order_by(event_time.desc(), revision.desc()).limit(GRADE_PAGE_SIZE + 1)
     ).all()
+    grades = page[:GRADE_PAGE_SIZE]
+    allowed = FeedObjectRecord.kind.in_(("outcome2", "assessment2")) & ~is_grade
+    if before_grade:
+        allowed = False
+    if content:
+        content_ids = FeedObjectRecord.id.in_([grade.id for grade in grades])
+        if not before_grade:
+            content_ids = or_(content_ids, ~is_grade)
+        allowed = or_(allowed, (FeedObjectRecord.kind == "content2") & content_ids)
+    items = session.scalars(children.where(allowed)).all()
     return {
         "trace": row.body,
-        "grades": sorted(
-            (
-                item.body
-                for item in children
-                if item.kind == "assessment2" and item.body.get("type") == "grade"
-            ),
-            key=lambda grade: (grade["occurredAt"], grade["revision"]),
-            reverse=True,
-        ),
-        "outcomes": [item.body for item in children if item.kind == "outcome2"],
-        "assessments": [
-            item.body
-            for item in children
-            if item.kind == "assessment2" and item.body.get("type") != "grade"
-        ],
-        "content": {item.id: item.body for item in children if content and item.kind == "content2"},
+        "grades": [item.body for item in grades],
+        "nextGrade": grades[-1].body["id"] if len(page) > GRADE_PAGE_SIZE else None,
+        "outcomes": [item.body for item in items if item.kind == "outcome2"],
+        "assessments": [item.body for item in items if item.kind == "assessment2"],
+        "content": {item.id: item.body for item in items if item.kind == "content2"},
     }
 
 

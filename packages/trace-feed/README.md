@@ -68,7 +68,7 @@ Omit the call to leave the trace Ungraded. For a summary-only trace,
 `createTraceClient({ experiment })` needs no policy or metric definitions. Boolean is the default. For delayed
 feedback, pass `occurredAt` in Unix milliseconds. For a retryable job, reuse its
 UUID as `id`. A later decision appends a revision. The Grade column shows the
-latest event by occurrence time. Open it to see history.
+latest event by occurrence time. Open it to see history, with 25 decisions per page. Reusing an event ID leaves its original private reason or JSON content untouched, including after erasure.
 
 Other applications can set `grade` when calling `createTraceClient`:
 

@@ -19,6 +19,7 @@ export type AppKey = {
   revoked: boolean;
 };
 export type TraceDetail = {
+  nextGrade?: string | null;
   grades?: import("./observation-feed").TraceGrade[];
   trace: Observation;
   outcomes: (components["schemas"]["Outcome"] & {

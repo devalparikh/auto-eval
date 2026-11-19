@@ -92,6 +92,25 @@ export function TraceReview({
       if (mounted.current) setBusy(false);
     }
   }
+  async function loadOlderGrades() {
+    if (!detail?.nextGrade || pending.current) return;
+    pending.current = true;
+    setBusy(true);
+    setError("");
+    try {
+      const route = contentLoaded ? path + "/content" : path;
+      const page = await apiRequest<TraceDetail>(route + "?before_grade=" + encodeURIComponent(detail.nextGrade));
+      if (mounted.current) setDetail(current => current && ({
+        ...current, grades: [...(current.grades ?? []), ...(page.grades ?? [])],
+        nextGrade: page.nextGrade, content: { ...current.content, ...page.content },
+      }));
+    } catch {
+      if (mounted.current) setError("Older grades could not be loaded.");
+    } finally {
+      pending.current = false;
+      if (mounted.current) setBusy(false);
+    }
+  }
   async function assess() {
     if (pending.current) return;
     pending.current = true;
@@ -292,6 +311,10 @@ export function TraceReview({
                   </li>
                 ))}
               </ol>
+              {detail.nextGrade && (
+                <button type="button" className="app-button secondary" disabled={busy}
+                  onClick={() => void loadOlderGrades()}>Load older grades</button>
+              )}
             </details>
           ) : null}
           <details open>

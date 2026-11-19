@@ -6996,6 +6996,23 @@
               "title": "Trace Id",
               "type": "string"
             }
+          },
+          {
+            "in": "query",
+            "name": "before_grade",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Before Grade"
+            }
           }
         ],
         "responses": {
@@ -7115,6 +7132,23 @@
               "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
               "title": "Trace Id",
               "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "before_grade",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Before Grade"
             }
           }
         ],
